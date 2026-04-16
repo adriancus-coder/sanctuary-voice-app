@@ -118,9 +118,12 @@ function defaultDisplayState() {
     mode: 'auto',
     theme: 'dark',
     language: 'no',
+    backgroundPreset: 'none',
     customBackground: '',
     showClock: false,
     clockPosition: 'top-right',
+    textSize: 'large',
+    screenStyle: 'focus',
     manualSource: '',
     manualTranslations: {},
     updatedAt: null
@@ -155,9 +158,18 @@ function ensureEventUiState(event) {
   if (typeof event.displayState.customBackground !== 'string') {
     event.displayState.customBackground = '';
   }
+  if (!['none', 'warm', 'sanctuary', 'soft-light'].includes(event.displayState.backgroundPreset)) {
+    event.displayState.backgroundPreset = 'none';
+  }
   event.displayState.showClock = !!event.displayState.showClock;
   if (!['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(event.displayState.clockPosition)) {
     event.displayState.clockPosition = 'top-right';
+  }
+  if (!['large', 'xlarge'].includes(event.displayState.textSize)) {
+    event.displayState.textSize = 'large';
+  }
+  if (!['focus', 'wide'].includes(event.displayState.screenStyle)) {
+    event.displayState.screenStyle = 'focus';
   }
   if (!Array.isArray(event.songLibrary)) {
     event.songLibrary = defaultSongLibrary();
@@ -435,6 +447,24 @@ function normalizeEvent(event) {
   };
 }
 
+function buildDisplayPayload(event) {
+  ensureEventUiState(event);
+  return {
+    mode: event.displayState.mode,
+    theme: event.displayState.theme,
+    language: event.displayState.language,
+    backgroundPreset: event.displayState.backgroundPreset,
+    customBackground: event.displayState.customBackground,
+    showClock: event.displayState.showClock,
+    clockPosition: event.displayState.clockPosition,
+    textSize: event.displayState.textSize,
+    screenStyle: event.displayState.screenStyle,
+    manualSource: event.displayState.manualSource,
+    manualTranslations: event.displayState.manualTranslations,
+    updatedAt: event.displayState.updatedAt
+  };
+}
+
 function normalizeLibraryTitle(title) {
   return String(title || '').trim().toLowerCase();
 }
@@ -607,6 +637,7 @@ function pushSongHistory(event, item) {
   event.songHistory.unshift({
     id: randomUUID(),
     title: String(item.title || '').trim(),
+    kind: String(item.kind || 'song').trim(),
     source: sanitizeStructuredText(item.source || ''),
     translations: item.translations || {},
     createdAt: new Date().toISOString()
@@ -1148,17 +1179,7 @@ app.post('/api/events/:id/song/clear', (req, res) => {
   saveDb();
   io.to(`event:${event.id}`).emit('song_clear');
   io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
-  io.to(`event:${event.id}`).emit('display_manual_update', {
-    mode: 'manual',
-    theme: event.displayState.theme,
-    language: event.displayState.language,
-    customBackground: event.displayState.customBackground,
-    showClock: event.displayState.showClock,
-    clockPosition: event.displayState.clockPosition,
-    manualSource: event.displayState.manualSource,
-    manualTranslations: event.displayState.manualTranslations,
-    updatedAt: event.displayState.updatedAt
-  });
+  io.to(`event:${event.id}`).emit('display_manual_update', buildDisplayPayload(event));
   res.json({ ok: true, event: normalizeEvent(event) });
 });
 
@@ -1179,17 +1200,7 @@ app.post('/api/events/:id/display/mode', (req, res) => {
   event.displayState.updatedAt = new Date().toISOString();
   saveDb();
 
-  io.to(`event:${event.id}`).emit('display_mode_changed', {
-    mode: event.displayState.mode,
-    theme: event.displayState.theme,
-    language: event.displayState.language,
-    customBackground: event.displayState.customBackground,
-    showClock: event.displayState.showClock,
-    clockPosition: event.displayState.clockPosition,
-    manualSource: event.displayState.manualSource,
-    manualTranslations: event.displayState.manualTranslations,
-    updatedAt: event.displayState.updatedAt
-  });
+  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
 
   res.json({ ok: true, displayState: event.displayState });
 });
@@ -1213,17 +1224,7 @@ app.post('/api/events/:id/display/theme', (req, res) => {
     theme: event.displayState.theme,
     updatedAt: event.displayState.updatedAt
   });
-  io.to(`event:${event.id}`).emit('display_mode_changed', {
-    mode: event.displayState.mode,
-    theme: event.displayState.theme,
-    language: event.displayState.language,
-    customBackground: event.displayState.customBackground,
-    showClock: event.displayState.showClock,
-    clockPosition: event.displayState.clockPosition,
-    manualSource: event.displayState.manualSource,
-    manualTranslations: event.displayState.manualTranslations,
-    updatedAt: event.displayState.updatedAt
-  });
+  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
 
   res.json({ ok: true, displayState: event.displayState });
 });
@@ -1240,17 +1241,7 @@ app.post('/api/events/:id/display/language', (req, res) => {
   event.displayState.language = language;
   event.displayState.updatedAt = new Date().toISOString();
   saveDb();
-  io.to(`event:${event.id}`).emit('display_mode_changed', {
-    mode: event.displayState.mode,
-    theme: event.displayState.theme,
-    language: event.displayState.language,
-    customBackground: event.displayState.customBackground,
-    showClock: event.displayState.showClock,
-    clockPosition: event.displayState.clockPosition,
-    manualSource: event.displayState.manualSource,
-    manualTranslations: event.displayState.manualTranslations,
-    updatedAt: event.displayState.updatedAt
-  });
+  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
   res.json({ ok: true, displayState: event.displayState });
 });
 
@@ -1259,29 +1250,50 @@ app.post('/api/events/:id/display/settings', (req, res) => {
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
   if (!requireEventAdmin(req, res, event)) return;
   ensureEventUiState(event);
+  const backgroundPreset = typeof req.body.backgroundPreset === 'string' ? req.body.backgroundPreset.trim() : event.displayState.backgroundPreset;
   const customBackground = typeof req.body.customBackground === 'string' ? req.body.customBackground.trim() : event.displayState.customBackground;
   const showClock = typeof req.body.showClock === 'boolean' ? req.body.showClock : event.displayState.showClock;
   const clockPosition = typeof req.body.clockPosition === 'string' ? req.body.clockPosition.trim() : event.displayState.clockPosition;
+  const textSize = typeof req.body.textSize === 'string' ? req.body.textSize.trim() : event.displayState.textSize;
+  const screenStyle = typeof req.body.screenStyle === 'string' ? req.body.screenStyle.trim() : event.displayState.screenStyle;
+  if (!['none', 'warm', 'sanctuary', 'soft-light'].includes(backgroundPreset)) {
+    return res.status(400).json({ ok: false, error: 'Preset fundal invalid.' });
+  }
   if (!['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(clockPosition)) {
     return res.status(400).json({ ok: false, error: 'Pozitie ceas invalida.' });
   }
+  if (!['large', 'xlarge'].includes(textSize)) {
+    return res.status(400).json({ ok: false, error: 'Marime text invalida.' });
+  }
+  if (!['focus', 'wide'].includes(screenStyle)) {
+    return res.status(400).json({ ok: false, error: 'Layout ecran invalid.' });
+  }
+  event.displayState.backgroundPreset = backgroundPreset;
   event.displayState.customBackground = customBackground;
   event.displayState.showClock = !!showClock;
   event.displayState.clockPosition = clockPosition;
+  event.displayState.textSize = textSize;
+  event.displayState.screenStyle = screenStyle;
   event.displayState.updatedAt = new Date().toISOString();
   saveDb();
-  io.to(`event:${event.id}`).emit('display_mode_changed', {
-    mode: event.displayState.mode,
-    theme: event.displayState.theme,
-    language: event.displayState.language,
-    customBackground: event.displayState.customBackground,
-    showClock: event.displayState.showClock,
-    clockPosition: event.displayState.clockPosition,
-    manualSource: event.displayState.manualSource,
-    manualTranslations: event.displayState.manualTranslations,
-    updatedAt: event.displayState.updatedAt
-  });
+  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
   res.json({ ok: true, displayState: event.displayState });
+});
+
+app.post('/api/events/:id/display/blank', (req, res) => {
+  const event = db.events[req.params.id];
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  if (!requireEventAdmin(req, res, event)) return;
+  ensureEventUiState(event);
+  event.mode = 'live';
+  event.displayState.mode = 'manual';
+  event.displayState.manualSource = '';
+  event.displayState.manualTranslations = {};
+  event.displayState.updatedAt = new Date().toISOString();
+  saveDb();
+  io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
+  io.to(`event:${event.id}`).emit('display_manual_update', buildDisplayPayload(event));
+  res.json({ ok: true, event: normalizeEvent(event) });
 });
 
 app.post('/api/events/:id/display/manual', async (req, res) => {
@@ -1326,22 +1338,12 @@ app.post('/api/events/:id/display/manual', async (req, res) => {
     };
 
     event.mode = 'live';
-    pushSongHistory(event, { title, source: text, translations });
+    pushSongHistory(event, { title: title || 'Pinned text', kind: 'manual', source: text, translations });
 
     saveDb();
 
     io.to(`event:${event.id}`).emit('transcript_entry', entry);
-    io.to(`event:${event.id}`).emit('display_manual_update', {
-      mode: event.displayState.mode,
-      theme: event.displayState.theme,
-      language: event.displayState.language,
-      customBackground: event.displayState.customBackground,
-      showClock: event.displayState.showClock,
-      clockPosition: event.displayState.clockPosition,
-      manualSource: event.displayState.manualSource,
-      manualTranslations: event.displayState.manualTranslations,
-      updatedAt: event.displayState.updatedAt
-    });
+    io.to(`event:${event.id}`).emit('display_manual_update', buildDisplayPayload(event));
     io.to(`event:${event.id}`).emit('song_history_updated', {
       songHistory: event.songHistory
     });
