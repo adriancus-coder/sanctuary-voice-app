@@ -1141,12 +1141,15 @@ app.post('/api/events/:id/song/clear', (req, res) => {
   event.songState = defaultSongState();
   event.mode = 'live';
   ensureEventUiState(event);
-  event.displayState.mode = 'auto';
+  event.displayState.mode = 'manual';
+  event.displayState.manualSource = '';
+  event.displayState.manualTranslations = {};
+  event.displayState.updatedAt = new Date().toISOString();
   saveDb();
   io.to(`event:${event.id}`).emit('song_clear');
   io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
-  io.to(`event:${event.id}`).emit('display_mode_changed', {
-    mode: 'auto',
+  io.to(`event:${event.id}`).emit('display_manual_update', {
+    mode: 'manual',
     theme: event.displayState.theme,
     language: event.displayState.language,
     customBackground: event.displayState.customBackground,
