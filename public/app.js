@@ -729,7 +729,7 @@ async function clearSongFromScreen() {
   renderActiveEventBadge(currentEvent);
   renderSongState(currentEvent.songState || {});
   refreshDisplayControls();
-  setStatus('Song mode cleared from screen.');
+  setStatus('Screen cleared. Only clock remains if enabled.');
 }
 
 async function saveSongLabels() {
@@ -1033,12 +1033,39 @@ async function stopTranslation() {
   setStatus('Stopped.');
 }
 
-function sendManualText() {
+async function sendManualText(target = 'auto') {
   if (!currentEvent) return alert('Open or create an event first.');
   const text = $('manualText').value.trim();
   if (!text) return;
-  setEventMode('live');
-  socket.emit('submit_text', { eventId: currentEvent.id, text });
+
+  if (target === 'manual') {
+    const res = await fetch(
+      `/api/events/${currentEvent.id}/display/manual`,
+      adminJsonOptions('POST', { text, title: '' })
+    );
+    const data = await res.json();
+    if (!data.ok) {
+      setStatus(data.error || 'Manual display push failed.');
+      return;
+    }
+
+    currentEvent.displayState = {
+      ...(currentEvent.displayState || {}),
+      ...(data.displayState || {})
+    };
+    currentEvent.mode = 'live';
+    currentEvent.songHistory = data.songHistory || currentEvent.songHistory || [];
+    refreshDisplayControls();
+    renderActiveEventBadge(currentEvent);
+    renderSongHistory(currentEvent.songHistory);
+    renderSongState(currentEvent.songState || {});
+    setStatus('Manual text published to main screen.');
+  } else {
+    await setEventMode('live');
+    socket.emit('submit_text', { eventId: currentEvent.id, text });
+    setStatus('Text sent to live translation flow.');
+  }
+
   $('manualText').value = '';
   lastManualEnterAt = 0;
 }
@@ -1141,12 +1168,30 @@ socket.on('display_mode_changed', ({ mode, theme, language, customBackground, sh
   currentEvent.displayState.clockPosition = clockPosition || currentEvent.displayState.clockPosition || 'top-right';
   refreshDisplayControls();
   renderActiveEventBadge(currentEvent);
+  renderSongState(currentEvent.songState || {});
 });
 socket.on('display_theme_changed', ({ theme }) => {
   if (!currentEvent) return;
   currentEvent.displayState = currentEvent.displayState || {};
   currentEvent.displayState.theme = theme || 'dark';
   refreshDisplayControls();
+});
+socket.on('display_manual_update', ({ mode, theme, language, customBackground, showClock, clockPosition, manualSource, manualTranslations, updatedAt }) => {
+  if (!currentEvent) return;
+  currentEvent.displayState = currentEvent.displayState || {};
+  currentEvent.displayState.mode = mode || 'manual';
+  currentEvent.displayState.theme = theme || currentEvent.displayState.theme || 'dark';
+  currentEvent.displayState.language = language || currentEvent.displayState.language;
+  currentEvent.displayState.customBackground = typeof customBackground === 'string' ? customBackground : (currentEvent.displayState.customBackground || '');
+  currentEvent.displayState.showClock = typeof showClock === 'boolean' ? showClock : !!currentEvent.displayState.showClock;
+  currentEvent.displayState.clockPosition = clockPosition || currentEvent.displayState.clockPosition || 'top-right';
+  currentEvent.displayState.manualSource = manualSource || '';
+  currentEvent.displayState.manualTranslations = manualTranslations || {};
+  currentEvent.displayState.updatedAt = updatedAt || currentEvent.displayState.updatedAt || null;
+  currentEvent.mode = 'live';
+  refreshDisplayControls();
+  renderActiveEventBadge(currentEvent);
+  renderSongState(currentEvent.songState || {});
 });
 socket.on('song_history_updated', ({ songHistory }) => {
   if (!currentEvent) return;
@@ -1157,13 +1202,18 @@ socket.on('song_history_updated', ({ songHistory }) => {
 
 document.querySelectorAll('.nav-btn').forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 $('createEventBtn').addEventListener('click', createEvent);
-$('sendManualBtn').addEventListener('click', sendManualText);
+$('sendManualLiveBtn').addEventListener('click', () => sendManualText('auto'));
+$('sendManualDisplayBtn').addEventListener('click', () => sendManualText('manual'));
 $('speed').addEventListener('change', syncSpeedToEvent);
 $('openTranscriptTabBtn').addEventListener('click', () => switchTab('transcript'));
 $('manualText').addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' || e.shiftKey) return;
   const now = Date.now();
-  if (now - lastManualEnterAt < 600) { e.preventDefault(); sendManualText(); return; }
+  if (now - lastManualEnterAt < 600) {
+    e.preventDefault();
+    sendManualText(currentEvent?.displayState?.mode === 'manual' ? 'manual' : 'auto');
+    return;
+  }
   lastManualEnterAt = now;
 });
 $('saveGlossaryBtn').addEventListener('click', async () => {
