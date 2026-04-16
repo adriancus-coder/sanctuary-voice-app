@@ -25,6 +25,9 @@
   --radius-lg: 22px;
   --radius-md: 16px;
   --radius-sm: 12px;
+  --lux-gold: rgba(200, 138, 43, 0.28);
+  --lux-teal: rgba(15, 118, 110, 0.22);
+  --lux-white: rgba(255, 255, 255, 0.62);
 }
 
 * {
@@ -44,7 +47,20 @@ body {
   background:
     radial-gradient(circle at top left, rgba(200, 138, 43, 0.18), transparent 24%),
     radial-gradient(circle at top right, rgba(15, 118, 110, 0.12), transparent 26%),
+    radial-gradient(circle at bottom left, rgba(255, 255, 255, 0.55), transparent 24%),
     linear-gradient(135deg, #f5ecdf 0%, #f7f3eb 42%, #eff6f2 100%);
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.08), transparent 18%, transparent 82%, rgba(255, 255, 255, 0.06)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0, rgba(255, 255, 255, 0.04) 1px, transparent 1px, transparent 120px);
+  opacity: 0.5;
 }
 
 a {
@@ -120,6 +136,18 @@ progress::-moz-progress-bar {
     linear-gradient(180deg, rgba(255, 252, 247, 0.86), rgba(255, 248, 239, 0.74)),
     linear-gradient(145deg, rgba(255, 255, 255, 0.4), transparent 42%);
   backdrop-filter: blur(20px);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.28), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 18%);
+  pointer-events: none;
 }
 
 .eyebrow {
@@ -207,7 +235,7 @@ progress::-moz-progress-bar {
   cursor: pointer;
   color: var(--text);
   background: rgba(255, 255, 255, 0.66);
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease, filter 160ms ease;
 }
 
 .nav-btn:hover,
@@ -223,18 +251,25 @@ progress::-moz-progress-bar {
   background: linear-gradient(135deg, var(--teal), var(--teal-strong));
   color: #ecfdf5;
   border-color: transparent;
-  box-shadow: 0 18px 36px rgba(15, 118, 110, 0.2);
+  box-shadow:
+    0 18px 36px rgba(15, 118, 110, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
   font-weight: 700;
 }
 
 .btn-dark {
-  background: rgba(31, 41, 55, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(246, 239, 229, 0.88));
 }
 
 .btn-danger {
   background: linear-gradient(135deg, #ea580c, var(--danger));
   color: #fff;
   border-color: transparent;
+}
+
+.btn:hover {
+  filter: saturate(1.04);
 }
 
 .sidebar-screen-links {
@@ -276,6 +311,7 @@ progress::-moz-progress-bar {
   gap: 18px;
   background:
     radial-gradient(circle at top right, rgba(200, 138, 43, 0.16), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(15, 118, 110, 0.08), transparent 24%),
     linear-gradient(180deg, rgba(255, 251, 244, 0.92), rgba(249, 242, 232, 0.82));
 }
 
@@ -307,6 +343,23 @@ progress::-moz-progress-bar {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.66);
   box-shadow: var(--shadow-lg);
+}
+
+.hero-status-card,
+.metric-card,
+.info-card {
+  position: relative;
+}
+
+.hero-status-card::after,
+.metric-card::after,
+.info-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  pointer-events: none;
 }
 
 .hero-status-card {
@@ -341,6 +394,7 @@ progress::-moz-progress-bar {
   background: rgba(15, 118, 110, 0.08);
   color: var(--teal-strong);
   font-size: 0.88rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 .status-pill.active {
@@ -442,6 +496,23 @@ progress::-moz-progress-bar {
   white-space: pre-wrap;
 }
 
+.metric-card,
+.event-card,
+.history-item,
+.entry,
+.info-card {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.metric-card:hover,
+.event-card:hover,
+.history-item:hover,
+.entry:hover,
+.info-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 56px rgba(82, 62, 31, 0.12);
+}
+
 .info-card {
   padding: 16px;
   display: grid;
@@ -491,6 +562,15 @@ progress::-moz-progress-bar {
   display: grid;
   gap: 12px;
   box-shadow: var(--shadow-lg);
+}
+
+.entry::before {
+  content: "";
+  display: block;
+  width: 48px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(200, 138, 43, 0.9), rgba(15, 118, 110, 0.75));
 }
 
 .entry-head {
@@ -578,6 +658,7 @@ progress::-moz-progress-bar {
 
 .song-grid .song-textarea {
   min-height: 280px;
+  line-height: 1.68;
 }
 
 .song-grid .event-list,
@@ -793,6 +874,10 @@ progress::-moz-progress-bar {
   text-wrap: balance;
 }
 
+.history-text {
+  line-height: 1.55;
+}
+
 .updating-badge {
   margin-bottom: 10px;
   color: var(--gold-strong);
@@ -957,6 +1042,7 @@ progress::-moz-progress-bar {
   text-wrap: balance;
   letter-spacing: -0.035em;
   text-shadow: 0 10px 34px rgba(0, 0, 0, 0.34);
+  animation: displayFadeIn 280ms ease;
 }
 
 .unified-display-live::before {
@@ -1003,6 +1089,7 @@ progress::-moz-progress-bar {
   font-weight: 700;
   letter-spacing: 0.04em;
   opacity: 0.92;
+  text-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
 }
 
 .clock-top-left {
@@ -1085,6 +1172,17 @@ progress::-moz-progress-bar {
   border: 0;
   box-shadow: none;
   padding: clamp(24px, 5vw, 64px);
+}
+
+@keyframes displayFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 1180px) {

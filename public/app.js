@@ -787,8 +787,139 @@ function openParticipantPreviewWindow() {
 }
 
 function openBothPreviewWindows() {
-  openMainPreviewWindow();
-  window.setTimeout(openParticipantPreviewWindow, 120);
+  const mainUrl = $('translateLink')?.value || '/translate';
+  const participantUrl = $('participantLink')?.value || '/participant';
+  const previewWindow = window.open('', 'bpmsDualPreview', 'width=1680,height=980,resizable=yes,scrollbars=yes');
+  if (!previewWindow) return;
+  previewWindow.document.open();
+  previewWindow.document.write(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BPMS Dual Preview</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071019;
+      --panel: #0f1724;
+      --line: rgba(255,255,255,0.08);
+      --text: #f8fafc;
+      --muted: rgba(248,250,252,0.72);
+      --accent: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(200, 138, 43, 0.16), transparent 24%),
+        radial-gradient(circle at bottom right, rgba(15, 118, 110, 0.18), transparent 28%),
+        linear-gradient(180deg, #071019, #02050a);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+      padding: 14px;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(15, 23, 36, 0.84);
+      backdrop-filter: blur(18px);
+    }
+    .title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.5fr 0.95fr;
+      gap: 14px;
+      min-height: 0;
+    }
+    .panel {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      overflow: hidden;
+      background: rgba(15, 23, 36, 0.8);
+      box-shadow: 0 24px 70px rgba(0,0,0,0.28);
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+    }
+    .panel-title {
+      font-weight: 700;
+    }
+    .panel-copy {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #000;
+    }
+    @media (max-width: 1100px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div>
+        <div class="title">BPMS Live Preview Workspace</div>
+        <div class="meta">Projector and participant view together in one window.</div>
+      </div>
+      <div class="meta">Resize or split this window as needed.</div>
+    </div>
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Main Screen</div>
+          <div class="panel-copy">Projector preview</div>
+        </div>
+        <iframe src="${String(mainUrl).replaceAll('"', '&quot;')}" title="Main Screen Preview"></iframe>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Participant View</div>
+          <div class="panel-copy">Phone experience preview</div>
+        </div>
+        <iframe src="${String(participantUrl).replaceAll('"', '&quot;')}" title="Participant Preview"></iframe>
+      </section>
+    </div>
+  </div>
+</body>
+</html>`);
+  previewWindow.document.close();
 }
 
 async function clearSongFromScreen() {
