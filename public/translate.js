@@ -93,7 +93,7 @@ function getTextToDisplay() {
       || 'Waiting for song translation...';
   }
   if (state.currentDisplayMode === 'manual') {
-    return state.manualTranslations?.[state.currentLanguage] || 'Astept textul manual...';
+    return state.manualTranslations?.[state.currentLanguage] || '';
   }
   if (state.latestLiveEntry) {
     return state.latestLiveEntry.translations?.[state.currentLanguage]
