@@ -681,6 +681,10 @@ progress::-moz-progress-bar {
   gap: 20px;
 }
 
+.participant-premium-shell {
+  gap: 24px;
+}
+
 .participant-header,
 .participant-controls,
 .participant-live {
@@ -693,11 +697,50 @@ progress::-moz-progress-bar {
     linear-gradient(180deg, rgba(255, 251, 244, 0.94), rgba(250, 243, 234, 0.84));
 }
 
+.participant-premium-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.participant-premium-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -35% 40%;
+  height: 180px;
+  background: radial-gradient(circle, rgba(15, 118, 110, 0.22), transparent 60%);
+  pointer-events: none;
+}
+
+.participant-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
 .participant-controls {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
   gap: 16px;
   align-items: end;
+}
+
+.participant-premium-controls {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(251, 246, 239, 0.88));
+}
+
+.participant-control-group {
+  display: grid;
+  gap: 8px;
+}
+
+.participant-status-group .status-text {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  font-weight: 600;
 }
 
 .participant-audio-actions {
@@ -709,13 +752,45 @@ progress::-moz-progress-bar {
     linear-gradient(180deg, rgba(255, 253, 248, 0.9), rgba(252, 246, 238, 0.84));
 }
 
+.participant-premium-live {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.95fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.participant-live-stage,
+.participant-history-panel {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.participant-live-stage {
+  padding: 22px 24px;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.participant-history-panel {
+  padding: 20px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
 .participant-main-text {
-  font-family: "Fraunces", serif;
-  font-size: clamp(2rem, 4.2vw, 3.9rem);
-  line-height: 1.18;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(2.15rem, 4.1vw, 4.25rem);
+  font-weight: 700;
+  line-height: 1.14;
   padding: 16px 0 10px;
   white-space: pre-wrap;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
 }
 
 .updating-badge {
@@ -864,6 +939,10 @@ progress::-moz-progress-bar {
   justify-content: center;
   position: relative;
   overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(3, 5, 10, 0.92), rgba(7, 10, 16, 0.98)),
+    radial-gradient(circle at top, rgba(200, 138, 43, 0.18), transparent 32%),
+    radial-gradient(circle at bottom, rgba(15, 118, 110, 0.12), transparent 34%);
 }
 
 .unified-display-text {
@@ -878,6 +957,16 @@ progress::-moz-progress-bar {
   text-wrap: balance;
   letter-spacing: -0.035em;
   text-shadow: 0 10px 34px rgba(0, 0, 0, 0.34);
+}
+
+.unified-display-live::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 20%, transparent 80%, rgba(255, 255, 255, 0.02)),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.03), transparent 58%);
+  pointer-events: none;
 }
 
 .display-theme-light .display-single-text,
@@ -1011,6 +1100,7 @@ progress::-moz-progress-bar {
   .cards-grid.two,
   .cards-grid.three,
   .participant-controls,
+  .participant-premium-live,
   .checkbox-grid,
   .split-2,
   .hero-status-grid,

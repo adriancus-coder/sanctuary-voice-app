@@ -145,6 +145,8 @@ function updateTopMeta() {
   $('participantEventName').textContent = state.currentEvent.name || 'Live event';
   const sourceName = langLabel(state.currentEvent.sourceLang || 'ro');
   const targetName = langLabel(state.currentLanguage);
+  $('participantModeBadge').textContent = state.currentMode === 'song' ? 'Song mode' : 'Live';
+  $('participantLanguageBadge').textContent = targetName;
   $('participantEventMeta').textContent = state.currentMode === 'song'
     ? `Song mode · Translation: ${targetName}`
     : `Input: ${sourceName} · Translation: ${targetName}`;
@@ -181,7 +183,7 @@ function speakLatestEntry(entry) {
 
 function renderHistory() {
   if (state.currentMode === 'song') {
-    $('history').innerHTML = '<div class="muted">Song mode active.</div>';
+    $('history').innerHTML = '<div class="muted">Song mode is active right now.</div>';
     return;
   }
   const entries = getHistoryEntries();

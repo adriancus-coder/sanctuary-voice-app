@@ -7,15 +7,19 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="participant-shell participant-shell-v2">
-    <div class="participant-header panel glass-panel participant-hero-v2">
-      <div class="eyebrow">Personal Listener View</div>
+  <div class="participant-shell participant-shell-v2 participant-premium-shell">
+    <div class="participant-header panel glass-panel participant-hero-v2 participant-premium-hero">
+      <div class="eyebrow">Listener Experience</div>
       <h1 id="participantEventName">Connecting...</h1>
       <div id="participantEventMeta" class="muted">Choose your language and follow the translation live.</div>
+      <div class="participant-badge-row">
+        <div id="participantModeBadge" class="status-pill active">Live</div>
+        <div id="participantLanguageBadge" class="status-pill">Language</div>
+      </div>
     </div>
 
-    <div class="participant-controls panel glass-panel">
-      <div>
+    <div class="participant-controls panel glass-panel participant-premium-controls">
+      <div class="participant-control-group">
         <label for="languageSelect">My language</label>
         <select id="languageSelect"></select>
       </div>
@@ -23,17 +27,22 @@
         <button id="playAudioBtn" class="btn btn-primary">Play audio</button>
         <button id="pauseAudioBtn" class="btn btn-dark">Pause audio</button>
       </div>
-      <div>
+      <div class="participant-control-group participant-status-group">
+        <label>Connection status</label>
         <div id="participantStatus" class="status-text">Connecting...</div>
       </div>
     </div>
 
-    <div class="participant-live panel glass-panel">
-      <div id="participantUpdatingBadge" class="updating-badge" style="display:none">Updating...</div>
-      <div class="label">Live translation</div>
-      <div id="lastText" class="participant-main-text">Waiting for translation...</div>
-      <div class="label history-label">Recent history</div>
-      <div id="history" class="history-list"></div>
+    <div class="participant-live panel glass-panel participant-premium-live">
+      <div class="participant-live-stage">
+        <div id="participantUpdatingBadge" class="updating-badge" style="display:none">Updating...</div>
+        <div class="label">Now on your screen</div>
+        <div id="lastText" class="participant-main-text">Waiting for translation...</div>
+      </div>
+      <div class="participant-history-panel">
+        <div class="label history-label">Recent history</div>
+        <div id="history" class="history-list"></div>
+      </div>
     </div>
   </div>
 
