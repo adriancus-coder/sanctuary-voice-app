@@ -116,6 +116,7 @@ function defaultSongState() {
 function defaultDisplayState() {
   return {
     mode: 'auto',
+    blackScreen: false,
     theme: 'dark',
     language: 'no',
     backgroundPreset: 'none',
@@ -149,6 +150,7 @@ function ensureEventUiState(event) {
   if (!['dark', 'light'].includes(event.displayState.theme)) {
     event.displayState.theme = 'dark';
   }
+  event.displayState.blackScreen = !!event.displayState.blackScreen;
   if (!Array.isArray(event.targetLangs) || !event.targetLangs.length) {
     event.targetLangs = ['no', 'en'];
   }
@@ -451,6 +453,7 @@ function buildDisplayPayload(event) {
   ensureEventUiState(event);
   return {
     mode: event.displayState.mode,
+    blackScreen: !!event.displayState.blackScreen,
     theme: event.displayState.theme,
     language: event.displayState.language,
     backgroundPreset: event.displayState.backgroundPreset,
@@ -1187,14 +1190,13 @@ app.post('/api/events/:id/song/clear', (req, res) => {
   event.songState = defaultSongState();
   event.mode = 'live';
   ensureEventUiState(event);
-  event.displayState.mode = 'manual';
-  event.displayState.manualSource = '';
-  event.displayState.manualTranslations = {};
+  event.displayState.mode = 'auto';
+  event.displayState.blackScreen = false;
   event.displayState.updatedAt = new Date().toISOString();
   saveDb();
   io.to(`event:${event.id}`).emit('song_clear');
   io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
-  io.to(`event:${event.id}`).emit('display_manual_update', buildDisplayPayload(event));
+  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
   res.json({ ok: true, event: normalizeEvent(event) });
 });
 
@@ -1207,17 +1209,22 @@ app.post('/api/events/:id/display/mode', (req, res) => {
   ensureEventUiState(event);
 
   const mode = String(req.body.mode || '').trim().toLowerCase();
-  if (!['auto', 'manual'].includes(mode)) {
+  if (!['auto', 'manual', 'song'].includes(mode)) {
     return res.status(400).json({ ok: false, error: 'Mod invalid.' });
   }
 
+  if (mode === 'song' && !event.songState?.activeBlock && !event.songState?.translations) {
+    return res.status(400).json({ ok: false, error: 'Nu exista continut activ pentru Song mode.' });
+  }
+
   event.displayState.mode = mode;
+  event.displayState.blackScreen = false;
   event.displayState.updatedAt = new Date().toISOString();
   saveDb();
 
   io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
 
-  res.json({ ok: true, displayState: event.displayState });
+  res.json({ ok: true, displayState: event.displayState, event: normalizeEvent(event) });
 });
 
 app.post('/api/events/:id/display/theme', (req, res) => {
@@ -1300,14 +1307,10 @@ app.post('/api/events/:id/display/blank', (req, res) => {
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
   if (!requireEventAdmin(req, res, event)) return;
   ensureEventUiState(event);
-  event.mode = 'live';
-  event.displayState.mode = 'manual';
-  event.displayState.manualSource = '';
-  event.displayState.manualTranslations = {};
+  event.displayState.blackScreen = true;
   event.displayState.updatedAt = new Date().toISOString();
   saveDb();
-  io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
-  io.to(`event:${event.id}`).emit('display_manual_update', buildDisplayPayload(event));
+  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
   res.json({ ok: true, event: normalizeEvent(event) });
 });
 
@@ -1347,6 +1350,7 @@ app.post('/api/events/:id/display/manual', async (req, res) => {
     event.displayState = {
       ...event.displayState,
       mode: 'manual',
+      blackScreen: false,
       manualSource: text,
       manualTranslations: translations,
       updatedAt: new Date().toISOString()
