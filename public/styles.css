@@ -1062,6 +1062,11 @@ progress::-moz-progress-bar {
   text-shadow: none;
 }
 
+.unified-display-live[data-text-size="compact"] .unified-display-text,
+.unified-display-text[data-text-size="compact"] {
+  font-size: clamp(2.2rem, 4.8vw, 5.2rem);
+}
+
 .unified-display-live[data-text-size="large"] .unified-display-text,
 .unified-display-text[data-text-size="large"] {
   font-size: clamp(3rem, 6.5vw, 7.2rem);

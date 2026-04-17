@@ -165,7 +165,7 @@ function ensureEventUiState(event) {
   if (!['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(event.displayState.clockPosition)) {
     event.displayState.clockPosition = 'top-right';
   }
-  if (!['large', 'xlarge'].includes(event.displayState.textSize)) {
+  if (!['compact', 'large', 'xlarge'].includes(event.displayState.textSize)) {
     event.displayState.textSize = 'large';
   }
   if (!['focus', 'wide'].includes(event.displayState.screenStyle)) {
@@ -557,7 +557,10 @@ function applyReplacementMap(text, map) {
     .sort((a, b) => b[0].length - a[0].length);
   for (const [key, value] of entries) {
     const safe = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp(safe, 'gi'), value);
+    const pattern = /[\p{L}\p{N}]/u.test(key)
+      ? new RegExp(`(?<![\\p{L}\\p{N}])${safe}(?![\\p{L}\\p{N}])`, 'giu')
+      : new RegExp(safe, 'gi');
+    out = out.replace(pattern, value);
   }
   return out;
 }
@@ -649,20 +652,23 @@ function pushSongHistory(event, item) {
 
 async function translateText(text, langCode, event) {
   const glossary = getGlossaryForLang(langCode, event);
-  const prepared = applyGlossary(text, glossary);
-  if (!client) return `[${langCode}] ${prepared}`;
+  const cleanText = sanitizeStructuredText(text);
+  if (!cleanText) return '';
+  if (!client) return `[${langCode}] ${applyGlossary(cleanText, glossary)}`;
   try {
     const response = await client.responses.create({
       model: OPENAI_MODEL,
       input: [
         { role: 'system', content: buildPrompt(LANGUAGES[event.sourceLang] || event.sourceLang, LANGUAGES[langCode] || langCode, event.speed, glossary) },
-        { role: 'user', content: prepared }
+        { role: 'user', content: cleanText }
       ]
     });
-    return (response.output_text || '').trim() || prepared;
+    const translated = sanitizeStructuredText(response.output_text || '');
+    if (translated) return translated;
+    return applyGlossary(cleanText, glossary);
   } catch (err) {
     console.error(`translate error ${langCode}:`, err?.message || err);
-    return `[${langCode}] ${prepared}`;
+    return `[${langCode}] ${applyGlossary(cleanText, glossary)}`;
   }
 }
 
@@ -759,10 +765,19 @@ async function processText(event, cleanText, { force = false } = {}) {
     lastEntry.original = firstChunk;
     await retranslateEntry(event, lastEntry);
     event.lastTranscriptNorm = normalizeChunkText(firstChunk);
-    lastEntry.participantDirty = true;
+    lastEntry.participantDirty = false;
     saveDb();
 
     io.to(`event:${event.id}:admins`).emit('transcript_source_updated', {
+      entryId: lastEntry.id,
+      sourceLang: lastEntry.sourceLang,
+      original: lastEntry.original,
+      translations: lastEntry.translations
+    });
+    if (event.displayState?.mode === 'auto') {
+      io.to(`event:${event.id}`).emit('display_live_entry', lastEntry);
+    }
+    io.to(`event:${event.id}`).emit('transcript_source_updated', {
       entryId: lastEntry.id,
       sourceLang: lastEntry.sourceLang,
       original: lastEntry.original,
@@ -1262,7 +1277,7 @@ app.post('/api/events/:id/display/settings', (req, res) => {
   if (!['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(clockPosition)) {
     return res.status(400).json({ ok: false, error: 'Pozitie ceas invalida.' });
   }
-  if (!['large', 'xlarge'].includes(textSize)) {
+  if (!['compact', 'large', 'xlarge'].includes(textSize)) {
     return res.status(400).json({ ok: false, error: 'Marime text invalida.' });
   }
   if (!['focus', 'wide'].includes(screenStyle)) {

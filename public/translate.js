@@ -139,15 +139,51 @@ function updateMeta() {
 function autoFitText() {
   const box = $('translateText');
   const wrap = $('translateTextWrap');
+  const label = $('translateScreenLabel');
+  const clock = $('displayClock');
   if (!box || !wrap) return;
 
-  box.style.fontSize = '';
-  let size = Math.min(Math.max(Math.floor(wrap.clientWidth / 11), 28), 118);
-  box.style.fontSize = `${size}px`;
+  const wrapStyle = window.getComputedStyle(wrap);
+  const paddingX = (parseFloat(wrapStyle.paddingLeft) || 0) + (parseFloat(wrapStyle.paddingRight) || 0);
+  const paddingY = (parseFloat(wrapStyle.paddingTop) || 0) + (parseFloat(wrapStyle.paddingBottom) || 0);
+  const labelHeight = label && !label.hidden ? label.getBoundingClientRect().height + 18 : 0;
+  const clockReserve = clock && clock.style.display !== 'none' ? Math.max(clock.getBoundingClientRect().height + 20, 48) : 0;
+  const availableWidth = Math.max(wrap.clientWidth - paddingX - 32, 180);
+  const availableHeight = Math.max(wrap.clientHeight - paddingY - labelHeight - clockReserve - 20, 120);
 
-  while (size > 26 && (box.scrollHeight > wrap.clientHeight || box.scrollWidth > wrap.clientWidth)) {
+  box.style.fontSize = '';
+  box.style.lineHeight = '';
+  box.style.maxWidth = `${availableWidth}px`;
+  box.style.maxHeight = `${availableHeight}px`;
+  box.style.transform = '';
+  box.style.transformOrigin = 'center center';
+  let size = Math.min(Math.max(Math.floor(availableWidth / 10.6), 24), 118);
+  const sizeMode = state.textSize || 'large';
+  if (sizeMode === 'compact') size = Math.round(size * 0.82);
+  if (sizeMode === 'xlarge') size = Math.round(size * 1.08);
+  size = Math.min(Math.max(size, 18), 118);
+  box.style.fontSize = `${size}px`;
+  box.style.lineHeight = size <= 42 ? '1.04' : size <= 64 ? '1.08' : '1.12';
+
+  while (size > 14 && (box.scrollHeight > availableHeight || box.scrollWidth > availableWidth)) {
     size -= 2;
     box.style.fontSize = `${size}px`;
+    box.style.lineHeight = size <= 30 ? '1' : size <= 42 ? '1.04' : size <= 64 ? '1.08' : '1.12';
+  }
+
+  if (box.scrollHeight > availableHeight || box.scrollWidth > availableWidth) {
+    let compressedLineHeight = 0.98;
+    while (compressedLineHeight >= 0.88 && (box.scrollHeight > availableHeight || box.scrollWidth > availableWidth)) {
+      box.style.lineHeight = compressedLineHeight.toFixed(2);
+      compressedLineHeight -= 0.02;
+    }
+  }
+
+  const heightRatio = availableHeight / Math.max(box.scrollHeight, 1);
+  const widthRatio = availableWidth / Math.max(box.scrollWidth, 1);
+  const ratio = Math.min(heightRatio, widthRatio, 1);
+  if (ratio < 1) {
+    box.style.transform = `scale(${Math.max(ratio, 0.72).toFixed(3)})`;
   }
 }
 
