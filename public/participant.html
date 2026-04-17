@@ -15,20 +15,21 @@
       <div class="participant-badge-row">
         <div id="participantModeBadge" class="status-pill active">Live</div>
         <div id="participantLanguageBadge" class="status-pill">Language</div>
+        <div id="participantWakeLockBadge" class="status-pill" style="display:none">Screen awake</div>
       </div>
     </div>
 
     <div class="participant-controls panel glass-panel participant-premium-controls">
       <div class="participant-control-group">
-        <label for="languageSelect">My language</label>
+        <label for="languageSelect">Language</label>
         <select id="languageSelect"></select>
       </div>
       <div class="button-row compact-row participant-audio-actions">
-        <button id="playAudioBtn" class="btn btn-primary">Play audio</button>
-        <button id="pauseAudioBtn" class="btn btn-dark">Pause audio</button>
+        <button id="playAudioBtn" class="btn btn-primary">Audio on</button>
+        <button id="pauseAudioBtn" class="btn btn-dark">Audio off</button>
       </div>
       <div class="participant-control-group participant-status-group">
-        <label>Connection status</label>
+        <label>Status</label>
         <div id="participantStatus" class="status-text">Connecting...</div>
       </div>
     </div>
@@ -36,11 +37,11 @@
     <div class="participant-live panel glass-panel participant-premium-live">
       <div class="participant-live-stage">
         <div id="participantUpdatingBadge" class="updating-badge" style="display:none">Updating...</div>
-        <div class="label">Now on your screen</div>
+        <div class="label">Live text</div>
         <div id="lastText" class="participant-main-text">Waiting for translation...</div>
       </div>
       <div class="participant-history-panel">
-        <div class="label history-label">Recent history</div>
+        <div class="label history-label">Earlier lines</div>
         <div id="history" class="history-list"></div>
       </div>
     </div>

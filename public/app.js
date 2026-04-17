@@ -3,6 +3,7 @@ const $ = (id) => document.getElementById(id);
 
 let currentEvent = null;
 let currentGlobalSongLibrary = [];
+let availableEventsList = [];
 let currentVolume = 70;
 let currentMuted = false;
 let selectedEntryId = null;
@@ -123,6 +124,15 @@ function filterAndSortLibrary(items = [], searchId, sortId) {
       const titleB = (b.title || '').toLowerCase();
       return sortMode === 'za' ? titleB.localeCompare(titleA) : titleA.localeCompare(titleB);
     });
+}
+
+function getTargetEventChoices(selectedId = '') {
+  return (availableEventsList || [])
+    .map((event) => {
+      const selected = event.id === selectedId ? ' selected' : '';
+      return `<option value="${event.id}"${selected}>${escapeHtml(event.name || 'Untitled event')}</option>`;
+    })
+    .join('');
 }
 
 function renderManualHistory(items = []) {
@@ -472,7 +482,10 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
 async function refreshEventList() {
   const res = await fetch('/api/events');
   const data = await res.json();
-  if (data.ok) renderEventList(data.events || [], data.activeEventId || null, currentEvent?.id || null);
+  if (!data.ok) return;
+  availableEventsList = data.events || [];
+  renderEventList(availableEventsList, data.activeEventId || null, currentEvent?.id || null);
+  renderGlobalSongLibrary(currentGlobalSongLibrary);
 }
 
 async function syncSpeedToEvent() {
@@ -494,7 +507,7 @@ function populateEventLinks() {
 
 function renderSongStateLegacy(songState) {
   if (true) return;
-  const libraryCount = Array.isArray(currentEvent?.songLibrary) ? currentEvent.songLibrary.length : 0;
+  const libraryCount = Array.isArray(currentGlobalSongLibrary) ? currentGlobalSongLibrary.length : 0;
   const historyCount = Array.isArray(currentEvent?.songHistory) ? currentEvent.songHistory.length : 0;
   $('songCurrentIndex').textContent = `Saved: ${libraryCount} · History: ${historyCount}`;
   $('songPreview').textContent = currentEvent?.displayState?.manualSource || 'Song mode text will appear here.';
@@ -509,7 +522,7 @@ function renderSongState(songState) {
   const blocksEl = $('songBlocksList');
   if (!summaryEl || !previewEl || !blocksEl) return;
 
-  const libraryCount = Array.isArray(currentEvent?.songLibrary) ? currentEvent.songLibrary.length : 0;
+  const libraryCount = Array.isArray(currentGlobalSongLibrary) ? currentGlobalSongLibrary.length : 0;
   const historyCount = Array.isArray(currentEvent?.songHistory) ? currentEvent.songHistory.length : 0;
   const blocks = Array.isArray(songState?.blocks) ? songState.blocks : [];
   const labels = Array.isArray(songState?.blockLabels) ? songState.blockLabels : [];
@@ -537,26 +550,6 @@ function renderSongState(songState) {
   }).join('');
 }
 
-function renderSongLibrary(items = []) {
-  const box = $('songLibraryList');
-  if (!box) return;
-  const filteredItems = filterAndSortLibrary(items, 'songLibrarySearch', 'songLibrarySort');
-  if (!filteredItems.length) {
-    box.innerHTML = '<div class="muted">No saved songs yet.</div>';
-    return;
-  }
-  box.innerHTML = filteredItems.map((item) => `
-    <div class="event-card">
-      <div class="name">${escapeHtml(item.title || 'Untitled')}</div>
-      <div class="actions">
-        <button class="btn btn-dark" data-song-action="load" data-song-id="${item.id}">Load</button>
-        <button class="btn btn-primary" data-song-action="send" data-song-id="${item.id}">Send first verse</button>
-        <button data-song-action="delete" data-song-id="${item.id}">Delete</button>
-      </div>
-    </div>
-  `).join('');
-}
-
 function renderGlobalSongLibrary(items = []) {
   const box = $('globalSongLibraryList');
   if (!box) return;
@@ -565,16 +558,31 @@ function renderGlobalSongLibrary(items = []) {
     box.innerHTML = '<div class="muted">No church songs saved yet.</div>';
     return;
   }
+  const selectedEventId = currentEvent?.id || availableEventsList[0]?.id || '';
   box.innerHTML = filteredItems.map((item) => `
-    <div class="event-card">
-      <div class="name">${escapeHtml(item.title || 'Untitled')}</div>
-      <div class="actions">
-        <button class="btn btn-dark" data-global-song-action="load" data-global-song-id="${item.id}">Load</button>
-        <button class="btn btn-primary" data-global-song-action="send" data-global-song-id="${item.id}">Send first verse</button>
-        <button class="btn btn-primary" data-global-song-action="add" data-global-song-id="${item.id}">Add to event</button>
-        <button data-global-song-action="delete" data-global-song-id="${item.id}">Delete</button>
+    <details class="event-card library-card-details">
+      <summary class="library-card-summary">
+        <span class="name">${escapeHtml(item.title || 'Untitled')}</span>
+      </summary>
+      <div class="library-card-body">
+        <div class="actions">
+          <button class="btn btn-dark" data-global-song-action="load" data-global-song-id="${item.id}">Load in editor</button>
+          <button class="btn btn-primary" data-global-song-action="send" data-global-song-id="${item.id}">Send first verse</button>
+        </div>
+        <div class="split-2 compact-library-row">
+          <div>
+            <label>Choose event</label>
+            <select data-global-song-target="${item.id}">
+              ${getTargetEventChoices(selectedEventId)}
+            </select>
+          </div>
+          <div class="library-inline-actions">
+            <button class="btn btn-dark" data-global-song-action="add" data-global-song-id="${item.id}">Add to event</button>
+            <button data-global-song-action="delete" data-global-song-id="${item.id}">Delete</button>
+          </div>
+        </div>
       </div>
-    </div>
+    </details>
   `).join('');
 }
 
@@ -598,16 +606,7 @@ function renderSongHistory(items = []) {
 }
 
 async function loadSongLibrary() {
-  if (!currentEvent) return;
-  try {
-    const res = await fetch(`/api/events/${currentEvent.id}/song-library`);
-    const data = await res.json();
-    if (!data.ok) return;
-    currentEvent.songLibrary = data.songLibrary || [];
-    renderSongLibrary(currentEvent.songLibrary);
-  } catch (err) {
-    console.error(err);
-  }
+  return;
 }
 
 async function loadGlobalSongLibrary() {
@@ -640,21 +639,6 @@ function fillSongEditor(item) {
 }
 
 async function saveSongToLibrary() {
-  if (!currentEvent) return alert('Open or create an event first.');
-  const title = $('songTitle').value.trim();
-  const text = $('songText').value.trim();
-  const labels = getSongEditorLabels();
-  if (!title || !text) return alert('Complete title and text first.');
-  const res = await fetch(`/api/events/${currentEvent.id}/song-library`, adminJsonOptions('POST', { title, text, labels }));
-  const data = await res.json();
-  if (!data.ok) return alert(data.error || 'Could not save item.');
-  currentEvent.songLibrary = data.songLibrary || [];
-  renderSongLibrary(currentEvent.songLibrary);
-  renderSongState(currentEvent.songState || {});
-  setStatus('Saved in library.');
-}
-
-async function saveSongToGlobalLibrary() {
   const title = $('songTitle').value.trim();
   const text = $('songText').value.trim();
   const labels = getSongEditorLabels();
@@ -664,7 +648,9 @@ async function saveSongToGlobalLibrary() {
   if (!data.ok) return alert(data.error || 'Could not save item.');
   currentGlobalSongLibrary = data.globalSongLibrary || [];
   renderGlobalSongLibrary(currentGlobalSongLibrary);
-  setStatus('Saved to church library.');
+  clearSong();
+  renderSongState(currentEvent?.songState || {});
+  setStatus('Saved to church library. Editor cleared for the next song.');
 }
 
 async function sendSongItemToLive(item) {
@@ -1510,7 +1496,6 @@ $('jumpLiveBtn').addEventListener('click', () => {
   if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 $('saveSongBtn').addEventListener('click', saveSongToLibrary);
-$('saveGlobalSongBtn').addEventListener('click', saveSongToGlobalLibrary);
 $('sendSongBtn').addEventListener('click', sendSongToLive);
 $('songPrevBtn').addEventListener('click', goToPrevSongBlock);
 $('songNextBtn').addEventListener('click', goToNextSongBlock);
@@ -1524,8 +1509,6 @@ $('saveDisplaySettingsBtn').addEventListener('click', saveDisplaySettings);
 $('openMainPreviewBtn').addEventListener('click', openMainPreviewWindow);
 $('openParticipantPreviewBtn').addEventListener('click', openParticipantPreviewWindow);
 $('openBothPreviewsBtn').addEventListener('click', openBothPreviewWindows);
-$('songLibrarySearch').addEventListener('input', () => renderSongLibrary(currentEvent?.songLibrary || []));
-$('songLibrarySort').addEventListener('change', () => renderSongLibrary(currentEvent?.songLibrary || []));
 $('globalSongLibrarySearch').addEventListener('input', () => renderGlobalSongLibrary(currentGlobalSongLibrary));
 $('globalSongLibrarySort').addEventListener('change', () => renderGlobalSongLibrary(currentGlobalSongLibrary));
 $('songBlocksList').addEventListener('click', async (e) => {
@@ -1540,6 +1523,8 @@ $('songBlocksList').addEventListener('change', async (e) => {
   await saveSongLabels();
 });
 $('globalSongLibraryList').addEventListener('click', async (e) => {
+  const summary = e.target.closest('.library-card-summary');
+  if (summary) return;
   const btn = e.target.closest('button[data-global-song-action]');
   if (!btn) return;
   const action = btn.getAttribute('data-global-song-action');
@@ -1558,13 +1543,14 @@ $('globalSongLibraryList').addEventListener('click', async (e) => {
     return;
   }
   if (action === 'add') {
-    if (!currentEvent) return alert('Open or create an event first.');
-    const res = await fetch(`/api/events/${currentEvent.id}/global-song-library/${songId}/add-to-event`, adminJsonOptions('POST'));
+    const targetEventId = document.querySelector(`[data-global-song-target="${songId}"]`)?.value || '';
+    if (!targetEventId) return alert('Choose the event first.');
+    if (!currentEvent) return alert('Open any event first so the admin session is active.');
+    const res = await fetch(`/api/events/${currentEvent.id}/global-song-library/${songId}/add-to-event`, adminJsonOptions('POST', { targetEventId }));
     const data = await res.json();
     if (!data.ok) return alert(data.error || 'Could not add item to event.');
-    currentEvent.songLibrary = data.songLibrary || [];
-    renderSongLibrary(currentEvent.songLibrary);
-    setStatus('Added to event library.');
+    const targetEventName = availableEventsList.find((event) => event.id === targetEventId)?.name || 'selected event';
+    setStatus(`Added to ${targetEventName}.`);
     return;
   }
   if (action === 'delete') {
@@ -1575,26 +1561,6 @@ $('globalSongLibraryList').addEventListener('click', async (e) => {
     currentGlobalSongLibrary = data.globalSongLibrary || [];
     renderGlobalSongLibrary(currentGlobalSongLibrary);
     setStatus('Deleted from church library.');
-  }
-});
-$('songLibraryList').addEventListener('click', async (e) => {
-  const btn = e.target.closest('button[data-song-action]');
-  if (!btn || !currentEvent) return;
-  const action = btn.getAttribute('data-song-action');
-  const songId = btn.getAttribute('data-song-id');
-  const item = (currentEvent.songLibrary || []).find((x) => x.id === songId);
-  if (!item) return;
-  if (action === 'load') { fillSongEditor(item); setStatus('Loaded into editor.'); return; }
-  if (action === 'send') { fillSongEditor(item); await sendSongItemToLive(item); return; }
-  if (action === 'delete') {
-    if (!confirm('Delete this saved item?')) return;
-    const res = await fetch(`/api/events/${currentEvent.id}/song-library/${songId}`, adminJsonOptions('DELETE'));
-    const data = await res.json();
-    if (!data.ok) return;
-    currentEvent.songLibrary = data.songLibrary || [];
-    renderSongLibrary(currentEvent.songLibrary);
-    renderSongState(currentEvent.songState || {});
-    setStatus('Deleted.');
   }
 });
 $('manualHistoryList')?.addEventListener('click', async (e) => {

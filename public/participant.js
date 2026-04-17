@@ -1,6 +1,7 @@
 const socket = io();
 const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
+let participantWakeLock = null;
 
 const voiceLocales = {
   ro: 'ro-RO',
@@ -55,6 +56,37 @@ const state = {
   languageInitialized: false,
   participantId: getOrCreateParticipantId()
 };
+
+function setWakeLockBadge(active) {
+  const badge = $('participantWakeLockBadge');
+  if (!badge) return;
+  badge.style.display = active ? 'inline-flex' : 'none';
+}
+
+async function enableWakeLock() {
+  try {
+    if (!('wakeLock' in navigator)) return;
+    if (document.visibilityState !== 'visible') return;
+    if (participantWakeLock) return;
+    participantWakeLock = await navigator.wakeLock.request('screen');
+    setWakeLockBadge(true);
+    participantWakeLock.addEventListener('release', () => {
+      participantWakeLock = null;
+      setWakeLockBadge(false);
+    });
+  } catch (_) {
+    setWakeLockBadge(false);
+  }
+}
+
+async function disableWakeLock() {
+  try {
+    if (!participantWakeLock) return;
+    await participantWakeLock.release();
+    participantWakeLock = null;
+  } catch (_) {}
+  setWakeLockBadge(false);
+}
 
 const HISTORY_MIN_ITEMS = 4;
 const HISTORY_MAX_ITEMS = 8;
@@ -244,6 +276,7 @@ async function resolveEventId() {
 async function joinParticipantEvent() {
   const eventId = await resolveEventId();
   if (!eventId) return setStatus('No active event.');
+  await enableWakeLock();
   socket.emit('join_event', {
     eventId,
     role: 'participant',
@@ -270,6 +303,7 @@ socket.on('joined_event', ({ event, role }) => {
   renderLiveView({ announce: false });
   setParticipantUpdating(false);
   setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Connected.');
+  enableWakeLock();
 });
 
 socket.on('transcript_entry', (entry) => {
@@ -333,7 +367,7 @@ socket.on('song_clear', () => {
 $('languageSelect').addEventListener('change', handleLanguageChange);
 $('playAudioBtn').addEventListener('click', () => {
   state.localAudioEnabled = true;
-  setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Local audio active.');
+  setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Audio active.');
   const latestEntry = getLatestEntry();
   if (latestEntry) speakLatestEntry(latestEntry);
 });
@@ -355,4 +389,16 @@ window.addEventListener('load', async () => {
     window.speechSynthesis?.getVoices();
     window.speechSynthesis.onvoiceschanged = () => {};
   } catch (_) {}
+
+  await enableWakeLock();
+});
+
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible') {
+    await enableWakeLock();
+  }
+});
+
+window.addEventListener('beforeunload', async () => {
+  await disableWakeLock();
 });

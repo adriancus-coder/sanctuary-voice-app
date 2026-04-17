@@ -754,22 +754,69 @@ progress::-moz-progress-bar {
   cursor: pointer;
 }
 
-.participant-shell {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 22px;
+.library-card-details {
+  padding: 0;
+  overflow: hidden;
+}
+
+.library-card-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 16px 18px;
+}
+
+.library-card-summary::-webkit-details-marker {
+  display: none;
+}
+
+.library-card-summary::after {
+  content: "Open";
+  float: right;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.library-card-details[open] .library-card-summary::after {
+  content: "Close";
+}
+
+.library-card-body {
   display: grid;
-  gap: 20px;
+  gap: 14px;
+  padding: 0 18px 18px;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.compact-library-row {
+  align-items: end;
+}
+
+.library-inline-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.participant-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px;
+  display: grid;
+  gap: 16px;
 }
 
 .participant-premium-shell {
-  gap: 24px;
+  gap: 18px;
 }
 
 .participant-header,
 .participant-controls,
 .participant-live {
-  padding: 24px;
+  padding: 18px;
 }
 
 .participant-hero-v2 {
@@ -795,14 +842,14 @@ progress::-moz-progress-bar {
 .participant-badge-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 6px;
 }
 
 .participant-controls {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
-  gap: 16px;
+  grid-template-columns: minmax(200px, 1fr) auto minmax(220px, 1fr);
+  gap: 12px;
   align-items: end;
 }
 
@@ -817,7 +864,7 @@ progress::-moz-progress-bar {
 }
 
 .participant-status-group .status-text {
-  min-height: 52px;
+  min-height: 42px;
   display: flex;
   align-items: center;
   padding: 0 2px;
@@ -835,8 +882,8 @@ progress::-moz-progress-bar {
 
 .participant-premium-live {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.95fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1.95fr) minmax(260px, 0.8fr);
+  gap: 14px;
   align-items: stretch;
 }
 
@@ -849,43 +896,44 @@ progress::-moz-progress-bar {
 }
 
 .participant-live-stage {
-  padding: 22px 24px;
-  min-height: 360px;
+  padding: 18px 20px;
+  min-height: 320px;
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 
 .participant-history-panel {
-  padding: 20px;
+  padding: 16px;
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 10px;
 }
 
 .participant-main-text {
   font-family: "Space Grotesk", sans-serif;
-  font-size: clamp(2.15rem, 4.1vw, 4.25rem);
+  font-size: clamp(1.7rem, 3.45vw, 3.3rem);
   font-weight: 700;
-  line-height: 1.14;
-  padding: 16px 0 10px;
+  line-height: 1.1;
+  padding: 10px 0 4px;
   white-space: pre-wrap;
   letter-spacing: -0.035em;
   text-wrap: balance;
 }
 
 .history-text {
-  line-height: 1.55;
+  line-height: 1.45;
+  font-size: 0.95rem;
 }
 
 .updating-badge {
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   color: var(--gold-strong);
   font-weight: 700;
 }
 
 .history-label {
-  margin-top: 10px;
+  margin-top: 0;
 }
 
 .display-body,
@@ -1251,6 +1299,6 @@ progress::-moz-progress-bar {
   }
 
   .participant-main-text {
-    font-size: clamp(1.7rem, 8vw, 2.7rem);
+    font-size: clamp(1.45rem, 7vw, 2.3rem);
   }
 }
