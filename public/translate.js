@@ -15,6 +15,7 @@ const state = {
   clockPosition: 'top-right',
   textSize: 'large',
   screenStyle: 'focus',
+  blackScreen: false,
   manualTranslations: {},
   latestLiveEntry: null,
   songState: null
@@ -81,6 +82,13 @@ function applyDisplaySettings() {
   const wrap = $('translateTextWrap');
   const clock = $('displayClock');
   if (wrap) {
+    if (state.blackScreen) {
+      wrap.style.backgroundImage = 'none';
+      wrap.style.backgroundColor = '#000';
+      wrap.dataset.textSize = state.textSize || 'large';
+      wrap.dataset.screenStyle = state.screenStyle || 'focus';
+      return;
+    }
     if (state.customBackground) {
       const overlay = state.currentTheme === 'light'
         ? 'linear-gradient(rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.45))'
@@ -112,7 +120,10 @@ function updateClock() {
 }
 
 function getTextToDisplay() {
-  if (state.currentEvent?.mode === 'song' && state.songState) {
+  if (state.blackScreen) {
+    return '';
+  }
+  if (state.currentDisplayMode === 'song' && state.songState) {
     return state.songState.translations?.[state.currentLanguage]
       || state.songState.activeBlock
       || 'Waiting for song translation...';
@@ -129,11 +140,17 @@ function getTextToDisplay() {
 }
 
 function updateMeta() {
-  const isSongMode = state.currentEvent?.mode === 'song';
-  $('translateModeBadge').textContent = isSongMode ? 'Song mode' : (state.currentDisplayMode === 'manual' ? 'Manual' : 'Auto');
+  const modeLabels = {
+    auto: 'Auto',
+    manual: 'Pinned text',
+    song: 'Song mode'
+  };
+  $('translateModeBadge').textContent = state.blackScreen ? 'Black screen' : (modeLabels[state.currentDisplayMode] || 'Auto');
   $('translateLanguageLabel').textContent = langLabel(state.currentLanguage);
   $('translateEventName').textContent = state.currentEvent?.name || 'BPMS Main Screen';
-  $('translateScreenLabel').textContent = isSongMode ? 'Song mode' : 'Live translation';
+  $('translateScreenLabel').textContent = state.blackScreen
+    ? ''
+    : (state.currentDisplayMode === 'song' ? 'Song mode' : state.currentDisplayMode === 'manual' ? 'Pinned text' : 'Live translation');
 }
 
 function autoFitText() {
@@ -250,6 +267,7 @@ socket.on('joined_event', ({ event, languageNames }) => {
   state.currentDisplayMode = event.displayState?.mode || 'auto';
   state.currentTheme = event.displayState?.theme || 'dark';
   state.currentLanguage = event.displayState?.language || state.currentLanguage;
+  state.blackScreen = !!event.displayState?.blackScreen;
   state.backgroundPreset = event.displayState?.backgroundPreset || 'none';
   state.customBackground = event.displayState?.customBackground || '';
   state.showClock = !!event.displayState?.showClock;
@@ -286,19 +304,19 @@ socket.on('song_clear', () => {
 });
 
 socket.on('transcript_entry', (entry) => {
-  if (state.currentEvent?.mode === 'song' || state.currentDisplayMode !== 'auto') return;
+  if (state.currentDisplayMode !== 'auto') return;
   state.latestLiveEntry = entry;
   renderDisplay();
 });
 
 socket.on('display_live_entry', (entry) => {
-  if (state.currentEvent?.mode === 'song' || state.currentDisplayMode !== 'auto') return;
+  if (state.currentDisplayMode !== 'auto') return;
   state.latestLiveEntry = entry;
   renderDisplay();
 });
 
 socket.on('transcript_source_updated', (payload) => {
-  if (state.currentEvent?.mode === 'song' || state.currentDisplayMode !== 'auto') return;
+  if (state.currentDisplayMode !== 'auto') return;
   if (!state.latestLiveEntry || state.latestLiveEntry.id !== payload.entryId) return;
   state.latestLiveEntry = {
     ...state.latestLiveEntry,
@@ -309,8 +327,9 @@ socket.on('transcript_source_updated', (payload) => {
   renderDisplay();
 });
 
-socket.on('display_mode_changed', ({ mode, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, manualTranslations }) => {
+socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, manualTranslations }) => {
   state.currentDisplayMode = mode || 'auto';
+  state.blackScreen = !!blackScreen;
   state.currentTheme = theme || state.currentTheme || 'dark';
   state.currentLanguage = language || state.currentLanguage;
   state.backgroundPreset = backgroundPreset || state.backgroundPreset || 'none';
@@ -329,8 +348,9 @@ socket.on('display_theme_changed', ({ theme }) => {
   renderDisplay();
 });
 
-socket.on('display_manual_update', ({ mode, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, manualTranslations }) => {
+socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, manualTranslations }) => {
   state.currentDisplayMode = mode || 'manual';
+  state.blackScreen = !!blackScreen;
   state.currentTheme = theme || state.currentTheme || 'dark';
   state.currentLanguage = language || state.currentLanguage;
   state.backgroundPreset = backgroundPreset || state.backgroundPreset || 'none';

@@ -163,7 +163,14 @@ function refreshDisplayControls() {
   const textSizeSelect = $('displayTextSizeSelect');
   const screenStyleSelect = $('displayScreenStyleSelect');
   if (modeLabel) {
-    const modeText = currentEvent?.displayState?.mode === 'manual' ? 'Pinned text' : 'Live follow';
+    const modeMap = {
+      auto: 'Live follow',
+      manual: 'Pinned text',
+      song: 'Song'
+    };
+    const modeText = currentEvent?.displayState?.blackScreen
+      ? 'Black screen'
+      : (modeMap[currentEvent?.displayState?.mode] || 'Live follow');
     const themeText = currentEvent?.displayState?.theme === 'light' ? 'Black on white' : 'White on black';
     modeLabel.textContent = `Main screen: ${modeText} · Theme: ${themeText}`;
   }
@@ -707,13 +714,24 @@ async function goToPrevSongBlock() {
 
 async function setDisplayMode(mode) {
   if (!currentEvent) return;
+  if (mode === 'song' && !currentEvent.songState?.activeBlock && !currentEvent.songState?.translations) {
+    return alert('Start Song mode first so there is an active verse on screen.');
+  }
   const res = await fetch(`/api/events/${currentEvent.id}/display/mode`, adminJsonOptions('POST', { mode }));
   const data = await res.json();
   if (!data.ok) return alert(data.error || 'Could not change display mode.');
+  if (data.event) {
+    currentEvent = data.event;
+  }
   currentEvent.displayState = data.displayState || currentEvent.displayState;
   refreshDisplayControls();
   renderActiveEventBadge(currentEvent);
-  setStatus(mode === 'manual' ? 'Main screen switched to pinned text.' : 'Main screen switched to live follow.');
+  const statusMap = {
+    auto: 'Main screen switched to live follow.',
+    manual: 'Main screen switched to pinned text.',
+    song: 'Main screen switched to Song mode.'
+  };
+  setStatus(statusMap[mode] || 'Main screen mode updated.');
 }
 
 async function setDisplayTheme(theme) {
@@ -768,7 +786,7 @@ async function blankMainScreen() {
   refreshDisplayControls();
   renderActiveEventBadge(currentEvent);
   renderSongState(currentEvent.songState || {});
-  setStatus('Main screen blanked. Only clock remains if enabled.');
+  setStatus('Main screen switched to black screen.');
 }
 
 function openPreviewWindow(url, name, features) {
@@ -920,18 +938,6 @@ function openBothPreviewWindows() {
 </body>
 </html>`);
   previewWindow.document.close();
-}
-
-async function clearSongFromScreen() {
-  if (!currentEvent) return alert('Open or create an event first.');
-  const res = await fetch(`/api/events/${currentEvent.id}/song/clear`, adminJsonOptions('POST'));
-  const data = await res.json();
-  if (!data.ok) return alert(data.error || 'Could not clear screen.');
-  currentEvent = data.event || currentEvent;
-  renderActiveEventBadge(currentEvent);
-  renderSongState(currentEvent.songState || {});
-  refreshDisplayControls();
-  setStatus('Screen cleared. Only clock remains if enabled.');
 }
 
 async function saveSongLabels() {
@@ -1363,10 +1369,11 @@ socket.on('song_clear', () => {
   renderSongState(currentEvent.songState);
   renderActiveEventBadge(currentEvent);
 });
-socket.on('display_mode_changed', ({ mode, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle }) => {
+socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle }) => {
   if (!currentEvent) return;
   currentEvent.displayState = currentEvent.displayState || {};
   currentEvent.displayState.mode = mode;
+  currentEvent.displayState.blackScreen = !!blackScreen;
   currentEvent.displayState.theme = theme || currentEvent.displayState.theme || 'dark';
   currentEvent.displayState.language = language || currentEvent.displayState.language;
   currentEvent.displayState.backgroundPreset = backgroundPreset || currentEvent.displayState.backgroundPreset || 'none';
@@ -1385,10 +1392,11 @@ socket.on('display_theme_changed', ({ theme }) => {
   currentEvent.displayState.theme = theme || 'dark';
   refreshDisplayControls();
 });
-socket.on('display_manual_update', ({ mode, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, manualSource, manualTranslations, updatedAt }) => {
+socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, manualSource, manualTranslations, updatedAt }) => {
   if (!currentEvent) return;
   currentEvent.displayState = currentEvent.displayState || {};
   currentEvent.displayState.mode = mode || 'manual';
+  currentEvent.displayState.blackScreen = !!blackScreen;
   currentEvent.displayState.theme = theme || currentEvent.displayState.theme || 'dark';
   currentEvent.displayState.language = language || currentEvent.displayState.language;
   currentEvent.displayState.backgroundPreset = backgroundPreset || currentEvent.displayState.backgroundPreset || 'none';
@@ -1492,10 +1500,10 @@ $('saveGlobalSongBtn').addEventListener('click', saveSongToGlobalLibrary);
 $('sendSongBtn').addEventListener('click', sendSongToLive);
 $('songPrevBtn').addEventListener('click', goToPrevSongBlock);
 $('songNextBtn').addEventListener('click', goToNextSongBlock);
-$('clearSongScreenBtn').addEventListener('click', clearSongFromScreen);
 $('blankMainScreenBtn').addEventListener('click', blankMainScreen);
 $('displayAutoBtn').addEventListener('click', () => setDisplayMode('auto'));
 $('displayManualBtn').addEventListener('click', () => setDisplayMode('manual'));
+$('displaySongBtn').addEventListener('click', () => setDisplayMode('song'));
 $('displayThemeSelect').addEventListener('change', () => setDisplayTheme($('displayThemeSelect').value));
 $('displayLanguageSelect').addEventListener('change', () => setDisplayLanguage($('displayLanguageSelect').value));
 $('saveDisplaySettingsBtn').addEventListener('click', saveDisplaySettings);
