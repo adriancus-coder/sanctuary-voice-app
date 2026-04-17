@@ -1463,9 +1463,15 @@ app.post('/api/events/:id/global-song-library', (req, res) => {
 });
 
 app.post('/api/events/:id/global-song-library/:songId/add-to-event', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
+  const adminEvent = db.events[req.params.id];
+  if (!adminEvent) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  if (!requireEventAdmin(req, res, adminEvent)) return;
+
+  const targetEventId = String(req.body?.targetEventId || req.params.id || '').trim();
+  const event = db.events[targetEventId];
+  if (!event) {
+    return res.status(404).json({ ok: false, error: 'Evenimentul selectat nu exista.' });
+  }
 
   ensureEventUiState(event);
   const item = (db.globalSongLibrary || []).find((entry) => entry.id === req.params.songId);
@@ -1475,7 +1481,7 @@ app.post('/api/events/:id/global-song-library/:songId/add-to-event', (req, res) 
 
   upsertLibraryItem(event.songLibrary, { title: item.title, text: item.text, labels: item.labels || [] }, 100);
   saveDb();
-  res.json({ ok: true, songLibrary: event.songLibrary, globalSongLibrary: db.globalSongLibrary });
+  res.json({ ok: true, targetEvent: summarizeEvent(event), songLibrary: event.songLibrary, globalSongLibrary: db.globalSongLibrary });
 });
 
 app.delete('/api/events/:id/global-song-library/:songId', (req, res) => {
