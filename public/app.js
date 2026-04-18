@@ -457,10 +457,14 @@ function fillLanguageSelectors() {
   const sourceSelect = $('sourceLang');
   const songSourceSelect = $('songSourceLang');
   const manualSourceSelect = $('manualSourceLang');
+  const liveSourceSelect = $('liveSourceLang');
   const targetBox = $('targetLangList');
   sourceSelect.innerHTML = '';
   if (songSourceSelect) songSourceSelect.innerHTML = '';
   if (manualSourceSelect) manualSourceSelect.innerHTML = '';
+  if (liveSourceSelect) {
+    liveSourceSelect.innerHTML = '<option value="auto" selected>Auto detect</option>';
+  }
   targetBox.innerHTML = '';
   Object.entries(availableLanguages).forEach(([code, label]) => {
     const option = document.createElement('option');
@@ -481,6 +485,12 @@ function fillLanguageSelectors() {
       manualOption.textContent = label;
       if (code === 'ro') manualOption.selected = true;
       manualSourceSelect.appendChild(manualOption);
+    }
+    if (liveSourceSelect) {
+      const liveOption = document.createElement('option');
+      liveOption.value = code;
+      liveOption.textContent = label;
+      liveSourceSelect.appendChild(liveOption);
     }
 
     const checked = ['no', 'en'].includes(code);
@@ -749,7 +759,8 @@ async function loadPinnedTextLibrary() {
 async function syncSpeedToEvent() {
   if (!currentEvent) return;
   const speed = $('speed').value || 'balanced';
-  const res = await fetch(`/api/events/${currentEvent.id}/settings`, adminJsonOptions('POST', { speed }));
+  const liveSourceLang = $('liveSourceLang')?.value || 'auto';
+  const res = await fetch(`/api/events/${currentEvent.id}/settings`, adminJsonOptions('POST', { speed, liveSourceLang }));
   const data = await res.json();
   if (data.ok) currentEvent = data.event;
 }
@@ -1356,6 +1367,7 @@ async function openEventById(eventId) {
   currentEvent = data.event;
   populateEventLinks();
   $('speed').value = currentEvent.speed || 'balanced';
+  if ($('liveSourceLang')) $('liveSourceLang').value = currentEvent.liveSourceLang || 'auto';
   currentVolume = currentEvent.audioVolume;
   currentMuted = currentEvent.audioMuted;
   $('volumeRange').value = String(currentVolume);
@@ -1413,8 +1425,17 @@ async function setEventMode(mode) {
   const data = await res.json();
   if (data.ok) {
     currentEvent = data.event;
+    if (mode === 'live') currentEvent.mode = 'live';
     renderActiveEventBadge(currentEvent);
+    refreshDisplayControls();
   }
+}
+
+async function returnToLiveText() {
+  if (!currentEvent) return alert('Open or create an event first.');
+  await syncSpeedToEvent();
+  await setEventMode('live');
+  setStatus('Back to live text. Participants will receive the next transcript lines.');
 }
 
 async function setActiveEvent() {
@@ -1804,6 +1825,12 @@ socket.on('active_event_changed', async ({ eventId }) => {
 socket.on('mode_changed', ({ mode }) => {
   if (!currentEvent) return;
   currentEvent.mode = mode;
+  if (mode === 'live') {
+    currentEvent.displayState = currentEvent.displayState || {};
+    currentEvent.displayState.mode = 'auto';
+    currentEvent.displayState.blackScreen = false;
+    refreshDisplayControls();
+  }
   renderActiveEventBadge(currentEvent);
 });
 socket.on('song_state', (songState) => {
@@ -1959,6 +1986,8 @@ $('audioInput').addEventListener('change', async () => {
 });
 $('startRecognitionBtn').addEventListener('click', startTranslation);
 $('stopRecognitionBtn').addEventListener('click', stopTranslation);
+$('backToLiveTextBtn')?.addEventListener('click', returnToLiveText);
+$('liveSourceLang')?.addEventListener('change', syncSpeedToEvent);
 $('copyParticipantBtn').addEventListener('click', () => copyField('participantLink', 'copyParticipantBtn'));
 $('copyTranslateBtn').addEventListener('click', () => copyField('translateLink', 'copyTranslateBtn'));
 $('copyRemoteControlBtn').addEventListener('click', () => copyField('remoteControlLink', 'copyRemoteControlBtn'));

@@ -525,6 +525,10 @@ progress::-moz-progress-bar {
   gap: 10px;
 }
 
+.full-width-btn {
+  width: 100%;
+}
+
 .spread-row {
   justify-content: flex-start;
 }

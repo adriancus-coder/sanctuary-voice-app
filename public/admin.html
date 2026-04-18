@@ -117,10 +117,13 @@
                 </select>
               </div>
               <div>
-                <label>Audio input</label>
-                <select id="audioInput"></select>
+                <label>Spoken language</label>
+                <select id="liveSourceLang"></select>
               </div>
             </div>
+
+            <label>Audio input</label>
+            <select id="audioInput"></select>
 
             <div class="info-card accent-card">
               <div class="label">Signal monitor</div>
@@ -520,6 +523,7 @@
             <div class="button-row compact-row">
               <button id="songPrevBtn" class="btn btn-dark" type="button">Previous verse</button>
               <button id="songNextBtn" class="btn btn-dark" type="button">Next verse</button>
+              <button id="backToLiveTextBtn" class="btn btn-primary" type="button">Back to live text</button>
             </div>
             <div class="info-card soft-card">
               <div class="label">Song preview</div>

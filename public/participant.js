@@ -436,6 +436,7 @@ socket.on('active_event_changed', async () => {
 
 socket.on('mode_changed', ({ mode }) => {
   state.currentMode = mode || 'live';
+  if (state.currentEvent) state.currentEvent.mode = state.currentMode;
   syncLanguageOptions({ ...state.currentEvent, mode: state.currentMode, songState: state.currentSongState });
   if (mode === 'song') {
     setStatus('Song active on public screen.');
