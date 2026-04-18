@@ -546,13 +546,27 @@ async function copyQrImage() {
   }
 }
 
-function downloadQr() {
-  const src = $('qrImage')?.src;
+function downloadQrFromImage(imageId, filenamePrefix = 'sanctuary-voice-qr') {
+  const src = $(imageId)?.src;
   if (!src) return;
   const a = document.createElement('a');
   a.href = src;
-  a.download = `sanctuary-voice-qr-${Date.now()}.png`;
+  a.download = `${filenamePrefix}-${Date.now()}.png`;
   a.click();
+}
+
+function downloadQr() {
+  downloadQrFromImage('qrImage');
+}
+
+function downloadPermanentQr() {
+  downloadQrFromImage('permanentQrImage', 'sanctuary-voice-permanent-participant-qr');
+}
+
+function hydratePermanentParticipantAccess() {
+  const link = `${window.location.origin}/participant`;
+  if ($('permanentParticipantLink')) $('permanentParticipantLink').value = link;
+  if ($('permanentQrImage')) $('permanentQrImage').src = `/api/participant-qr.png?ts=${Date.now()}`;
 }
 
 function emailLinkFromField(fieldId, label) {
@@ -1952,6 +1966,9 @@ $('copyAccessRemoteBtn').addEventListener('click', () => copyField('accessRemote
 $('emailParticipantBtn').addEventListener('click', () => emailLinkFromField('participantLink', 'participant link'));
 $('emailTranslateBtn').addEventListener('click', () => emailLinkFromField('translateLink', 'main screen link'));
 $('emailAccessRemoteBtn').addEventListener('click', () => emailLinkFromField('accessRemoteControlLink', 'remote control link'));
+$('copyPermanentParticipantBtn')?.addEventListener('click', () => copyField('permanentParticipantLink', 'copyPermanentParticipantBtn'));
+$('emailPermanentParticipantBtn')?.addEventListener('click', () => emailLinkFromField('permanentParticipantLink', 'permanent participant link'));
+$('downloadPermanentQrBtn')?.addEventListener('click', downloadPermanentQr);
 $('copyQrBtn').addEventListener('click', copyQrImage);
 $('downloadQrBtn').addEventListener('click', downloadQr);
 $('openRemoteControlBtn').addEventListener('click', () => {
@@ -2233,6 +2250,7 @@ window.addEventListener('load', async () => {
   const now = new Date();
   $('eventDate').value = now.toISOString().slice(0, 10);
   $('eventTime').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  hydratePermanentParticipantAccess();
   try { await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (_) {}
   const langRes = await fetch('/api/languages');
   const langData = await langRes.json();

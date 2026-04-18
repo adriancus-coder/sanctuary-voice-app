@@ -21,6 +21,22 @@
         <div class="muted">Move quickly between live control, transcript, events, Main Screen, and Song.</div>
       </div>
 
+      <div class="info-card soft-card permanent-qr-card">
+        <div class="section-head compact-head">
+          <div>
+            <div class="label">Permanent participant QR</div>
+            <div class="muted">Print once. People scan this QR and choose the live event.</div>
+          </div>
+        </div>
+        <input id="permanentParticipantLink" type="text" readonly>
+        <img id="permanentQrImage" class="qr permanent-qr" alt="Permanent participant QR code">
+        <div class="button-row compact-row">
+          <button id="copyPermanentParticipantBtn" class="btn btn-dark" type="button">Copy link</button>
+          <button id="emailPermanentParticipantBtn" class="btn btn-dark" type="button">Email</button>
+          <button id="downloadPermanentQrBtn" class="btn btn-dark" type="button">Download QR</button>
+        </div>
+      </div>
+
       <nav class="sidebar-nav">
         <button class="nav-btn active" data-tab="dashboard" type="button">Live Control</button>
         <button class="nav-btn" data-tab="transcript" type="button">Transcript</button>
@@ -211,7 +227,7 @@
             <div class="meta-row access-code-row"><span>Screen operator code</span><strong id="accessScreenOperatorCode">-</strong></div>
 
             <div class="link-stack">
-              <label>Participant link</label>
+              <label>Participant link (permanent)</label>
               <div class="link-row">
                 <input id="participantLink" type="text" readonly>
                 <button id="copyParticipantBtn" class="btn btn-dark">Copy</button>
@@ -242,6 +258,7 @@
             </div>
 
             <img id="qrImage" class="qr" alt="QR code">
+            <div class="muted">Same QR every time. Participants choose the live event after scanning.</div>
             <div class="button-row compact-row">
               <button id="copyQrBtn" class="btn btn-dark">Copy QR</button>
               <button id="downloadQrBtn" class="btn btn-dark">Download QR</button>

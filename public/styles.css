@@ -222,6 +222,22 @@ progress::-moz-progress-bar {
   font-size: 1.05rem;
 }
 
+.permanent-qr-card {
+  display: grid;
+  gap: 12px;
+}
+
+.permanent-qr-card input {
+  min-width: 0;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+}
+
+.permanent-qr {
+  width: min(180px, 100%);
+  justify-self: center;
+}
+
 .sidebar {
   position: sticky;
   top: 22px;
