@@ -323,7 +323,7 @@ const REMOTE_OPERATOR_PROFILES = {
   },
   full: {
     label: 'Full operator',
-    permissions: ['main_screen', 'song']
+    permissions: ['main_screen', 'song', 'glossary']
   }
 };
 
@@ -1437,7 +1437,8 @@ app.get('/api/events/:id', (req, res) => {
 app.post('/api/events/:id/remote-operators', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+  if (!requireEventPermission(req, res, 'song')) return;
   ensureEventAccessLinks(event, buildBaseUrl(req));
   const name = String(req.body.name || '').trim();
   const profile = normalizeRemoteOperatorProfile(req.body.profile);
@@ -1515,7 +1516,8 @@ app.delete('/api/events/:id', (req, res) => {
 app.post('/api/events/:id/glossary', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+  if (!requireEventPermission(req, res, 'glossary')) return;
   const source = String(req.body.source || '').trim();
   const target = String(req.body.target || '').trim();
   const permanent = !!req.body.permanent;
@@ -1533,7 +1535,8 @@ app.post('/api/events/:id/glossary', (req, res) => {
 app.post('/api/events/:id/source-corrections', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+  if (!requireEventPermission(req, res, 'glossary')) return;
   const heard = String(req.body.heard || '').trim();
   const correct = String(req.body.correct || '').trim();
   const permanent = !!req.body.permanent;
@@ -1560,13 +1563,15 @@ app.post('/api/events/:id/audio', (req, res) => {
 app.post('/api/events/:id/song/load', async (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+  if (!requireEventPermission(req, res, 'song')) return;
   const title = String(req.body.title || '').trim();
   const text = sanitizeStructuredText(req.body.text || '');
   const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
   if (!text) return res.status(400).json({ ok: false, error: 'Text lipsă.' });
   try {
     const blocks = splitSongBlocks(text);
+    const songSourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
     const allTranslations = await buildSongTranslations(event, blocks, songSourceLang);
     event.songState = {
       title,
@@ -1607,9 +1612,9 @@ app.post('/api/events/:id/song/show/:index', (req, res) => {
 app.post('/api/events/:id/song/labels', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+  if (!requireEventPermission(req, res, 'song')) return;
   const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
-  const songSourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
   const blocks = Array.isArray(event.songState?.blocks) ? event.songState.blocks : [];
   event.songState = event.songState || defaultSongState();
   event.songState.blockLabels = buildBlockLabels(blocks, labels);
@@ -2114,7 +2119,8 @@ app.get('/api/events/:id/global-song-library', (req, res) => {
 app.post('/api/events/:id/global-song-library', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+  if (!requireEventPermission(req, res, 'song')) return;
 
   const title = String(req.body.title || '').trim();
   const text = sanitizeStructuredText(req.body.text || '');
