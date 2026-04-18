@@ -1,5 +1,7 @@
 const socket = io();
 const $ = (id) => document.getElementById(id);
+const LIVE_AUDIO_CHUNK_MS = 8500;
+const MIN_AUDIO_CHUNK_BYTES = 18000;
 
 let currentEvent = null;
 let currentGlobalSongLibrary = [];
@@ -463,7 +465,7 @@ function fillLanguageSelectors() {
   if (songSourceSelect) songSourceSelect.innerHTML = '';
   if (manualSourceSelect) manualSourceSelect.innerHTML = '';
   if (liveSourceSelect) {
-    liveSourceSelect.innerHTML = '<option value="auto" selected>Auto detect</option>';
+    liveSourceSelect.innerHTML = '<option value="auto">Auto detect</option>';
   }
   targetBox.innerHTML = '';
   Object.entries(availableLanguages).forEach(([code, label]) => {
@@ -759,7 +761,7 @@ async function loadPinnedTextLibrary() {
 async function syncSpeedToEvent() {
   if (!currentEvent) return;
   const speed = $('speed').value || 'balanced';
-  const liveSourceLang = $('liveSourceLang')?.value || 'auto';
+  const liveSourceLang = $('liveSourceLang')?.value || currentEvent?.sourceLang || 'ro';
   const res = await fetch(`/api/events/${currentEvent.id}/settings`, adminJsonOptions('POST', { speed, liveSourceLang }));
   const data = await res.json();
   if (data.ok) currentEvent = data.event;
@@ -1367,7 +1369,7 @@ async function openEventById(eventId) {
   currentEvent = data.event;
   populateEventLinks();
   $('speed').value = currentEvent.speed || 'balanced';
-  if ($('liveSourceLang')) $('liveSourceLang').value = currentEvent.liveSourceLang || 'auto';
+  if ($('liveSourceLang')) $('liveSourceLang').value = currentEvent.liveSourceLang === 'auto' ? (currentEvent.sourceLang || 'ro') : (currentEvent.liveSourceLang || currentEvent.sourceLang || 'ro');
   currentVolume = currentEvent.audioVolume;
   currentMuted = currentEvent.audioMuted;
   $('volumeRange').value = String(currentVolume);
@@ -1582,7 +1584,7 @@ function getAudioFileInfo(mimeType) {
 }
 
 async function postAudioChunk(blob) {
-  if (!currentEvent || !blob || blob.size < 3500) return;
+  if (!currentEvent || !blob || blob.size < MIN_AUDIO_CHUNK_BYTES) return;
   const detectedType = blob.type || audioState.mimeType || 'audio/webm';
   const fileInfo = getAudioFileInfo(detectedType);
   const form = new FormData();
@@ -1594,7 +1596,7 @@ async function postAudioChunk(blob) {
 }
 
 function enqueueAudioBlob(blob) {
-  if (!blob || blob.size < 3500) return;
+  if (!blob || blob.size < MIN_AUDIO_CHUNK_BYTES) return;
   audioState.uploadQueue.push(blob);
   if (!audioState.busy) drainAudioUploadQueue().catch(console.error);
 }
@@ -1639,10 +1641,10 @@ async function startTranslation() {
       audioState.chunkTimer = null;
       if (audioState.recorder === recorder) audioState.recorder = null;
       if (audioState.running) startRecorderCycle();
-      if (blob.size >= 3500) enqueueAudioBlob(blob);
+      if (blob.size >= MIN_AUDIO_CHUNK_BYTES) enqueueAudioBlob(blob);
     };
     recorder.start();
-    audioState.chunkTimer = setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 5200);
+    audioState.chunkTimer = setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, LIVE_AUDIO_CHUNK_MS);
   };
   startRecorderCycle();
   setStatus('On-Air. Translating from selected source.');
