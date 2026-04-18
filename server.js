@@ -39,7 +39,7 @@ app.get('/translate', (req, res) => res.sendFile(path.join(__dirname, 'public', 
 app.get('/song', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'sessions.json');
 
 const LANGUAGES = {
@@ -271,6 +271,9 @@ function ensureEventUiState(event) {
   if (typeof event.displayState.manualSourceLang !== 'string' || !event.displayState.manualSourceLang.trim()) {
     event.displayState.manualSourceLang = event.sourceLang || 'ro';
   }
+  if (typeof event.liveSourceLang !== 'string' || !event.liveSourceLang.trim()) {
+    event.liveSourceLang = 'auto';
+  }
   if (!['none', 'warm', 'sanctuary', 'soft-light'].includes(event.displayState.backgroundPreset)) {
     event.displayState.backgroundPreset = 'none';
   }
@@ -441,6 +444,7 @@ function summarizeEvent(event) {
     createdAt: event.createdAt || null,
     scheduledAt: event.scheduledAt || null,
     sourceLang: event.sourceLang || 'ro',
+    liveSourceLang: event.liveSourceLang || 'auto',
     targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
     transcriptCount: Array.isArray(event.transcripts) ? event.transcripts.length : 0,
     isActive: db.activeEventId === event.id,
@@ -630,6 +634,7 @@ function normalizeEvent(event) {
     id: event.id,
     name: event.name,
     sourceLang: event.sourceLang || 'ro',
+    liveSourceLang: event.liveSourceLang || 'auto',
     targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : ['no', 'en'],
     speed: event.speed || 'balanced',
     adminCode: event.adminCode,
@@ -892,6 +897,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     id,
     name: name || 'Eveniment nou',
     sourceLang: sourceLang || 'ro',
+    liveSourceLang: 'auto',
     targetLangs: targetLangs?.length ? targetLangs : ['no', 'en'],
     speed: speed || 'balanced',
     scheduledAt: scheduledAt || null,
@@ -1105,25 +1111,73 @@ async function translateText(text, langCode, event, sourceLangOverride = '') {
   }
 }
 
+function detectSourceLangByScript(text) {
+  const sample = String(text || '');
+  if (/[\u0370-\u03ff]/.test(sample)) return 'el';
+  if (/[\u0600-\u06ff]/.test(sample)) return 'ar';
+  if (/[\u0400-\u04ff]/.test(sample)) return 'ru';
+  if (/[æøåÆØÅ]/.test(sample)) return 'no';
+  if (/[ăâîșşțţĂÂÎȘŞȚŢ]/.test(sample)) return 'ro';
+  return '';
+}
+
+async function detectSourceLanguage(text, event) {
+  const configured = String(event.liveSourceLang || 'auto').trim();
+  if (configured && configured !== 'auto' && LANGUAGES[configured]) return configured;
+
+  const scriptGuess = detectSourceLangByScript(text);
+  if (scriptGuess && LANGUAGES[scriptGuess]) return scriptGuess;
+
+  const fallback = event.sourceLang || 'ro';
+  if (!client) return fallback;
+
+  const candidates = Array.from(new Set([
+    fallback,
+    ...(event.targetLangs || []),
+    'ro', 'no', 'en', 'ru', 'uk', 'es', 'fr', 'de', 'it', 'pt', 'pl', 'tr', 'ar', 'fa', 'hu', 'el'
+  ].filter((code) => LANGUAGES[code])));
+
+  try {
+    const response = await client.responses.create({
+      model: OPENAI_MODEL,
+      input: [
+        {
+          role: 'system',
+          content: `Detect the language of the text. Return only one ISO code from this list: ${candidates.join(', ')}.`
+        },
+        { role: 'user', content: sanitizeStructuredText(text).slice(0, 700) }
+      ]
+    });
+    const code = String(response.output_text || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+    return candidates.includes(code) ? code : fallback;
+  } catch (err) {
+    console.error('source language detect error:', err?.message || err);
+    return fallback;
+  }
+}
+
 async function transcribeAudioFile(filePath, event) {
-  if (!client) return '';
+  if (!client) return { text: '', sourceLang: event.sourceLang || 'ro' };
+  const configured = String(event.liveSourceLang || 'auto').trim();
   const request = {
     file: fs.createReadStream(filePath),
     model: OPENAI_TRANSCRIBE_MODEL,
     response_format: 'json',
     prompt:
-      event.sourceLang === 'no'
+      configured === 'no'
         ? 'The audio is a Christian sermon in Norwegian. Keep the transcript in Norwegian. Use natural punctuation. Common terms may include Jesus, Kristus, Herren, Den Hellige Ånd, menighet, evangeliet, apostel, nåde, kjærlighet, synd, frelse.'
-        : 'The audio is a live sermon. Keep names and punctuation natural.'
+        : 'The audio is a live church service or sermon. Detect the spoken language naturally. Keep names and punctuation natural.'
   };
-  if (event.sourceLang !== 'no') request.language = event.sourceLang || 'ro';
+  if (configured && configured !== 'auto' && LANGUAGES[configured]) request.language = configured;
   const result = await client.audio.transcriptions.create(request);
-  return String(result?.text || '').trim();
+  const text = String(result?.text || '').trim();
+  return { text, sourceLang: await detectSourceLanguage(text, event) };
 }
 
 async function retranslateEntry(event, entry) {
+  const sourceLang = entry.sourceLang || event.sourceLang || 'ro';
   const translationPairs = await Promise.all(
-    event.targetLangs.map(async (lang) => [lang, await translateText(entry.original, lang, event)])
+    event.targetLangs.map(async (lang) => [lang, await translateText(entry.original, lang, event, sourceLang)])
   );
   entry.translations = Object.fromEntries(translationPairs);
 }
@@ -1142,7 +1196,7 @@ function shouldAppendToPreviousEntry(previousEntry, newText) {
   return false;
 }
 
-async function publishNewChunk(event, chunk) {
+async function publishNewChunk(event, chunk, sourceLangOverride = '') {
   const cleanChunk = sanitizeTranscriptText(chunk);
   if (!cleanChunk) return null;
   const chunkNormalized = normalizeChunkText(cleanChunk);
@@ -1159,13 +1213,14 @@ async function publishNewChunk(event, chunk) {
     });
   }
 
+  const sourceLang = sourceLangOverride || event.sourceLang || 'ro';
   const translationPairs = await Promise.all(
-    event.targetLangs.map(async (lang) => [lang, await translateText(cleanChunk, lang, event)])
+    event.targetLangs.map(async (lang) => [lang, await translateText(cleanChunk, lang, event, sourceLang)])
   );
 
   const entry = {
     id: randomUUID(),
-    sourceLang: event.sourceLang,
+    sourceLang,
     original: cleanChunk,
     translations: Object.fromEntries(translationPairs),
     createdAt: new Date().toISOString(),
@@ -1186,17 +1241,18 @@ async function publishNewChunk(event, chunk) {
   return entry;
 }
 
-async function processText(event, cleanText, { force = false } = {}) {
+async function processText(event, cleanText, { force = false, sourceLang = '' } = {}) {
   const normalized = normalizeChunkText(cleanText);
   if (!normalized || normalized.length < 2) return null;
   if (!force && normalized === event.lastTranscriptNorm) return null;
+  const entrySourceLang = sourceLang || event.sourceLang || 'ro';
 
   const lastEntry = event.transcripts[event.transcripts.length - 1];
-  if (shouldAppendToPreviousEntry(lastEntry, cleanText)) {
+  if (lastEntry?.sourceLang === entrySourceLang && shouldAppendToPreviousEntry(lastEntry, cleanText)) {
     const combinedText = sanitizeTranscriptText(`${lastEntry.original} ${cleanText}`);
     const chunks = splitIntoDisplayChunks(combinedText);
     const firstChunk = chunks.shift() || combinedText;
-    lastEntry.sourceLang = event.sourceLang;
+    lastEntry.sourceLang = entrySourceLang;
     lastEntry.original = firstChunk;
     await retranslateEntry(event, lastEntry);
     event.lastTranscriptNorm = normalizeChunkText(firstChunk);
@@ -1215,7 +1271,7 @@ async function processText(event, cleanText, { force = false } = {}) {
 
     let lastCreatedEntry = lastEntry;
     for (const extraChunk of chunks) {
-      const created = await publishNewChunk(event, extraChunk);
+      const created = await publishNewChunk(event, extraChunk, entrySourceLang);
       if (created) lastCreatedEntry = created;
     }
     return lastCreatedEntry;
@@ -1224,7 +1280,7 @@ async function processText(event, cleanText, { force = false } = {}) {
   const chunks = splitIntoDisplayChunks(cleanText);
   let lastCreatedEntry = null;
   for (const chunk of chunks) {
-    const created = await publishNewChunk(event, chunk);
+    const created = await publishNewChunk(event, chunk, entrySourceLang);
     if (created) lastCreatedEntry = created;
   }
   return lastCreatedEntry;
@@ -1265,18 +1321,18 @@ async function flushSpeechBuffer(eventId, force = false) {
 
   speechBuffers.delete(eventId);
   io.to(`event:${eventId}:admins`).emit('partial_transcript', { text: '' });
-  return processText(event, text, { force: true });
+  return processText(event, text, { force: true, sourceLang: buffered.sourceLang || event.sourceLang || 'ro' });
 }
 
-function queueSpeechText(eventId, text) {
+function queueSpeechText(eventId, text, sourceLang = '') {
   const clean = sanitizeTranscriptText(text);
   if (!clean) return;
 
-  const prev = speechBuffers.get(eventId) || { text: '', timer: null, startedAt: Date.now() };
+  const prev = speechBuffers.get(eventId) || { text: '', timer: null, startedAt: Date.now(), sourceLang };
   const merged = mergeTranscriptText(prev.text, clean);
   if (prev.timer) clearTimeout(prev.timer);
 
-  const next = { text: merged, timer: null, startedAt: prev.startedAt || Date.now() };
+  const next = { text: merged, timer: null, startedAt: prev.startedAt || Date.now(), sourceLang: sourceLang || prev.sourceLang || '' };
   speechBuffers.set(eventId, next);
   io.to(`event:${eventId}:admins`).emit('partial_transcript', { text: merged });
 
@@ -1584,6 +1640,10 @@ app.post('/api/events/:id/settings', (req, res) => {
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
   if (!requireEventAdmin(req, res, event)) return;
   if (typeof req.body.speed === 'string' && req.body.speed.trim()) event.speed = req.body.speed.trim();
+  if (typeof req.body.liveSourceLang === 'string') {
+    const liveSourceLang = req.body.liveSourceLang.trim();
+    event.liveSourceLang = liveSourceLang === 'auto' || LANGUAGES[liveSourceLang] ? liveSourceLang : (event.liveSourceLang || 'auto');
+  }
   saveDb();
   res.json({ ok: true, event: normalizeEvent(event) });
 });
@@ -1594,9 +1654,20 @@ app.post('/api/events/:id/mode', (req, res) => {
   if (!requireEventAdmin(req, res, event)) return;
   const mode = String(req.body.mode || 'live').trim();
   if (!['live', 'song'].includes(mode)) return res.status(400).json({ ok: false, error: 'Mod invalid.' });
+  ensureEventUiState(event);
   event.mode = mode;
+  if (mode === 'live') {
+    rememberDisplayState(event);
+    event.displayState.mode = 'auto';
+    event.displayState.blackScreen = false;
+    event.displayState.sceneLabel = '';
+    event.displayState.updatedAt = new Date().toISOString();
+  }
   saveDb();
   io.to(`event:${event.id}`).emit('mode_changed', { mode });
+  if (mode === 'live') {
+    io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
+  }
   res.json({ ok: true, event: normalizeEvent(event) });
 });
 
@@ -2301,11 +2372,13 @@ app.post('/api/events/:id/transcribe', upload.single('audio'), async (req, res) 
 
   try {
     fs.writeFileSync(tempPath, req.file.buffer);
-    const rawTranscript = await transcribeAudioFile(tempPath, event);
+    const transcriptResult = await transcribeAudioFile(tempPath, event);
+    const rawTranscript = typeof transcriptResult === 'string' ? transcriptResult : transcriptResult.text;
+    const sourceLang = typeof transcriptResult === 'object' ? transcriptResult.sourceLang : (event.sourceLang || 'ro');
     const transcript = applySourceCorrections(sanitizeTranscriptText(rawTranscript), getSourceCorrections(event));
     if (!transcript) return res.json({ ok: true, skipped: true });
-    queueSpeechText(event.id, transcript);
-    return res.json({ ok: true, text: transcript, buffered: true });
+    queueSpeechText(event.id, transcript, sourceLang);
+    return res.json({ ok: true, text: transcript, sourceLang, buffered: true });
   } catch (err) {
     console.error('transcribe error:', err?.message || err);
     return res.status(500).json({ ok: false, error: 'Nu am putut transcrie audio.' });
@@ -2378,7 +2451,7 @@ io.on('connection', (socket) => {
     if (!cleanText) return;
     try {
       event.mode = 'live';
-      await processText(event, cleanText);
+      await processText(event, cleanText, { sourceLang: event.liveSourceLang && event.liveSourceLang !== 'auto' ? event.liveSourceLang : event.sourceLang });
     } catch (err) {
       console.error('submit_text error:', err);
       recordServerError(event, 'Live submit translation failed.');
