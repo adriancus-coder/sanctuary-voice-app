@@ -272,7 +272,7 @@ function ensureEventUiState(event) {
     event.displayState.manualSourceLang = event.sourceLang || 'ro';
   }
   if (typeof event.liveSourceLang !== 'string' || !event.liveSourceLang.trim()) {
-    event.liveSourceLang = 'auto';
+    event.liveSourceLang = event.sourceLang || 'ro';
   }
   if (!['none', 'warm', 'sanctuary', 'soft-light'].includes(event.displayState.backgroundPreset)) {
     event.displayState.backgroundPreset = 'none';
@@ -444,7 +444,7 @@ function summarizeEvent(event) {
     createdAt: event.createdAt || null,
     scheduledAt: event.scheduledAt || null,
     sourceLang: event.sourceLang || 'ro',
-    liveSourceLang: event.liveSourceLang || 'auto',
+    liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
     targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
     transcriptCount: Array.isArray(event.transcripts) ? event.transcripts.length : 0,
     isActive: db.activeEventId === event.id,
@@ -634,7 +634,7 @@ function normalizeEvent(event) {
     id: event.id,
     name: event.name,
     sourceLang: event.sourceLang || 'ro',
-    liveSourceLang: event.liveSourceLang || 'auto',
+    liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
     targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : ['no', 'en'],
     speed: event.speed || 'balanced',
     adminCode: event.adminCode,
@@ -897,7 +897,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     id,
     name: name || 'Eveniment nou',
     sourceLang: sourceLang || 'ro',
-    liveSourceLang: 'auto',
+    liveSourceLang: sourceLang || 'ro',
     targetLangs: targetLangs?.length ? targetLangs : ['no', 'en'],
     speed: speed || 'balanced',
     scheduledAt: scheduledAt || null,
