@@ -57,7 +57,8 @@ const LANGUAGES = {
   tr: 'Turkish',
   ar: 'Arabic',
   fa: 'Persian',
-  hu: 'Hungarian'
+  hu: 'Hungarian',
+  el: 'Greek'
 };
 
 const LANGUAGE_NAMES_RO_LEGACY = {
@@ -75,7 +76,8 @@ const LANGUAGE_NAMES_RO_LEGACY = {
   tr: 'Turcă',
   ar: 'Arabă',
   fa: 'Persană',
-  hu: 'Maghiară'
+  hu: 'Maghiară',
+  el: 'Greacă'
 };
 
 const LANGUAGE_NAMES_RO = {
@@ -93,7 +95,8 @@ const LANGUAGE_NAMES_RO = {
   tr: 'Turcă',
   ar: 'Arabă',
   fa: 'Persană',
-  hu: 'Maghiară'
+  hu: 'Maghiară',
+  el: 'Greacă'
 };
 
 function ensureDataDir() {
@@ -864,7 +867,7 @@ function ensureEventAccessLinks(event, baseUrl) {
   }
   event.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []);
   if (baseUrl) {
-    event.participantLink = `${baseUrl}/participant?event=${event.id}`;
+    event.participantLink = `${baseUrl}/participant`;
     event.translateLink = `${baseUrl}/translate?event=${event.id}`;
     event.songLink = `${baseUrl}/song?event=${event.id}`;
     event.remoteControlLink = `${baseUrl}/remote?event=${event.id}&code=${encodeURIComponent(event.screenOperatorCode)}`;
@@ -879,7 +882,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
   const id = randomUUID();
   const adminCode = `SV-ADMIN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   const screenOperatorCode = `SV-SCREEN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-  const participantLink = `${baseUrl}/participant?event=${id}`;
+  const participantLink = `${baseUrl}/participant`;
   const translateLink = `${baseUrl}/translate?event=${id}`;
   const songLink = `${baseUrl}/song?event=${id}`;
   const remoteControlLink = `${baseUrl}/remote?event=${id}&code=${encodeURIComponent(screenOperatorCode)}`;
@@ -1469,6 +1472,19 @@ app.get('/api/languages', (req, res) => {
   res.json({ ok: true, languages: LANGUAGE_NAMES_RO });
 });
 
+app.get('/api/participant-qr.png', async (req, res) => {
+  try {
+    const participantUrl = `${buildBaseUrl(req)}/participant`;
+    const buffer = await QRCode.toBuffer(participantUrl, { type: 'png', margin: 2, width: 720 });
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buffer);
+  } catch (err) {
+    console.error('participant qr error:', err);
+    res.status(500).send('QR error');
+  }
+});
+
 app.post('/api/events', async (req, res) => {
   try {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
@@ -1495,6 +1511,25 @@ app.get('/api/events/active', (req, res) => {
   ensureEventAccessLinks(event, buildBaseUrl(req));
   saveDb();
   res.json({ ok: true, event: normalizeEvent(event), languageNames: LANGUAGE_NAMES_RO });
+});
+
+app.get('/api/events/public', (req, res) => {
+  const events = Object.values(db.events || {})
+    .sort((a, b) => {
+      const left = new Date(a.scheduledAt || a.createdAt || 0);
+      const right = new Date(b.scheduledAt || b.createdAt || 0);
+      return right - left;
+    })
+    .map((event) => ({
+      id: event.id,
+      name: event.name,
+      scheduledAt: event.scheduledAt || null,
+      createdAt: event.createdAt || null,
+      sourceLang: event.sourceLang || 'ro',
+      targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
+      isActive: db.activeEventId === event.id
+    }));
+  res.json({ ok: true, events, activeEventId: db.activeEventId || null, languageNames: LANGUAGE_NAMES_RO });
 });
 
 app.get('/api/events', (req, res) => {
@@ -2286,6 +2321,9 @@ io.on('connection', (socket) => {
     const access = resolveEventAccessFromCode(event, code);
     if (role === 'admin' && access.role !== 'admin') return socket.emit('join_error', { message: 'Cod Admin invalid.' });
     if (role === 'screen' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
+    if ((role || 'participant') === 'participant' && db.activeEventId !== eventId) {
+      return socket.emit('join_error', { message: 'Evenimentul nu este live inca.' });
+    }
 
     cleanupSocketPresence(socket);
     socket.data.eventId = eventId;
