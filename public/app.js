@@ -410,9 +410,27 @@ function refreshDisplayControls() {
 }
 
 function getSongEditorLabels() {
-  return Array.from(document.querySelectorAll('[data-song-label-input]')).map((input, index) => {
+  const visibleInputs = Array.from(document.querySelectorAll('[data-song-label-input]'));
+  if (!visibleInputs.length) return inferSongLabelsFromText($('songText')?.value || '');
+  return visibleInputs.map((input, index) => {
     const value = String(input.value || '').trim();
     return value || `Verse ${index + 1}`;
+  });
+}
+
+function inferSongLabelsFromText(text) {
+  return splitSongBlocksLocal(text).map((block, index) => {
+    const firstLine = String(block || '').split('\n').map((line) => line.trim()).find(Boolean) || '';
+    const match = firstLine.match(/^((?:r|refren|chorus)\s*\d*|\d+)\./i);
+    if (!match) return `Verse ${index + 1}`;
+    const marker = match[1].replace(/\s+/g, '').toLowerCase();
+    if (/^\d+$/.test(marker)) return `Strofa ${marker}`;
+    if (marker.startsWith('chorus')) {
+      const number = marker.replace('chorus', '');
+      return number ? `Chorus ${number}` : 'Chorus';
+    }
+    const number = marker.replace(/^r(?:efren)?/, '');
+    return number ? `Refren ${number}` : 'Refren';
   });
 }
 
@@ -852,6 +870,7 @@ function renderSongStateLegacy(songState) {
 function renderSongJumpSelect(blocks = [], labels = [], currentIndex = -1) {
   const select = $('songJumpSelect');
   if (!select) return;
+  const previousValue = select.value;
   if (!blocks.length) {
     select.innerHTML = '<option value="">No song sections yet</option>';
     select.disabled = true;
@@ -866,7 +885,9 @@ function renderSongJumpSelect(blocks = [], labels = [], currentIndex = -1) {
     const optionText = `${label}${preview ? ` - ${preview.slice(0, 48)}` : ''}`;
     return `<option value="${index}">${escapeHtml(optionText)}</option>`;
   }).join('');
-  if (Number.isInteger(currentIndex) && currentIndex >= 0 && currentIndex < blocks.length) {
+  if (previousValue !== '' && Number(previousValue) >= 0 && Number(previousValue) < blocks.length) {
+    select.value = previousValue;
+  } else if (Number.isInteger(currentIndex) && currentIndex >= 0 && currentIndex < blocks.length) {
     select.value = String(currentIndex);
   }
 }
@@ -2139,7 +2160,6 @@ $('sendSongBtn').addEventListener('click', sendSongToLive);
 $('songPrevBtn').addEventListener('click', goToPrevSongBlock);
 $('songNextBtn').addEventListener('click', goToNextSongBlock);
 $('songJumpBtn')?.addEventListener('click', showSelectedSongSection);
-$('songJumpSelect')?.addEventListener('change', showSelectedSongSection);
 $('blankMainScreenBtn').addEventListener('click', blankMainScreen);
 $('displayRestoreBtn').addEventListener('click', restoreLastDisplayState);
 $('displayAutoBtn').addEventListener('click', () => setDisplayMode('auto'));

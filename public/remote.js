@@ -108,6 +108,7 @@ function renderRemoteSongJumpSelect() {
   const select = $('remoteSongJumpSelect');
   const button = $('remoteSongJumpBtn');
   if (!select) return;
+  const previousValue = select.value;
   const songState = state.currentEvent?.songState || {};
   const blocks = Array.isArray(songState.blocks) ? songState.blocks : [];
   const labels = Array.isArray(songState.blockLabels) ? songState.blockLabels : [];
@@ -126,7 +127,9 @@ function renderRemoteSongJumpSelect() {
     const optionText = `${label}${preview ? ` - ${preview.slice(0, 48)}` : ''}`;
     return `<option value="${index}">${escapeHtml(optionText)}</option>`;
   }).join('');
-  if (currentIndex >= 0 && currentIndex < blocks.length) {
+  if (previousValue !== '' && Number(previousValue) >= 0 && Number(previousValue) < blocks.length) {
+    select.value = previousValue;
+  } else if (currentIndex >= 0 && currentIndex < blocks.length) {
     select.value = String(currentIndex);
   }
 }
@@ -399,9 +402,6 @@ $('remoteSongJumpBtn').addEventListener('click', async () => {
   } catch (err) {
     setStatus(err.message);
   }
-});
-$('remoteSongJumpSelect').addEventListener('change', async () => {
-  $('remoteSongJumpBtn').click();
 });
 
 $('remoteQuickLanguages').addEventListener('click', async (e) => {
