@@ -1815,6 +1815,17 @@ app.post('/api/events/:id/settings', (req, res) => {
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
   if (!requireEventAdmin(req, res, event)) return;
   if (typeof req.body.speed === 'string' && req.body.speed.trim()) event.speed = req.body.speed.trim();
+  if (typeof req.body.sourceLang === 'string') {
+    const sourceLang = req.body.sourceLang.trim();
+    if (LANGUAGES[sourceLang]) {
+      event.sourceLang = sourceLang;
+      event.liveSourceLang = sourceLang;
+      event.songState = event.songState || defaultSongState();
+      event.displayState = event.displayState || defaultDisplayState();
+      if (!event.songState?.sourceLang) event.songState.sourceLang = sourceLang;
+      if (!event.displayState?.manualSourceLang) event.displayState.manualSourceLang = sourceLang;
+    }
+  }
   if (typeof req.body.liveSourceLang === 'string') {
     const liveSourceLang = req.body.liveSourceLang.trim();
     event.liveSourceLang = liveSourceLang === 'auto' || LANGUAGES[liveSourceLang] ? liveSourceLang : (event.liveSourceLang || 'auto');
@@ -1826,9 +1837,16 @@ app.post('/api/events/:id/settings', (req, res) => {
 app.post('/api/events/:id/mode', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
   const mode = String(req.body.mode || 'live').trim();
   if (!['live', 'song'].includes(mode)) return res.status(400).json({ ok: false, error: 'Mod invalid.' });
+  if (mode === 'song' && !requireEventPermission(req, res, 'song')) return;
+  if (mode === 'live' && req.eventRole !== 'admin') {
+    const permissions = req.eventAccess?.permissions || [];
+    if (!permissions.includes('song') && !permissions.includes('main_screen')) {
+      return res.status(403).json({ ok: false, error: 'Operatorul nu are permisiunea pentru aceasta actiune.' });
+    }
+  }
   ensureEventUiState(event);
   event.mode = mode;
   if (mode === 'live') {
