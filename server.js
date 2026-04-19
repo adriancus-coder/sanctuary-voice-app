@@ -430,6 +430,13 @@ function saveDb() {
 const speechBuffers = new Map();
 const participantPresence = new Map();
 
+const LIVE_TEXT_MIN_WORDS = 9;
+const LIVE_TEXT_TARGET_WORDS = 16;
+const LIVE_TEXT_MAX_WORDS = 22;
+const LIVE_TEXT_MAX_CHARS = 190;
+const LIVE_TEXT_SOFT_WAIT_MS = 1200;
+const LIVE_TEXT_HARD_WAIT_MS = 4200;
+
 const BUFFER_CONNECTORS = new Set([
   'și', 'si', 'să', 'sa', 'că', 'ca', 'dar', 'iar', 'ori', 'sau',
   'de', 'la', 'în', 'in', 'cu', 'pe', 'din', 'spre', 'pentru',
@@ -532,7 +539,7 @@ function mergeTranscriptText(prevText, nextText) {
 function splitLongPiece(piece) {
   const clean = sanitizeTranscriptText(piece);
   if (!clean) return [];
-  if (countWords(clean) <= 12 && clean.length <= 120) return [clean];
+  if (countWords(clean) <= LIVE_TEXT_TARGET_WORDS && clean.length <= LIVE_TEXT_MAX_CHARS) return [clean];
 
   const softerParts = clean
     .split(/(?<=[,;:])\s+|\s+(?=(?:și|si|dar|iar|ori|sau|og|men|for|som)\b)/i)
@@ -545,7 +552,7 @@ function splitLongPiece(piece) {
     let current = [];
     for (const word of words) {
       current.push(word);
-      if (current.length >= 10) {
+      if (current.length >= LIVE_TEXT_TARGET_WORDS) {
         out.push(current.join(' ').trim());
         current = [];
       }
@@ -558,7 +565,7 @@ function splitLongPiece(piece) {
   let current = '';
   for (const part of softerParts) {
     const candidate = current ? `${current} ${part}` : part;
-    if (countWords(candidate) <= 12 && candidate.length <= 120) {
+    if (countWords(candidate) <= LIVE_TEXT_TARGET_WORDS && candidate.length <= LIVE_TEXT_MAX_CHARS) {
       current = candidate;
     } else {
       if (current) out.push(current.trim());
@@ -604,7 +611,7 @@ function splitIntoDisplayChunks(text) {
   for (const piece of smallPieces) {
     const pieceWords = countWords(piece);
     const nextWords = currentWords + pieceWords;
-    if (currentChunk.length >= 2 || nextWords > 16) {
+    if (currentChunk.length >= 2 || nextWords > LIVE_TEXT_MAX_WORDS) {
       if (currentChunk.length) chunks.push(currentChunk.join(' ').trim());
       currentChunk = [piece];
       currentWords = pieceWords;
@@ -622,10 +629,10 @@ function shouldFlushBufferedText(text) {
   if (!clean) return false;
   const words = countWords(clean);
   const last = getLastWord(clean);
-  if (/[.!?]\s*$/.test(clean) && words >= 2) return true;
-  if (/[,;:]\s*$/.test(clean) && words >= 3) return true;
-  if (words >= 6 && !BUFFER_CONNECTORS.has(last)) return true;
-  if (words >= 9) return true;
+  if (/[.!?]\s*$/.test(clean) && words >= LIVE_TEXT_MIN_WORDS) return true;
+  if (/[,;:]\s*$/.test(clean) && words >= LIVE_TEXT_MIN_WORDS) return true;
+  if (words >= LIVE_TEXT_TARGET_WORDS && !BUFFER_CONNECTORS.has(last)) return true;
+  if (words >= LIVE_TEXT_MAX_WORDS) return true;
   return false;
 }
 
@@ -1307,13 +1314,13 @@ async function flushSpeechBuffer(eventId, force = false) {
   const last = getLastWord(text);
 
   if (!force) {
-    if (startsLikeContinuation(text) && words < 10) {
-      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), 700);
+    if (startsLikeContinuation(text) && words < LIVE_TEXT_TARGET_WORDS) {
+      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
       speechBuffers.set(eventId, buffered);
       return null;
     }
-    if (BUFFER_CONNECTORS.has(last) && words < 10) {
-      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), 700);
+    if (BUFFER_CONNECTORS.has(last) && words < LIVE_TEXT_TARGET_WORDS) {
+      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
       speechBuffers.set(eventId, buffered);
       return null;
     }
@@ -1342,11 +1349,11 @@ function queueSpeechText(eventId, text, sourceLang = '') {
     flushSpeechBuffer(eventId, false).catch(console.error);
     return;
   }
-  if (ageMs > 2800 || words >= 10) {
+  if (ageMs > LIVE_TEXT_HARD_WAIT_MS || words >= LIVE_TEXT_MAX_WORDS) {
     flushSpeechBuffer(eventId, true).catch(console.error);
     return;
   }
-  next.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), 700);
+  next.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
 }
 
 // Stable live transcription pipeline: keep the original event source language for transcribe and translate.
@@ -1482,13 +1489,13 @@ async function flushSpeechBuffer(eventId, force = false) {
   const last = getLastWord(text);
 
   if (!force) {
-    if (startsLikeContinuation(text) && words < 10) {
-      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), 700);
+    if (startsLikeContinuation(text) && words < LIVE_TEXT_TARGET_WORDS) {
+      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
       speechBuffers.set(eventId, buffered);
       return null;
     }
-    if (BUFFER_CONNECTORS.has(last) && words < 10) {
-      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), 700);
+    if (BUFFER_CONNECTORS.has(last) && words < LIVE_TEXT_TARGET_WORDS) {
+      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
       speechBuffers.set(eventId, buffered);
       return null;
     }
@@ -1517,11 +1524,11 @@ function queueSpeechText(eventId, text) {
     flushSpeechBuffer(eventId, false).catch(console.error);
     return;
   }
-  if (ageMs > 2800 || words >= 10) {
+  if (ageMs > LIVE_TEXT_HARD_WAIT_MS || words >= LIVE_TEXT_MAX_WORDS) {
     flushSpeechBuffer(eventId, true).catch(console.error);
     return;
   }
-  next.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), 700);
+  next.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
 }
 
 function getEventPresence(eventId) {
