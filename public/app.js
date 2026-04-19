@@ -16,10 +16,10 @@ let screenWakeLock = null;
 window.isRecognitionRunning = false;
 let availableLanguages = {};
 
-const AUDIO_GATE_MIN_PEAK = 10;
-const AUDIO_GATE_MIN_ACTIVE_FRAMES = 5;
-const AUDIO_GATE_MIN_DYNAMIC_RANGE = 4;
-const AUDIO_GATE_STRONG_PEAK = 32;
+const AUDIO_GATE_MIN_PEAK = 14;
+const AUDIO_GATE_MIN_ACTIVE_FRAMES = 12;
+const AUDIO_GATE_MIN_DYNAMIC_RANGE = 5;
+const AUDIO_GATE_STRONG_PEAK = 36;
 
 let audioState = {
   stream: null,
@@ -1519,11 +1519,16 @@ function sliderToGain(value) {
   return Math.pow(v / 100, 2);
 }
 
+function getInputGainPercent() {
+  return Math.max(0, Number($('inputGainRange')?.value || 0));
+}
+
 function updateInputGain() {
-  const value = Number($('inputGainRange').value || 100);
+  const value = getInputGainPercent();
   const gain = sliderToGain(value);
   $('inputGainLabel').textContent = `${value}% · ${gain.toFixed(1)}x`;
   if (audioState.preampNode) audioState.preampNode.gain.value = gain;
+  if (audioState.running && value <= 0) setStatus('Audio blocked: input gain is 0%.');
 }
 
 function updateMonitorGain() {
@@ -1600,6 +1605,7 @@ function getAudioFileInfo(mimeType) {
 
 async function postAudioChunk(blob) {
   if (!currentEvent || !blob || blob.size < 3500) return;
+  if (getInputGainPercent() <= 0) return;
   const detectedType = blob.type || audioState.mimeType || 'audio/webm';
   const fileInfo = getAudioFileInfo(detectedType);
   const form = new FormData();
@@ -1618,6 +1624,7 @@ function resetAudioGateStats() {
 
 function shouldUploadAudioChunk(blob, gateStats = {}) {
   if (!blob || blob.size < 3500) return false;
+  if (getInputGainPercent() <= 0) return false;
   const peak = Number(gateStats.peak || 0);
   const min = Number.isFinite(gateStats.min) ? Number(gateStats.min) : 100;
   const activeFrames = Number(gateStats.activeFrames || 0);
@@ -1681,6 +1688,9 @@ async function startTranslation() {
       if (audioState.running) startRecorderCycle();
       if (shouldUploadAudioChunk(blob, gateStats)) {
         enqueueAudioBlob(blob);
+      } else if (audioState.running && getInputGainPercent() <= 0 && Date.now() - (audioState.lastGateStatusAt || 0) > 3000) {
+        audioState.lastGateStatusAt = Date.now();
+        setStatus('Audio blocked: input gain is 0%.');
       } else if (audioState.running && Date.now() - (audioState.lastGateStatusAt || 0) > 8000) {
         audioState.lastGateStatusAt = Date.now();
         setStatus('Listening. Quiet or steady noise skipped.');
