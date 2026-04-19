@@ -777,8 +777,8 @@ function normalizeLibraryTitle(title) {
 function upsertLibraryItem(list, { title, text, labels, sourceLang }, maxItems = 100) {
   const safeTitle = String(title || '').trim();
   const safeText = sanitizeStructuredText(text || '');
-  const blocks = splitSongBlocks(safeText);
-  const safeLabels = buildBlockLabels(blocks, labels || []);
+  const parsedSong = splitSongBlocksWithLabels(safeText, labels || []);
+  const safeLabels = parsedSong.labels;
   const normalizedTitle = normalizeLibraryTitle(safeTitle);
   const existingIndex = list.findIndex((item) => normalizeLibraryTitle(item.title) === normalizedTitle);
   const payload = {
@@ -1660,6 +1660,37 @@ function splitSongBlocks(text) {
     .filter(Boolean);
 }
 
+function parseSongSectionMarker(block) {
+  const lines = String(block || '').split('\n').map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return { label: '', text: '' };
+  const match = lines[0].match(/^((?:r|refren|chorus)\s*\d*|\d+)\.\s*(.*)$/i);
+  if (!match) return { label: '', text: lines.join('\n') };
+
+  const marker = match[1].replace(/\s+/g, '').toLowerCase();
+  const rest = String(match[2] || '').trim();
+  const contentLines = rest ? [rest, ...lines.slice(1)] : lines.slice(1);
+  const text = contentLines.join('\n').trim();
+
+  if (/^\d+$/.test(marker)) return { label: `Strofa ${marker}`, text };
+  if (marker.startsWith('chorus')) {
+    const number = marker.replace('chorus', '');
+    return { label: number ? `Chorus ${number}` : 'Chorus', text };
+  }
+  const number = marker.replace(/^r(?:efren)?/, '');
+  return { label: number ? `Refren ${number}` : 'Refren', text };
+}
+
+function splitSongBlocksWithLabels(text, labels = []) {
+  const rawBlocks = splitSongBlocks(text);
+  const parsed = rawBlocks.map(parseSongSectionMarker);
+  const blocks = parsed.map((item, index) => item.text || rawBlocks[index]).filter(Boolean);
+  const blockLabels = blocks.map((_, index) => {
+    const provided = String(labels[index] || '').trim();
+    return provided || parsed[index]?.label || `Verse ${index + 1}`;
+  });
+  return { blocks, labels: blockLabels };
+}
+
 function buildBlockLabels(blocks, labels = []) {
   return blocks.map((_, index) => {
     const provided = String(labels[index] || '').trim();
@@ -1947,14 +1978,15 @@ app.post('/api/events/:id/song/load', async (req, res) => {
   const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
   if (!text) return res.status(400).json({ ok: false, error: 'Text lipsă.' });
   try {
-    const blocks = splitSongBlocks(text);
+    const parsedSong = splitSongBlocksWithLabels(text, labels);
+    const blocks = parsedSong.blocks;
     const songSourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
     const allTranslations = await buildSongTranslations(event, blocks, songSourceLang);
     event.songState = {
       title,
       sourceLang: songSourceLang,
       blocks,
-      blockLabels: buildBlockLabels(blocks, labels),
+      blockLabels: parsedSong.labels,
       currentIndex: blocks.length ? 0 : -1,
       activeBlock: blocks[0] || null,
       translations: allTranslations[0] || {},
