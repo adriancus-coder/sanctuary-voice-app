@@ -771,6 +771,29 @@ progress::-moz-progress-bar {
   gap: 12px;
 }
 
+.song-section-list .song-section-item {
+  cursor: default;
+}
+
+.usage-details {
+  display: grid;
+  gap: 10px;
+}
+
+.usage-details summary {
+  list-style: none;
+  width: fit-content;
+  cursor: pointer;
+}
+
+.usage-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.clock-size-row {
+  align-items: center;
+}
+
 .song-grid .event-list,
 .song-grid .history {
   max-height: 360px;
@@ -1520,6 +1543,24 @@ progress::-moz-progress-bar {
   text-shadow: none;
 }
 
+.unified-display-live[data-resolution="16-9"] {
+  aspect-ratio: 16 / 9;
+  min-height: auto;
+  max-height: calc(100vh - 40px);
+}
+
+.unified-display-live[data-resolution="16-10"] {
+  aspect-ratio: 16 / 10;
+  min-height: auto;
+  max-height: calc(100vh - 40px);
+}
+
+.unified-display-live[data-resolution="4-3"] {
+  aspect-ratio: 4 / 3;
+  min-height: auto;
+  max-height: calc(100vh - 40px);
+}
+
 .display-theme-dark .display-single-text,
 .display-theme-dark .song-only-translation,
 .display-theme-dark .unified-display-text {
@@ -1555,7 +1596,7 @@ progress::-moz-progress-bar {
 .display-clock {
   position: absolute;
   z-index: 2;
-  font-size: clamp(1.1rem, 2vw, 1.7rem);
+  font-size: calc(clamp(1.1rem, 2vw, 1.7rem) * var(--clock-scale, 1));
   font-weight: 700;
   letter-spacing: 0.04em;
   opacity: 0.92;

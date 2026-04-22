@@ -258,8 +258,10 @@ function getCurrentDisplayDraft() {
     customBackground: $('displayBackgroundInput')?.value?.trim() || currentEvent?.displayState?.customBackground || '',
     showClock: !!$('displayShowClockBox')?.checked,
     clockPosition: $('displayClockPositionSelect')?.value || currentEvent?.displayState?.clockPosition || 'top-right',
+    clockScale: Number($('displayClockScaleInput')?.value || currentEvent?.displayState?.clockScale || 1),
     textSize: $('displayTextSizeSelect')?.value || currentEvent?.displayState?.textSize || 'large',
-    screenStyle: $('displayScreenStyleSelect')?.value || currentEvent?.displayState?.screenStyle || 'focus'
+    screenStyle: $('displayScreenStyleSelect')?.value || currentEvent?.displayState?.screenStyle || 'focus',
+    displayResolution: $('displayResolutionSelect')?.value || currentEvent?.displayState?.displayResolution || 'auto'
   };
 }
 
@@ -296,8 +298,10 @@ function fillDisplayControlsFromPreset(preset) {
   if ($('displayBackgroundInput')) $('displayBackgroundInput').value = preset.customBackground || '';
   if ($('displayShowClockBox')) $('displayShowClockBox').checked = !!preset.showClock;
   if ($('displayClockPositionSelect')) $('displayClockPositionSelect').value = preset.clockPosition || 'top-right';
+  if ($('displayClockScaleInput')) $('displayClockScaleInput').value = String(preset.clockScale || 1);
   if ($('displayTextSizeSelect')) $('displayTextSizeSelect').value = preset.textSize || 'large';
   if ($('displayScreenStyleSelect')) $('displayScreenStyleSelect').value = preset.screenStyle || 'focus';
+  if ($('displayResolutionSelect')) $('displayResolutionSelect').value = preset.displayResolution || 'auto';
   setStatus(`Loaded preset values from ${preset.name}.`);
 }
 
@@ -349,8 +353,11 @@ function refreshDisplayControls() {
   const backgroundInput = $('displayBackgroundInput');
   const showClockBox = $('displayShowClockBox');
   const clockPositionSelect = $('displayClockPositionSelect');
+  const clockScaleInput = $('displayClockScaleInput');
+  const clockScaleValue = $('displayClockScaleValue');
   const textSizeSelect = $('displayTextSizeSelect');
   const screenStyleSelect = $('displayScreenStyleSelect');
+  const resolutionSelect = $('displayResolutionSelect');
   const restoreBtn = $('displayRestoreBtn');
   if (modeLabel) {
     const modeText = displayModeLabel(currentEvent?.displayState?.mode, currentEvent?.displayState?.blackScreen);
@@ -380,11 +387,22 @@ function refreshDisplayControls() {
   if (clockPositionSelect) {
     clockPositionSelect.value = currentEvent?.displayState?.clockPosition || 'top-right';
   }
+  if (clockScaleInput) {
+    const scale = Number(currentEvent?.displayState?.clockScale || 1);
+    clockScaleInput.value = String(Math.min(1.8, Math.max(0.7, scale)));
+  }
+  if (clockScaleValue) {
+    const scale = Number(clockScaleInput?.value || currentEvent?.displayState?.clockScale || 1);
+    clockScaleValue.textContent = `${Math.round(scale * 100)}%`;
+  }
   if (textSizeSelect) {
     textSizeSelect.value = currentEvent?.displayState?.textSize || 'large';
   }
   if (screenStyleSelect) {
     screenStyleSelect.value = currentEvent?.displayState?.screenStyle || 'focus';
+  }
+  if (resolutionSelect) {
+    resolutionSelect.value = currentEvent?.displayState?.displayResolution || 'auto';
   }
   if (restoreBtn) {
     restoreBtn.disabled = !currentEvent?.displayStatePrevious;
@@ -419,7 +437,7 @@ function getSongEditorLabels() {
 }
 
 function inferSongLabelsFromText(text) {
-  return splitSongBlocksLocal(text).map((block, index) => {
+  return String(text || '').split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean).map((block, index) => {
     const firstLine = String(block || '').split('\n').map((line) => line.trim()).find(Boolean) || '';
     const match = firstLine.match(/^((?:r|refren|chorus)\s*\d*|\d+)\./i);
     if (!match) return `Verse ${index + 1}`;
@@ -437,7 +455,14 @@ function inferSongLabelsFromText(text) {
 function splitSongBlocksLocal(text) {
   return String(text || '')
     .split(/\n\s*\n/)
-    .map((block) => block.split('\n').map((line) => line.trim()).filter(Boolean).join('\n'))
+    .map((block) => {
+      const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
+      if (!lines.length) return '';
+      const match = lines[0].match(/^((?:r|refren|chorus)\s*\d*|\d+)\.\s*(.*)$/i);
+      if (!match) return lines.join('\n');
+      const rest = String(match[2] || '').trim();
+      return (rest ? [rest, ...lines.slice(1)] : lines.slice(1)).join('\n');
+    })
     .map((block) => block.trim())
     .filter(Boolean);
 }
@@ -449,6 +474,11 @@ function renderParticipantStats(stats = {}) {
   $('participantStatsList').innerHTML = languages.length
     ? languages.map((item) => `<div class="history-item">${escapeHtml(langLabel(item.lang))}: ${item.count}</div>`).join('')
     : '<div class="muted">No connected participant.</div>';
+}
+
+function renderAudioStateLabel() {
+  if ($('audioStateLabel')) $('audioStateLabel').textContent = currentMuted ? 'Global audio off.' : 'Global audio active.';
+  if ($('muteGlobalBtn')) $('muteGlobalBtn').textContent = currentMuted ? 'Unmute global' : 'Mute global';
 }
 
 function renderUsageStats(stats = {}) {
@@ -565,6 +595,22 @@ function globalJsonOptions(method, payload = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   };
+}
+
+function getStoredAdminCode(eventId = '') {
+  if (!eventId) return '';
+  try {
+    return localStorage.getItem(`sanctuary_admin_code_${eventId}`) || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function rememberAdminCode(event) {
+  if (!event?.id || !event.adminCode) return;
+  try {
+    localStorage.setItem(`sanctuary_admin_code_${event.id}`, event.adminCode);
+  } catch (_) {}
 }
 
 async function copyTextQuick(text, button) {
@@ -921,9 +967,11 @@ function renderSongState(songState) {
     const activeClass = index === currentIndex ? ' active' : '';
     const label = escapeHtml(labels[index] || `Verse ${index + 1}`);
     return `
-      <div class="history-item${activeClass}">
-        <input class="song-block-label-input" data-song-label-input="${index}" type="text" value="${label}">
-        <button class="btn btn-dark" type="button" data-song-block-index="${index}">Show on screen</button>
+      <div class="history-item song-section-item${activeClass}">
+        <div class="entry-head">
+          <b>${label}</b>
+          <span class="small">${index === currentIndex ? 'Live now' : 'Available in Jump to selection'}</span>
+        </div>
         <div class="small">${escapeHtmlWithBreaks(block)}</div>
       </div>
     `;
@@ -1078,7 +1126,7 @@ async function sendSongItemToLive(item) {
   currentEvent.songState = data.songState || currentEvent.songState;
   renderActiveEventBadge(currentEvent);
   renderSongState(currentEvent.songState || {});
-  setStatus('First verse is now on screen. Use Previous/Next for the rest.');
+  setStatus('First verse is live. Use Jump to selection for verses and chorus.');
 }
 
 async function sendSongToLive() {
@@ -1182,15 +1230,19 @@ async function saveDisplaySettings() {
   const customBackground = $('displayBackgroundInput').value.trim();
   const showClock = !!$('displayShowClockBox').checked;
   const clockPosition = $('displayClockPositionSelect').value;
+  const clockScale = Number($('displayClockScaleInput')?.value || 1);
   const textSize = $('displayTextSizeSelect').value;
   const screenStyle = $('displayScreenStyleSelect').value;
+  const displayResolution = $('displayResolutionSelect')?.value || 'auto';
   const res = await fetch(`/api/events/${currentEvent.id}/display/settings`, adminJsonOptions('POST', {
     backgroundPreset,
     customBackground,
     showClock,
     clockPosition,
+    clockScale,
     textSize,
-    screenStyle
+    screenStyle,
+    displayResolution
   }));
   const data = await res.json();
   if (!data.ok) return alert(data.error || 'Could not save main screen settings.');
@@ -1200,9 +1252,21 @@ async function saveDisplaySettings() {
   setStatus('Main screen settings saved.');
 }
 
+async function adjustClockScale(delta) {
+  const input = $('displayClockScaleInput');
+  if (!input) return;
+  const current = Number(input.value || currentEvent?.displayState?.clockScale || 1);
+  const next = Math.min(1.8, Math.max(0.7, Math.round((current + delta) * 10) / 10));
+  input.value = String(next);
+  if ($('displayClockScaleValue')) $('displayClockScaleValue').textContent = `${Math.round(next * 100)}%`;
+  await saveDisplaySettings();
+}
+
 async function saveDisplayPreset() {
   if (!currentEvent) return alert('Open or create an event first.');
-  const name = $('displayPresetName')?.value.trim();
+  const presetNameInput = $('displayPresetName');
+  if (!presetNameInput) return;
+  const name = presetNameInput.value.trim();
   if (!name) return alert('Write the preset name first.');
   const payload = { name, ...getCurrentDisplayDraft() };
   const res = await fetch(`/api/events/${currentEvent.id}/display-presets`, adminJsonOptions('POST', payload));
@@ -1211,7 +1275,7 @@ async function saveDisplayPreset() {
   currentDisplayPresets = data.presets || [];
   currentEvent.displayPresets = currentDisplayPresets;
   renderDisplayPresets(currentDisplayPresets);
-  $('displayPresetName').value = '';
+  presetNameInput.value = '';
   setStatus('Scene preset saved.');
 }
 
@@ -1445,15 +1509,18 @@ async function saveSongLabels() {
 }
 
 async function openEventById(eventId) {
-  const res = await fetch(`/api/events/${eventId}`);
+  const storedCode = getStoredAdminCode(eventId);
+  const res = await fetch(`/api/events/${eventId}${storedCode ? `?code=${encodeURIComponent(storedCode)}` : ''}`);
   const data = await res.json();
   if (!data.ok) return;
   currentEvent = data.event;
+  rememberAdminCode(currentEvent);
   populateEventLinks();
   $('speed').value = currentEvent.speed || 'balanced';
   currentVolume = currentEvent.audioVolume;
   currentMuted = currentEvent.audioMuted;
   $('volumeRange').value = String(currentVolume);
+  renderAudioStateLabel();
   renderTranscriptList();
   fillGlossaryLangs(currentEvent.targetLangs || []);
   renderActiveEventBadge(currentEvent);
@@ -1465,6 +1532,10 @@ async function openEventById(eventId) {
   await loadGlobalSongLibrary();
   closeInlineEditors();
   $('partialTranscript').textContent = 'Waiting for full sentence...';
+  if (!currentEvent.adminCode) {
+    setStatus('Event opened in read-only mode. Admin code is required for control.');
+    return;
+  }
   socket.emit('join_event', { eventId: currentEvent.id, role: 'admin', code: currentEvent.adminCode });
   await refreshEventList();
   setStatus(`Opened: ${currentEvent.name}.`);
@@ -1477,14 +1548,17 @@ async function createEvent() {
   const targetLangs = selectedLangs();
   if (!targetLangs.length) return alert('Choose at least one target language.');
   if (targetLangs.includes(sourceLang)) return alert('Remove source language from target languages.');
+  const createCode = currentEvent?.adminCode || getStoredAdminCode(currentEvent?.id || '');
   const res = await fetch('/api/events', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      code: createCode,
       name, speed: $('speed').value || 'balanced', sourceLang, targetLangs, scheduledAt: buildScheduledAt()
     })
   });
   const data = await res.json();
   if (!data.ok) return alert(data.error || 'Could not create event.');
   currentEvent = data.event;
+  rememberAdminCode(currentEvent);
   populateEventLinks();
   fillGlossaryLangs(currentEvent.targetLangs || []);
   if ($('manualSourceLang')) $('manualSourceLang').value = currentEvent.displayState?.manualSourceLang || currentEvent.sourceLang || 'ro';
@@ -1896,7 +1970,7 @@ socket.on('joined_event', ({ event, role }) => {
   currentVolume = event.audioVolume;
   currentMuted = event.audioMuted;
   $('volumeRange').value = String(currentVolume);
-  $('audioStateLabel').textContent = currentMuted ? 'Global audio off.' : 'Global audio active.';
+  renderAudioStateLabel();
   renderTranscriptList();
   fillGlossaryLangs(currentEvent.targetLangs || []);
   renderActiveEventBadge(currentEvent);
@@ -1936,7 +2010,7 @@ socket.on('audio_state', ({ audioMuted, audioVolume }) => {
   currentMuted = audioMuted;
   currentVolume = audioVolume;
   $('volumeRange').value = String(audioVolume);
-  $('audioStateLabel').textContent = audioMuted ? 'Global audio off.' : 'Global audio active.';
+  renderAudioStateLabel();
 });
 socket.on('partial_transcript', ({ text }) => { $('partialTranscript').textContent = text || 'Waiting for full sentence...'; });
 socket.on('participant_stats', renderParticipantStats);
@@ -1977,7 +2051,7 @@ socket.on('song_clear', () => {
   renderActiveEventBadge(currentEvent);
   renderDisplayAuditSummary();
 });
-socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, sceneLabel, manualSourceLang, previousState, presets }) => {
+socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, screenStyle, displayResolution, sceneLabel, manualSourceLang, previousState, presets }) => {
   if (!currentEvent) return;
   currentEvent.displayState = currentEvent.displayState || {};
   currentEvent.displayState.mode = mode;
@@ -1988,8 +2062,10 @@ socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgro
   currentEvent.displayState.customBackground = typeof customBackground === 'string' ? customBackground : (currentEvent.displayState.customBackground || '');
   currentEvent.displayState.showClock = typeof showClock === 'boolean' ? showClock : !!currentEvent.displayState.showClock;
   currentEvent.displayState.clockPosition = clockPosition || currentEvent.displayState.clockPosition || 'top-right';
+  currentEvent.displayState.clockScale = typeof clockScale === 'number' ? clockScale : (currentEvent.displayState.clockScale || 1);
   currentEvent.displayState.textSize = textSize || currentEvent.displayState.textSize || 'large';
   currentEvent.displayState.screenStyle = screenStyle || currentEvent.displayState.screenStyle || 'focus';
+  currentEvent.displayState.displayResolution = displayResolution || currentEvent.displayState.displayResolution || 'auto';
   currentEvent.displayState.sceneLabel = sceneLabel || '';
   currentEvent.displayState.manualSourceLang = manualSourceLang || currentEvent.displayState.manualSourceLang || currentEvent.sourceLang || 'ro';
   currentEvent.displayStatePrevious = previousState || null;
@@ -2007,7 +2083,7 @@ socket.on('display_theme_changed', ({ theme }) => {
   currentEvent.displayState.theme = theme || 'dark';
   refreshDisplayControls();
 });
-socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, sceneLabel, manualSource, manualSourceLang, manualTranslations, updatedAt, previousState, presets }) => {
+socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, screenStyle, displayResolution, sceneLabel, manualSource, manualSourceLang, manualTranslations, updatedAt, previousState, presets }) => {
   if (!currentEvent) return;
   currentEvent.displayState = currentEvent.displayState || {};
   currentEvent.displayState.mode = mode || 'manual';
@@ -2018,8 +2094,10 @@ socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgr
   currentEvent.displayState.customBackground = typeof customBackground === 'string' ? customBackground : (currentEvent.displayState.customBackground || '');
   currentEvent.displayState.showClock = typeof showClock === 'boolean' ? showClock : !!currentEvent.displayState.showClock;
   currentEvent.displayState.clockPosition = clockPosition || currentEvent.displayState.clockPosition || 'top-right';
+  currentEvent.displayState.clockScale = typeof clockScale === 'number' ? clockScale : (currentEvent.displayState.clockScale || 1);
   currentEvent.displayState.textSize = textSize || currentEvent.displayState.textSize || 'large';
   currentEvent.displayState.screenStyle = screenStyle || currentEvent.displayState.screenStyle || 'focus';
+  currentEvent.displayState.displayResolution = displayResolution || currentEvent.displayState.displayResolution || 'auto';
   currentEvent.displayState.sceneLabel = sceneLabel || '';
   currentEvent.displayState.manualSource = manualSource || '';
   currentEvent.displayState.manualSourceLang = manualSourceLang || currentEvent.displayState.manualSourceLang || currentEvent.sourceLang || 'ro';
@@ -2094,6 +2172,7 @@ $('glossaryMode').addEventListener('change', updateGlossaryMode);
 $('muteGlobalBtn').addEventListener('click', () => {
   if (!currentEvent) return;
   currentMuted = !currentMuted;
+  renderAudioStateLabel();
   socket.emit('set_audio_state', { eventId: currentEvent.id, audioMuted: currentMuted, audioVolume: currentVolume, code: currentEvent.adminCode });
 });
 $('panicBtn').addEventListener('click', () => {
@@ -2101,6 +2180,7 @@ $('panicBtn').addEventListener('click', () => {
   currentMuted = true;
   currentVolume = 0;
   $('volumeRange').value = '0';
+  renderAudioStateLabel();
   socket.emit('set_audio_state', { eventId: currentEvent.id, audioMuted: true, audioVolume: 0, code: currentEvent.adminCode });
 });
 $('volumeRange').addEventListener('input', () => {
@@ -2161,8 +2241,8 @@ $('jumpLiveBtn').addEventListener('click', () => {
 });
 $('saveSongBtn').addEventListener('click', saveSongToLibrary);
 $('sendSongBtn').addEventListener('click', sendSongToLive);
-$('songPrevBtn').addEventListener('click', goToPrevSongBlock);
-$('songNextBtn').addEventListener('click', goToNextSongBlock);
+$('songPrevBtn')?.addEventListener('click', goToPrevSongBlock);
+$('songNextBtn')?.addEventListener('click', goToNextSongBlock);
 $('songJumpBtn')?.addEventListener('click', showSelectedSongSection);
 $('blankMainScreenBtn').addEventListener('click', blankMainScreen);
 $('displayRestoreBtn').addEventListener('click', restoreLastDisplayState);
@@ -2172,7 +2252,9 @@ $('displaySongBtn').addEventListener('click', () => setDisplayMode('song'));
 $('displayThemeSelect').addEventListener('change', () => setDisplayTheme($('displayThemeSelect').value));
 $('displayLanguageSelect').addEventListener('change', () => setDisplayLanguage($('displayLanguageSelect').value));
 $('saveDisplaySettingsBtn').addEventListener('click', saveDisplaySettings);
-$('saveDisplayPresetBtn').addEventListener('click', saveDisplayPreset);
+$('clockSizeMinusBtn')?.addEventListener('click', () => adjustClockScale(-0.1));
+$('clockSizePlusBtn')?.addEventListener('click', () => adjustClockScale(0.1));
+$('saveDisplayPresetBtn')?.addEventListener('click', saveDisplayPreset);
 $('openMainPreviewBtn').addEventListener('click', openMainPreviewWindow);
 $('openParticipantPreviewBtn').addEventListener('click', openParticipantPreviewWindow);
 $('openBothPreviewsBtn').addEventListener('click', openBothPreviewWindows);
@@ -2190,14 +2272,14 @@ $('displayShortcutButtons')?.addEventListener('click', async (e) => {
   if (!btn) return;
   await applyDisplayShortcut(btn.getAttribute('data-display-shortcut'));
 });
-$('songBlocksList').addEventListener('click', async (e) => {
+$('songBlocksList')?.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-song-block-index]');
   if (!btn) return;
   const index = Number(btn.getAttribute('data-song-block-index'));
   if (!Number.isInteger(index)) return;
   await showSongBlock(index);
 });
-$('songBlocksList').addEventListener('change', async (e) => {
+$('songBlocksList')?.addEventListener('change', async (e) => {
   if (!e.target.matches('[data-song-label-input]')) return;
   await saveSongLabels();
 });
@@ -2242,7 +2324,7 @@ $('globalSongLibraryList').addEventListener('click', async (e) => {
     setStatus('Deleted from church library.');
   }
 });
-$('displayPresetsList').addEventListener('click', async (e) => {
+$('displayPresetsList')?.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-display-preset-action]');
   if (!btn) return;
   const action = btn.getAttribute('data-display-preset-action');

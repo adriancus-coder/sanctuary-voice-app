@@ -356,9 +356,12 @@
                 <div id="usageTranscriptCount" class="metric-number">0</div>
               </div>
             </div>
-            <div id="usageReliabilityList" class="history-list">
-              <div class="muted">No live metrics yet.</div>
-            </div>
+            <details class="usage-details">
+              <summary class="btn btn-dark">Open details</summary>
+              <div id="usageReliabilityList" class="history-list">
+                <div class="muted">No live metrics yet.</div>
+              </div>
+            </details>
           </div>
 
         </div>
@@ -416,19 +419,6 @@
                   <div class="muted">Open an event to see available languages.</div>
                 </div>
               </div>
-              <div class="info-card soft-card">
-                <div class="section-head admin-subsection-head">
-                  <h2>Service Flow Shortcuts</h2>
-                  <div class="muted">Fast setups for welcome, worship, sermon, prayer, and closing.</div>
-                </div>
-                <div id="displayShortcutButtons" class="service-shortcuts-grid">
-                  <button class="btn btn-dark" data-display-shortcut="welcome" type="button">Welcome</button>
-                  <button class="btn btn-dark" data-display-shortcut="worship" type="button">Worship</button>
-                  <button class="btn btn-dark" data-display-shortcut="sermon" type="button">Sermon</button>
-                  <button class="btn btn-dark" data-display-shortcut="prayer" type="button">Prayer</button>
-                  <button class="btn btn-dark" data-display-shortcut="closing" type="button">Closing</button>
-                </div>
-              </div>
               <div class="split-2">
                 <div>
                   <label>Theme</label>
@@ -470,6 +460,17 @@
                   </select>
                 </div>
                 <div>
+                  <label>Projector resolution</label>
+                  <select id="displayResolutionSelect">
+                    <option value="auto" selected>Auto / current screen</option>
+                    <option value="16-9">16:9 projector</option>
+                    <option value="16-10">16:10 projector</option>
+                    <option value="4-3">4:3 projector</option>
+                  </select>
+                </div>
+              </div>
+              <div class="split-2">
+                <div>
                   <label>Clock position</label>
                   <select id="displayClockPositionSelect">
                     <option value="top-right" selected>Clock top right</option>
@@ -478,30 +479,21 @@
                     <option value="bottom-left">Clock bottom left</option>
                   </select>
                 </div>
+                <div>
+                  <label>Clock size</label>
+                  <div class="button-row compact-row clock-size-row">
+                    <button id="clockSizeMinusBtn" class="btn btn-dark" type="button">-</button>
+                    <span id="displayClockScaleValue" class="status-pill">100%</span>
+                    <button id="clockSizePlusBtn" class="btn btn-dark" type="button">+</button>
+                    <input id="displayClockScaleInput" type="hidden" value="1">
+                  </div>
+                </div>
               </div>
               <label>Custom background image URL</label>
               <input id="displayBackgroundInput" type="text" placeholder="Optional image URL overrides preset">
               <label class="inline-check"><input id="displayShowClockBox" type="checkbox"> Show clock</label>
               <div class="button-row compact-row">
                 <button id="saveDisplaySettingsBtn" class="btn btn-dark" type="button">Save main screen settings</button>
-              </div>
-              <div class="info-card soft-card">
-                <div class="section-head admin-subsection-head">
-                  <h2>Scene Presets</h2>
-                  <div class="muted">Save and recall complete projector setups in one click.</div>
-                </div>
-                <div class="split-2">
-                  <div>
-                    <label>Preset name</label>
-                    <input id="displayPresetName" type="text" placeholder="Live sermon">
-                  </div>
-                  <div class="preset-save-wrap">
-                    <button id="saveDisplayPresetBtn" class="btn btn-primary" type="button">Save preset</button>
-                  </div>
-                </div>
-                <div id="displayPresetsList" class="history-list">
-                  <div class="muted">No presets saved yet.</div>
-                </div>
               </div>
               <div class="info-card soft-card">
                 <div class="section-head admin-subsection-head">
@@ -537,11 +529,6 @@
                 <h2>Live Song Control</h2>
                 <div class="muted">Move through the song without touching the editor.</div>
               </div>
-              <div class="button-row compact-row">
-                <button id="songPrevBtn" class="btn btn-dark" type="button">Previous verse</button>
-                <button id="songNextBtn" class="btn btn-dark" type="button">Next verse</button>
-                <button id="backToLiveTextBtn" class="btn btn-primary" type="button">Back to live text</button>
-              </div>
               <div class="split-2 compact-library-row">
                 <div>
                   <label>Jump to verse or chorus</label>
@@ -553,7 +540,8 @@
               </div>
               <div class="label">Song preview</div>
               <div id="songPreview" class="song-preview">Song text will appear here.</div>
-              <div id="songBlocksList" class="history-list">
+              <button id="backToLiveTextBtn" class="btn btn-dark full-width-btn" type="button">Back to live text</button>
+              <div id="songBlocksList" class="history-list song-section-list">
                 <div class="muted">Use Save in library or Send first verse.</div>
               </div>
             </div>

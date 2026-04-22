@@ -220,6 +220,7 @@ function renderQuickLanguages() {
 
 function renderPresets() {
   const box = $('remotePresetsList');
+  if (!box) return;
   const presets = state.currentEvent?.displayPresets || [];
   if (!presets.length) {
     box.innerHTML = '<div class="muted">No presets available.</div>';
@@ -272,7 +273,7 @@ function refreshRemoteUi() {
   const shortcuts = $('remoteShortcuts');
   const presetsList = $('remotePresetsList');
   const mainScreenPanel = $('remoteMainScreenPanel');
-  const songPanel = $('remotePrevSongBtn')?.closest('.panel');
+  const songPanel = $('remoteSongJumpBtn')?.closest('.panel');
   const presetsPanel = presetsList?.closest('.panel');
   const songEditorPanel = $('remoteSongEditorPanel');
   const glossaryPanel = $('remoteGlossaryPanel');
@@ -387,10 +388,10 @@ $('remoteBlackBtn').addEventListener('click', async () => {
 $('remoteUndoBtn').addEventListener('click', async () => {
   try { await post(`/api/events/${state.eventId}/display/restore-last`); setStatus('Restored previous screen state.'); } catch (err) { setStatus(err.message); }
 });
-$('remotePrevSongBtn').addEventListener('click', async () => {
+$('remotePrevSongBtn')?.addEventListener('click', async () => {
   try { await post(`/api/events/${state.eventId}/song/prev`); setStatus('Moved to previous verse.'); } catch (err) { setStatus(err.message); }
 });
-$('remoteNextSongBtn').addEventListener('click', async () => {
+$('remoteNextSongBtn')?.addEventListener('click', async () => {
   try { await post(`/api/events/${state.eventId}/song/next`); setStatus('Moved to next verse.'); } catch (err) { setStatus(err.message); }
 });
 $('remoteSongJumpBtn').addEventListener('click', async () => {
@@ -415,7 +416,7 @@ $('remoteQuickLanguages').addEventListener('click', async (e) => {
   }
 });
 
-$('remoteShortcuts').addEventListener('click', async (e) => {
+$('remoteShortcuts')?.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-remote-shortcut]');
   if (!btn) return;
   try {
@@ -429,7 +430,7 @@ $('remoteShortcuts').addEventListener('click', async (e) => {
   }
 });
 
-$('remotePresetsList').addEventListener('click', async (e) => {
+$('remotePresetsList')?.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-remote-preset]');
   if (!btn) return;
   try {

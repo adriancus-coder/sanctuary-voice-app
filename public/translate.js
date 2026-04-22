@@ -13,8 +13,10 @@ const state = {
   customBackground: '',
   showClock: false,
   clockPosition: 'top-right',
+  clockScale: 1,
   textSize: 'large',
   screenStyle: 'focus',
+  displayResolution: 'auto',
   blackScreen: false,
   manualTranslations: {},
   manualSourceLang: 'ro',
@@ -93,6 +95,8 @@ function applyDisplaySettings() {
       wrap.style.backgroundColor = '#000';
       wrap.dataset.textSize = state.textSize || 'large';
       wrap.dataset.screenStyle = state.screenStyle || 'focus';
+      wrap.dataset.resolution = state.displayResolution || 'auto';
+      if (clock) clock.style.display = 'none';
       return;
     }
     if (state.currentTheme === 'dark') {
@@ -119,10 +123,12 @@ function applyDisplaySettings() {
     }
     wrap.dataset.textSize = state.textSize || 'large';
     wrap.dataset.screenStyle = state.screenStyle || 'focus';
+    wrap.dataset.resolution = state.displayResolution || 'auto';
   }
   if (clock) {
     clock.style.display = state.showClock ? 'block' : 'none';
     clock.className = `display-clock clock-${state.clockPosition || 'top-right'}`;
+    clock.style.setProperty('--clock-scale', String(state.clockScale || 1));
   }
 }
 
@@ -302,8 +308,10 @@ socket.on('joined_event', ({ event, languageNames }) => {
   state.customBackground = event.displayState?.customBackground || '';
   state.showClock = !!event.displayState?.showClock;
   state.clockPosition = event.displayState?.clockPosition || 'top-right';
+  state.clockScale = event.displayState?.clockScale || 1;
   state.textSize = event.displayState?.textSize || 'large';
   state.screenStyle = event.displayState?.screenStyle || 'focus';
+  state.displayResolution = event.displayState?.displayResolution || 'auto';
   state.manualSourceLang = event.displayState?.manualSourceLang || event.sourceLang || 'ro';
   state.manualTranslations = event.displayState?.manualTranslations || {};
   state.songState = event.songState || null;
@@ -360,7 +368,7 @@ socket.on('transcript_source_updated', (payload) => {
   scheduleDisplayRender(45);
 });
 
-socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, manualTranslations, manualSourceLang }) => {
+socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, screenStyle, displayResolution, manualTranslations, manualSourceLang }) => {
   if (state.currentEvent) {
     state.currentEvent.displayState = {
       ...(state.currentEvent.displayState || {}),
@@ -372,8 +380,10 @@ socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgro
       customBackground: typeof customBackground === 'string' ? customBackground : state.customBackground,
       showClock: typeof showClock === 'boolean' ? showClock : state.showClock,
       clockPosition: clockPosition || state.clockPosition,
+      clockScale: clockScale || state.clockScale,
       textSize: textSize || state.textSize || 'large',
       screenStyle: screenStyle || state.screenStyle || 'focus',
+      displayResolution: displayResolution || state.displayResolution || 'auto',
       manualSourceLang: manualSourceLang || state.manualSourceLang || state.currentEvent?.sourceLang || 'ro'
     };
   }
@@ -385,8 +395,10 @@ socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgro
   state.customBackground = typeof customBackground === 'string' ? customBackground : state.customBackground;
   state.showClock = typeof showClock === 'boolean' ? showClock : state.showClock;
   state.clockPosition = clockPosition || state.clockPosition;
+  state.clockScale = clockScale || state.clockScale;
   state.textSize = textSize || state.textSize || 'large';
   state.screenStyle = screenStyle || state.screenStyle || 'focus';
+  state.displayResolution = displayResolution || state.displayResolution || 'auto';
   state.manualSourceLang = manualSourceLang || state.manualSourceLang || state.currentEvent?.sourceLang || 'ro';
   state.manualTranslations = manualTranslations || state.manualTranslations || {};
   syncLanguageOptions({ ...state.currentEvent, displayState: { ...(state.currentEvent?.displayState || {}), mode: state.currentDisplayMode, manualSourceLang: state.manualSourceLang }, songState: state.songState });
@@ -399,7 +411,7 @@ socket.on('display_theme_changed', ({ theme }) => {
   renderDisplay();
 });
 
-socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, manualTranslations, manualSourceLang, manualSource }) => {
+socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, screenStyle, displayResolution, manualTranslations, manualSourceLang, manualSource }) => {
   state.currentDisplayMode = mode || 'manual';
   state.blackScreen = !!blackScreen;
   state.currentTheme = theme || state.currentTheme || 'dark';
@@ -408,14 +420,18 @@ socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgr
   state.customBackground = typeof customBackground === 'string' ? customBackground : state.customBackground;
   state.showClock = typeof showClock === 'boolean' ? showClock : state.showClock;
   state.clockPosition = clockPosition || state.clockPosition;
+  state.clockScale = clockScale || state.clockScale;
   state.textSize = textSize || state.textSize || 'large';
   state.screenStyle = screenStyle || state.screenStyle || 'focus';
+  state.displayResolution = displayResolution || state.displayResolution || 'auto';
   state.manualSourceLang = manualSourceLang || state.manualSourceLang || state.currentEvent?.sourceLang || 'ro';
   state.manualTranslations = manualTranslations || {};
   if (state.currentEvent) {
     state.currentEvent.displayState = state.currentEvent.displayState || {};
     state.currentEvent.displayState.mode = state.currentDisplayMode;
     state.currentEvent.displayState.language = state.currentLanguage;
+    state.currentEvent.displayState.clockScale = state.clockScale;
+    state.currentEvent.displayState.displayResolution = state.displayResolution;
     state.currentEvent.displayState.manualSource = manualSource || state.currentEvent.displayState.manualSource || '';
     state.currentEvent.displayState.manualSourceLang = state.manualSourceLang;
   }
