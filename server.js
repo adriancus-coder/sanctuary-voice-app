@@ -128,8 +128,10 @@ function defaultDisplayState() {
     customBackground: '',
     showClock: false,
     clockPosition: 'top-right',
+    clockScale: 1,
     textSize: 'large',
     screenStyle: 'focus',
+    displayResolution: 'auto',
     sceneLabel: '',
     manualSource: '',
     manualSourceLang: 'ro',
@@ -191,8 +193,10 @@ function cloneDisplaySnapshot(event) {
     customBackground: event.displayState.customBackground,
     showClock: !!event.displayState.showClock,
     clockPosition: event.displayState.clockPosition,
+    clockScale: event.displayState.clockScale || 1,
     textSize: event.displayState.textSize,
     screenStyle: event.displayState.screenStyle,
+    displayResolution: event.displayState.displayResolution || 'auto',
     sceneLabel: typeof event.displayState.sceneLabel === 'string' ? event.displayState.sceneLabel : '',
     manualSource: event.displayState.manualSource || '',
     manualSourceLang: event.displayState.manualSourceLang || event.sourceLang || 'ro',
@@ -233,8 +237,10 @@ function applyDisplaySnapshot(event, snapshot, updatedAt = new Date().toISOStrin
     customBackground: typeof safe.customBackground === 'string' ? safe.customBackground : '',
     showClock: !!safe.showClock,
     clockPosition: ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(safe.clockPosition) ? safe.clockPosition : 'top-right',
+    clockScale: typeof safe.clockScale === 'number' ? Math.min(1.8, Math.max(0.7, safe.clockScale)) : 1,
     textSize: ['compact', 'large', 'xlarge'].includes(safe.textSize) ? safe.textSize : 'large',
     screenStyle: ['focus', 'wide'].includes(safe.screenStyle) ? safe.screenStyle : 'focus',
+    displayResolution: ['auto', '16-9', '16-10', '4-3'].includes(safe.displayResolution) ? safe.displayResolution : 'auto',
     sceneLabel: typeof safe.sceneLabel === 'string' ? safe.sceneLabel : '',
     manualSource: typeof safe.manualSource === 'string' ? safe.manualSource : '',
     manualSourceLang,
@@ -249,6 +255,9 @@ function rememberDisplayState(event) {
 }
 
 function ensureEventUiState(event) {
+  if (typeof event.audioMuted !== 'boolean') {
+    event.audioMuted = true;
+  }
   if (!event.displayState || typeof event.displayState !== 'object') {
     event.displayState = defaultDisplayState();
   }
@@ -281,11 +290,18 @@ function ensureEventUiState(event) {
   if (!['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(event.displayState.clockPosition)) {
     event.displayState.clockPosition = 'top-right';
   }
+  if (typeof event.displayState.clockScale !== 'number') {
+    event.displayState.clockScale = 1;
+  }
+  event.displayState.clockScale = Math.min(1.8, Math.max(0.7, event.displayState.clockScale));
   if (!['compact', 'large', 'xlarge'].includes(event.displayState.textSize)) {
     event.displayState.textSize = 'large';
   }
   if (!['focus', 'wide'].includes(event.displayState.screenStyle)) {
     event.displayState.screenStyle = 'focus';
+  }
+  if (!['auto', '16-9', '16-10', '4-3'].includes(event.displayState.displayResolution)) {
+    event.displayState.displayResolution = 'auto';
   }
   if (typeof event.displayState.sceneLabel !== 'string') {
     event.displayState.sceneLabel = '';
@@ -636,20 +652,28 @@ function shouldFlushBufferedText(text) {
   return false;
 }
 
-function normalizeEvent(event) {
+function sanitizeRemoteOperator(operator, includeCode = false) {
+  if (!operator) return null;
   return {
+    id: operator.id,
+    name: operator.name,
+    profile: operator.profile,
+    permissions: Array.isArray(operator.permissions) ? operator.permissions : getRemoteOperatorPermissions(operator.profile),
+    remoteLink: includeCode ? (operator.remoteLink || '') : ''
+  };
+}
+
+function normalizeEvent(event, options = {}) {
+  const includeSecrets = !!options.includeSecrets;
+  const payload = {
     id: event.id,
     name: event.name,
     sourceLang: event.sourceLang || 'ro',
     liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
     targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : ['no', 'en'],
     speed: event.speed || 'balanced',
-    adminCode: event.adminCode,
-    screenOperatorCode: event.screenOperatorCode || '',
-    remoteOperators: normalizeRemoteOperators(event.remoteOperators || []),
     participantLink: event.participantLink,
     translateLink: event.translateLink || '',
-    remoteControlLink: event.remoteControlLink || '',
     songLink: event.songLink || '',
     qrCodeDataUrl: event.qrCodeDataUrl || '',
     transcripts: Array.isArray(event.transcripts) ? event.transcripts : [],
@@ -669,6 +693,13 @@ function normalizeEvent(event) {
     songLibrary: Array.isArray(event.songLibrary) ? event.songLibrary : [],
     songHistory: Array.isArray(event.songHistory) ? event.songHistory : []
   };
+  if (includeSecrets) {
+    payload.adminCode = event.adminCode;
+    payload.screenOperatorCode = event.screenOperatorCode || '';
+    payload.remoteControlLink = event.remoteControlLink || '';
+    payload.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []);
+  }
+  return payload;
 }
 
 function buildDisplayPayload(event) {
@@ -682,8 +713,10 @@ function buildDisplayPayload(event) {
     customBackground: event.displayState.customBackground,
     showClock: event.displayState.showClock,
     clockPosition: event.displayState.clockPosition,
+    clockScale: event.displayState.clockScale || 1,
     textSize: event.displayState.textSize,
     screenStyle: event.displayState.screenStyle,
+    displayResolution: event.displayState.displayResolution || 'auto',
     sceneLabel: event.displayState.sceneLabel,
     manualSource: event.displayState.manualSource,
     manualSourceLang: event.displayState.manualSourceLang || event.sourceLang || 'ro',
@@ -701,8 +734,10 @@ function normalizeDisplayPreset(input = {}) {
   const theme = ['dark', 'light'].includes(input.theme) ? input.theme : 'dark';
   const backgroundPreset = ['none', 'warm', 'sanctuary', 'soft-light'].includes(input.backgroundPreset) ? input.backgroundPreset : 'none';
   const clockPosition = ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(input.clockPosition) ? input.clockPosition : 'top-right';
+  const clockScale = typeof input.clockScale === 'number' ? Math.min(1.8, Math.max(0.7, input.clockScale)) : 1;
   const textSize = ['compact', 'large', 'xlarge'].includes(input.textSize) ? input.textSize : 'large';
   const screenStyle = ['focus', 'wide'].includes(input.screenStyle) ? input.screenStyle : 'focus';
+  const displayResolution = ['auto', '16-9', '16-10', '4-3'].includes(input.displayResolution) ? input.displayResolution : 'auto';
   return {
     id: input.id || randomUUID(),
     name,
@@ -713,8 +748,10 @@ function normalizeDisplayPreset(input = {}) {
     customBackground: typeof input.customBackground === 'string' ? input.customBackground.trim() : '',
     showClock: !!input.showClock,
     clockPosition,
+    clockScale,
     textSize,
     screenStyle,
+    displayResolution,
     updatedAt: new Date().toISOString()
   };
 }
@@ -867,6 +904,37 @@ function requireEventPermission(req, res, permission) {
   return false;
 }
 
+function canManageEvents(req) {
+  const suppliedCode = getSuppliedEventCode(req);
+  const appAdminCode = String(process.env.APP_ADMIN_CODE || process.env.ADMIN_CODE || '').trim();
+  if (appAdminCode && suppliedCode === appAdminCode) return true;
+  const events = Object.values(db.events || {});
+  if (!events.length && !appAdminCode) return true;
+  return events.some((event) => String(event.adminCode || '') === suppliedCode);
+}
+
+function requireEventManager(req, res) {
+  if (canManageEvents(req)) return true;
+  res.status(403).json({ ok: false, error: 'Cod Admin necesar pentru administrarea evenimentelor.' });
+  return false;
+}
+
+function normalizeSocketOperator(operator) {
+  return operator ? sanitizeRemoteOperator(operator, false) : null;
+}
+
+function normalizeEventForAccess(req, event) {
+  return normalizeEvent(event, { includeSecrets: req.eventRole === 'admin' });
+}
+
+function socketCanControlEvent(socket, eventId, permission = '') {
+  if (socket.data.eventId !== eventId) return false;
+  if (socket.data.role === 'admin') return true;
+  if (socket.data.role !== 'screen') return false;
+  if (!permission) return true;
+  return (socket.data.permissions || []).includes(permission);
+}
+
 function buildBaseUrl(req) {
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0].trim();
   const host = req.get('host');
@@ -919,7 +987,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     transcripts: [],
     glossary: {},
     sourceCorrections: {},
-    audioMuted: false,
+    audioMuted: true,
     audioVolume: 70,
     createdAt: new Date().toISOString(),
     lastTranscriptNorm: '',
@@ -936,7 +1004,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
   db.activeEventId = id;
   saveDb();
   setImmediate(() => io.emit('active_event_changed', { eventId: id }));
-  return normalizeEvent(event);
+  return event;
 }
 
 function applyReplacementMap(text, map) {
@@ -1165,20 +1233,25 @@ async function detectSourceLanguage(text, event) {
 
 async function transcribeAudioFile(filePath, event) {
   if (!client) return { text: '', sourceLang: event.sourceLang || 'ro' };
-  const configured = String(event.liveSourceLang || 'auto').trim();
+  const configured = String(event.liveSourceLang || event.sourceLang || 'ro').trim();
+  const shouldDetectLanguage = !configured || configured === 'auto';
+  const effectiveSourceLang = shouldDetectLanguage ? (event.sourceLang || 'ro') : configured;
   const request = {
     file: fs.createReadStream(filePath),
     model: OPENAI_TRANSCRIBE_MODEL,
     response_format: 'json',
     prompt:
-      configured === 'no'
+      effectiveSourceLang === 'no'
         ? 'The audio is a Christian sermon in Norwegian. Keep the transcript in Norwegian. Use natural punctuation. Common terms may include Jesus, Kristus, Herren, Den Hellige Ånd, menighet, evangeliet, apostel, nåde, kjærlighet, synd, frelse.'
-        : 'The audio is a live church service or sermon. Detect the spoken language naturally. Keep names and punctuation natural.'
+        : 'The audio is a live church service or sermon. Keep the transcript in the selected source language. Keep names and punctuation natural.'
   };
-  if (configured && configured !== 'auto' && LANGUAGES[configured]) request.language = configured;
+  if (!shouldDetectLanguage && LANGUAGES[effectiveSourceLang]) request.language = effectiveSourceLang;
   const result = await client.audio.transcriptions.create(request);
   const text = String(result?.text || '').trim();
-  return { text, sourceLang: await detectSourceLanguage(text, event) };
+  return {
+    text,
+    sourceLang: shouldDetectLanguage ? await detectSourceLanguage(text, event) : effectiveSourceLang
+  };
 }
 
 async function retranslateEntry(event, entry) {
@@ -1340,181 +1413,6 @@ function queueSpeechText(eventId, text, sourceLang = '') {
   if (prev.timer) clearTimeout(prev.timer);
 
   const next = { text: merged, timer: null, startedAt: prev.startedAt || Date.now(), sourceLang: sourceLang || prev.sourceLang || '' };
-  speechBuffers.set(eventId, next);
-  io.to(`event:${eventId}:admins`).emit('partial_transcript', { text: merged });
-
-  const ageMs = Date.now() - next.startedAt;
-  const words = countWords(merged);
-  if (shouldFlushBufferedText(merged)) {
-    flushSpeechBuffer(eventId, false).catch(console.error);
-    return;
-  }
-  if (ageMs > LIVE_TEXT_HARD_WAIT_MS || words >= LIVE_TEXT_MAX_WORDS) {
-    flushSpeechBuffer(eventId, true).catch(console.error);
-    return;
-  }
-  next.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
-}
-
-// Stable live transcription pipeline: keep the original event source language for transcribe and translate.
-async function transcribeAudioFile(filePath, event) {
-  if (!client) return '';
-  const request = {
-    file: fs.createReadStream(filePath),
-    model: OPENAI_TRANSCRIBE_MODEL,
-    response_format: 'json',
-    prompt:
-      event.sourceLang === 'no'
-        ? 'The audio is a Christian sermon in Norwegian. Keep the transcript in Norwegian. Use natural punctuation. Common terms may include Jesus, Kristus, Herren, Den Hellige And, menighet, evangeliet, apostel, nade, kjaerlighet, synd, frelse. If the audio is silence or background noise, return an empty transcript.'
-        : 'The audio is a live sermon. Keep names and punctuation natural. If the audio is silence or background noise, return an empty transcript.'
-  };
-  request.language = event.sourceLang || 'ro';
-  const result = await client.audio.transcriptions.create(request);
-  return String(result?.text || '').trim();
-}
-
-async function retranslateEntry(event, entry) {
-  const translationPairs = await Promise.all(
-    event.targetLangs.map(async (lang) => [lang, await translateText(entry.original, lang, event)])
-  );
-  entry.translations = Object.fromEntries(translationPairs);
-}
-
-async function publishNewChunk(event, chunk) {
-  const cleanChunk = sanitizeTranscriptText(chunk);
-  if (!cleanChunk) return null;
-  const chunkNormalized = normalizeChunkText(cleanChunk);
-  if (!chunkNormalized || chunkNormalized.length < 2) return null;
-  const previousEntry = event.transcripts[event.transcripts.length - 1];
-
-  if (previousEntry && previousEntry.participantDirty) {
-    previousEntry.participantDirty = false;
-    io.to(`event:${event.id}`).emit('transcript_source_updated', {
-      entryId: previousEntry.id,
-      sourceLang: previousEntry.sourceLang,
-      original: previousEntry.original,
-      translations: previousEntry.translations
-    });
-  }
-
-  const translationPairs = await Promise.all(
-    event.targetLangs.map(async (lang) => [lang, await translateText(cleanChunk, lang, event)])
-  );
-
-  const entry = {
-    id: randomUUID(),
-    sourceLang: event.sourceLang,
-    original: cleanChunk,
-    translations: Object.fromEntries(translationPairs),
-    createdAt: new Date().toISOString(),
-    edited: false
-  };
-
-  event.lastTranscriptNorm = chunkNormalized;
-  event.transcripts.push(entry);
-  if (event.transcripts.length > 300) event.transcripts = event.transcripts.slice(-300);
-  ensureEventUiState(event);
-  recordTranscriptCreated(event);
-  saveDb();
-  io.to(`event:${event.id}`).emit('transcript_entry', entry);
-  if (event.displayState?.mode === 'auto') {
-    io.to(`event:${event.id}`).emit('display_live_entry', entry);
-  }
-  emitUsageStats(event.id);
-  return entry;
-}
-
-async function processText(event, cleanText, { force = false } = {}) {
-  const normalized = normalizeChunkText(cleanText);
-  if (!normalized || normalized.length < 2) return null;
-  if (!force && normalized === event.lastTranscriptNorm) return null;
-
-  const lastEntry = event.transcripts[event.transcripts.length - 1];
-  if (shouldAppendToPreviousEntry(lastEntry, cleanText)) {
-    const combinedText = sanitizeTranscriptText(`${lastEntry.original} ${cleanText}`);
-    const chunks = splitIntoDisplayChunks(combinedText);
-    const firstChunk = chunks.shift() || combinedText;
-    lastEntry.sourceLang = event.sourceLang;
-    lastEntry.original = firstChunk;
-    await retranslateEntry(event, lastEntry);
-    event.lastTranscriptNorm = normalizeChunkText(firstChunk);
-    lastEntry.participantDirty = false;
-    saveDb();
-
-    io.to(`event:${event.id}`).emit('transcript_source_updated', {
-      entryId: lastEntry.id,
-      sourceLang: lastEntry.sourceLang,
-      original: lastEntry.original,
-      translations: lastEntry.translations
-    });
-    if (event.displayState?.mode === 'auto') {
-      io.to(`event:${event.id}`).emit('display_live_entry', lastEntry);
-    }
-
-    let lastCreatedEntry = lastEntry;
-    for (const extraChunk of chunks) {
-      const created = await publishNewChunk(event, extraChunk);
-      if (created) lastCreatedEntry = created;
-    }
-    return lastCreatedEntry;
-  }
-
-  const chunks = splitIntoDisplayChunks(cleanText);
-  let lastCreatedEntry = null;
-  for (const chunk of chunks) {
-    const created = await publishNewChunk(event, chunk);
-    if (created) lastCreatedEntry = created;
-  }
-  return lastCreatedEntry;
-}
-
-async function flushSpeechBuffer(eventId, force = false) {
-  const buffered = speechBuffers.get(eventId);
-  if (!buffered) return null;
-  if (buffered.timer) clearTimeout(buffered.timer);
-
-  const event = db.events[eventId];
-  if (!event) {
-    speechBuffers.delete(eventId);
-    return null;
-  }
-
-  const text = sanitizeTranscriptText(buffered.text);
-  if (!text) {
-    speechBuffers.delete(eventId);
-    return null;
-  }
-
-  const words = countWords(text);
-  const last = getLastWord(text);
-
-  if (!force) {
-    if (startsLikeContinuation(text) && words < LIVE_TEXT_TARGET_WORDS) {
-      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
-      speechBuffers.set(eventId, buffered);
-      return null;
-    }
-    if (BUFFER_CONNECTORS.has(last) && words < LIVE_TEXT_TARGET_WORDS) {
-      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
-      speechBuffers.set(eventId, buffered);
-      return null;
-    }
-  }
-
-  speechBuffers.delete(eventId);
-  io.to(`event:${eventId}:admins`).emit('partial_transcript', { text: '' });
-  return processText(event, text, { force: true });
-}
-
-function queueSpeechText(eventId, text) {
-  const clean = sanitizeTranscriptText(text);
-  if (!clean) return;
-
-  const prev = speechBuffers.get(eventId) || { text: '', timer: null, startedAt: Date.now() };
-  const merged = mergeTranscriptText(prev.text, clean);
-  if (prev.timer) clearTimeout(prev.timer);
-
-  const next = { text: merged, timer: null, startedAt: prev.startedAt || Date.now() };
   speechBuffers.set(eventId, next);
   io.to(`event:${eventId}:admins`).emit('partial_transcript', { text: merged });
 
@@ -1755,6 +1653,7 @@ app.get('/api/participant-qr.png', async (req, res) => {
 });
 
 app.post('/api/events', async (req, res) => {
+  if (!requireEventManager(req, res)) return;
   try {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
     const baseUrl = `${protocol}://${req.get('host')}`;
@@ -1766,7 +1665,7 @@ app.post('/api/events', async (req, res) => {
       baseUrl,
       scheduledAt: req.body.scheduledAt || null
     });
-    res.json({ ok: true, event });
+    res.json({ ok: true, event: normalizeEvent(event, { includeSecrets: true }) });
   } catch (err) {
     console.error('create event error:', err);
     res.status(500).json({ ok: false, error: 'Nu am putut crea evenimentul.' });
@@ -1813,7 +1712,8 @@ app.get('/api/events/:id', (req, res) => {
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
   ensureEventAccessLinks(event, buildBaseUrl(req));
   saveDb();
-  res.json({ ok: true, event: normalizeEvent(event), languageNames: LANGUAGE_NAMES_RO });
+  const access = resolveEventAccessFromCode(event, getSuppliedEventCode(req));
+  res.json({ ok: true, event: normalizeEvent(event, { includeSecrets: access.role === 'admin' }), languageNames: LANGUAGE_NAMES_RO });
 });
 
 app.post('/api/events/:id/remote-operators', (req, res) => {
@@ -1869,7 +1769,7 @@ app.post('/api/events/:id/settings', (req, res) => {
     event.liveSourceLang = liveSourceLang === 'auto' || LANGUAGES[liveSourceLang] ? liveSourceLang : (event.liveSourceLang || 'auto');
   }
   saveDb();
-  res.json({ ok: true, event: normalizeEvent(event) });
+  res.json({ ok: true, event: normalizeEventForAccess(req, event) });
 });
 
 app.post('/api/events/:id/mode', (req, res) => {
@@ -1899,7 +1799,7 @@ app.post('/api/events/:id/mode', (req, res) => {
   if (mode === 'live') {
     io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
   }
-  res.json({ ok: true, event: normalizeEvent(event) });
+  res.json({ ok: true, event: normalizeEventForAccess(req, event) });
 });
 
 app.post('/api/events/:id/activate', (req, res) => {
@@ -1909,7 +1809,7 @@ app.post('/api/events/:id/activate', (req, res) => {
   db.activeEventId = event.id;
   saveDb();
   io.emit('active_event_changed', { eventId: event.id });
-  res.json({ ok: true, event: normalizeEvent(event) });
+  res.json({ ok: true, event: normalizeEventForAccess(req, event) });
 });
 
 app.delete('/api/events/:id', (req, res) => {
@@ -1972,7 +1872,7 @@ app.post('/api/events/:id/audio', (req, res) => {
   if (typeof req.body.audioVolume === 'number') event.audioVolume = Math.max(0, Math.min(100, req.body.audioVolume));
   saveDb();
   io.to(`event:${event.id}`).emit('audio_state', { audioMuted: event.audioMuted, audioVolume: event.audioVolume });
-  res.json({ ok: true, event: normalizeEvent(event) });
+  res.json({ ok: true, event: normalizeEventForAccess(req, event) });
 });
 
 app.post('/api/events/:id/song/load', async (req, res) => {
@@ -2001,10 +1901,19 @@ app.post('/api/events/:id/song/load', async (req, res) => {
       updatedAt: new Date().toISOString()
     };
     event.mode = 'song';
+    rememberDisplayState(event);
+    ensureEventUiState(event);
+    event.displayState.mode = 'song';
+    event.displayState.blackScreen = false;
+    event.displayState.sceneLabel = '';
+    event.displayState.updatedAt = new Date().toISOString();
+    recordScreenAction(event, 'song');
     saveDb();
     io.to(`event:${event.id}`).emit('mode_changed', { mode: 'song' });
     io.to(`event:${event.id}`).emit('song_state', event.songState);
-    res.json({ ok: true, songState: event.songState, event: normalizeEvent(event) });
+    io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
+    emitUsageStats(event.id);
+    res.json({ ok: true, songState: event.songState, event: normalizeEventForAccess(req, event) });
   } catch (err) {
     console.error('song load error:', err);
     res.status(500).json({ ok: false, error: 'Nu am putut pregăti Song.' });
@@ -2082,7 +1991,7 @@ app.post('/api/events/:id/song/clear', (req, res) => {
   io.to(`event:${event.id}`).emit('song_clear');
   io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
   io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-  res.json({ ok: true, event: normalizeEvent(event) });
+  res.json({ ok: true, event: normalizeEventForAccess(req, event) });
 });
 
 
@@ -2116,7 +2025,7 @@ app.post('/api/events/:id/display/mode', (req, res) => {
   io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
   emitUsageStats(event.id);
 
-  res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEvent(event) });
+  res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEventForAccess(req, event) });
 });
 
 app.post('/api/events/:id/display/theme', (req, res) => {
@@ -2180,13 +2089,18 @@ app.post('/api/events/:id/display/settings', (req, res) => {
   const customBackground = typeof req.body.customBackground === 'string' ? req.body.customBackground.trim() : event.displayState.customBackground;
   const showClock = typeof req.body.showClock === 'boolean' ? req.body.showClock : event.displayState.showClock;
   const clockPosition = typeof req.body.clockPosition === 'string' ? req.body.clockPosition.trim() : event.displayState.clockPosition;
+  const clockScale = typeof req.body.clockScale === 'number' ? req.body.clockScale : event.displayState.clockScale;
   const textSize = typeof req.body.textSize === 'string' ? req.body.textSize.trim() : event.displayState.textSize;
   const screenStyle = typeof req.body.screenStyle === 'string' ? req.body.screenStyle.trim() : event.displayState.screenStyle;
+  const displayResolution = typeof req.body.displayResolution === 'string' ? req.body.displayResolution.trim() : event.displayState.displayResolution;
   if (!['none', 'warm', 'sanctuary', 'soft-light'].includes(backgroundPreset)) {
     return res.status(400).json({ ok: false, error: 'Preset fundal invalid.' });
   }
   if (!['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(clockPosition)) {
     return res.status(400).json({ ok: false, error: 'Pozitie ceas invalida.' });
+  }
+  if (typeof clockScale !== 'number' || Number.isNaN(clockScale) || clockScale < 0.7 || clockScale > 1.8) {
+    return res.status(400).json({ ok: false, error: 'Marime ceas invalida.' });
   }
   if (!['compact', 'large', 'xlarge'].includes(textSize)) {
     return res.status(400).json({ ok: false, error: 'Marime text invalida.' });
@@ -2194,13 +2108,18 @@ app.post('/api/events/:id/display/settings', (req, res) => {
   if (!['focus', 'wide'].includes(screenStyle)) {
     return res.status(400).json({ ok: false, error: 'Layout ecran invalid.' });
   }
+  if (!['auto', '16-9', '16-10', '4-3'].includes(displayResolution)) {
+    return res.status(400).json({ ok: false, error: 'Rezolutie ecran invalida.' });
+  }
   rememberDisplayState(event);
   event.displayState.backgroundPreset = backgroundPreset;
   event.displayState.customBackground = customBackground;
   event.displayState.showClock = !!showClock;
   event.displayState.clockPosition = clockPosition;
+  event.displayState.clockScale = clockScale;
   event.displayState.textSize = textSize;
   event.displayState.screenStyle = screenStyle;
+  event.displayState.displayResolution = displayResolution;
   event.displayState.sceneLabel = '';
   event.displayState.updatedAt = new Date().toISOString();
   recordScreenAction(event, 'display');
@@ -2227,7 +2146,7 @@ app.post('/api/events/:id/display/restore-last', (req, res) => {
   saveDb();
   io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
   emitUsageStats(event.id);
-  res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEvent(event) });
+  res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEventForAccess(req, event) });
 });
 
 app.post('/api/events/:id/display/shortcut', (req, res) => {
@@ -2271,7 +2190,7 @@ app.post('/api/events/:id/display/shortcut', (req, res) => {
 
   io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
   emitUsageStats(event.id);
-  res.json({ ok: true, shortcut: shortcut.label, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEvent(event) });
+  res.json({ ok: true, shortcut: shortcut.label, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEventForAccess(req, event) });
 });
 
 app.get('/api/events/:id/display-presets', (req, res) => {
@@ -2375,7 +2294,7 @@ app.post('/api/events/:id/display/blank', (req, res) => {
   saveDb();
   io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
   emitUsageStats(event.id);
-  res.json({ ok: true, event: normalizeEvent(event), previousState: event.displayStatePrevious || null });
+  res.json({ ok: true, event: normalizeEventForAccess(req, event), previousState: event.displayStatePrevious || null });
 });
 
 app.post('/api/events/:id/display/manual', async (req, res) => {
@@ -2605,10 +2524,14 @@ app.post('/api/events/:id/transcribe', upload.single('audio'), async (req, res) 
   try {
     fs.writeFileSync(tempPath, req.file.buffer);
     const rawTranscript = await transcribeAudioFile(tempPath, event);
-    const transcript = applySourceCorrections(sanitizeTranscriptText(rawTranscript), getSourceCorrections(event));
+    const transcriptText = typeof rawTranscript === 'string' ? rawTranscript : rawTranscript?.text;
+    const transcriptSourceLang = typeof rawTranscript === 'object' && rawTranscript?.sourceLang
+      ? rawTranscript.sourceLang
+      : (event.liveSourceLang || event.sourceLang || 'ro');
+    const transcript = applySourceCorrections(sanitizeTranscriptText(transcriptText), getSourceCorrections(event));
     if (!transcript) return res.json({ ok: true, skipped: true });
-    queueSpeechText(event.id, transcript);
-    return res.json({ ok: true, text: transcript, buffered: true });
+    queueSpeechText(event.id, transcript, transcriptSourceLang);
+    return res.json({ ok: true, text: transcript, sourceLang: transcriptSourceLang, buffered: true });
   } catch (err) {
     console.error('transcribe error:', err?.message || err);
     return res.status(500).json({ ok: false, error: 'Nu am putut transcrie audio.' });
@@ -2633,6 +2556,7 @@ io.on('connection', (socket) => {
     socket.data.role = role || 'participant';
     socket.data.language = language || event.targetLangs[0] || 'no';
     socket.data.participantId = participantId || '';
+    socket.data.permissions = socket.data.role === 'admin' ? ['main_screen', 'song', 'glossary'] : (access.permissions || []);
 
     socket.join(`event:${eventId}`);
     if (socket.data.role === 'admin') socket.join(`event:${eventId}:admins`);
@@ -2654,9 +2578,9 @@ io.on('connection', (socket) => {
     socket.emit('joined_event', {
       ok: true,
       role: socket.data.role,
-      event: normalizeEvent(event),
+      event: normalizeEvent(event, { includeSecrets: socket.data.role === 'admin' }),
       access: socket.data.role === 'screen'
-        ? { permissions: access.permissions || [], operator: access.operator || null }
+        ? { permissions: access.permissions || [], operator: normalizeSocketOperator(access.operator) }
         : null,
       languageNames: LANGUAGE_NAMES_RO
     });
