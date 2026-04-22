@@ -164,7 +164,7 @@ function getSongTextForCurrentLanguage(songState) {
 function getHistoryEntries() {
   const entries = sortEntries(state.currentEvent?.transcripts || []);
   if (entries.length <= 1) return [];
-  const visibleIndex = Math.max(0, entries.findIndex((entry) => entry.id === state.visibleLiveEntryId));
+  const visibleIndex = entries.findIndex((entry) => entry.id === state.visibleLiveEntryId);
   const endIndex = visibleIndex >= 0 ? visibleIndex - 1 : entries.length - 2;
 
   const result = [];

@@ -368,11 +368,16 @@
         <div class="cards-grid two song-grid">
           <div class="panel glass-panel section-stack">
             <div class="section-head">
-              <h2>Song Mode Console</h2>
+              <h2>Song</h2>
               <div id="songModeBadge" class="status-pill">Live</div>
             </div>
             <div id="displayModeLabel" class="muted">Main screen: Live follow</div>
             <div id="songCurrentIndex" class="muted">Saved: 0 · History: 0</div>
+            <div class="song-workflow-strip">
+              <div><span>1</span><strong>Choose</strong><small>Load from library or paste lyrics.</small></div>
+              <div><span>2</span><strong>Send</strong><small>Send first verse to participants.</small></div>
+              <div><span>3</span><strong>Control</strong><small>Jump to verse, chorus, or back to live text.</small></div>
+            </div>
             <div class="info-card soft-card main-screen-settings-card">
               <div class="section-head admin-subsection-head">
                 <h2>Main Screen Settings</h2>
@@ -511,36 +516,46 @@
                 <div class="muted">Use these windows like live previews for projector and participant phone view.</div>
               </div>
             </div>
-            <label>Title</label>
-            <input id="songTitle" type="text" placeholder="Amazing Grace">
-            <label>Song language</label>
-            <select id="songSourceLang"></select>
-            <label>Song text or lyrics</label>
-            <textarea id="songText" class="song-textarea" placeholder="Paste song lyrics, chorus, prayer, announcement or other lyrics here."></textarea>
-            <div class="button-row">
-              <button id="saveSongBtn" class="btn btn-dark">Save to church library</button>
-              <button id="sendSongBtn" class="btn btn-primary">Send first verse</button>
-            </div>
-            <div class="button-row compact-row">
-              <button id="songPrevBtn" class="btn btn-dark" type="button">Previous verse</button>
-              <button id="songNextBtn" class="btn btn-dark" type="button">Next verse</button>
-              <button id="backToLiveTextBtn" class="btn btn-primary" type="button">Back to live text</button>
-            </div>
-            <div class="split-2 compact-library-row">
-              <div>
-                <label>Jump to section</label>
-                <select id="songJumpSelect"></select>
+            <div class="info-card soft-card song-editor-card">
+              <div class="section-head admin-subsection-head">
+                <h2>Prepare Song</h2>
+                <div class="muted">Paste lyrics or load a song from Church Library.</div>
               </div>
-              <div class="preset-save-wrap">
-                <button id="songJumpBtn" class="btn btn-primary" type="button">Show selected section</button>
+              <label>Title</label>
+              <input id="songTitle" type="text" placeholder="Amazing Grace">
+              <label>Song language</label>
+              <select id="songSourceLang"></select>
+              <label>Song text or lyrics</label>
+              <textarea id="songText" class="song-textarea" placeholder="Use markers like 1., 2., R., R2. to create verses and choruses."></textarea>
+              <div class="button-row">
+                <button id="saveSongBtn" class="btn btn-dark">Save to church library</button>
+                <button id="sendSongBtn" class="btn btn-primary">Send first verse</button>
               </div>
             </div>
-            <div class="info-card soft-card">
+            <div class="info-card accent-card song-live-card">
+              <div class="section-head admin-subsection-head">
+                <h2>Live Song Control</h2>
+                <div class="muted">Move through the song without touching the editor.</div>
+              </div>
+              <div class="button-row compact-row">
+                <button id="songPrevBtn" class="btn btn-dark" type="button">Previous verse</button>
+                <button id="songNextBtn" class="btn btn-dark" type="button">Next verse</button>
+                <button id="backToLiveTextBtn" class="btn btn-primary" type="button">Back to live text</button>
+              </div>
+              <div class="split-2 compact-library-row">
+                <div>
+                  <label>Jump to verse or chorus</label>
+                  <select id="songJumpSelect"></select>
+                </div>
+                <div class="preset-save-wrap">
+                  <button id="songJumpBtn" class="btn btn-primary" type="button">Show selected section</button>
+                </div>
+              </div>
               <div class="label">Song preview</div>
               <div id="songPreview" class="song-preview">Song text will appear here.</div>
-            </div>
-            <div id="songBlocksList" class="history-list">
-              <div class="muted">Use Save in library or Send first verse.</div>
+              <div id="songBlocksList" class="history-list">
+                <div class="muted">Use Save in library or Send first verse.</div>
+              </div>
             </div>
           </div>
 
