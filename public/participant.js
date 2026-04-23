@@ -3,7 +3,7 @@ const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
 let participantWakeLock = null;
 const participantParams = new URLSearchParams(window.location.search);
-const LIVE_ENTRY_MIN_DISPLAY_MS = 2600;
+const LIVE_ENTRY_MIN_DISPLAY_MS = 1400;
 const LIVE_ENTRY_MAX_QUEUE = 4;
 
 const voiceLocales = {

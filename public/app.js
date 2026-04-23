@@ -31,6 +31,7 @@ let audioState = {
   destination: null,
   meterFrame: null,
   recorder: null,
+  browserRecognizer: null,
   running: false,
   busy: false,
   uploadQueue: [],
@@ -1657,6 +1658,7 @@ async function destroyAudioPipeline() {
   audioState.meterFrame = null;
   if (audioState.stream) audioState.stream.getTracks().forEach((t) => t.stop());
   audioState.stream = null;
+  stopBrowserAzureRecognition();
   if (audioState.context) await audioState.context.close().catch(() => {});
   audioState.context = null;
   audioState.source = null;
@@ -1757,6 +1759,102 @@ async function loadSpeechRuntimeConfig() {
     audioState.speechProvider = 'openai';
   }
   return audioState.speechProvider;
+}
+
+function sourceLangToAzureLocale(code) {
+  return ({
+    ro: 'ro-RO',
+    no: 'nb-NO',
+    en: 'en-US',
+    ru: 'ru-RU',
+    uk: 'uk-UA',
+    es: 'es-ES',
+    fr: 'fr-FR',
+    de: 'de-DE',
+    it: 'it-IT',
+    pt: 'pt-PT',
+    pl: 'pl-PL',
+    tr: 'tr-TR',
+    ar: 'ar-SA',
+    fa: 'fa-IR',
+    hu: 'hu-HU',
+    el: 'el-GR'
+  })[code] || 'ro-RO';
+}
+
+async function getBrowserAzureSpeechConfig() {
+  if (!currentEvent) throw new Error('Open or create an event first.');
+  if (!window.SpeechSDK) throw new Error('Azure Speech SDK did not load.');
+  const res = await fetch(`/api/events/${currentEvent.id}/azure-token?code=${encodeURIComponent(currentEvent.adminCode || '')}`);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Azure token failed.');
+  const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(data.token, data.region);
+  const sourceCode = currentEvent.liveSourceLang === 'auto'
+    ? (currentEvent.sourceLang || 'ro')
+    : (currentEvent.liveSourceLang || currentEvent.sourceLang || 'ro');
+  speechConfig.speechRecognitionLanguage = sourceLangToAzureLocale(sourceCode);
+  speechConfig.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, '900');
+  return speechConfig;
+}
+
+async function startBrowserAzureRecognition() {
+  if (!currentEvent) return false;
+  if (!window.SpeechSDK) {
+    setStatus('Azure Speech SDK did not load. Falling back to server audio.');
+    return false;
+  }
+  const speechConfig = await getBrowserAzureSpeechConfig();
+  const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+  const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+  audioState.browserRecognizer = recognizer;
+
+  recognizer.recognizing = (_, event) => {
+    const text = event.result?.text || '';
+    if (text) $('partialTranscript').textContent = text;
+  };
+
+  recognizer.recognized = (_, event) => {
+    if (event.result.reason !== SpeechSDK.ResultReason.RecognizedSpeech) return;
+    const text = String(event.result.text || '').trim();
+    if (!text || !currentEvent) return;
+    $('partialTranscript').textContent = text;
+    socket.emit('submit_text', { eventId: currentEvent.id, text });
+  };
+
+  recognizer.canceled = (_, event) => {
+    console.error(event);
+    setStatus(`Azure canceled: ${event.errorDetails || event.reason}`);
+    stopBrowserAzureRecognition();
+  };
+
+  recognizer.sessionStopped = () => {
+    if (audioState.running && audioState.speechProvider === 'azure_sdk') setStatus('Azure session stopped.');
+    stopBrowserAzureRecognition();
+  };
+
+  recognizer.startContinuousRecognitionAsync(
+    () => setStatus('On-Air. Azure Speech is listening.'),
+    (err) => {
+      console.error(err);
+      setStatus(String(err || 'Could not start Azure recognition.'));
+      stopBrowserAzureRecognition();
+    }
+  );
+  return true;
+}
+
+function stopBrowserAzureRecognition() {
+  const recognizer = audioState.browserRecognizer;
+  if (!recognizer) return;
+  audioState.browserRecognizer = null;
+  try {
+    recognizer.stopContinuousRecognitionAsync(
+      () => recognizer.close(),
+      () => recognizer.close()
+    );
+  } catch (_) {
+    try { recognizer.close(); } catch (__) {}
+  }
 }
 
 function downsampleTo16kPcm(input, inputRate) {
@@ -1887,8 +1985,6 @@ async function drainAudioUploadQueue() {
 async function startTranslation() {
   if (!currentEvent) return alert('Open or create an event first.');
   await syncSpeedToEvent();
-  if (!window.MediaRecorder) return alert('Use Chrome or Edge.');
-  try { await createAudioPipeline(); } catch (_) { return setStatus('Audio start failed.'); }
   await loadSpeechRuntimeConfig();
   await setEventMode('live');
   audioState.running = true;
@@ -1896,10 +1992,15 @@ async function startTranslation() {
   setOnAirState(true);
   await enableScreenWakeLock();
   if (audioState.speechProvider === 'azure_sdk') {
-    await startAzureAudioStream();
-    setStatus('On-Air. Azure Speech is listening.');
-    return;
+    const started = await startBrowserAzureRecognition().catch((err) => {
+      console.error(err);
+      setStatus(err.message || 'Azure Speech start failed.');
+      return false;
+    });
+    if (started) return;
   }
+  if (!window.MediaRecorder) return alert('Use Chrome or Edge.');
+  try { await createAudioPipeline(); } catch (_) { return setStatus('Audio start failed.'); }
   const mimeType = chooseRecorderMimeType();
   if (!mimeType) return alert('Unsupported audio format in this browser.');
   audioState.mimeType = mimeType;
@@ -1945,6 +2046,7 @@ async function stopTranslation() {
   window.isRecognitionRunning = false;
   if (audioState.chunkTimer) clearTimeout(audioState.chunkTimer);
   audioState.chunkTimer = null;
+  stopBrowserAzureRecognition();
   stopAzureAudioStream();
   setOnAirState(false);
   await disableScreenWakeLock();

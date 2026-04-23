@@ -456,6 +456,11 @@ const LIVE_TEXT_MAX_WORDS = 22;
 const LIVE_TEXT_MAX_CHARS = 190;
 const LIVE_TEXT_SOFT_WAIT_MS = 1200;
 const LIVE_TEXT_HARD_WAIT_MS = 4200;
+const AZURE_LIVE_TEXT_MIN_WORDS = 5;
+const AZURE_LIVE_TEXT_TARGET_WORDS = 9;
+const AZURE_LIVE_TEXT_MAX_WORDS = 14;
+const AZURE_LIVE_TEXT_SOFT_WAIT_MS = 450;
+const AZURE_LIVE_TEXT_HARD_WAIT_MS = 1500;
 
 const BUFFER_CONNECTORS = new Set([
   'și', 'si', 'să', 'sa', 'că', 'ca', 'dar', 'iar', 'ori', 'sau',
@@ -644,15 +649,18 @@ function splitIntoDisplayChunks(text) {
   return chunks.filter(Boolean);
 }
 
-function shouldFlushBufferedText(text) {
+function shouldFlushBufferedText(text, options = {}) {
   const clean = sanitizeTranscriptText(text);
   if (!clean) return false;
   const words = countWords(clean);
   const last = getLastWord(clean);
-  if (/[.!?]\s*$/.test(clean) && words >= LIVE_TEXT_MIN_WORDS) return true;
-  if (/[,;:]\s*$/.test(clean) && words >= LIVE_TEXT_MIN_WORDS) return true;
-  if (words >= LIVE_TEXT_TARGET_WORDS && !BUFFER_CONNECTORS.has(last)) return true;
-  if (words >= LIVE_TEXT_MAX_WORDS) return true;
+  const minWords = options.minWords || LIVE_TEXT_MIN_WORDS;
+  const targetWords = options.targetWords || LIVE_TEXT_TARGET_WORDS;
+  const maxWords = options.maxWords || LIVE_TEXT_MAX_WORDS;
+  if (/[.!?]\s*$/.test(clean) && words >= minWords) return true;
+  if (/[,;:]\s*$/.test(clean) && words >= minWords) return true;
+  if (words >= targetWords && !BUFFER_CONNECTORS.has(last)) return true;
+  if (words >= maxWords) return true;
   return false;
 }
 
@@ -1426,15 +1434,18 @@ async function flushSpeechBuffer(eventId, force = false) {
 
   const words = countWords(text);
   const last = getLastWord(text);
+  const provider = buffered.provider || getActiveSpeechProvider();
+  const targetWords = provider === 'azure_sdk' ? AZURE_LIVE_TEXT_TARGET_WORDS : LIVE_TEXT_TARGET_WORDS;
+  const softWaitMs = provider === 'azure_sdk' ? AZURE_LIVE_TEXT_SOFT_WAIT_MS : LIVE_TEXT_SOFT_WAIT_MS;
 
   if (!force) {
-    if (startsLikeContinuation(text) && words < LIVE_TEXT_TARGET_WORDS) {
-      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
+    if (startsLikeContinuation(text) && words < targetWords) {
+      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), softWaitMs);
       speechBuffers.set(eventId, buffered);
       return null;
     }
-    if (BUFFER_CONNECTORS.has(last) && words < LIVE_TEXT_TARGET_WORDS) {
-      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
+    if (BUFFER_CONNECTORS.has(last) && words < targetWords) {
+      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), softWaitMs);
       speechBuffers.set(eventId, buffered);
       return null;
     }
@@ -1445,29 +1456,36 @@ async function flushSpeechBuffer(eventId, force = false) {
   return processText(event, text, { force: true, sourceLang: buffered.sourceLang || event.sourceLang || 'ro' });
 }
 
-function queueSpeechText(eventId, text, sourceLang = '') {
+function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpeechProvider()) {
   const clean = sanitizeTranscriptText(text);
   if (!clean) return;
 
-  const prev = speechBuffers.get(eventId) || { text: '', timer: null, startedAt: Date.now(), sourceLang };
+  const prev = speechBuffers.get(eventId) || { text: '', timer: null, startedAt: Date.now(), sourceLang, provider };
   const merged = mergeTranscriptText(prev.text, clean);
   if (prev.timer) clearTimeout(prev.timer);
 
-  const next = { text: merged, timer: null, startedAt: prev.startedAt || Date.now(), sourceLang: sourceLang || prev.sourceLang || '' };
+  const nextProvider = provider || prev.provider || getActiveSpeechProvider();
+  const flushOptions = nextProvider === 'azure_sdk'
+    ? { minWords: AZURE_LIVE_TEXT_MIN_WORDS, targetWords: AZURE_LIVE_TEXT_TARGET_WORDS, maxWords: AZURE_LIVE_TEXT_MAX_WORDS }
+    : {};
+  const hardWaitMs = nextProvider === 'azure_sdk' ? AZURE_LIVE_TEXT_HARD_WAIT_MS : LIVE_TEXT_HARD_WAIT_MS;
+  const softWaitMs = nextProvider === 'azure_sdk' ? AZURE_LIVE_TEXT_SOFT_WAIT_MS : LIVE_TEXT_SOFT_WAIT_MS;
+  const maxWords = nextProvider === 'azure_sdk' ? AZURE_LIVE_TEXT_MAX_WORDS : LIVE_TEXT_MAX_WORDS;
+  const next = { text: merged, timer: null, startedAt: prev.startedAt || Date.now(), sourceLang: sourceLang || prev.sourceLang || '', provider: nextProvider };
   speechBuffers.set(eventId, next);
   io.to(`event:${eventId}:admins`).emit('partial_transcript', { text: merged });
 
   const ageMs = Date.now() - next.startedAt;
   const words = countWords(merged);
-  if (shouldFlushBufferedText(merged)) {
+  if (shouldFlushBufferedText(merged, flushOptions)) {
     flushSpeechBuffer(eventId, false).catch(console.error);
     return;
   }
-  if (ageMs > LIVE_TEXT_HARD_WAIT_MS || words >= LIVE_TEXT_MAX_WORDS) {
+  if (ageMs > hardWaitMs || words >= maxWords) {
     flushSpeechBuffer(eventId, true).catch(console.error);
     return;
   }
-  next.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
+  next.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), softWaitMs);
 }
 
 function closeAzureSpeechSession(socketId) {
@@ -1509,7 +1527,7 @@ function startAzureSpeechSession(socket, event) {
   };
   recognizer.recognized = (_, result) => {
     const text = sanitizeTranscriptText(result?.result?.text || '');
-    if (text) queueSpeechText(event.id, text, effectiveSourceLang);
+    if (text) queueSpeechText(event.id, text, effectiveSourceLang, 'azure_sdk');
   };
   recognizer.canceled = (_, result) => {
     console.error('azure speech canceled:', result?.errorDetails || result?.reason || 'unknown');
@@ -1747,6 +1765,32 @@ app.get('/api/health', (req, res) => {
     speechProvider: getActiveSpeechProvider(),
     azureSpeechConfigured: !!(AZURE_SPEECH_KEY && AZURE_SPEECH_REGION)
   });
+});
+
+app.get('/api/events/:id/azure-token', async (req, res) => {
+  const event = db.events[req.params.id];
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+  if (!requireEventPermission(req, res, 'main_screen')) return;
+  if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
+    return res.status(500).json({ ok: false, error: 'Azure Speech nu este configurat.' });
+  }
+  try {
+    const response = await fetch(`https://${AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken`, {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+        'Content-Length': '0'
+      }
+    });
+    if (!response.ok) {
+      return res.status(502).json({ ok: false, error: `Azure token failed: ${response.status}` });
+    }
+    res.json({ ok: true, token: await response.text(), region: AZURE_SPEECH_REGION });
+  } catch (err) {
+    console.error('azure token error:', err?.message || err);
+    res.status(500).json({ ok: false, error: 'Nu am putut cere token Azure.' });
+  }
 });
 
 app.get('/api/languages', (req, res) => {
