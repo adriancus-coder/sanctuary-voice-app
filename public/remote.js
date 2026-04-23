@@ -65,21 +65,6 @@ function renderRemoteTranslationMonitor(monitor = {}) {
   ].join('');
 }
 
-function renderRemotePins(pins = {}) {
-  const adminPinText = $('remoteAdminPinText');
-  const moderatorPinInput = $('remoteModeratorPinInput');
-  const meta = $('remotePinsMeta');
-  if (adminPinText) adminPinText.textContent = pins.adminPin || 'No admin pin.';
-  if (moderatorPinInput && document.activeElement !== moderatorPinInput) {
-    moderatorPinInput.value = pins.moderatorPin || '';
-  }
-  if (meta) {
-    meta.textContent = pins.updatedAt
-      ? `Updated ${formatDateTime(pins.updatedAt)} by ${pins.updatedBy || 'unknown'}.`
-      : 'No internal pins yet.';
-  }
-}
-
 function can(permission) {
   const permissions = state.access?.permissions || [];
   if (!permissions.length) return true;
@@ -324,8 +309,6 @@ function refreshRemoteUi() {
   if (churchLibraryPanel) churchLibraryPanel.hidden = !songAllowed;
   if (songEditorPanel) songEditorPanel.hidden = !songAllowed;
   if (glossaryPanel) glossaryPanel.hidden = !glossaryAllowed;
-  const remotePinsPanel = $('remotePinsPanel');
-  if (remotePinsPanel) remotePinsPanel.hidden = !(mainScreenAllowed || songAllowed);
   updateHeader();
   populateRemoteLanguageSelects();
   updateRemoteGlossaryMode();
@@ -334,7 +317,6 @@ function refreshRemoteUi() {
   renderRemoteSongJumpSelect();
   renderRemoteSongLibrary();
   renderRemoteTranslationMonitor(state.currentEvent?.translationMonitor || {});
-  renderRemotePins(state.currentEvent?.internalPins || {});
   if (mainScreenAllowed) {
     renderQuickLanguages();
     renderPresets();
@@ -360,8 +342,15 @@ async function post(path, payload = {}) {
 }
 
 async function join() {
-  if (!state.eventId || !state.accessCode) {
-    setStatus('Missing event or operator code.');
+  if (!state.eventId) {
+    setStatus('Missing event.');
+    return;
+  }
+  if (!state.accessCode) {
+    state.accessCode = (prompt('Enter moderator code or PIN:') || '').trim();
+  }
+  if (!state.accessCode) {
+    setStatus('Missing moderator code or PIN.');
     return;
   }
   socket.emit('join_event', {
@@ -420,11 +409,6 @@ socket.on('translation_monitor', (monitor) => {
   if (!state.currentEvent) return;
   state.currentEvent.translationMonitor = monitor || {};
   renderRemoteTranslationMonitor(state.currentEvent.translationMonitor);
-});
-socket.on('internal_pins_updated', (pins) => {
-  if (!state.currentEvent) return;
-  state.currentEvent.internalPins = pins || {};
-  renderRemotePins(state.currentEvent.internalPins);
 });
 
 $('remoteLiveBtn').addEventListener('click', async () => {
@@ -534,19 +518,6 @@ $('remoteBackToLiveTextBtn').addEventListener('click', async () => {
     setStatus(err.message);
   }
 });
-$('remoteSaveModeratorPinBtn')?.addEventListener('click', async () => {
-  try {
-    const data = await post(`/api/events/${state.eventId}/internal-pins`, {
-      moderatorPin: $('remoteModeratorPinInput')?.value || ''
-    });
-    state.currentEvent = data.event || state.currentEvent;
-    renderRemotePins(data.internalPins || state.currentEvent.internalPins || {});
-    setStatus('Moderator pin saved.');
-  } catch (err) {
-    setStatus(err.message);
-  }
-});
-
 $('remoteSongSaveBtn').addEventListener('click', async () => {
   const title = $('remoteSongTitle')?.value.trim() || '';
   const text = $('remoteSongText')?.value.trim() || '';

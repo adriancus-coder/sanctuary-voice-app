@@ -1225,6 +1225,37 @@ progress::-moz-progress-bar {
   min-height: 190px;
 }
 
+.remote-simple-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.remote-simple-preview-box {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.remote-simple-preview-head {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.remote-simple-preview-frame {
+  width: 100%;
+  min-height: 210px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #000;
+}
+
 body.participant-preview-mode .participant-shell {
   padding: 10px;
   gap: 10px;

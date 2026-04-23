@@ -181,22 +181,22 @@
 
           <div class="panel glass-panel section-stack">
             <div class="section-head">
-              <h2>Internal Pins</h2>
-              <div class="muted">Visible only in Admin and Remote control</div>
+              <h2>Access PINs</h2>
+              <div class="muted">Extra protection for Admin and Moderator access</div>
             </div>
             <div class="section-stack compact-stack">
               <div>
-                <label>Admin pin</label>
-                <textarea id="adminPinInput" rows="3" placeholder="Important admin note or live reminder"></textarea>
+                <label>Admin PIN</label>
+                <input id="adminPinInput" type="text" inputmode="numeric" placeholder="Example: 2580">
               </div>
               <div>
-                <label>Moderator pin</label>
-                <textarea id="moderatorPinInput" rows="3" placeholder="Short cue for moderator/operator"></textarea>
+                <label>Moderator PIN</label>
+                <input id="moderatorPinInput" type="text" inputmode="numeric" placeholder="Example: 1470">
               </div>
               <div class="button-row compact-row">
-                <button id="saveInternalPinsBtn" class="btn btn-dark" type="button">Save pins</button>
+                <button id="saveInternalPinsBtn" class="btn btn-dark" type="button">Save PINs</button>
               </div>
-              <div id="internalPinsMeta" class="muted">No internal pins yet.</div>
+              <div id="internalPinsMeta" class="muted">No extra access PINs saved yet.</div>
             </div>
           </div>
         </div>

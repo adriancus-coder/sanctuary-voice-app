@@ -541,7 +541,7 @@ function renderInternalPins(pins = {}) {
   if (meta) {
     meta.textContent = pins.updatedAt
       ? `Updated ${formatDateTime(pins.updatedAt)} by ${pins.updatedBy || 'unknown'}.`
-      : 'No internal pins yet.';
+      : 'No extra access PINs saved yet.';
   }
 }
 
@@ -1556,7 +1556,7 @@ async function openEventById(eventId) {
   let res = await fetch(`/api/events/${eventId}${storedCode ? `?code=${encodeURIComponent(storedCode)}` : ''}`);
   let data = await res.json();
   if (data.ok && data.event && !data.event.adminCode) {
-    const suppliedCode = (prompt('Enter admin code for this event:') || '').trim();
+    const suppliedCode = (prompt('Enter admin code or PIN for this event:') || '').trim();
     if (suppliedCode) {
       res = await fetch(`/api/events/${eventId}?code=${encodeURIComponent(suppliedCode)}`);
       data = await res.json();

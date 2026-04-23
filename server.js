@@ -760,8 +760,15 @@ function normalizeEvent(event, options = {}) {
     songHistory: Array.isArray(event.songHistory) ? event.songHistory : []
   };
   if (includeControlData) {
+    const pins = { ...(event.internalPins || defaultInternalPins()) };
     payload.translationMonitor = buildTranslationMonitor(event.id);
-    payload.internalPins = { ...(event.internalPins || defaultInternalPins()) };
+    payload.internalPins = includeSecrets
+      ? pins
+      : {
+          moderatorPin: pins.moderatorPin || '',
+          updatedAt: pins.updatedAt || null,
+          updatedBy: pins.updatedBy || ''
+        };
   }
   if (includeSecrets) {
     payload.adminCode = event.adminCode;
@@ -938,11 +945,21 @@ function resolveEventAccessFromCode(event, code) {
   if (String(event.adminCode || '') === suppliedCode) {
     return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
   }
+  if (String(event.internalPins?.adminPin || '') === suppliedCode) {
+    return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
+  }
   if (String(event.screenOperatorCode || '') === suppliedCode) {
     return {
       role: 'screen',
       permissions: ['main_screen', 'song'],
       operator: { id: 'default-screen', name: 'Default operator', profile: 'full', code: suppliedCode }
+    };
+  }
+  if (String(event.internalPins?.moderatorPin || '') === suppliedCode) {
+    return {
+      role: 'screen',
+      permissions: ['main_screen', 'song'],
+      operator: { id: 'default-moderator', name: 'Moderator', profile: 'full', code: suppliedCode }
     };
   }
   const operator = (event.remoteOperators || []).find((item) => String(item.code || '') === suppliedCode);
@@ -2094,9 +2111,16 @@ app.post('/api/events/:id/internal-pins', (req, res) => {
 
   const requestedAdminPin = typeof req.body.adminPin === 'string' ? req.body.adminPin.trim() : null;
   const requestedModeratorPin = typeof req.body.moderatorPin === 'string' ? req.body.moderatorPin.trim() : null;
+  const isValidPin = (value) => value === '' || /^\d{4,8}$/.test(value);
 
   if (role === 'screen' && requestedAdminPin !== null) {
     return res.status(403).json({ ok: false, error: 'Doar adminul poate modifica Admin pin.' });
+  }
+  if (requestedAdminPin !== null && !isValidPin(requestedAdminPin)) {
+    return res.status(400).json({ ok: false, error: 'Admin PIN trebuie sa aiba intre 4 si 8 cifre.' });
+  }
+  if (requestedModeratorPin !== null && !isValidPin(requestedModeratorPin)) {
+    return res.status(400).json({ ok: false, error: 'Moderator PIN trebuie sa aiba intre 4 si 8 cifre.' });
   }
 
   if (requestedAdminPin !== null) event.internalPins.adminPin = requestedAdminPin;

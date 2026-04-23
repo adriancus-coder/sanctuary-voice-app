@@ -39,35 +39,21 @@
         <div class="section-head">
           <div>
             <h2>Live Monitor</h2>
-            <div class="muted">Compact projector and participant preview</div>
+            <div class="muted">Simple preview for Main Screen and Participant</div>
           </div>
           <div class="button-row compact-row">
             <button id="remoteOpenMainPreviewBtn" class="btn btn-dark" type="button">Open main</button>
             <button id="remoteOpenParticipantPreviewBtn" class="btn btn-primary" type="button">Open participant direct</button>
           </div>
         </div>
-        <div class="remote-preview-grid remote-preview-grid-compact">
-          <div class="remote-preview-card remote-preview-main-card">
-            <div class="entry-head">
-              <div>
-                <div class="eyebrow">Main Screen</div>
-                <div class="small">Live projector preview</div>
-              </div>
-            </div>
-            <div class="remote-preview-frame-wrap">
-              <iframe id="remoteMainPreviewFrame" class="remote-preview-frame" title="Main screen preview" loading="lazy"></iframe>
-            </div>
+        <div class="remote-simple-preview-grid">
+          <div class="remote-simple-preview-box">
+            <div class="remote-simple-preview-head">Main Screen</div>
+            <iframe id="remoteMainPreviewFrame" class="remote-simple-preview-frame" title="Main screen preview" loading="lazy"></iframe>
           </div>
-          <div class="remote-preview-card remote-preview-phone-card">
-            <div class="entry-head">
-              <div>
-                <div class="eyebrow">Participant</div>
-                <div class="small">Direct listener preview, no public join step</div>
-              </div>
-            </div>
-            <div class="remote-preview-frame-wrap">
-              <iframe id="remoteParticipantPreviewFrame" class="remote-preview-frame" title="Participant preview" loading="lazy"></iframe>
-            </div>
+          <div class="remote-simple-preview-box">
+            <div class="remote-simple-preview-head">Participant</div>
+            <iframe id="remoteParticipantPreviewFrame" class="remote-simple-preview-frame" title="Participant preview" loading="lazy"></iframe>
           </div>
         </div>
     </div>
@@ -80,27 +66,6 @@
         </div>
         <div id="remoteTranslationMonitorGrid" class="monitor-grid">
           <div class="muted">Waiting for translation data.</div>
-        </div>
-      </div>
-
-      <div id="remotePinsPanel" class="panel glass-panel section-stack">
-        <div class="section-head">
-          <h2>Moderator Pin</h2>
-          <div class="muted">Internal cue for remote control</div>
-        </div>
-        <div class="section-stack compact-stack">
-          <div id="remoteAdminPinPreview" class="info-card soft-card">
-            <div class="label">Admin pin</div>
-            <div id="remoteAdminPinText" class="muted">No admin pin.</div>
-          </div>
-          <div>
-            <label for="remoteModeratorPinInput">Moderator pin</label>
-            <textarea id="remoteModeratorPinInput" rows="4" placeholder="Short live cue for moderator"></textarea>
-          </div>
-          <div class="button-row compact-row">
-            <button id="remoteSaveModeratorPinBtn" class="btn btn-dark" type="button">Save moderator pin</button>
-          </div>
-          <div id="remotePinsMeta" class="muted">No internal pins yet.</div>
         </div>
       </div>
     </div>
