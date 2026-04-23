@@ -1,4 +1,4 @@
-# BPMS Sanctuary Voice
+# Sanctuary Voice
 
 Sanctuary Voice este o aplicatie pentru traducere live in biserica, cu patru experiente conectate:
 

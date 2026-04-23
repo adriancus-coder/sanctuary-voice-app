@@ -13,11 +13,16 @@ const state = {
   customBackground: '',
   showClock: false,
   clockPosition: 'top-right',
+  clockScale: 1,
   textSize: 'large',
   screenStyle: 'focus',
+  displayResolution: 'auto',
+  blackScreen: false,
   manualTranslations: {},
+  manualSourceLang: 'ro',
   latestLiveEntry: null,
-  songState: null
+  songState: null,
+  renderTimer: null
 };
 
 function langLabel(code) {
@@ -44,7 +49,11 @@ function detectPreferredSupportedLanguage(available = []) {
 function syncLanguageOptions(event) {
   const select = $('translateLanguage');
   if (!select) return;
-  const available = Array.from(new Set(event?.targetLangs || []));
+  const available = Array.from(new Set([
+    ...(event?.targetLangs || []),
+    (event?.displayState?.mode === 'song' ? (event?.songState?.sourceLang || '') : ''),
+    (event?.displayState?.mode === 'manual' ? (event?.displayState?.manualSourceLang || '') : '')
+  ].filter(Boolean)));
   select.innerHTML = available
     .map((code) => `<option value="${code}">${langLabel(code)}</option>`)
     .join('');
@@ -81,6 +90,23 @@ function applyDisplaySettings() {
   const wrap = $('translateTextWrap');
   const clock = $('displayClock');
   if (wrap) {
+    if (state.blackScreen) {
+      wrap.style.backgroundImage = 'none';
+      wrap.style.backgroundColor = '#000';
+      wrap.dataset.textSize = state.textSize || 'large';
+      wrap.dataset.screenStyle = state.screenStyle || 'focus';
+      wrap.dataset.resolution = state.displayResolution || 'auto';
+      if (clock) clock.style.display = 'none';
+      return;
+    }
+    if (state.currentTheme === 'dark') {
+      wrap.style.backgroundImage = 'none';
+      wrap.style.backgroundSize = '';
+      wrap.style.backgroundPosition = '';
+      wrap.style.backgroundColor = '#000';
+      wrap.dataset.textSize = state.textSize || 'large';
+      wrap.dataset.screenStyle = state.screenStyle || 'focus';
+    } else
     if (state.customBackground) {
       const overlay = state.currentTheme === 'light'
         ? 'linear-gradient(rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.45))'
@@ -97,10 +123,12 @@ function applyDisplaySettings() {
     }
     wrap.dataset.textSize = state.textSize || 'large';
     wrap.dataset.screenStyle = state.screenStyle || 'focus';
+    wrap.dataset.resolution = state.displayResolution || 'auto';
   }
   if (clock) {
     clock.style.display = state.showClock ? 'block' : 'none';
     clock.className = `display-clock clock-${state.clockPosition || 'top-right'}`;
+    clock.style.setProperty('--clock-scale', String(state.clockScale || 1));
   }
 }
 
@@ -112,13 +140,24 @@ function updateClock() {
 }
 
 function getTextToDisplay() {
-  if (state.currentEvent?.mode === 'song' && state.songState) {
+  if (state.blackScreen) {
+    return '';
+  }
+  if (state.currentDisplayMode === 'song' && state.songState) {
+    const sourceLang = state.songState?.sourceLang || state.currentEvent?.sourceLang || 'ro';
+    if (state.currentLanguage === sourceLang) {
+      return state.songState.activeBlock
+        || 'Waiting for song text...';
+    }
     return state.songState.translations?.[state.currentLanguage]
       || state.songState.activeBlock
       || 'Waiting for song translation...';
   }
   if (state.currentDisplayMode === 'manual') {
-    return state.manualTranslations?.[state.currentLanguage] || '';
+    if (state.currentLanguage === (state.manualSourceLang || state.currentEvent?.sourceLang || 'ro')) {
+      return state.currentEvent?.displayState?.manualSource || '';
+    }
+    return state.manualTranslations?.[state.currentLanguage] || state.currentEvent?.displayState?.manualSource || '';
   }
   if (state.latestLiveEntry) {
     return state.latestLiveEntry.translations?.[state.currentLanguage]
@@ -129,11 +168,17 @@ function getTextToDisplay() {
 }
 
 function updateMeta() {
-  const isSongMode = state.currentEvent?.mode === 'song';
-  $('translateModeBadge').textContent = isSongMode ? 'Song mode' : (state.currentDisplayMode === 'manual' ? 'Manual' : 'Auto');
+  const modeLabels = {
+    auto: 'Auto',
+    manual: 'Pinned text',
+    song: 'Song'
+  };
+  $('translateModeBadge').textContent = state.blackScreen ? 'Black screen' : (modeLabels[state.currentDisplayMode] || 'Auto');
   $('translateLanguageLabel').textContent = langLabel(state.currentLanguage);
-  $('translateEventName').textContent = state.currentEvent?.name || 'BPMS Main Screen';
-  $('translateScreenLabel').textContent = isSongMode ? 'Song mode' : 'Live translation';
+  $('translateEventName').textContent = state.currentEvent?.name || 'Sanctuary Voice Main Screen';
+  $('translateScreenLabel').textContent = state.blackScreen
+    ? ''
+    : (state.currentDisplayMode === 'song' ? 'Song' : state.currentDisplayMode === 'manual' ? 'Pinned text' : 'Live translation');
 }
 
 function autoFitText() {
@@ -198,6 +243,14 @@ function renderDisplay() {
   requestAnimationFrame(autoFitText);
 }
 
+function scheduleDisplayRender(delay = 70) {
+  if (state.renderTimer) clearTimeout(state.renderTimer);
+  state.renderTimer = window.setTimeout(() => {
+    state.renderTimer = null;
+    renderDisplay();
+  }, delay);
+}
+
 async function enterFullscreen() {
   try {
     if (document.fullscreenElement) {
@@ -250,12 +303,16 @@ socket.on('joined_event', ({ event, languageNames }) => {
   state.currentDisplayMode = event.displayState?.mode || 'auto';
   state.currentTheme = event.displayState?.theme || 'dark';
   state.currentLanguage = event.displayState?.language || state.currentLanguage;
+  state.blackScreen = !!event.displayState?.blackScreen;
   state.backgroundPreset = event.displayState?.backgroundPreset || 'none';
   state.customBackground = event.displayState?.customBackground || '';
   state.showClock = !!event.displayState?.showClock;
   state.clockPosition = event.displayState?.clockPosition || 'top-right';
+  state.clockScale = event.displayState?.clockScale || 1;
   state.textSize = event.displayState?.textSize || 'large';
   state.screenStyle = event.displayState?.screenStyle || 'focus';
+  state.displayResolution = event.displayState?.displayResolution || 'auto';
+  state.manualSourceLang = event.displayState?.manualSourceLang || event.sourceLang || 'ro';
   state.manualTranslations = event.displayState?.manualTranslations || {};
   state.songState = event.songState || null;
   state.latestLiveEntry = (event.transcripts || [])
@@ -276,29 +333,31 @@ socket.on('mode_changed', ({ mode }) => {
 socket.on('song_state', (songState) => {
   state.songState = songState;
   if (state.currentEvent) state.currentEvent.mode = 'song';
-  renderDisplay();
+  syncLanguageOptions({ ...state.currentEvent, displayState: { ...(state.currentEvent?.displayState || {}), mode: 'song' }, songState });
+  scheduleDisplayRender(30);
 });
 
 socket.on('song_clear', () => {
   state.songState = null;
   if (state.currentEvent) state.currentEvent.mode = 'live';
+  syncLanguageOptions({ ...state.currentEvent, displayState: { ...(state.currentEvent?.displayState || {}), mode: state.currentDisplayMode } });
   renderDisplay();
 });
 
 socket.on('transcript_entry', (entry) => {
-  if (state.currentEvent?.mode === 'song' || state.currentDisplayMode !== 'auto') return;
+  if (state.currentDisplayMode !== 'auto') return;
   state.latestLiveEntry = entry;
-  renderDisplay();
+  scheduleDisplayRender(60);
 });
 
 socket.on('display_live_entry', (entry) => {
-  if (state.currentEvent?.mode === 'song' || state.currentDisplayMode !== 'auto') return;
+  if (state.currentDisplayMode !== 'auto') return;
   state.latestLiveEntry = entry;
-  renderDisplay();
+  scheduleDisplayRender(45);
 });
 
 socket.on('transcript_source_updated', (payload) => {
-  if (state.currentEvent?.mode === 'song' || state.currentDisplayMode !== 'auto') return;
+  if (state.currentDisplayMode !== 'auto') return;
   if (!state.latestLiveEntry || state.latestLiveEntry.id !== payload.entryId) return;
   state.latestLiveEntry = {
     ...state.latestLiveEntry,
@@ -306,20 +365,43 @@ socket.on('transcript_source_updated', (payload) => {
     original: payload.original,
     translations: payload.translations || {}
   };
-  renderDisplay();
+  scheduleDisplayRender(45);
 });
 
-socket.on('display_mode_changed', ({ mode, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, manualTranslations }) => {
+socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, screenStyle, displayResolution, manualTranslations, manualSourceLang }) => {
+  if (state.currentEvent) {
+    state.currentEvent.displayState = {
+      ...(state.currentEvent.displayState || {}),
+      mode: mode || 'auto',
+      blackScreen: !!blackScreen,
+      theme: theme || state.currentTheme || 'dark',
+      language: language || state.currentLanguage,
+      backgroundPreset: backgroundPreset || state.backgroundPreset || 'none',
+      customBackground: typeof customBackground === 'string' ? customBackground : state.customBackground,
+      showClock: typeof showClock === 'boolean' ? showClock : state.showClock,
+      clockPosition: clockPosition || state.clockPosition,
+      clockScale: clockScale || state.clockScale,
+      textSize: textSize || state.textSize || 'large',
+      screenStyle: screenStyle || state.screenStyle || 'focus',
+      displayResolution: displayResolution || state.displayResolution || 'auto',
+      manualSourceLang: manualSourceLang || state.manualSourceLang || state.currentEvent?.sourceLang || 'ro'
+    };
+  }
   state.currentDisplayMode = mode || 'auto';
+  state.blackScreen = !!blackScreen;
   state.currentTheme = theme || state.currentTheme || 'dark';
   state.currentLanguage = language || state.currentLanguage;
   state.backgroundPreset = backgroundPreset || state.backgroundPreset || 'none';
   state.customBackground = typeof customBackground === 'string' ? customBackground : state.customBackground;
   state.showClock = typeof showClock === 'boolean' ? showClock : state.showClock;
   state.clockPosition = clockPosition || state.clockPosition;
+  state.clockScale = clockScale || state.clockScale;
   state.textSize = textSize || state.textSize || 'large';
   state.screenStyle = screenStyle || state.screenStyle || 'focus';
+  state.displayResolution = displayResolution || state.displayResolution || 'auto';
+  state.manualSourceLang = manualSourceLang || state.manualSourceLang || state.currentEvent?.sourceLang || 'ro';
   state.manualTranslations = manualTranslations || state.manualTranslations || {};
+  syncLanguageOptions({ ...state.currentEvent, displayState: { ...(state.currentEvent?.displayState || {}), mode: state.currentDisplayMode, manualSourceLang: state.manualSourceLang }, songState: state.songState });
   if ($('translateLanguage')) $('translateLanguage').value = state.currentLanguage;
   renderDisplay();
 });
@@ -329,17 +411,31 @@ socket.on('display_theme_changed', ({ theme }) => {
   renderDisplay();
 });
 
-socket.on('display_manual_update', ({ mode, theme, language, backgroundPreset, customBackground, showClock, clockPosition, textSize, screenStyle, manualTranslations }) => {
+socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, screenStyle, displayResolution, manualTranslations, manualSourceLang, manualSource }) => {
   state.currentDisplayMode = mode || 'manual';
+  state.blackScreen = !!blackScreen;
   state.currentTheme = theme || state.currentTheme || 'dark';
   state.currentLanguage = language || state.currentLanguage;
   state.backgroundPreset = backgroundPreset || state.backgroundPreset || 'none';
   state.customBackground = typeof customBackground === 'string' ? customBackground : state.customBackground;
   state.showClock = typeof showClock === 'boolean' ? showClock : state.showClock;
   state.clockPosition = clockPosition || state.clockPosition;
+  state.clockScale = clockScale || state.clockScale;
   state.textSize = textSize || state.textSize || 'large';
   state.screenStyle = screenStyle || state.screenStyle || 'focus';
+  state.displayResolution = displayResolution || state.displayResolution || 'auto';
+  state.manualSourceLang = manualSourceLang || state.manualSourceLang || state.currentEvent?.sourceLang || 'ro';
   state.manualTranslations = manualTranslations || {};
+  if (state.currentEvent) {
+    state.currentEvent.displayState = state.currentEvent.displayState || {};
+    state.currentEvent.displayState.mode = state.currentDisplayMode;
+    state.currentEvent.displayState.language = state.currentLanguage;
+    state.currentEvent.displayState.clockScale = state.clockScale;
+    state.currentEvent.displayState.displayResolution = state.displayResolution;
+    state.currentEvent.displayState.manualSource = manualSource || state.currentEvent.displayState.manualSource || '';
+    state.currentEvent.displayState.manualSourceLang = state.manualSourceLang;
+  }
+  syncLanguageOptions({ ...state.currentEvent, displayState: { ...(state.currentEvent?.displayState || {}), mode: state.currentDisplayMode, manualSourceLang: state.manualSourceLang }, songState: state.songState });
   renderDisplay();
 });
 

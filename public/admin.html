@@ -3,29 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BPMS Operator Console</title>
+  <title>Sanctuary Voice Admin</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <div class="app-shell admin-redesign-shell">
     <aside class="sidebar panel glass-panel">
       <div class="brand-wrap">
-        <div class="eyebrow">BPMS Operator Console</div>
+        <div class="eyebrow">Sanctuary Voice Admin</div>
         <div class="brand">Sanctuary Voice</div>
-        <div class="brand-sub">Traducere live pentru biserică, dintr-un singur centru de control pentru ecranul principal, phone view și Song mode.</div>
+        <div class="brand-sub">Live translation for church services, from one control center for Main Screen, participant view, and Song.</div>
       </div>
 
       <div class="info-card soft-card sidebar-meta-card">
         <div class="label">Service snapshot</div>
         <div id="openedEventBadge" class="metric-text">No event opened</div>
-        <div class="muted">Folosește tab-urile pentru a trece rapid între live control, transcript, events și Song mode.</div>
+        <div class="muted">Move quickly between live control, transcript, events, Main Screen, and Song.</div>
       </div>
 
       <nav class="sidebar-nav">
-        <button class="nav-btn active" data-tab="dashboard" type="button">Live Control</button>
+        <button class="nav-btn active" data-tab="events" type="button">Events</button>
+        <button class="nav-btn" data-tab="dashboard" type="button">Live Control</button>
         <button class="nav-btn" data-tab="transcript" type="button">Transcript</button>
-        <button class="nav-btn" data-tab="events" type="button">Events</button>
-        <button class="nav-btn" data-tab="song" type="button">Song mode</button>
+        <button class="nav-btn" data-tab="mainscreen" type="button">Main Screen</button>
+        <button class="nav-btn" data-tab="song" type="button">Song</button>
         <button class="nav-btn" data-tab="glossary" type="button">Glossary</button>
         <button class="nav-btn" data-tab="manual" type="button">Quick Text</button>
       </nav>
@@ -33,21 +34,36 @@
       <div class="sidebar-screen-links">
         <a class="screen-link-card" href="/translate" target="_blank" rel="noreferrer">
           <span class="screen-link-title">Main Screen</span>
-          <span class="screen-link-copy">Ecranul unificat pentru live translate și Song mode.</span>
+          <span class="screen-link-copy">Unified presentation screen for live translation and Song.</span>
         </a>
         <a class="screen-link-card" href="/participant" target="_blank" rel="noreferrer">
           <span class="screen-link-title">Participant Phone View</span>
-          <span class="screen-link-copy">Experiența de telefon cu audio și istoric.</span>
+          <span class="screen-link-copy">Mobile listening view with audio and recent history.</span>
         </a>
+        <div class="info-card soft-card permanent-qr-card">
+          <div class="section-head compact-head">
+            <div>
+              <div class="label">Permanent participant QR</div>
+              <div class="muted">Print once. People scan this QR and choose the live event.</div>
+            </div>
+          </div>
+          <input id="permanentParticipantLink" type="text" readonly>
+          <img id="permanentQrImage" class="qr permanent-qr" alt="Permanent participant QR code">
+          <div class="button-row compact-row">
+            <button id="copyPermanentParticipantBtn" class="btn btn-dark" type="button">Copy link</button>
+            <button id="emailPermanentParticipantBtn" class="btn btn-dark" type="button">Email</button>
+            <button id="downloadPermanentQrBtn" class="btn btn-dark" type="button">Download QR</button>
+          </div>
+        </div>
       </div>
     </aside>
 
     <main class="main-content">
       <section class="topbar panel glass-panel hero-topbar">
         <div class="hero-copy-block">
-          <div class="eyebrow">Unified service translation</div>
+          <div class="eyebrow">Sanctuary Voice</div>
           <h1>Operator Dashboard</h1>
-          <div class="muted">Controlezi de aici fluxul live, Song mode-ul și distribuția către sală și telefon.</div>
+          <div class="muted">Control live translation, Song, and delivery to the room and participant devices.</div>
         </div>
         <div class="hero-status-grid">
           <div class="hero-status-card">
@@ -67,7 +83,7 @@
         </div>
       </section>
 
-      <section id="tab-dashboard" class="tab-panel active">
+      <section id="tab-dashboard" class="tab-panel">
         <div class="cards-grid three metrics-grid">
           <div class="metric-card panel glass-panel">
             <div class="metric-label">Partial transcript</div>
@@ -90,20 +106,19 @@
               <div id="recognitionStatus" class="status-text">Idle</div>
             </div>
 
-            <div class="split-2">
-              <div>
-                <label>Translation mode</label>
-                <select id="speed">
-                  <option value="rapid">Rapid</option>
-                  <option value="balanced" selected>Balanced</option>
-                  <option value="clear">Clear</option>
-                </select>
-              </div>
-              <div>
-                <label>Audio input</label>
-                <select id="audioInput"></select>
-              </div>
-            </div>
+            <label>Translation mode</label>
+            <select id="speed">
+              <option value="rapid">Rapid</option>
+              <option value="balanced" selected>Balanced</option>
+              <option value="clear">Clear</option>
+            </select>
+
+            <label>Current input language</label>
+            <select id="currentSourceLang"></select>
+            <div class="muted">This is the spoken language used by live transcription for the opened event.</div>
+
+            <label>Audio input</label>
+            <select id="audioInput"></select>
 
             <div class="info-card accent-card">
               <div class="label">Signal monitor</div>
@@ -164,7 +179,7 @@
         </div>
       </section>
 
-      <section id="tab-events" class="tab-panel">
+      <section id="tab-events" class="tab-panel active">
         <div class="cards-grid two">
           <div class="panel glass-panel section-stack">
             <div class="section-head">
@@ -192,7 +207,7 @@
                 <label>Start mode</label>
                 <select id="eventModePreset">
                   <option value="live" selected>Live Translate</option>
-                  <option value="song">Song mode</option>
+                  <option value="song">Song</option>
                 </select>
               </div>
             </div>
@@ -203,35 +218,99 @@
 
           <div class="panel glass-panel section-stack access-shell">
             <div class="section-head">
-              <h2>Access and Sharing</h2>
-              <div class="live-chip">Fast launch</div>
+              <h2>Participant Phone View</h2>
+              <div class="live-chip">Permanent QR</div>
             </div>
-            <div class="meta-row access-code-row"><span>Admin code</span><strong id="adminCode">-</strong></div>
-
             <div class="link-stack">
-              <label>Participant link</label>
+              <label>Participant link (permanent)</label>
               <div class="link-row">
                 <input id="participantLink" type="text" readonly>
                 <button id="copyParticipantBtn" class="btn btn-dark">Copy</button>
+                <button id="emailParticipantBtn" class="btn btn-dark" type="button">Email</button>
               </div>
             </div>
+            <img id="qrImage" class="qr" alt="QR code">
+            <div class="muted">Same QR every time. Participants scan it and choose the live event.</div>
+            <div class="button-row compact-row">
+              <button id="copyQrBtn" class="btn btn-dark">Copy QR</button>
+              <button id="downloadQrBtn" class="btn btn-dark">Download QR</button>
+            </div>
+          </div>
+        </div>
 
+        <div class="cards-grid two">
+          <div class="panel glass-panel section-stack access-shell">
+            <div class="section-head">
+              <h2>Event Access</h2>
+              <div class="live-chip">Fast launch</div>
+            </div>
+            <div class="meta-row access-code-row"><span>Admin code</span><strong id="adminCode">-</strong></div>
+            <div class="meta-row access-code-row"><span>Screen operator code</span><strong id="accessScreenOperatorCode">-</strong></div>
             <div class="link-stack">
               <label>Main screen link</label>
               <div class="link-row">
                 <input id="translateLink" type="text" readonly>
                 <button id="copyTranslateBtn" class="btn btn-dark">Copy</button>
+                <button id="emailTranslateBtn" class="btn btn-dark" type="button">Email</button>
               </div>
             </div>
 
+            <div class="link-stack">
+              <label>Remote control link</label>
+              <div class="link-row">
+                <input id="accessRemoteControlLink" type="text" readonly>
+                <button id="copyAccessRemoteBtn" class="btn btn-dark" type="button">Copy</button>
+                <button id="emailAccessRemoteBtn" class="btn btn-dark" type="button">Email</button>
+              </div>
+            </div>
             <div class="button-row">
               <button id="setActiveEventBtn" class="btn btn-primary">Set live event</button>
             </div>
+          </div>
 
-            <img id="qrImage" class="qr" alt="QR code">
-            <div class="button-row compact-row">
-              <button id="copyQrBtn" class="btn btn-dark">Copy QR</button>
-              <button id="downloadQrBtn" class="btn btn-dark">Download QR</button>
+          <div id="eventOperatorPanel" class="panel glass-panel section-stack">
+            <div class="section-head">
+              <h2>Operator Roles</h2>
+              <div class="live-chip">After event creation</div>
+            </div>
+            <div class="info-card soft-card">
+              <div class="label">Main Screen Operator</div>
+              <div class="muted">Legacy fallback link with full projector and song controls.</div>
+              <div class="meta-row access-code-row"><span>Operator code</span><strong id="screenOperatorCode">-</strong></div>
+              <div class="link-stack">
+                <label>Remote control link</label>
+                <div class="link-row">
+                  <input id="remoteControlLink" type="text" readonly>
+                  <button id="copyRemoteControlBtn" class="btn btn-dark" type="button">Copy</button>
+                </div>
+              </div>
+              <div class="button-row compact-row">
+                <button id="openRemoteControlBtn" class="btn btn-primary" type="button">Open remote control</button>
+              </div>
+            </div>
+            <div class="info-card soft-card">
+              <div class="label">Create remote operator</div>
+              <div class="split-2 compact-library-row">
+                <div>
+                  <label>Name</label>
+                  <input id="remoteOperatorName" type="text" placeholder="Projection operator">
+                </div>
+                <div>
+                  <label>Access profile</label>
+                  <select id="remoteOperatorProfile">
+                    <option value="main_screen">Main Screen only</option>
+                    <option value="song_only">Song only</option>
+                    <option value="main_and_song">Main Screen + Song</option>
+                    <option value="full" selected>Full operator</option>
+                  </select>
+                </div>
+              </div>
+              <div class="button-row compact-row">
+                <button id="createRemoteOperatorBtn" class="btn btn-dark" type="button">Create operator</button>
+              </div>
+              <div id="remoteOperatorsList" class="history-list">
+                <div class="muted">No extra operators yet.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -245,25 +324,100 @@
         </div>
       </section>
 
+      <section id="tab-mainscreen" class="tab-panel">
+        <div class="cards-grid">
+          <div class="panel glass-panel section-stack">
+            <div class="section-head">
+              <h2>Main Screen</h2>
+              <div id="mainScreenModeMount" class="muted">Main screen: Live follow</div>
+            </div>
+            <div class="muted">Choose what the projector shows and adjust readability, theme, and visibility.</div>
+            <div id="mainScreenSettingsMount"></div>
+          </div>
+        </div>
+
+        <div class="cards-grid two">
+          <div class="panel glass-panel section-stack">
+            <div class="section-head">
+              <h2>Usage and Reliability</h2>
+              <div class="live-chip">Live metrics</div>
+            </div>
+            <div class="cards-grid three metrics-grid usage-metrics-grid">
+              <div class="metric-card panel glass-panel">
+                <div class="metric-label">Participants ever</div>
+                <div id="usageUniqueParticipants" class="metric-number">0</div>
+              </div>
+              <div class="metric-card panel glass-panel">
+                <div class="metric-label">Screen changes</div>
+                <div id="usageScreenChanges" class="metric-number">0</div>
+              </div>
+              <div class="metric-card panel glass-panel">
+                <div class="metric-label">Transcripts</div>
+                <div id="usageTranscriptCount" class="metric-number">0</div>
+              </div>
+            </div>
+            <details class="usage-details">
+              <summary class="btn btn-dark">Open details</summary>
+              <div id="usageReliabilityList" class="history-list">
+                <div class="muted">No live metrics yet.</div>
+              </div>
+            </details>
+          </div>
+
+        </div>
+      </section>
+
       <section id="tab-song" class="tab-panel">
         <div class="cards-grid two song-grid">
           <div class="panel glass-panel section-stack">
             <div class="section-head">
-              <h2>Song Mode Console</h2>
+              <h2>Song</h2>
               <div id="songModeBadge" class="status-pill">Live</div>
             </div>
             <div id="displayModeLabel" class="muted">Main screen: Live follow</div>
             <div id="songCurrentIndex" class="muted">Saved: 0 · History: 0</div>
+            <div class="song-workflow-strip">
+              <div><span>1</span><strong>Choose</strong><small>Load from library or paste lyrics.</small></div>
+              <div><span>2</span><strong>Send</strong><small>Send first verse to participants.</small></div>
+              <div><span>3</span><strong>Control</strong><small>Jump to verse, chorus, or back to live text.</small></div>
+            </div>
             <div class="info-card soft-card main-screen-settings-card">
               <div class="section-head admin-subsection-head">
                 <h2>Main Screen Settings</h2>
                 <div class="muted">Theme, readability, preview and blank screen</div>
               </div>
+              <div class="info-card accent-card main-screen-audit-card">
+                <div class="section-head admin-subsection-head">
+                  <h2>Screen Status</h2>
+                  <div class="muted">See exactly what is live before you change anything.</div>
+                </div>
+                <div class="display-audit-grid">
+                  <div><span class="label">Scene</span><strong id="displayAuditScene" class="display-audit-value">Live follow</strong></div>
+                  <div><span class="label">Language</span><strong id="displayAuditLanguage" class="display-audit-value">-</strong></div>
+                  <div><span class="label">Theme</span><strong id="displayAuditTheme" class="display-audit-value">-</strong></div>
+                  <div><span class="label">Readability</span><strong id="displayAuditText" class="display-audit-value">-</strong></div>
+                  <div><span class="label">Source</span><strong id="displayAuditSource" class="display-audit-value">-</strong></div>
+                  <div><span class="label">Updated</span><strong id="displayAuditUpdated" class="display-audit-value">-</strong></div>
+                </div>
+                <div id="displayAuditPreview" class="muted display-audit-preview">Waiting for live content.</div>
+              </div>
+              <div class="button-row compact-row display-restore-row">
+                <button id="displayRestoreBtn" class="btn btn-dark" type="button">Undo last screen change</button>
+              </div>
               <div class="button-row compact-row">
                 <button id="displayAutoBtn" class="btn btn-dark" type="button">Live follow</button>
                 <button id="displayManualBtn" class="btn btn-primary" type="button">Pinned text</button>
-                <button id="clearSongScreenBtn" class="btn btn-danger" type="button">Clear screen</button>
-                <button id="blankMainScreenBtn" class="btn btn-dark" type="button">Blank main screen</button>
+                <button id="displaySongBtn" class="btn btn-dark" type="button">Song</button>
+                <button id="blankMainScreenBtn" class="btn btn-danger" type="button">Black screen</button>
+              </div>
+              <div class="info-card soft-card">
+                <div class="section-head admin-subsection-head">
+                  <h2>Quick Language Switch</h2>
+                  <div class="muted">Change projector language in one click.</div>
+                </div>
+                <div id="displayLanguageQuickButtons" class="quick-language-row">
+                  <div class="muted">Open an event to see available languages.</div>
+                </div>
               </div>
               <div class="split-2">
                 <div>
@@ -306,6 +460,17 @@
                   </select>
                 </div>
                 <div>
+                  <label>Projector resolution</label>
+                  <select id="displayResolutionSelect">
+                    <option value="auto" selected>Auto / current screen</option>
+                    <option value="16-9">16:9 projector</option>
+                    <option value="16-10">16:10 projector</option>
+                    <option value="4-3">4:3 projector</option>
+                  </select>
+                </div>
+              </div>
+              <div class="split-2">
+                <div>
                   <label>Clock position</label>
                   <select id="displayClockPositionSelect">
                     <option value="top-right" selected>Clock top right</option>
@@ -313,6 +478,15 @@
                     <option value="bottom-right">Clock bottom right</option>
                     <option value="bottom-left">Clock bottom left</option>
                   </select>
+                </div>
+                <div>
+                  <label>Clock size</label>
+                  <div class="button-row compact-row clock-size-row">
+                    <button id="clockSizeMinusBtn" class="btn btn-dark" type="button">-</button>
+                    <span id="displayClockScaleValue" class="status-pill">100%</span>
+                    <button id="clockSizePlusBtn" class="btn btn-dark" type="button">+</button>
+                    <input id="displayClockScaleInput" type="hidden" value="1">
+                  </div>
                 </div>
               </div>
               <label>Custom background image URL</label>
@@ -334,25 +508,39 @@
                 <div class="muted">Use these windows like live previews for projector and participant phone view.</div>
               </div>
             </div>
-            <label>Title</label>
-            <input id="songTitle" type="text" placeholder="Amazing Grace">
-            <label>Song text or lyrics</label>
-            <textarea id="songText" class="song-textarea" placeholder="Paste song lyrics, chorus, prayer, announcement or other lyrics here."></textarea>
-            <div class="button-row">
-              <button id="saveSongBtn" class="btn btn-dark">Save in library</button>
-              <button id="saveGlobalSongBtn" class="btn btn-dark">Save to church library</button>
-              <button id="sendSongBtn" class="btn btn-primary">Send first verse</button>
+            <div class="info-card soft-card song-editor-card">
+              <div class="section-head admin-subsection-head">
+                <h2>Prepare Song</h2>
+                <div class="muted">Paste lyrics or load a song from Church Library.</div>
+              </div>
+              <label>Title</label>
+              <input id="songTitle" type="text" placeholder="Amazing Grace">
+              <label>Song language</label>
+              <select id="songSourceLang"></select>
+              <label>Song text or lyrics</label>
+              <textarea id="songText" class="song-textarea" placeholder="Use markers like 1., 2., R., R2. to create verses and choruses."></textarea>
+              <div class="button-row">
+                <button id="saveSongBtn" class="btn btn-dark">Save to church library</button>
+                <button id="sendSongBtn" class="btn btn-primary">Send first verse</button>
+              </div>
             </div>
-            <div class="button-row compact-row">
-              <button id="songPrevBtn" class="btn btn-dark" type="button">Previous verse</button>
-              <button id="songNextBtn" class="btn btn-dark" type="button">Next verse</button>
-            </div>
-            <div class="info-card soft-card">
-              <div class="label">Song mode preview</div>
-              <div id="songPreview" class="song-preview">Song mode text will appear here.</div>
-            </div>
-            <div id="songBlocksList" class="history-list">
-              <div class="muted">Use Save in library or Send first verse.</div>
+            <div class="info-card accent-card song-live-card">
+              <div class="section-head admin-subsection-head">
+                <h2>Live Song Control</h2>
+                <div class="muted">Move through the song without touching the editor.</div>
+              </div>
+              <div class="split-2 compact-library-row">
+                <div>
+                  <label>Jump to verse or chorus</label>
+                  <select id="songJumpSelect"></select>
+                </div>
+              </div>
+              <div class="label">Song preview</div>
+              <div id="songPreview" class="song-preview">Song text will appear here.</div>
+              <button id="backToLiveTextBtn" class="btn btn-dark full-width-btn" type="button">Back to live text</button>
+              <div id="songBlocksList" class="history-list song-section-list">
+                <div class="muted">Use Save in library or Send first verse.</div>
+              </div>
             </div>
           </div>
 
@@ -370,19 +558,6 @@
               </select>
             </div>
             <div id="globalSongLibraryList" class="event-list"></div>
-            <div class="section-head admin-subsection-head">
-              <h2>Event Song Library</h2>
-              <div class="muted">Ready before service in Song mode</div>
-            </div>
-            <div class="button-row compact-row">
-              <input id="songLibrarySearch" type="text" placeholder="Search by title">
-              <select id="songLibrarySort">
-                <option value="az" selected>Title A-Z</option>
-                <option value="za">Title Z-A</option>
-                <option value="recent">Recent first</option>
-              </select>
-            </div>
-            <div id="songLibraryList" class="event-list"></div>
             <div class="section-head admin-subsection-head">
               <h2>Recent Sends</h2>
               <div class="muted">Latest items on screen</div>
@@ -429,25 +604,54 @@
       </section>
 
       <section id="tab-manual" class="tab-panel">
-        <div class="panel glass-panel section-stack">
-          <div class="section-head">
-            <h2>Quick Text Push</h2>
-            <div class="live-chip">Direct publish</div>
-          </div>
-          <textarea id="manualText" placeholder="Write text here"></textarea>
-          <div class="muted">Press Enter twice quickly to send.</div>
-          <div class="button-row compact-row">
-            <button id="sendManualLiveBtn" class="btn btn-dark" type="button">Send to live</button>
-            <button id="sendManualDisplayBtn" class="btn btn-primary" type="button">Send to pinned text</button>
-          </div>
-          <div class="info-card soft-card">
-            <div class="section-head admin-subsection-head">
-              <h2>Pinned Text History</h2>
-              <div class="muted">Resend a recent pinned text quickly</div>
+        <div class="cards-grid two">
+          <div class="panel glass-panel section-stack">
+            <div class="section-head">
+              <h2>Quick Text Push</h2>
+              <div class="live-chip">Direct publish</div>
             </div>
-            <div id="manualHistoryList" class="history-list">
-              <div class="muted">No pinned texts yet.</div>
+            <div class="split-2 compact-library-row">
+              <div>
+                <label>Title</label>
+                <input id="manualTitle" type="text" placeholder="Welcome">
+              </div>
+              <div>
+                <label>Pinned text language</label>
+                <select id="manualSourceLang"></select>
+              </div>
             </div>
+            <textarea id="manualText" placeholder="Write text here"></textarea>
+            <div class="muted">Press Enter twice quickly to send.</div>
+            <div class="button-row compact-row">
+              <button id="saveManualLibraryBtn" class="btn btn-dark" type="button">Save to library</button>
+              <button id="sendManualLiveBtn" class="btn btn-dark" type="button">Send to live</button>
+              <button id="sendManualDisplayBtn" class="btn btn-primary" type="button">Send to pinned text</button>
+            </div>
+            <div class="info-card soft-card">
+              <div class="section-head admin-subsection-head">
+                <h2>Pinned Text History</h2>
+                <div class="muted">Resend a recent pinned text quickly</div>
+              </div>
+              <div id="manualHistoryList" class="history-list">
+                <div class="muted">No pinned texts yet.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel glass-panel section-stack">
+            <div class="section-head">
+              <h2>Pinned Text Library</h2>
+              <div class="muted">Reusable text for welcome, prayer, announcements, and verses</div>
+            </div>
+            <div class="button-row compact-row">
+              <input id="manualLibrarySearch" type="text" placeholder="Search pinned text library">
+              <select id="manualLibrarySort">
+                <option value="az" selected>Title A-Z</option>
+                <option value="za">Title Z-A</option>
+                <option value="recent">Recent first</option>
+              </select>
+            </div>
+            <div id="manualLibraryList" class="event-list"></div>
           </div>
         </div>
       </section>
@@ -455,6 +659,7 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
   <script src="/app.js"></script>
 </body>
 </html>

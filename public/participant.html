@@ -3,44 +3,63 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BPMS Participant</title>
+  <title>Sanctuary Voice Listener</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <div class="participant-shell participant-shell-v2 participant-premium-shell">
     <div class="participant-header panel glass-panel participant-hero-v2 participant-premium-hero">
-      <div class="eyebrow">Listener Experience</div>
+      <div class="eyebrow">Sanctuary Voice</div>
       <h1 id="participantEventName">Connecting...</h1>
-      <div id="participantEventMeta" class="muted">Choose your language and follow the translation live.</div>
+      <div id="participantEventMeta" class="muted">Choose your language and follow the service live.</div>
       <div class="participant-badge-row">
         <div id="participantModeBadge" class="status-pill active">Live</div>
         <div id="participantLanguageBadge" class="status-pill">Language</div>
+        <div id="participantWakeLockBadge" class="status-pill" style="display:none">Screen awake</div>
       </div>
+    </div>
+
+    <div id="participantEventChooser" class="participant-event-chooser panel glass-panel">
+      <div class="section-head">
+        <div>
+          <div class="label">Choose live event</div>
+          <h2>Available services</h2>
+        </div>
+        <button id="refreshParticipantEventsBtn" class="btn btn-dark" type="button">Refresh</button>
+      </div>
+      <div id="participantEventList" class="history-list">
+        <div class="muted">Loading events...</div>
+      </div>
+      <div class="muted">Events that are not live are shown here, but can be opened only when they go live.</div>
     </div>
 
     <div class="participant-controls panel glass-panel participant-premium-controls">
       <div class="participant-control-group">
-        <label for="languageSelect">My language</label>
+        <label for="languageSelect">Language</label>
         <select id="languageSelect"></select>
       </div>
       <div class="button-row compact-row participant-audio-actions">
-        <button id="playAudioBtn" class="btn btn-primary">Play audio</button>
-        <button id="pauseAudioBtn" class="btn btn-dark">Pause audio</button>
+        <button id="playAudioBtn" class="btn btn-primary">Audio on</button>
+        <button id="pauseAudioBtn" class="btn btn-dark">Audio off</button>
       </div>
       <div class="participant-control-group participant-status-group">
-        <label>Connection status</label>
+        <label>Status</label>
         <div id="participantStatus" class="status-text">Connecting...</div>
+      </div>
+      <div class="button-row compact-row participant-view-actions">
+        <button id="participantCompactBtn" class="btn btn-dark" type="button">Compact</button>
+        <button id="participantFocusBtn" class="btn btn-dark" type="button">Focus mode</button>
       </div>
     </div>
 
     <div class="participant-live panel glass-panel participant-premium-live">
       <div class="participant-live-stage">
         <div id="participantUpdatingBadge" class="updating-badge" style="display:none">Updating...</div>
-        <div class="label">Now on your screen</div>
+        <div class="label">Live text</div>
         <div id="lastText" class="participant-main-text">Waiting for translation...</div>
       </div>
       <div class="participant-history-panel">
-        <div class="label history-label">Recent history</div>
+        <div class="label history-label">Earlier lines</div>
         <div id="history" class="history-list"></div>
       </div>
     </div>

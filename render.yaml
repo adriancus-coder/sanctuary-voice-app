@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: bpms-v13-beta-user-v2-live-unified
+    name: sanctuary-voice
     env: node
     plan: free
     buildCommand: npm install
