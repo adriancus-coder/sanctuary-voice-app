@@ -2710,7 +2710,7 @@ $('eventList').addEventListener('click', async (e) => {
   const action = btn.getAttribute('data-action');
   if (action === 'open') return openEventById(id);
   if (action === 'activate') {
-    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code for this event to activate it:') || '').trim();
+    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event to activate it:') || '').trim();
     if (!adminCode) return;
     const res = await fetch(`/api/events/${id}/activate`, {
       method: 'POST',
@@ -2723,7 +2723,7 @@ $('eventList').addEventListener('click', async (e) => {
   }
   if (action === 'delete') {
     if (!confirm('Delete this event permanently?')) return;
-    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code for this event to delete it:') || '').trim();
+    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event to delete it:') || '').trim();
     if (!adminCode) return;
     const res = await fetch(`/api/events/${id}`, {
       method: 'DELETE',
