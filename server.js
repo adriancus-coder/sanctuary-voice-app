@@ -22,6 +22,9 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
 const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
+const SPEECH_PROVIDER = String(process.env.SPEECH_PROVIDER || 'openai').trim().toLowerCase();
+const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY || '';
+const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION || '';
 
 console.log('API KEY:', OPENAI_API_KEY ? 'OK' : 'LIPSA');
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
@@ -445,6 +448,7 @@ function saveDb() {
 
 const speechBuffers = new Map();
 const participantPresence = new Map();
+const azureSpeechSessions = new Map();
 
 const LIVE_TEXT_MIN_WORDS = 9;
 const LIVE_TEXT_TARGET_WORDS = 16;
@@ -1231,6 +1235,43 @@ async function detectSourceLanguage(text, event) {
   }
 }
 
+function getActiveSpeechProvider() {
+  if (SPEECH_PROVIDER === 'azure' || SPEECH_PROVIDER === 'azure_sdk') {
+    return AZURE_SPEECH_KEY && AZURE_SPEECH_REGION ? 'azure_sdk' : 'openai';
+  }
+  return 'openai';
+}
+
+function getSpeechLocale(code) {
+  return ({
+    ro: 'ro-RO',
+    no: 'nb-NO',
+    en: 'en-US',
+    ru: 'ru-RU',
+    uk: 'uk-UA',
+    es: 'es-ES',
+    fr: 'fr-FR',
+    de: 'de-DE',
+    it: 'it-IT',
+    pt: 'pt-PT',
+    pl: 'pl-PL',
+    tr: 'tr-TR',
+    ar: 'ar-SA',
+    fa: 'fa-IR',
+    hu: 'hu-HU',
+    el: 'el-GR'
+  })[code] || 'ro-RO';
+}
+
+function loadAzureSpeechSdk() {
+  try {
+    return require('microsoft-cognitiveservices-speech-sdk');
+  } catch (err) {
+    console.error('azure speech sdk missing:', err?.message || err);
+    return null;
+  }
+}
+
 async function transcribeAudioFile(filePath, event) {
   if (!client) return { text: '', sourceLang: event.sourceLang || 'ro' };
   const configured = String(event.liveSourceLang || event.sourceLang || 'ro').trim();
@@ -1427,6 +1468,72 @@ function queueSpeechText(eventId, text, sourceLang = '') {
     return;
   }
   next.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), LIVE_TEXT_SOFT_WAIT_MS);
+}
+
+function closeAzureSpeechSession(socketId) {
+  const session = azureSpeechSessions.get(socketId);
+  if (!session) return;
+  azureSpeechSessions.delete(socketId);
+  try { session.pushStream?.close(); } catch (_) {}
+  try {
+    session.recognizer?.stopContinuousRecognitionAsync(
+      () => session.recognizer?.close?.(),
+      () => session.recognizer?.close?.()
+    );
+  } catch (_) {
+    try { session.recognizer?.close?.(); } catch (__) {}
+  }
+}
+
+function startAzureSpeechSession(socket, event) {
+  closeAzureSpeechSession(socket.id);
+  const sdk = loadAzureSpeechSdk();
+  if (!sdk || !AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
+    socket.emit('server_error', { message: 'Azure Speech nu este configurat pe server.' });
+    return false;
+  }
+
+  const sourceLang = String(event.liveSourceLang || event.sourceLang || 'ro').trim();
+  const effectiveSourceLang = sourceLang === 'auto' ? (event.sourceLang || 'ro') : sourceLang;
+  const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION);
+  speechConfig.speechRecognitionLanguage = getSpeechLocale(effectiveSourceLang);
+
+  const audioFormat = sdk.AudioStreamFormat.getWaveFormatPCM(16000, 16, 1);
+  const pushStream = sdk.AudioInputStream.createPushStream(audioFormat);
+  const audioConfig = sdk.AudioConfig.fromStreamInput(pushStream);
+  const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+
+  recognizer.recognizing = (_, result) => {
+    const text = sanitizeTranscriptText(result?.result?.text || '');
+    if (text) io.to(`event:${event.id}:admins`).emit('partial_transcript', { text });
+  };
+  recognizer.recognized = (_, result) => {
+    const text = sanitizeTranscriptText(result?.result?.text || '');
+    if (text) queueSpeechText(event.id, text, effectiveSourceLang);
+  };
+  recognizer.canceled = (_, result) => {
+    console.error('azure speech canceled:', result?.errorDetails || result?.reason || 'unknown');
+    socket.emit('server_error', { message: 'Azure Speech s-a oprit. Verifica setarile Azure.' });
+    closeAzureSpeechSession(socket.id);
+  };
+  recognizer.sessionStopped = () => closeAzureSpeechSession(socket.id);
+
+  azureSpeechSessions.set(socket.id, {
+    eventId: event.id,
+    sourceLang: effectiveSourceLang,
+    pushStream,
+    recognizer
+  });
+
+  recognizer.startContinuousRecognitionAsync(
+    () => socket.emit('azure_audio_ready', { ok: true }),
+    (err) => {
+      console.error('azure speech start error:', err);
+      socket.emit('server_error', { message: 'Nu am putut porni Azure Speech.' });
+      closeAzureSpeechSession(socket.id);
+    }
+  );
+  return true;
 }
 
 function getEventPresence(eventId) {
@@ -1632,7 +1739,14 @@ function setSongIndex(event, index) {
 }
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, openaiConfigured: !!OPENAI_API_KEY, model: OPENAI_MODEL, transcribeModel: OPENAI_TRANSCRIBE_MODEL });
+  res.json({
+    ok: true,
+    openaiConfigured: !!OPENAI_API_KEY,
+    model: OPENAI_MODEL,
+    transcribeModel: OPENAI_TRANSCRIBE_MODEL,
+    speechProvider: getActiveSpeechProvider(),
+    azureSpeechConfigured: !!(AZURE_SPEECH_KEY && AZURE_SPEECH_REGION)
+  });
 });
 
 app.get('/api/languages', (req, res) => {
@@ -2663,7 +2777,46 @@ io.on('connection', (socket) => {
     io.to(`event:${eventId}`).emit('audio_state', { audioMuted: event.audioMuted, audioVolume: event.audioVolume });
   });
 
+  socket.on('azure_audio_start', ({ eventId }) => {
+    const event = db.events[eventId];
+    if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) {
+      return socket.emit('server_error', { message: 'Nu ai permisiune pentru Azure Speech.' });
+    }
+    if (getActiveSpeechProvider() !== 'azure_sdk') {
+      return socket.emit('server_error', { message: 'Azure Speech nu este activ.' });
+    }
+    event.mode = 'live';
+    ensureEventUiState(event);
+    event.displayState.mode = 'auto';
+    event.displayState.blackScreen = false;
+    event.displayState.sceneLabel = '';
+    saveDb();
+    io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
+    io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
+    startAzureSpeechSession(socket, event);
+  });
+
+  socket.on('azure_audio_chunk', ({ eventId, audio }) => {
+    const session = azureSpeechSessions.get(socket.id);
+    if (!session || session.eventId !== eventId || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
+    const buffer = Buffer.from(audio || []);
+    if (!buffer.length) return;
+    try {
+      session.pushStream.write(buffer);
+    } catch (err) {
+      console.error('azure audio chunk error:', err?.message || err);
+      socket.emit('server_error', { message: 'Azure Speech audio stream failed.' });
+      closeAzureSpeechSession(socket.id);
+    }
+  });
+
+  socket.on('azure_audio_stop', ({ eventId }) => {
+    const session = azureSpeechSessions.get(socket.id);
+    if (session?.eventId === eventId) closeAzureSpeechSession(socket.id);
+  });
+
   socket.on('disconnect', () => {
+    closeAzureSpeechSession(socket.id);
     cleanupSocketPresence(socket);
   });
 });
