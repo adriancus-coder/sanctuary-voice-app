@@ -3,8 +3,9 @@ const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
 let participantWakeLock = null;
 const participantParams = new URLSearchParams(window.location.search);
-const LIVE_ENTRY_MIN_DISPLAY_MS = 1400;
-const LIVE_ENTRY_MAX_QUEUE = 4;
+const LIVE_ENTRY_MIN_DISPLAY_MS = 1800;
+const LIVE_ENTRY_MAX_DISPLAY_MS = 5200;
+const LIVE_ENTRY_MAX_QUEUE = 2;
 
 const voiceLocales = {
   ro: 'ro-RO',
@@ -56,8 +57,9 @@ const state = {
   currentMode: 'live',
   currentSongState: null,
   lastLiveEntryId: null,
-  visibleLiveEntryId: null,
+  visibleLiveEntry: null,
   awaitingFreshLiveEntry: false,
+  allowTranscriptFallback: true,
   liveEntryShownAt: 0,
   liveEntryQueue: [],
   liveEntryTimer: null,
@@ -142,6 +144,26 @@ function sortEntries(entries = []) {
   return [...entries].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 }
 
+function cloneEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  return {
+    ...entry,
+    translations: entry.translations ? { ...entry.translations } : {}
+  };
+}
+
+function countWords(text) {
+  return String(text || '').trim().split(/\s+/).filter(Boolean).length;
+}
+
+function buildLiveEntrySignature(entry) {
+  return JSON.stringify({
+    id: entry?.id || '',
+    original: entry?.original || '',
+    translations: entry?.translations || {}
+  });
+}
+
 function getEntryById(entryId) {
   return (state.currentEvent?.transcripts || []).find((x) => x.id === entryId) || null;
 }
@@ -153,7 +175,8 @@ function getLatestEntry() {
 
 function getVisibleLiveEntry() {
   if (state.awaitingFreshLiveEntry) return null;
-  return getEntryById(state.visibleLiveEntryId) || getLatestEntry();
+  if (state.visibleLiveEntry) return state.visibleLiveEntry;
+  return state.allowTranscriptFallback ? getLatestEntry() : null;
 }
 
 function getTextForEntry(entry) {
@@ -170,10 +193,17 @@ function getSongTextForCurrentLanguage(songState) {
     || '';
 }
 
+function getLiveEntryDuration(entry) {
+  const text = String(getTextForEntry(entry) || '').trim();
+  const words = countWords(text);
+  const readingMs = 1000 + (words * 230) + (Math.ceil(text.length / 36) * 180);
+  return Math.max(LIVE_ENTRY_MIN_DISPLAY_MS, Math.min(LIVE_ENTRY_MAX_DISPLAY_MS, readingMs));
+}
+
 function getHistoryEntries() {
   const entries = sortEntries(state.currentEvent?.transcripts || []);
   if (entries.length <= 1) return [];
-  const visibleIndex = entries.findIndex((entry) => entry.id === state.visibleLiveEntryId);
+  const visibleIndex = entries.findIndex((entry) => entry.id === state.visibleLiveEntry?.id);
   const endIndex = visibleIndex >= 0 ? visibleIndex - 1 : entries.length - 2;
 
   const result = [];
@@ -367,18 +397,21 @@ function renderLiveView({ announce = false } = {}) {
 function showLiveEntry(entry, { announce = false } = {}) {
   if (!entry) return;
   state.awaitingFreshLiveEntry = false;
-  state.visibleLiveEntryId = entry.id;
+  state.allowTranscriptFallback = false;
+  state.visibleLiveEntry = cloneEntry(entry);
   state.liveEntryShownAt = Date.now();
   renderLiveView({ announce });
 }
 
 function waitForFreshLiveEntry() {
   state.awaitingFreshLiveEntry = true;
-  state.visibleLiveEntryId = null;
+  state.allowTranscriptFallback = false;
+  state.visibleLiveEntry = null;
   state.liveEntryQueue = [];
   if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
   state.liveEntryTimer = null;
   state.liveEntryShownAt = Date.now();
+  renderLiveView({ announce: false });
 }
 
 function scheduleNextLiveEntry() {
@@ -386,7 +419,8 @@ function scheduleNextLiveEntry() {
   if (state.currentMode === 'song' || !state.liveEntryQueue.length) return;
 
   const elapsed = Date.now() - (state.liveEntryShownAt || 0);
-  const waitMs = Math.max(0, LIVE_ENTRY_MIN_DISPLAY_MS - elapsed);
+  const currentEntry = getVisibleLiveEntry();
+  const waitMs = Math.max(0, (currentEntry ? getLiveEntryDuration(currentEntry) : LIVE_ENTRY_MIN_DISPLAY_MS) - elapsed);
   state.liveEntryTimer = setTimeout(() => {
     state.liveEntryTimer = null;
     const nextEntry = state.liveEntryQueue.shift();
@@ -398,12 +432,15 @@ function scheduleNextLiveEntry() {
 function enqueueLiveEntry(entry) {
   if (!entry) return;
   if (state.currentMode === 'song') return;
-  if (!state.visibleLiveEntryId) {
-    showLiveEntry(entry, { announce: true });
+  const candidate = cloneEntry(entry);
+  const candidateSignature = buildLiveEntrySignature(candidate);
+  if (!state.visibleLiveEntry) {
+    showLiveEntry(candidate, { announce: true });
     return;
   }
-  if (entry.id === state.visibleLiveEntryId || state.liveEntryQueue.some((item) => item.id === entry.id)) return;
-  state.liveEntryQueue.push(entry);
+  if (candidateSignature === buildLiveEntrySignature(state.visibleLiveEntry)) return;
+  if (state.liveEntryQueue.some((item) => buildLiveEntrySignature(item) === candidateSignature)) return;
+  state.liveEntryQueue.push(candidate);
   if (state.liveEntryQueue.length > LIVE_ENTRY_MAX_QUEUE) {
     state.liveEntryQueue = state.liveEntryQueue.slice(-LIVE_ENTRY_MAX_QUEUE);
   }
@@ -417,6 +454,29 @@ function updateEntryInState(payload) {
   entry.original = payload.original;
   entry.translations = payload.translations || {};
   entry.edited = true;
+  if (state.visibleLiveEntry?.id === payload.entryId) {
+    state.visibleLiveEntry.sourceLang = payload.sourceLang;
+    state.visibleLiveEntry.original = payload.original;
+    state.visibleLiveEntry.translations = payload.translations || {};
+  }
+  state.liveEntryQueue = state.liveEntryQueue.map((item) => (
+    item.id === payload.entryId
+      ? {
+          ...item,
+          sourceLang: payload.sourceLang,
+          original: payload.original,
+          translations: payload.translations || {}
+        }
+      : item
+  ));
+}
+
+function seedVisibleLiveEntryFromTranscript() {
+  const latest = getLatestEntry();
+  state.visibleLiveEntry = latest ? cloneEntry(latest) : null;
+  state.allowTranscriptFallback = false;
+  state.awaitingFreshLiveEntry = false;
+  state.liveEntryShownAt = Date.now();
 }
 
 function handleLanguageChange() {
@@ -453,15 +513,19 @@ socket.on('joined_event', ({ event, role }) => {
   state.currentMode = event.mode || 'live';
   state.currentSongState = event.songState || null;
   state.serverAudioMuted = !!event.audioMuted;
-  state.awaitingFreshLiveEntry = false;
   state.liveEntryQueue = [];
   if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
   state.liveEntryTimer = null;
+  if (state.currentMode === 'live') {
+    seedVisibleLiveEntryFromTranscript();
+  } else {
+    state.visibleLiveEntry = null;
+    state.awaitingFreshLiveEntry = false;
+    state.allowTranscriptFallback = false;
+  }
   const chooser = $('participantEventChooser');
   if (chooser) chooser.hidden = true;
   syncLanguageOptions(event);
-  state.visibleLiveEntryId = getLatestEntry()?.id || null;
-  state.liveEntryShownAt = Date.now();
   renderLiveView({ announce: false });
   setParticipantUpdating(false);
   setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Connected.');
@@ -478,6 +542,12 @@ socket.on('transcript_entry', (entry) => {
   state.currentEvent.transcripts = state.currentEvent.transcripts || [];
   if (!getEntryById(entry.id)) state.currentEvent.transcripts.push(entry);
   setParticipantUpdating(false);
+  renderHistory();
+});
+
+socket.on('display_live_entry', (entry) => {
+  if (!state.currentEvent) return;
+  setParticipantUpdating(false);
   state.awaitingFreshLiveEntry = false;
   enqueueLiveEntry(entry);
 });
@@ -485,7 +555,7 @@ socket.on('transcript_entry', (entry) => {
 socket.on('transcript_source_updated', (payload) => {
   updateEntryInState(payload);
   setParticipantUpdating(false);
-  renderLiveView({ announce: false });
+  renderHistory();
 });
 
 socket.on('entry_refreshing', ({ entryId }) => {
@@ -512,7 +582,8 @@ socket.on('active_event_changed', async () => {
     state.currentEvent = null;
     state.currentMode = 'live';
     state.currentSongState = null;
-    state.visibleLiveEntryId = null;
+    state.visibleLiveEntry = null;
+    state.allowTranscriptFallback = false;
     state.liveEntryQueue = [];
     if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
     state.liveEntryTimer = null;
@@ -530,6 +601,8 @@ socket.on('mode_changed', ({ mode }) => {
   if (state.currentEvent) state.currentEvent.mode = state.currentMode;
   syncLanguageOptions({ ...state.currentEvent, mode: state.currentMode, songState: state.currentSongState });
   if (mode === 'song') {
+    state.visibleLiveEntry = null;
+    state.allowTranscriptFallback = false;
     state.liveEntryQueue = [];
     if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
     state.liveEntryTimer = null;
@@ -544,6 +617,8 @@ socket.on('mode_changed', ({ mode }) => {
 socket.on('song_state', (songState) => {
   state.currentMode = 'song';
   state.currentSongState = songState;
+  state.visibleLiveEntry = null;
+  state.allowTranscriptFallback = false;
   state.liveEntryQueue = [];
   if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
   state.liveEntryTimer = null;
