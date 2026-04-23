@@ -25,6 +25,8 @@ const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-m
 const SPEECH_PROVIDER = String(process.env.SPEECH_PROVIDER || 'openai').trim().toLowerCase();
 const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY || '';
 const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION || '';
+const MASTER_ADMIN_PIN = String(process.env.MASTER_ADMIN_PIN || process.env.APP_ADMIN_PIN || '').trim();
+const MASTER_MODERATOR_PIN = String(process.env.MASTER_MODERATOR_PIN || process.env.APP_MODERATOR_PIN || '').trim();
 
 console.log('API KEY:', OPENAI_API_KEY ? 'OK' : 'LIPSA');
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
@@ -942,11 +944,21 @@ function getSuppliedEventCode(req) {
 function resolveEventAccessFromCode(event, code) {
   const suppliedCode = String(code || '').trim();
   if (!suppliedCode) return { role: '', permissions: [], operator: null };
+  if (MASTER_ADMIN_PIN && suppliedCode === MASTER_ADMIN_PIN) {
+    return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
+  }
   if (String(event.adminCode || '') === suppliedCode) {
     return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
   }
   if (String(event.internalPins?.adminPin || '') === suppliedCode) {
     return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
+  }
+  if (MASTER_MODERATOR_PIN && suppliedCode === MASTER_MODERATOR_PIN) {
+    return {
+      role: 'screen',
+      permissions: ['main_screen', 'song'],
+      operator: { id: 'master-moderator', name: 'Master Moderator', profile: 'full', code: suppliedCode }
+    };
   }
   if (String(event.screenOperatorCode || '') === suppliedCode) {
     return {
@@ -993,6 +1005,7 @@ function requireEventPermission(req, res, permission) {
 
 function canManageEvents(req) {
   const suppliedCode = getSuppliedEventCode(req);
+  if (MASTER_ADMIN_PIN && suppliedCode === MASTER_ADMIN_PIN) return true;
   const appAdminCode = String(process.env.APP_ADMIN_CODE || process.env.ADMIN_CODE || '').trim();
   if (appAdminCode && suppliedCode === appAdminCode) return true;
   const events = Object.values(db.events || {});
@@ -2896,7 +2909,8 @@ app.delete('/api/events/:id/global-song-library/:songId', (req, res) => {
 app.post('/api/events/:id/transcribe', upload.single('audio'), async (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (String(req.body.code || '') !== String(event.adminCode || '')) return res.status(403).json({ ok: false, error: 'Cod Admin invalid.' });
+  const access = resolveEventAccessFromCode(event, String(req.body.code || '').trim());
+  if (access.role !== 'admin') return res.status(403).json({ ok: false, error: 'Cod Admin invalid.' });
   if (!client) return res.status(400).json({ ok: false, error: 'OpenAI nu este configurat.' });
   if (!req.file || !req.file.buffer?.length) return res.status(400).json({ ok: false, error: 'Audio lipsă.' });
 
