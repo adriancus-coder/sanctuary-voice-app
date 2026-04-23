@@ -1510,8 +1510,15 @@ async function saveSongLabels() {
 
 async function openEventById(eventId) {
   const storedCode = getStoredAdminCode(eventId);
-  const res = await fetch(`/api/events/${eventId}${storedCode ? `?code=${encodeURIComponent(storedCode)}` : ''}`);
-  const data = await res.json();
+  let res = await fetch(`/api/events/${eventId}${storedCode ? `?code=${encodeURIComponent(storedCode)}` : ''}`);
+  let data = await res.json();
+  if (data.ok && data.event && !data.event.adminCode) {
+    const suppliedCode = (prompt('Enter admin code for this event:') || '').trim();
+    if (suppliedCode) {
+      res = await fetch(`/api/events/${eventId}?code=${encodeURIComponent(suppliedCode)}`);
+      data = await res.json();
+    }
+  }
   if (!data.ok) return;
   currentEvent = data.event;
   rememberAdminCode(currentEvent);
@@ -2173,7 +2180,7 @@ $('muteGlobalBtn').addEventListener('click', () => {
   if (!currentEvent) return;
   currentMuted = !currentMuted;
   renderAudioStateLabel();
-  socket.emit('set_audio_state', { eventId: currentEvent.id, audioMuted: currentMuted, audioVolume: currentVolume, code: currentEvent.adminCode });
+  socket.emit('set_audio_state', { eventId: currentEvent.id, audioMuted: currentMuted, audioVolume: currentVolume });
 });
 $('panicBtn').addEventListener('click', () => {
   if (!currentEvent) return;
@@ -2181,12 +2188,12 @@ $('panicBtn').addEventListener('click', () => {
   currentVolume = 0;
   $('volumeRange').value = '0';
   renderAudioStateLabel();
-  socket.emit('set_audio_state', { eventId: currentEvent.id, audioMuted: true, audioVolume: 0, code: currentEvent.adminCode });
+  socket.emit('set_audio_state', { eventId: currentEvent.id, audioMuted: true, audioVolume: 0 });
 });
 $('volumeRange').addEventListener('input', () => {
   currentVolume = Number($('volumeRange').value || 70);
   if (!currentEvent) return;
-  socket.emit('set_audio_state', { eventId: currentEvent.id, audioMuted: currentMuted, audioVolume: currentVolume, code: currentEvent.adminCode });
+    socket.emit('set_audio_state', { eventId: currentEvent.id, audioMuted: currentMuted, audioVolume: currentVolume });
 });
 $('inputGainRange').addEventListener('input', updateInputGain);
 $('monitorAudioBox').addEventListener('change', updateMonitorGain);
