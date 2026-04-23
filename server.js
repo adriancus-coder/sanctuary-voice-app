@@ -373,7 +373,7 @@ const REMOTE_OPERATOR_PROFILES = {
   },
   full: {
     label: 'Full operator',
-    permissions: ['main_screen', 'song', 'glossary']
+    permissions: ['main_screen', 'song']
   }
 };
 
@@ -1831,8 +1831,7 @@ app.delete('/api/events/:id', (req, res) => {
 app.post('/api/events/:id/glossary', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'glossary')) return;
+  if (!requireEventAdmin(req, res, event)) return;
   const source = String(req.body.source || '').trim();
   const target = String(req.body.target || '').trim();
   const permanent = !!req.body.permanent;
@@ -1850,8 +1849,7 @@ app.post('/api/events/:id/glossary', (req, res) => {
 app.post('/api/events/:id/source-corrections', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'glossary')) return;
+  if (!requireEventAdmin(req, res, event)) return;
   const heard = String(req.body.heard || '').trim();
   const correct = String(req.body.correct || '').trim();
   const permanent = !!req.body.permanent;
@@ -2547,6 +2545,7 @@ io.on('connection', (socket) => {
     const access = resolveEventAccessFromCode(event, code);
     if (role === 'admin' && access.role !== 'admin') return socket.emit('join_error', { message: 'Cod Admin invalid.' });
     if (role === 'screen' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
+    if (role === 'participant_preview' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
     if ((role || 'participant') === 'participant' && db.activeEventId !== eventId) {
       return socket.emit('join_error', { message: 'Evenimentul nu este live inca.' });
     }
@@ -2561,7 +2560,7 @@ io.on('connection', (socket) => {
     socket.join(`event:${eventId}`);
     if (socket.data.role === 'admin') socket.join(`event:${eventId}:admins`);
     if (socket.data.role === 'screen') socket.join(`event:${eventId}:screens`);
-    if (socket.data.role === 'participant') socket.join(`event:${eventId}:lang:${socket.data.language}`);
+    if (socket.data.role === 'participant' || socket.data.role === 'participant_preview') socket.join(`event:${eventId}:lang:${socket.data.language}`);
 
     if (socket.data.role === 'participant' && socket.data.participantId) {
       registerParticipantSocket(eventId, socket.data.participantId, socket.data.language, socket.id);
