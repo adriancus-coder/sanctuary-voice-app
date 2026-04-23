@@ -35,14 +35,19 @@
       </div>
     </div>
 
-    <div class="cards-grid two">
-      <div class="panel glass-panel section-stack">
+    <div class="panel glass-panel section-stack remote-live-monitor">
         <div class="section-head">
-          <h2>Live Previews</h2>
-          <div class="muted">Projector and participant view</div>
+          <div>
+            <h2>Live Monitor</h2>
+            <div class="muted">Compact projector and participant preview</div>
+          </div>
+          <div class="button-row compact-row">
+            <button id="remoteOpenMainPreviewBtn" class="btn btn-dark" type="button">Open main</button>
+            <button id="remoteOpenParticipantPreviewBtn" class="btn btn-primary" type="button">Open participant direct</button>
+          </div>
         </div>
-        <div class="remote-preview-grid">
-          <div class="remote-preview-card">
+        <div class="remote-preview-grid remote-preview-grid-compact">
+          <div class="remote-preview-card remote-preview-main-card">
             <div class="entry-head">
               <div>
                 <div class="eyebrow">Main Screen</div>
@@ -53,11 +58,11 @@
               <iframe id="remoteMainPreviewFrame" class="remote-preview-frame" title="Main screen preview" loading="lazy"></iframe>
             </div>
           </div>
-          <div class="remote-preview-card">
+          <div class="remote-preview-card remote-preview-phone-card">
             <div class="entry-head">
               <div>
                 <div class="eyebrow">Participant</div>
-                <div class="small">Listener preview</div>
+                <div class="small">Direct listener preview, no public join step</div>
               </div>
             </div>
             <div class="remote-preview-frame-wrap">
@@ -65,30 +70,49 @@
             </div>
           </div>
         </div>
-        <div class="button-row compact-row">
-          <button id="remoteOpenMainPreviewBtn" class="btn btn-dark" type="button">Open main screen</button>
-          <button id="remoteOpenParticipantPreviewBtn" class="btn btn-dark" type="button">Open participant</button>
-          <button id="remoteOpenBothPreviewsBtn" class="btn btn-primary" type="button">Open both</button>
-        </div>
-      </div>
+    </div>
 
-      <div class="panel glass-panel section-stack">
+    <div class="cards-grid two remote-song-tools">
+      <div class="panel glass-panel section-stack remote-song-navigation-card">
         <div class="section-head">
           <h2>Song Navigation</h2>
           <div id="remoteSongLabel" class="muted">No active verse</div>
         </div>
-        <div class="split-2 compact-library-row">
-          <div>
+        <div class="compact-library-row">
+          <div class="full-width">
             <label for="remoteSongJumpSelect">Jump to section</label>
             <select id="remoteSongJumpSelect"></select>
-          </div>
-          <div class="preset-save-wrap">
-            <button id="remoteSongJumpBtn" class="btn btn-primary" type="button">Show selected section</button>
           </div>
         </div>
       </div>
 
     </div>
+
+    <details id="remoteChurchLibraryPanel" class="panel glass-panel section-stack remote-library-panel">
+      <summary class="remote-library-summary">
+        <span>
+          <span class="eyebrow">Church Library</span>
+          <strong>Open saved songs</strong>
+        </span>
+        <span class="muted">Compact song picker</span>
+      </summary>
+      <div class="split-2 compact-library-row">
+        <div>
+          <label for="remoteSongLibrarySearch">Search</label>
+          <input id="remoteSongLibrarySearch" type="text" placeholder="Search song title">
+        </div>
+        <div>
+          <label for="remoteSongLibrarySort">Sort</label>
+          <select id="remoteSongLibrarySort">
+            <option value="az" selected>A-Z</option>
+            <option value="recent">Recent</option>
+          </select>
+        </div>
+      </div>
+      <div id="remoteSongLibraryList" class="remote-library-grid">
+        <div class="muted">Loading church library...</div>
+      </div>
+    </details>
 
     <div id="remoteSongEditorPanel" class="panel glass-panel section-stack">
       <div class="section-head">
@@ -111,60 +135,6 @@
         <button id="remoteSongSendBtn" class="btn btn-primary" type="button">Send first verse live</button>
         <button id="remoteBackToLiveTextBtn" class="btn btn-primary" type="button">Back to live text</button>
         <button id="remoteSongClearBtn" class="btn btn-dark" type="button">Clear editor</button>
-      </div>
-      <div class="section-head remote-subhead">
-        <h2>Church Library</h2>
-        <div class="muted">Pick an existing song instantly</div>
-      </div>
-      <div class="split-2 compact-library-row">
-        <div>
-          <label for="remoteSongLibrarySearch">Search</label>
-          <input id="remoteSongLibrarySearch" type="text" placeholder="Search song title">
-        </div>
-        <div>
-          <label for="remoteSongLibrarySort">Sort</label>
-          <select id="remoteSongLibrarySort">
-            <option value="az" selected>A-Z</option>
-            <option value="recent">Recent</option>
-          </select>
-        </div>
-      </div>
-      <div id="remoteSongLibraryList" class="history-list">
-        <div class="muted">Loading church library...</div>
-      </div>
-    </div>
-
-    <div id="remoteGlossaryPanel" class="panel glass-panel section-stack">
-      <div class="section-head">
-        <h2>Glossary Control</h2>
-        <button id="remoteGlossaryToggleBtn" class="btn btn-dark" type="button">Open glossary</button>
-      </div>
-      <div id="remoteGlossaryBody" hidden>
-        <div class="muted">Translation glossary and speech corrections</div>
-        <div class="split-2 compact-library-row">
-          <div>
-            <label for="remoteGlossaryMode">Mode</label>
-            <select id="remoteGlossaryMode">
-              <option value="translation" selected>Translation glossary</option>
-              <option value="source">Speech correction</option>
-            </select>
-          </div>
-          <div id="remoteGlossaryLangWrap">
-            <label for="remoteGlossaryLang">Language</label>
-            <select id="remoteGlossaryLang"></select>
-          </div>
-        </div>
-        <label class="inline-check"><input id="remoteGlossaryPermanent" type="checkbox" checked> Save permanently</label>
-        <div id="remoteTranslationGlossaryFields" class="section-stack compact-stack">
-          <input id="remoteGlossarySource" type="text" placeholder="Source word or phrase">
-          <input id="remoteGlossaryTarget" type="text" placeholder="Correct target form">
-          <button id="remoteSaveGlossaryBtn" class="btn btn-primary" type="button">Save glossary</button>
-        </div>
-        <div id="remoteSourceCorrectionFields" class="section-stack compact-stack" style="display:none">
-          <input id="remoteSourceWrong" type="text" placeholder="Wrong heard form">
-          <input id="remoteSourceCorrect" type="text" placeholder="Correct source form">
-          <button id="remoteSaveSourceCorrectionBtn" class="btn btn-primary" type="button">Save speech correction</button>
-        </div>
       </div>
     </div>
   </div>

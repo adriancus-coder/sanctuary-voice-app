@@ -88,25 +88,15 @@ function renderRemoteSongLibrary() {
     return;
   }
   box.innerHTML = items.map((item) => `
-    <details class="event-card library-card-details">
-      <summary class="library-card-summary">
-        <span class="name">${escapeHtml(item.title || 'Untitled song')}</span>
-      </summary>
-      <div class="library-card-body">
-        <div class="small"><b>Language:</b> ${escapeHtml(langLabel(item.sourceLang || state.currentEvent?.sourceLang || 'ro'))}</div>
-        <div class="small">${escapeHtml(String(item.text || '').slice(0, 220))}${String(item.text || '').length > 220 ? '...' : ''}</div>
-        <div class="actions">
-          <button class="btn btn-dark" type="button" data-remote-song-library-action="load" data-remote-song-library-id="${item.id}">Load in editor</button>
-          <button class="btn btn-primary" type="button" data-remote-song-library-action="send" data-remote-song-library-id="${item.id}">Send first verse</button>
-        </div>
-      </div>
-    </details>
+    <button class="remote-library-pill" type="button" data-remote-song-library-action="open" data-remote-song-library-id="${item.id}">
+      <span>${escapeHtml(item.title || 'Untitled song')}</span>
+      <small>${escapeHtml(langLabel(item.sourceLang || state.currentEvent?.sourceLang || 'ro'))}</small>
+    </button>
   `).join('');
 }
 
 function renderRemoteSongJumpSelect() {
   const select = $('remoteSongJumpSelect');
-  const button = $('remoteSongJumpBtn');
   if (!select) return;
   const previousValue = select.value;
   const songState = state.currentEvent?.songState || {};
@@ -116,11 +106,9 @@ function renderRemoteSongJumpSelect() {
   if (!blocks.length) {
     select.innerHTML = '<option value="">No song sections yet</option>';
     select.disabled = true;
-    if (button) button.disabled = true;
     return;
   }
   select.disabled = false;
-  if (button) button.disabled = false;
   select.innerHTML = blocks.map((block, index) => {
     const label = labels[index] || `Verse ${index + 1}`;
     const preview = String(block || '').split('\n').find(Boolean) || '';
@@ -137,8 +125,13 @@ function renderRemoteSongJumpSelect() {
 function refreshPreviewFrames() {
   const mainFrame = $('remoteMainPreviewFrame');
   const participantFrame = $('remoteParticipantPreviewFrame');
-  const mainUrl = state.currentEvent?.translateLink || '';
-  const participantUrl = state.currentEvent?.participantLink || '';
+  const displayLang = state.currentEvent?.displayState?.language || state.currentEvent?.targetLangs?.[0] || 'no';
+  const mainUrl = state.currentEvent?.id
+    ? `/translate?event=${encodeURIComponent(state.currentEvent.id)}&lang=${encodeURIComponent(displayLang)}`
+    : '';
+  const participantUrl = state.currentEvent?.id
+    ? `/participant?event=${encodeURIComponent(state.currentEvent.id)}&preview=1&compact=1&focus=1&lang=${encodeURIComponent(displayLang)}&code=${encodeURIComponent(state.accessCode)}`
+    : '';
   if (mainFrame && mainUrl && mainFrame.dataset.src !== mainUrl) {
     mainFrame.src = mainUrl;
     mainFrame.dataset.src = mainUrl;
@@ -274,14 +267,17 @@ function refreshRemoteUi() {
   const presetsList = $('remotePresetsList');
   const mainScreenPanel = $('remoteMainScreenPanel');
   const songPanel = $('remoteSongJumpBtn')?.closest('.panel');
+  const fallbackSongPanel = $('remoteSongJumpSelect')?.closest('.panel');
   const presetsPanel = presetsList?.closest('.panel');
   const songEditorPanel = $('remoteSongEditorPanel');
+  const churchLibraryPanel = $('remoteChurchLibraryPanel');
   const glossaryPanel = $('remoteGlossaryPanel');
   if (mainScreenPanel) mainScreenPanel.hidden = !mainScreenAllowed;
   if (quickLanguages) quickLanguages.hidden = !mainScreenAllowed;
   if (shortcuts) shortcuts.hidden = !mainScreenAllowed;
-  if (songPanel) songPanel.hidden = !songAllowed;
+  if (songPanel || fallbackSongPanel) (songPanel || fallbackSongPanel).hidden = !songAllowed;
   if (presetsPanel) presetsPanel.hidden = !mainScreenAllowed;
+  if (churchLibraryPanel) churchLibraryPanel.hidden = !songAllowed;
   if (songEditorPanel) songEditorPanel.hidden = !songAllowed;
   if (glossaryPanel) glossaryPanel.hidden = !glossaryAllowed;
   updateHeader();
@@ -394,7 +390,7 @@ $('remotePrevSongBtn')?.addEventListener('click', async () => {
 $('remoteNextSongBtn')?.addEventListener('click', async () => {
   try { await post(`/api/events/${state.eventId}/song/next`); setStatus('Moved to next verse.'); } catch (err) { setStatus(err.message); }
 });
-$('remoteSongJumpBtn').addEventListener('click', async () => {
+async function showRemoteSelectedSongSection() {
   const index = Number($('remoteSongJumpSelect')?.value);
   if (!Number.isInteger(index)) return;
   try {
@@ -403,7 +399,10 @@ $('remoteSongJumpBtn').addEventListener('click', async () => {
   } catch (err) {
     setStatus(err.message);
   }
-});
+}
+
+$('remoteSongJumpBtn')?.addEventListener('click', showRemoteSelectedSongSection);
+$('remoteSongJumpSelect')?.addEventListener('change', showRemoteSelectedSongSection);
 
 $('remoteQuickLanguages').addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-remote-language]');
@@ -447,13 +446,19 @@ $('remoteOpenMainPreviewBtn').addEventListener('click', () => {
 });
 
 $('remoteOpenParticipantPreviewBtn').addEventListener('click', () => {
-  const url = state.currentEvent?.participantLink || '';
+  const displayLang = state.currentEvent?.displayState?.language || state.currentEvent?.targetLangs?.[0] || 'no';
+  const url = state.currentEvent?.id
+    ? `/participant?event=${encodeURIComponent(state.currentEvent.id)}&preview=1&compact=1&focus=1&lang=${encodeURIComponent(displayLang)}&code=${encodeURIComponent(state.accessCode)}`
+    : '';
   if (url) window.open(url, '_blank');
 });
 
-$('remoteOpenBothPreviewsBtn').addEventListener('click', () => {
+$('remoteOpenBothPreviewsBtn')?.addEventListener('click', () => {
   const mainUrl = state.currentEvent?.translateLink || '';
-  const participantUrl = state.currentEvent?.participantLink || '';
+  const displayLang = state.currentEvent?.displayState?.language || state.currentEvent?.targetLangs?.[0] || 'no';
+  const participantUrl = state.currentEvent?.id
+    ? `/participant?event=${encodeURIComponent(state.currentEvent.id)}&preview=1&compact=1&focus=1&lang=${encodeURIComponent(displayLang)}&code=${encodeURIComponent(state.accessCode)}`
+    : '';
   if (mainUrl) window.open(mainUrl, '_blank');
   if (participantUrl) window.open(participantUrl, '_blank');
 });
@@ -507,8 +512,8 @@ $('remoteSongSendBtn').addEventListener('click', async () => {
   }
 });
 
-$('remoteGlossaryMode').addEventListener('change', updateRemoteGlossaryMode);
-$('remoteGlossaryToggleBtn').addEventListener('click', () => {
+$('remoteGlossaryMode')?.addEventListener('change', updateRemoteGlossaryMode);
+$('remoteGlossaryToggleBtn')?.addEventListener('click', () => {
   state.glossaryOpen = !state.glossaryOpen;
   syncGlossaryToggle();
 });
@@ -520,7 +525,29 @@ $('remoteSongLibraryList').addEventListener('click', async (e) => {
   if (!btn) return;
   const item = (state.globalSongLibrary || []).find((entry) => entry.id === btn.getAttribute('data-remote-song-library-id'));
   if (!item) return;
-  if (btn.getAttribute('data-remote-song-library-action') === 'load') {
+  const action = btn.getAttribute('data-remote-song-library-action');
+  if (action === 'open') {
+    const current = btn.closest('.remote-library-pill');
+    const wasOpen = current?.classList.contains('is-open');
+    document.querySelectorAll('.remote-library-pill.is-open').forEach((pill) => {
+      if (pill !== current) pill.classList.remove('is-open');
+    });
+    document.querySelectorAll('.remote-library-actions').forEach((actions) => actions.remove());
+    current?.classList.toggle('is-open', !wasOpen);
+    if (current && !wasOpen) {
+      current.insertAdjacentHTML('afterend', `
+        <div class="remote-library-actions" data-library-actions-for="${item.id}">
+          <div class="small">${escapeHtml(String(item.text || '').slice(0, 180))}${String(item.text || '').length > 180 ? '...' : ''}</div>
+          <div class="button-row compact-row">
+            <button class="btn btn-dark" type="button" data-remote-song-library-action="load" data-remote-song-library-id="${item.id}">Load in editor</button>
+            <button class="btn btn-primary" type="button" data-remote-song-library-action="send" data-remote-song-library-id="${item.id}">Send first verse</button>
+          </div>
+        </div>
+      `);
+    }
+    return;
+  }
+  if (action === 'load') {
     if ($('remoteSongTitle')) $('remoteSongTitle').value = item.title || '';
     if ($('remoteSongText')) $('remoteSongText').value = item.text || '';
     if ($('remoteSongSourceLang')) $('remoteSongSourceLang').value = item.sourceLang || state.currentEvent?.sourceLang || 'ro';
@@ -544,7 +571,7 @@ $('remoteSongLibraryList').addEventListener('click', async (e) => {
   }
 });
 
-$('remoteSaveGlossaryBtn').addEventListener('click', async () => {
+$('remoteSaveGlossaryBtn')?.addEventListener('click', async () => {
   const source = $('remoteGlossarySource')?.value.trim() || '';
   const target = $('remoteGlossaryTarget')?.value.trim() || '';
   const lang = $('remoteGlossaryLang')?.value || '';
@@ -562,7 +589,7 @@ $('remoteSaveGlossaryBtn').addEventListener('click', async () => {
   }
 });
 
-$('remoteSaveSourceCorrectionBtn').addEventListener('click', async () => {
+$('remoteSaveSourceCorrectionBtn')?.addEventListener('click', async () => {
   const heard = $('remoteSourceWrong')?.value.trim() || '';
   const correct = $('remoteSourceCorrect')?.value.trim() || '';
   const permanent = !!$('remoteGlossaryPermanent')?.checked;

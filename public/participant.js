@@ -2,6 +2,7 @@ const socket = io();
 const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
 let participantWakeLock = null;
+const participantParams = new URLSearchParams(window.location.search);
 const LIVE_ENTRY_MIN_DISPLAY_MS = 2600;
 const LIVE_ENTRY_MAX_QUEUE = 4;
 
@@ -47,13 +48,16 @@ function escapeHtml(text) {
 }
 
 const state = {
-  fixedEventId: new URLSearchParams(window.location.search).get('event') || '',
+  fixedEventId: participantParams.get('event') || '',
+  previewMode: participantParams.get('preview') === '1',
+  previewCode: participantParams.get('code') || '',
   currentEvent: null,
-  currentLanguage: 'no',
+  currentLanguage: participantParams.get('lang') || 'no',
   currentMode: 'live',
   currentSongState: null,
   lastLiveEntryId: null,
   visibleLiveEntryId: null,
+  awaitingFreshLiveEntry: false,
   liveEntryShownAt: 0,
   liveEntryQueue: [],
   liveEntryTimer: null,
@@ -62,11 +66,15 @@ const state = {
   serverAudioMuted: false,
   languageInitialized: false,
   participantId: getOrCreateParticipantId(),
-  compactMode: localStorage.getItem('sanctuary_voice_participant_compact') === '1',
-  focusMode: localStorage.getItem('sanctuary_voice_participant_focus') === '1'
+  compactMode: participantParams.get('compact') === '1' || localStorage.getItem('sanctuary_voice_participant_compact') === '1',
+  focusMode: participantParams.get('focus') === '1' || localStorage.getItem('sanctuary_voice_participant_focus') === '1'
 };
 
 let publicEvents = [];
+
+if (state.previewMode) {
+  document.body.classList.add('participant-preview-mode');
+}
 
 function setWakeLockBadge(active) {
   const badge = $('participantWakeLockBadge');
@@ -144,6 +152,7 @@ function getLatestEntry() {
 }
 
 function getVisibleLiveEntry() {
+  if (state.awaitingFreshLiveEntry) return null;
   return getEntryById(state.visibleLiveEntryId) || getLatestEntry();
 }
 
@@ -276,6 +285,10 @@ async function loadParticipantEvents({ joinFixedIfLive = false } = {}) {
     const data = await res.json();
     if (data.languageNames) availableLanguages = data.languageNames;
     renderParticipantEventList(data.events || []);
+    if (state.previewMode && state.fixedEventId) {
+      await joinParticipantEvent(state.fixedEventId);
+      return;
+    }
     if (joinFixedIfLive && state.fixedEventId) {
       const fixedEvent = (data.events || []).find((event) => event.id === state.fixedEventId);
       if (fixedEvent?.isActive) {
@@ -353,9 +366,19 @@ function renderLiveView({ announce = false } = {}) {
 
 function showLiveEntry(entry, { announce = false } = {}) {
   if (!entry) return;
+  state.awaitingFreshLiveEntry = false;
   state.visibleLiveEntryId = entry.id;
   state.liveEntryShownAt = Date.now();
   renderLiveView({ announce });
+}
+
+function waitForFreshLiveEntry() {
+  state.awaitingFreshLiveEntry = true;
+  state.visibleLiveEntryId = null;
+  state.liveEntryQueue = [];
+  if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
+  state.liveEntryTimer = null;
+  state.liveEntryShownAt = Date.now();
 }
 
 function scheduleNextLiveEntry() {
@@ -406,10 +429,11 @@ function handleLanguageChange() {
 
 async function joinParticipantEvent(eventId) {
   if (!eventId) return setStatus('Choose a live event.');
-  await enableWakeLock();
+  if (!state.previewMode) await enableWakeLock();
   socket.emit('join_event', {
     eventId,
-    role: 'participant',
+    role: state.previewMode ? 'participant_preview' : 'participant',
+    code: state.previewCode,
     language: $('languageSelect')?.value || state.currentLanguage,
     participantId: state.participantId
   });
@@ -424,11 +448,12 @@ socket.on('disconnect', () => setStatus('Reconnecting...'));
 socket.on('join_error', ({ message }) => setStatus(message || 'Cannot join event.'));
 
 socket.on('joined_event', ({ event, role }) => {
-  if (role !== 'participant') return;
+  if (role !== 'participant' && role !== 'participant_preview') return;
   state.currentEvent = event;
   state.currentMode = event.mode || 'live';
   state.currentSongState = event.songState || null;
   state.serverAudioMuted = !!event.audioMuted;
+  state.awaitingFreshLiveEntry = false;
   state.liveEntryQueue = [];
   if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
   state.liveEntryTimer = null;
@@ -440,7 +465,12 @@ socket.on('joined_event', ({ event, role }) => {
   renderLiveView({ announce: false });
   setParticipantUpdating(false);
   setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Connected.');
-  enableWakeLock();
+  if (state.previewMode) {
+    document.body.classList.add('participant-preview-mode');
+    setStatus('Moderator preview.');
+  } else {
+    enableWakeLock();
+  }
 });
 
 socket.on('transcript_entry', (entry) => {
@@ -448,6 +478,7 @@ socket.on('transcript_entry', (entry) => {
   state.currentEvent.transcripts = state.currentEvent.transcripts || [];
   if (!getEntryById(entry.id)) state.currentEvent.transcripts.push(entry);
   setParticipantUpdating(false);
+  state.awaitingFreshLiveEntry = false;
   enqueueLiveEntry(entry);
 });
 
@@ -504,6 +535,7 @@ socket.on('mode_changed', ({ mode }) => {
     state.liveEntryTimer = null;
     setStatus('Song active on public screen.');
   } else {
+    waitForFreshLiveEntry();
     setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Connected.');
   }
   renderLiveView({ announce: false });
@@ -523,8 +555,7 @@ socket.on('song_clear', () => {
   state.currentMode = 'live';
   state.currentSongState = null;
   syncLanguageOptions({ ...state.currentEvent, mode: 'live', songState: null });
-  state.visibleLiveEntryId = getLatestEntry()?.id || null;
-  state.liveEntryShownAt = Date.now();
+  waitForFreshLiveEntry();
   renderLiveView({ announce: false });
 });
 

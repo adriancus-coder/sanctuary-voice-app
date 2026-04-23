@@ -1049,10 +1049,105 @@ progress::-moz-progress-bar {
   max-width: 1480px;
 }
 
+.full-width {
+  width: 100%;
+}
+
+.remote-song-tools {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.remote-song-navigation-card {
+  min-height: auto;
+}
+
+.remote-library-panel {
+  gap: 14px;
+}
+
+.remote-library-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.remote-library-summary::-webkit-details-marker {
+  display: none;
+}
+
+.remote-library-summary::after {
+  content: "Open";
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  color: var(--text);
+  background: rgba(255, 248, 236, 0.08);
+}
+
+.remote-library-panel[open] .remote-library-summary::after {
+  content: "Hide";
+}
+
+.remote-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.remote-library-pill {
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 4px;
+  color: var(--text);
+  background: rgba(255, 248, 236, 0.06);
+  cursor: pointer;
+}
+
+.remote-library-pill:hover,
+.remote-library-pill.is-open {
+  border-color: rgba(226, 197, 126, 0.65);
+  background: rgba(226, 197, 126, 0.14);
+}
+
+.remote-library-pill span {
+  font-weight: 800;
+}
+
+.remote-library-pill small {
+  color: var(--muted);
+}
+
+.remote-library-actions {
+  grid-column: 1 / -1;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
 .remote-preview-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.remote-live-monitor {
+  gap: 12px;
+}
+
+.remote-preview-grid-compact {
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  align-items: stretch;
 }
 
 .remote-preview-card {
@@ -1069,12 +1164,39 @@ progress::-moz-progress-bar {
   box-shadow: inset 0 1px 0 rgba(255, 248, 236, 0.05);
 }
 
+.remote-preview-grid-compact .remote-preview-frame-wrap {
+  min-height: 190px;
+}
+
+.remote-preview-phone-card .remote-preview-frame-wrap {
+  max-width: 360px;
+  width: 100%;
+  justify-self: end;
+}
+
 .remote-preview-frame {
   width: 100%;
   min-height: 260px;
   height: 100%;
   border: 0;
   background: #000;
+}
+
+.remote-preview-grid-compact .remote-preview-frame {
+  min-height: 190px;
+}
+
+body.participant-preview-mode .participant-shell {
+  padding: 10px;
+  gap: 10px;
+}
+
+body.participant-preview-mode .participant-header {
+  padding: 12px 14px;
+}
+
+body.participant-preview-mode .participant-event-chooser {
+  display: none;
 }
 
 .remote-subhead {
