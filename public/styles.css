@@ -1155,35 +1155,6 @@ progress::-moz-progress-bar {
   align-items: start;
 }
 
-.monitor-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.monitor-item {
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  display: grid;
-  gap: 6px;
-}
-
-.monitor-label {
-  font-size: 0.82rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.monitor-value {
-  font-size: 0.98rem;
-  line-height: 1.45;
-  color: var(--text);
-  word-break: break-word;
-}
-
 .remote-preview-grid-compact {
   grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
   align-items: stretch;
@@ -1248,12 +1219,31 @@ progress::-moz-progress-bar {
   text-transform: uppercase;
 }
 
-.remote-simple-preview-frame {
-  width: 100%;
-  min-height: 210px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #000;
+.remote-preview-meta {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.remote-simple-preview-stage {
+  min-height: 220px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  background: rgba(8, 10, 16, 0.84);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remote-simple-preview-text {
+  color: #f6efe1;
+  font-size: clamp(1.2rem, 2.2vw, 2.2rem);
+  line-height: 1.15;
+  text-align: center;
+  font-weight: 700;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 body.participant-preview-mode .participant-shell {

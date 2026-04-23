@@ -49,25 +49,19 @@
         <div class="remote-simple-preview-grid">
           <div class="remote-simple-preview-box">
             <div class="remote-simple-preview-head">Main Screen</div>
-            <iframe id="remoteMainPreviewFrame" class="remote-simple-preview-frame" title="Main screen preview" loading="lazy"></iframe>
+            <div class="remote-preview-meta" id="remoteMainPreviewMeta">Waiting for event…</div>
+            <div class="remote-simple-preview-stage">
+              <div id="remoteMainPreviewText" class="remote-simple-preview-text">Waiting for preview…</div>
+            </div>
           </div>
           <div class="remote-simple-preview-box">
             <div class="remote-simple-preview-head">Participant</div>
-            <iframe id="remoteParticipantPreviewFrame" class="remote-simple-preview-frame" title="Participant preview" loading="lazy"></iframe>
+            <div class="remote-preview-meta" id="remoteParticipantPreviewMeta">Waiting for event…</div>
+            <div class="remote-simple-preview-stage">
+              <div id="remoteParticipantPreviewText" class="remote-simple-preview-text">Waiting for preview…</div>
+            </div>
           </div>
         </div>
-    </div>
-
-    <div class="cards-grid two remote-support-grid">
-      <div class="panel glass-panel section-stack">
-        <div class="section-head">
-          <h2>Translation Monitor</h2>
-          <div id="remoteTranslationMonitorBadge" class="live-chip">Idle</div>
-        </div>
-        <div id="remoteTranslationMonitorGrid" class="monitor-grid">
-          <div class="muted">Waiting for translation data.</div>
-        </div>
-      </div>
     </div>
 
     <div class="cards-grid two remote-song-tools">

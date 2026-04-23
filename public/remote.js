@@ -41,30 +41,6 @@ function formatDateTime(value) {
   return new Date(value).toLocaleString();
 }
 
-function monitorItem(label, value) {
-  return `<div class="monitor-item"><div class="monitor-label">${escapeHtml(label)}</div><div class="monitor-value">${escapeHtml(value || '-')}</div></div>`;
-}
-
-function renderRemoteTranslationMonitor(monitor = {}) {
-  const box = $('remoteTranslationMonitorGrid');
-  const badge = $('remoteTranslationMonitorBadge');
-  if (!box) return;
-  const pending = Number(monitor.pendingTranslations || 0);
-  const queueWords = Number(monitor.queueWords || 0);
-  if (badge) {
-    badge.textContent = pending > 0 ? `Translating ${pending}` : (queueWords > 0 ? `Queued ${queueWords}w` : 'Idle');
-  }
-  box.innerHTML = [
-    monitorItem('Speech received', `${formatDateTime(monitor.lastSpeechReceivedAt)}${monitor.lastSpeechSourceLang ? ` · ${langLabel(monitor.lastSpeechSourceLang)}` : ''}`),
-    monitorItem('Provider', monitor.lastSpeechProvider || monitor.queueProvider || '-'),
-    monitorItem('Buffered', monitor.lastBufferedText || monitor.lastSpeechPreview || 'Waiting...'),
-    monitorItem('Queue', monitor.queueActive ? `${queueWords} words · ${Math.round(Number(monitor.queueAgeMs || 0))} ms` : 'Empty'),
-    monitorItem('Translate time', monitor.lastTranslateFinishedAt ? `${Math.round(Number(monitor.lastTranslateDurationMs || 0))} ms` : '-'),
-    monitorItem('Delivered', monitor.lastDeliveredAt ? `${formatDateTime(monitor.lastDeliveredAt)} · ${monitor.lastDeliveryTargetCount || 0} langs` : '-'),
-    monitorItem('Issue', monitor.lastErrorMessage ? `${monitor.lastErrorMessage} · ${formatDateTime(monitor.lastErrorAt)}` : 'No recent issues')
-  ].join('');
-}
-
 function can(permission) {
   const permissions = state.access?.permissions || [];
   if (!permissions.length) return true;
@@ -93,6 +69,82 @@ function updateHeader() {
     const profile = state.access?.operator?.profile || '';
     profileBadge.textContent = remoteProfileLabels[profile] || 'Remote operator';
   }
+}
+
+function getLatestRemoteEntry() {
+  const entries = Array.isArray(state.currentEvent?.transcripts) ? [...state.currentEvent.transcripts] : [];
+  entries.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+  return entries.length ? entries[entries.length - 1] : null;
+}
+
+function getRemoteDisplayLanguage() {
+  return state.currentEvent?.displayState?.language || state.currentEvent?.targetLangs?.[0] || 'no';
+}
+
+function getRemoteMainPreviewText() {
+  const event = state.currentEvent;
+  if (!event) return 'Waiting for preview…';
+  const displayState = event.displayState || {};
+  if (displayState.blackScreen) return 'Black screen';
+  if (displayState.mode === 'song') {
+    const songState = event.songState || {};
+    const sourceLang = songState.sourceLang || event.sourceLang || 'ro';
+    const displayLang = getRemoteDisplayLanguage();
+    if (displayLang === sourceLang) return songState.activeBlock || 'Waiting for song…';
+    return songState.translations?.[displayLang] || songState.activeBlock || 'Waiting for song translation…';
+  }
+  if (displayState.mode === 'manual') {
+    const displayLang = getRemoteDisplayLanguage();
+    const sourceLang = displayState.manualSourceLang || event.sourceLang || 'ro';
+    if (displayLang === sourceLang) return displayState.manualSource || 'Pinned text mode';
+    return displayState.manualTranslations?.[displayLang] || displayState.manualSource || 'Pinned text mode';
+  }
+  const latestEntry = getLatestRemoteEntry();
+  if (!latestEntry) return 'Waiting for live translation…';
+  const displayLang = getRemoteDisplayLanguage();
+  return latestEntry.translations?.[displayLang] || latestEntry.original || 'Waiting for live translation…';
+}
+
+function getRemoteParticipantPreviewText() {
+  const event = state.currentEvent;
+  if (!event) return 'Waiting for participant preview…';
+  const participantLang = getRemoteDisplayLanguage();
+  if ((event.displayState?.mode || 'auto') === 'song') {
+    const songState = event.songState || {};
+    const sourceLang = songState.sourceLang || event.sourceLang || 'ro';
+    if (participantLang === sourceLang) return songState.activeBlock || 'Waiting for song…';
+    return songState.translations?.[participantLang] || songState.activeBlock || 'Waiting for song translation…';
+  }
+  const latestEntry = getLatestRemoteEntry();
+  return latestEntry?.translations?.[participantLang] || latestEntry?.original || 'Waiting for translation…';
+}
+
+function renderRemoteSimplePreviews() {
+  const mainMeta = $('remoteMainPreviewMeta');
+  const participantMeta = $('remoteParticipantPreviewMeta');
+  const mainText = $('remoteMainPreviewText');
+  const participantText = $('remoteParticipantPreviewText');
+  if (!mainText || !participantText) return;
+  const event = state.currentEvent;
+  if (!event) {
+    if (mainMeta) mainMeta.textContent = 'Waiting for event…';
+    if (participantMeta) participantMeta.textContent = 'Waiting for event…';
+    mainText.textContent = 'Waiting for preview…';
+    participantText.textContent = 'Waiting for preview…';
+    return;
+  }
+  const displayState = event.displayState || {};
+  const previewLang = getRemoteDisplayLanguage();
+  if (mainMeta) {
+    mainMeta.textContent = displayState.blackScreen
+      ? 'Black screen'
+      : `${({ auto: 'Live follow', manual: 'Pinned text', song: 'Song' }[displayState.mode] || 'Live follow')} · ${langLabel(previewLang)}`;
+  }
+  if (participantMeta) {
+    participantMeta.textContent = `Participant language · ${langLabel(previewLang)}`;
+  }
+  mainText.textContent = getRemoteMainPreviewText();
+  participantText.textContent = getRemoteParticipantPreviewText();
 }
 
 function filterAndSortRemoteLibrary(items = []) {
@@ -148,26 +200,6 @@ function renderRemoteSongJumpSelect() {
     select.value = previousValue;
   } else if (currentIndex >= 0 && currentIndex < blocks.length) {
     select.value = String(currentIndex);
-  }
-}
-
-function refreshPreviewFrames() {
-  const mainFrame = $('remoteMainPreviewFrame');
-  const participantFrame = $('remoteParticipantPreviewFrame');
-  const displayLang = state.currentEvent?.displayState?.language || state.currentEvent?.targetLangs?.[0] || 'no';
-  const mainUrl = state.currentEvent?.id
-    ? `/translate?event=${encodeURIComponent(state.currentEvent.id)}&lang=${encodeURIComponent(displayLang)}`
-    : '';
-  const participantUrl = state.currentEvent?.id
-    ? `/participant?event=${encodeURIComponent(state.currentEvent.id)}&preview=1&compact=1&focus=1&lang=${encodeURIComponent(displayLang)}&code=${encodeURIComponent(state.accessCode)}`
-    : '';
-  if (mainFrame && mainUrl && mainFrame.dataset.src !== mainUrl) {
-    mainFrame.src = mainUrl;
-    mainFrame.dataset.src = mainUrl;
-  }
-  if (participantFrame && participantUrl && participantFrame.dataset.src !== participantUrl) {
-    participantFrame.src = participantUrl;
-    participantFrame.dataset.src = participantUrl;
   }
 }
 
@@ -313,10 +345,9 @@ function refreshRemoteUi() {
   populateRemoteLanguageSelects();
   updateRemoteGlossaryMode();
   syncGlossaryToggle();
-  refreshPreviewFrames();
+  renderRemoteSimplePreviews();
   renderRemoteSongJumpSelect();
   renderRemoteSongLibrary();
-  renderRemoteTranslationMonitor(state.currentEvent?.translationMonitor || {});
   if (mainScreenAllowed) {
     renderQuickLanguages();
     renderPresets();
@@ -404,11 +435,6 @@ socket.on('display_presets_updated', ({ presets }) => {
   if (!state.currentEvent) return;
   state.currentEvent.displayPresets = presets || [];
   refreshRemoteUi();
-});
-socket.on('translation_monitor', (monitor) => {
-  if (!state.currentEvent) return;
-  state.currentEvent.translationMonitor = monitor || {};
-  renderRemoteTranslationMonitor(state.currentEvent.translationMonitor);
 });
 
 $('remoteLiveBtn').addEventListener('click', async () => {
