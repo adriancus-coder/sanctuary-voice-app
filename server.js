@@ -42,8 +42,10 @@ app.get('/translate', (req, res) => res.sendFile(path.join(__dirname, 'public', 
 app.get('/song', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
 
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const DEFAULT_DATA_DIR = process.env.RENDER ? '/var/data' : path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR || DEFAULT_DATA_DIR;
 const DB_FILE = path.join(DATA_DIR, 'sessions.json');
+console.log('DATA DIR:', DATA_DIR);
 
 const LANGUAGES = {
   ro: 'Romanian',
@@ -182,6 +184,41 @@ function defaultUsageStats() {
     lastOperatorRole: '',
     lastErrorAt: null,
     lastErrorMessage: ''
+  };
+}
+
+function defaultTranslationMonitor() {
+  return {
+    lastSpeechReceivedAt: null,
+    lastSpeechSourceLang: '',
+    lastSpeechProvider: '',
+    lastSpeechPreview: '',
+    lastBufferedAt: null,
+    lastBufferedText: '',
+    lastFlushAt: null,
+    lastBatchText: '',
+    lastBatchSourceLang: '',
+    pendingTranslations: 0,
+    lastTranslateStartedAt: null,
+    lastTranslateFinishedAt: null,
+    lastTranslateDurationMs: 0,
+    lastTargetLang: '',
+    lastCacheHitAt: null,
+    lastCacheHitLang: '',
+    lastDeliveredAt: null,
+    lastDeliveredPreview: '',
+    lastDeliveryTargetCount: 0,
+    lastErrorAt: null,
+    lastErrorMessage: ''
+  };
+}
+
+function defaultInternalPins() {
+  return {
+    adminPin: '',
+    moderatorPin: '',
+    updatedAt: null,
+    updatedBy: ''
   };
 }
 
@@ -340,6 +377,22 @@ function ensureEventUiState(event) {
       seenParticipantIds: typeof event.usageStats.seenParticipantIds === 'object' && event.usageStats.seenParticipantIds
         ? { ...event.usageStats.seenParticipantIds }
         : {}
+    };
+  }
+  if (!event.translationMonitor || typeof event.translationMonitor !== 'object') {
+    event.translationMonitor = defaultTranslationMonitor();
+  } else {
+    event.translationMonitor = {
+      ...defaultTranslationMonitor(),
+      ...event.translationMonitor
+    };
+  }
+  if (!event.internalPins || typeof event.internalPins !== 'object') {
+    event.internalPins = defaultInternalPins();
+  } else {
+    event.internalPins = {
+      ...defaultInternalPins(),
+      ...event.internalPins
     };
   }
   if (event.displayStatePrevious && typeof event.displayStatePrevious === 'object') {
@@ -677,6 +730,7 @@ function sanitizeRemoteOperator(operator, includeCode = false) {
 
 function normalizeEvent(event, options = {}) {
   const includeSecrets = !!options.includeSecrets;
+  const includeControlData = !!options.includeControlData || includeSecrets;
   const payload = {
     id: event.id,
     name: event.name,
@@ -705,6 +759,10 @@ function normalizeEvent(event, options = {}) {
     songLibrary: Array.isArray(event.songLibrary) ? event.songLibrary : [],
     songHistory: Array.isArray(event.songHistory) ? event.songHistory : []
   };
+  if (includeControlData) {
+    payload.translationMonitor = buildTranslationMonitor(event.id);
+    payload.internalPins = { ...(event.internalPins || defaultInternalPins()) };
+  }
   if (includeSecrets) {
     payload.adminCode = event.adminCode;
     payload.screenOperatorCode = event.screenOperatorCode || '';
@@ -936,7 +994,10 @@ function normalizeSocketOperator(operator) {
 }
 
 function normalizeEventForAccess(req, event) {
-  return normalizeEvent(event, { includeSecrets: req.eventRole === 'admin' });
+  return normalizeEvent(event, {
+    includeSecrets: req.eventRole === 'admin',
+    includeControlData: ['admin', 'screen'].includes(req.eventRole)
+  });
 }
 
 function socketCanControlEvent(socket, eventId, permission = '') {
@@ -1073,6 +1134,16 @@ function writeTranslationCache(key, value) {
   }
 }
 
+function updateTranslationMonitor(event, patch = {}, shouldEmit = true) {
+  if (!event) return;
+  ensureEventUiState(event);
+  event.translationMonitor = {
+    ...event.translationMonitor,
+    ...patch
+  };
+  if (shouldEmit && event.id) emitTranslationMonitor(event.id);
+}
+
 function getGlossaryForLang(langCode, event) {
   const langMemory = {};
   for (const [key, value] of Object.entries(db.globalMemory || {})) {
@@ -1172,8 +1243,29 @@ async function translateText(text, langCode, event, sourceLangOverride = '') {
     glossary
   });
   const cachedTranslation = readTranslationCache(cacheKey);
-  if (cachedTranslation) return cachedTranslation;
-  if (!client) return `[${langCode}] ${applyGlossary(cleanText, glossary)}`;
+  if (cachedTranslation) {
+    updateTranslationMonitor(event, {
+      lastCacheHitAt: new Date().toISOString(),
+      lastCacheHitLang: langCode,
+      lastTargetLang: langCode
+    });
+    return cachedTranslation;
+  }
+  if (!client) {
+    updateTranslationMonitor(event, {
+      lastTranslateFinishedAt: new Date().toISOString(),
+      lastTargetLang: langCode
+    });
+    return `[${langCode}] ${applyGlossary(cleanText, glossary)}`;
+  }
+  const startedAt = Date.now();
+  updateTranslationMonitor(event, {
+    pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 0)) + 1,
+    lastTranslateStartedAt: new Date(startedAt).toISOString(),
+    lastTargetLang: langCode,
+    lastBatchText: cleanText.slice(0, 220),
+    lastBatchSourceLang: sourceLang
+  });
   try {
     const response = await client.responses.create({
       model: OPENAI_MODEL,
@@ -1185,15 +1277,34 @@ async function translateText(text, langCode, event, sourceLangOverride = '') {
     const translated = sanitizeStructuredText(response.output_text || '');
     if (translated) {
       writeTranslationCache(cacheKey, translated);
+      updateTranslationMonitor(event, {
+        pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 1) - 1),
+        lastTranslateFinishedAt: new Date().toISOString(),
+        lastTranslateDurationMs: Date.now() - startedAt,
+        lastTargetLang: langCode
+      });
       return translated;
     }
     const fallback = applyGlossary(cleanText, glossary);
     writeTranslationCache(cacheKey, fallback);
+    updateTranslationMonitor(event, {
+      pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 1) - 1),
+      lastTranslateFinishedAt: new Date().toISOString(),
+      lastTranslateDurationMs: Date.now() - startedAt,
+      lastTargetLang: langCode
+    });
     return fallback;
   } catch (err) {
     console.error(`translate error ${langCode}:`, err?.message || err);
+    recordServerError(event, `Translate ${langCode} failed.`);
     const fallback = `[${langCode}] ${applyGlossary(cleanText, glossary)}`;
     writeTranslationCache(cacheKey, fallback);
+    updateTranslationMonitor(event, {
+      pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 1) - 1),
+      lastTranslateFinishedAt: new Date().toISOString(),
+      lastTranslateDurationMs: Date.now() - startedAt,
+      lastTargetLang: langCode
+    });
     return fallback;
   }
 }
@@ -1361,12 +1472,18 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
   if (event.transcripts.length > 300) event.transcripts = event.transcripts.slice(-300);
   ensureEventUiState(event);
   recordTranscriptCreated(event);
+  updateTranslationMonitor(event, {
+    lastDeliveredAt: new Date().toISOString(),
+    lastDeliveredPreview: cleanChunk.slice(0, 220),
+    lastDeliveryTargetCount: Array.isArray(event.targetLangs) ? event.targetLangs.length : 0
+  }, false);
   saveDb();
   io.to(`event:${event.id}`).emit('transcript_entry', entry);
   if (event.displayState?.mode === 'auto') {
     io.to(`event:${event.id}`).emit('display_live_entry', entry);
   }
   emitUsageStats(event.id);
+  emitTranslationMonitor(event.id);
   return entry;
 }
 
@@ -1397,6 +1514,12 @@ async function processText(event, cleanText, { force = false, sourceLang = '' } 
     if (event.displayState?.mode === 'auto') {
       io.to(`event:${event.id}`).emit('display_live_entry', lastEntry);
     }
+    updateTranslationMonitor(event, {
+      lastDeliveredAt: new Date().toISOString(),
+      lastDeliveredPreview: firstChunk.slice(0, 220),
+      lastDeliveryTargetCount: Array.isArray(event.targetLangs) ? event.targetLangs.length : 0
+    }, false);
+    emitTranslationMonitor(event.id);
 
     let lastCreatedEntry = lastEntry;
     for (const extraChunk of chunks) {
@@ -1452,13 +1575,20 @@ async function flushSpeechBuffer(eventId, force = false) {
   }
 
   speechBuffers.delete(eventId);
+  updateTranslationMonitor(event, {
+    lastFlushAt: new Date().toISOString(),
+    lastBatchText: text.slice(0, 220),
+    lastBatchSourceLang: buffered.sourceLang || event.sourceLang || 'ro'
+  }, false);
   io.to(`event:${eventId}:admins`).emit('partial_transcript', { text: '' });
+  emitTranslationMonitor(eventId);
   return processText(event, text, { force: true, sourceLang: buffered.sourceLang || event.sourceLang || 'ro' });
 }
 
 function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpeechProvider()) {
   const clean = sanitizeTranscriptText(text);
   if (!clean) return;
+  const event = db.events[eventId];
 
   const prev = speechBuffers.get(eventId) || { text: '', timer: null, startedAt: Date.now(), sourceLang, provider };
   const merged = mergeTranscriptText(prev.text, clean);
@@ -1473,7 +1603,18 @@ function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpe
   const maxWords = nextProvider === 'azure_sdk' ? AZURE_LIVE_TEXT_MAX_WORDS : LIVE_TEXT_MAX_WORDS;
   const next = { text: merged, timer: null, startedAt: prev.startedAt || Date.now(), sourceLang: sourceLang || prev.sourceLang || '', provider: nextProvider };
   speechBuffers.set(eventId, next);
+  if (event) {
+    updateTranslationMonitor(event, {
+      lastSpeechReceivedAt: new Date().toISOString(),
+      lastSpeechSourceLang: sourceLang || prev.sourceLang || event.sourceLang || 'ro',
+      lastSpeechProvider: nextProvider,
+      lastSpeechPreview: clean.slice(0, 220),
+      lastBufferedAt: new Date().toISOString(),
+      lastBufferedText: merged.slice(0, 220)
+    }, false);
+  }
   io.to(`event:${eventId}:admins`).emit('partial_transcript', { text: merged });
+  emitTranslationMonitor(eventId);
 
   const ageMs = Date.now() - next.startedAt;
   const words = countWords(merged);
@@ -1592,9 +1733,43 @@ function buildUsageStats(eventId) {
   };
 }
 
+function buildTranslationMonitor(eventId) {
+  const event = db.events[eventId];
+  if (!event) return defaultTranslationMonitor();
+  ensureEventUiState(event);
+  const buffered = speechBuffers.get(eventId);
+  const bufferedText = sanitizeTranscriptText(buffered?.text || '');
+  return {
+    ...event.translationMonitor,
+    lastBufferedText: bufferedText || event.translationMonitor.lastBufferedText || '',
+    queueActive: !!bufferedText,
+    queueWords: countWords(bufferedText),
+    queueAgeMs: buffered?.startedAt ? Math.max(0, Date.now() - buffered.startedAt) : 0,
+    queueProvider: buffered?.provider || event.translationMonitor.lastSpeechProvider || '',
+    queueSourceLang: buffered?.sourceLang || event.translationMonitor.lastSpeechSourceLang || ''
+  };
+}
+
 function emitUsageStats(eventId) {
   if (!eventId) return;
   io.to(`event:${eventId}:admins`).emit('usage_stats', buildUsageStats(eventId));
+}
+
+function emitTranslationMonitor(eventId) {
+  if (!eventId) return;
+  const payload = buildTranslationMonitor(eventId);
+  io.to(`event:${eventId}:admins`).emit('translation_monitor', payload);
+  io.to(`event:${eventId}:screens`).emit('translation_monitor', payload);
+}
+
+function emitInternalPins(eventId) {
+  if (!eventId) return;
+  const event = db.events[eventId];
+  if (!event) return;
+  ensureEventUiState(event);
+  const payload = { ...(event.internalPins || defaultInternalPins()) };
+  io.to(`event:${eventId}:admins`).emit('internal_pins_updated', payload);
+  io.to(`event:${eventId}:screens`).emit('internal_pins_updated', payload);
 }
 
 function recordParticipantJoin(event, participantId, language) {
@@ -1642,8 +1817,12 @@ function recordScreenAction(event, kind = 'display') {
 function recordServerError(event, message) {
   if (!event) return;
   ensureEventUiState(event);
-  event.usageStats.lastErrorAt = new Date().toISOString();
-  event.usageStats.lastErrorMessage = String(message || '').trim();
+  const now = new Date().toISOString();
+  const safeMessage = String(message || '').trim();
+  event.usageStats.lastErrorAt = now;
+  event.usageStats.lastErrorMessage = safeMessage;
+  event.translationMonitor.lastErrorAt = now;
+  event.translationMonitor.lastErrorMessage = safeMessage;
 }
 
 function emitParticipantStats(eventId) {
@@ -1904,6 +2083,30 @@ app.delete('/api/events/:id/remote-operators/:operatorId', (req, res) => {
   event.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []).filter((item) => item.id !== req.params.operatorId);
   saveDb();
   res.json({ ok: true, remoteOperators: event.remoteOperators });
+});
+
+app.post('/api/events/:id/internal-pins', (req, res) => {
+  const event = db.events[req.params.id];
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  const role = requireEventRole(req, res, event, ['admin', 'screen']);
+  if (!role) return;
+  ensureEventUiState(event);
+
+  const requestedAdminPin = typeof req.body.adminPin === 'string' ? req.body.adminPin.trim() : null;
+  const requestedModeratorPin = typeof req.body.moderatorPin === 'string' ? req.body.moderatorPin.trim() : null;
+
+  if (role === 'screen' && requestedAdminPin !== null) {
+    return res.status(403).json({ ok: false, error: 'Doar adminul poate modifica Admin pin.' });
+  }
+
+  if (requestedAdminPin !== null) event.internalPins.adminPin = requestedAdminPin;
+  if (requestedModeratorPin !== null) event.internalPins.moderatorPin = requestedModeratorPin;
+  event.internalPins.updatedAt = new Date().toISOString();
+  event.internalPins.updatedBy = role === 'admin' ? 'admin' : 'moderator';
+
+  saveDb();
+  emitInternalPins(event.id);
+  res.json({ ok: true, internalPins: event.internalPins, event: normalizeEventForAccess(req, event) });
 });
 
 app.post('/api/events/:id/settings', (req, res) => {
@@ -2735,7 +2938,10 @@ io.on('connection', (socket) => {
     socket.emit('joined_event', {
       ok: true,
       role: socket.data.role,
-      event: normalizeEvent(event, { includeSecrets: socket.data.role === 'admin' }),
+      event: normalizeEvent(event, {
+        includeSecrets: socket.data.role === 'admin',
+        includeControlData: ['admin', 'screen'].includes(socket.data.role)
+      }),
       access: socket.data.role === 'screen'
         ? { permissions: access.permissions || [], operator: normalizeSocketOperator(access.operator) }
         : null,

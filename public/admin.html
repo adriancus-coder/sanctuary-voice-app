@@ -167,6 +167,39 @@
             </div>
           </div>
         </div>
+
+        <div class="cards-grid two dashboard-support-grid">
+          <div class="panel glass-panel section-stack">
+            <div class="section-head">
+              <h2>Translation Monitor</h2>
+              <div id="translationMonitorBadge" class="live-chip">Idle</div>
+            </div>
+            <div id="translationMonitorGrid" class="monitor-grid">
+              <div class="muted">Waiting for live translation data.</div>
+            </div>
+          </div>
+
+          <div class="panel glass-panel section-stack">
+            <div class="section-head">
+              <h2>Internal Pins</h2>
+              <div class="muted">Visible only in Admin and Remote control</div>
+            </div>
+            <div class="section-stack compact-stack">
+              <div>
+                <label>Admin pin</label>
+                <textarea id="adminPinInput" rows="3" placeholder="Important admin note or live reminder"></textarea>
+              </div>
+              <div>
+                <label>Moderator pin</label>
+                <textarea id="moderatorPinInput" rows="3" placeholder="Short cue for moderator/operator"></textarea>
+              </div>
+              <div class="button-row compact-row">
+                <button id="saveInternalPinsBtn" class="btn btn-dark" type="button">Save pins</button>
+              </div>
+              <div id="internalPinsMeta" class="muted">No internal pins yet.</div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section id="tab-transcript" class="tab-panel">

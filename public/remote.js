@@ -36,6 +36,50 @@ function setStatus(text) {
   $('remoteStatus').textContent = text;
 }
 
+function formatDateTime(value) {
+  if (!value) return '-';
+  return new Date(value).toLocaleString();
+}
+
+function monitorItem(label, value) {
+  return `<div class="monitor-item"><div class="monitor-label">${escapeHtml(label)}</div><div class="monitor-value">${escapeHtml(value || '-')}</div></div>`;
+}
+
+function renderRemoteTranslationMonitor(monitor = {}) {
+  const box = $('remoteTranslationMonitorGrid');
+  const badge = $('remoteTranslationMonitorBadge');
+  if (!box) return;
+  const pending = Number(monitor.pendingTranslations || 0);
+  const queueWords = Number(monitor.queueWords || 0);
+  if (badge) {
+    badge.textContent = pending > 0 ? `Translating ${pending}` : (queueWords > 0 ? `Queued ${queueWords}w` : 'Idle');
+  }
+  box.innerHTML = [
+    monitorItem('Speech received', `${formatDateTime(monitor.lastSpeechReceivedAt)}${monitor.lastSpeechSourceLang ? ` · ${langLabel(monitor.lastSpeechSourceLang)}` : ''}`),
+    monitorItem('Provider', monitor.lastSpeechProvider || monitor.queueProvider || '-'),
+    monitorItem('Buffered', monitor.lastBufferedText || monitor.lastSpeechPreview || 'Waiting...'),
+    monitorItem('Queue', monitor.queueActive ? `${queueWords} words · ${Math.round(Number(monitor.queueAgeMs || 0))} ms` : 'Empty'),
+    monitorItem('Translate time', monitor.lastTranslateFinishedAt ? `${Math.round(Number(monitor.lastTranslateDurationMs || 0))} ms` : '-'),
+    monitorItem('Delivered', monitor.lastDeliveredAt ? `${formatDateTime(monitor.lastDeliveredAt)} · ${monitor.lastDeliveryTargetCount || 0} langs` : '-'),
+    monitorItem('Issue', monitor.lastErrorMessage ? `${monitor.lastErrorMessage} · ${formatDateTime(monitor.lastErrorAt)}` : 'No recent issues')
+  ].join('');
+}
+
+function renderRemotePins(pins = {}) {
+  const adminPinText = $('remoteAdminPinText');
+  const moderatorPinInput = $('remoteModeratorPinInput');
+  const meta = $('remotePinsMeta');
+  if (adminPinText) adminPinText.textContent = pins.adminPin || 'No admin pin.';
+  if (moderatorPinInput && document.activeElement !== moderatorPinInput) {
+    moderatorPinInput.value = pins.moderatorPin || '';
+  }
+  if (meta) {
+    meta.textContent = pins.updatedAt
+      ? `Updated ${formatDateTime(pins.updatedAt)} by ${pins.updatedBy || 'unknown'}.`
+      : 'No internal pins yet.';
+  }
+}
+
 function can(permission) {
   const permissions = state.access?.permissions || [];
   if (!permissions.length) return true;
@@ -280,6 +324,8 @@ function refreshRemoteUi() {
   if (churchLibraryPanel) churchLibraryPanel.hidden = !songAllowed;
   if (songEditorPanel) songEditorPanel.hidden = !songAllowed;
   if (glossaryPanel) glossaryPanel.hidden = !glossaryAllowed;
+  const remotePinsPanel = $('remotePinsPanel');
+  if (remotePinsPanel) remotePinsPanel.hidden = !(mainScreenAllowed || songAllowed);
   updateHeader();
   populateRemoteLanguageSelects();
   updateRemoteGlossaryMode();
@@ -287,6 +333,8 @@ function refreshRemoteUi() {
   refreshPreviewFrames();
   renderRemoteSongJumpSelect();
   renderRemoteSongLibrary();
+  renderRemoteTranslationMonitor(state.currentEvent?.translationMonitor || {});
+  renderRemotePins(state.currentEvent?.internalPins || {});
   if (mainScreenAllowed) {
     renderQuickLanguages();
     renderPresets();
@@ -367,6 +415,16 @@ socket.on('display_presets_updated', ({ presets }) => {
   if (!state.currentEvent) return;
   state.currentEvent.displayPresets = presets || [];
   refreshRemoteUi();
+});
+socket.on('translation_monitor', (monitor) => {
+  if (!state.currentEvent) return;
+  state.currentEvent.translationMonitor = monitor || {};
+  renderRemoteTranslationMonitor(state.currentEvent.translationMonitor);
+});
+socket.on('internal_pins_updated', (pins) => {
+  if (!state.currentEvent) return;
+  state.currentEvent.internalPins = pins || {};
+  renderRemotePins(state.currentEvent.internalPins);
 });
 
 $('remoteLiveBtn').addEventListener('click', async () => {
@@ -472,6 +530,18 @@ $('remoteBackToLiveTextBtn').addEventListener('click', async () => {
   try {
     await post(`/api/events/${state.eventId}/mode`, { mode: 'live' });
     setStatus('Back to live text. Participants will receive the next transcript lines.');
+  } catch (err) {
+    setStatus(err.message);
+  }
+});
+$('remoteSaveModeratorPinBtn')?.addEventListener('click', async () => {
+  try {
+    const data = await post(`/api/events/${state.eventId}/internal-pins`, {
+      moderatorPin: $('remoteModeratorPinInput')?.value || ''
+    });
+    state.currentEvent = data.event || state.currentEvent;
+    renderRemotePins(data.internalPins || state.currentEvent.internalPins || {});
+    setStatus('Moderator pin saved.');
   } catch (err) {
     setStatus(err.message);
   }

@@ -72,6 +72,39 @@
         </div>
     </div>
 
+    <div class="cards-grid two remote-support-grid">
+      <div class="panel glass-panel section-stack">
+        <div class="section-head">
+          <h2>Translation Monitor</h2>
+          <div id="remoteTranslationMonitorBadge" class="live-chip">Idle</div>
+        </div>
+        <div id="remoteTranslationMonitorGrid" class="monitor-grid">
+          <div class="muted">Waiting for translation data.</div>
+        </div>
+      </div>
+
+      <div id="remotePinsPanel" class="panel glass-panel section-stack">
+        <div class="section-head">
+          <h2>Moderator Pin</h2>
+          <div class="muted">Internal cue for remote control</div>
+        </div>
+        <div class="section-stack compact-stack">
+          <div id="remoteAdminPinPreview" class="info-card soft-card">
+            <div class="label">Admin pin</div>
+            <div id="remoteAdminPinText" class="muted">No admin pin.</div>
+          </div>
+          <div>
+            <label for="remoteModeratorPinInput">Moderator pin</label>
+            <textarea id="remoteModeratorPinInput" rows="4" placeholder="Short live cue for moderator"></textarea>
+          </div>
+          <div class="button-row compact-row">
+            <button id="remoteSaveModeratorPinBtn" class="btn btn-dark" type="button">Save moderator pin</button>
+          </div>
+          <div id="remotePinsMeta" class="muted">No internal pins yet.</div>
+        </div>
+      </div>
+    </div>
+
     <div class="cards-grid two remote-song-tools">
       <div class="panel glass-panel section-stack remote-song-navigation-card">
         <div class="section-head">

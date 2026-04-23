@@ -505,6 +505,46 @@ function renderUsageStats(stats = {}) {
   $('usageReliabilityList').innerHTML = items.map((item) => `<div class="history-item">${escapeHtml(item)}</div>`).join('');
 }
 
+function monitorItem(label, value) {
+  return `<div class="monitor-item"><div class="monitor-label">${escapeHtml(label)}</div><div class="monitor-value">${escapeHtml(value || '-')}</div></div>`;
+}
+
+function renderTranslationMonitor(monitor = {}) {
+  const box = $('translationMonitorGrid');
+  const badge = $('translationMonitorBadge');
+  if (!box) return;
+  const pending = Number(monitor.pendingTranslations || 0);
+  const queueWords = Number(monitor.queueWords || 0);
+  if (badge) {
+    badge.textContent = pending > 0 ? `Translating ${pending}` : (queueWords > 0 ? `Queued ${queueWords}w` : 'Idle');
+  }
+  const items = [
+    monitorItem('Speech received', `${formatDateTime(monitor.lastSpeechReceivedAt)}${monitor.lastSpeechSourceLang ? ` · ${langLabel(monitor.lastSpeechSourceLang)}` : ''}`),
+    monitorItem('Provider', monitor.lastSpeechProvider || monitor.queueProvider || '-'),
+    monitorItem('Buffered text', monitor.lastBufferedText || monitor.lastSpeechPreview || 'Waiting...'),
+    monitorItem('Queue', monitor.queueActive ? `${queueWords} words · ${Math.round(Number(monitor.queueAgeMs || 0))} ms` : 'Empty'),
+    monitorItem('Translate started', formatDateTime(monitor.lastTranslateStartedAt)),
+    monitorItem('Translate finished', monitor.lastTranslateFinishedAt ? `${formatDateTime(monitor.lastTranslateFinishedAt)} · ${Math.round(Number(monitor.lastTranslateDurationMs || 0))} ms` : '-'),
+    monitorItem('Last target', monitor.lastTargetLang ? langLabel(monitor.lastTargetLang) : '-'),
+    monitorItem('Delivered', monitor.lastDeliveredAt ? `${formatDateTime(monitor.lastDeliveredAt)} · ${monitor.lastDeliveryTargetCount || 0} langs` : '-'),
+    monitorItem('Delivered preview', monitor.lastDeliveredPreview || 'Waiting...'),
+    monitorItem('Last cache hit', monitor.lastCacheHitAt ? `${formatDateTime(monitor.lastCacheHitAt)} · ${langLabel(monitor.lastCacheHitLang || '')}` : 'None'),
+    monitorItem('Last issue', monitor.lastErrorMessage ? `${monitor.lastErrorMessage} · ${formatDateTime(monitor.lastErrorAt)}` : 'No recent issues')
+  ];
+  box.innerHTML = items.join('');
+}
+
+function renderInternalPins(pins = {}) {
+  if ($('adminPinInput')) $('adminPinInput').value = pins.adminPin || '';
+  if ($('moderatorPinInput')) $('moderatorPinInput').value = pins.moderatorPin || '';
+  const meta = $('internalPinsMeta');
+  if (meta) {
+    meta.textContent = pins.updatedAt
+      ? `Updated ${formatDateTime(pins.updatedAt)} by ${pins.updatedBy || 'unknown'}.`
+      : 'No internal pins yet.';
+  }
+}
+
 function resetParticipantStats() {
   renderParticipantStats({ uniqueCount: 0, languages: [] });
   renderUsageStats({});
@@ -1538,6 +1578,8 @@ async function openEventById(eventId) {
   if ($('manualSourceLang')) $('manualSourceLang').value = currentEvent.displayState?.manualSourceLang || currentEvent.sourceLang || 'ro';
   refreshDisplayControls();
   renderSongHistory(currentEvent.songHistory || []);
+  renderTranslationMonitor(currentEvent.translationMonitor || {});
+  renderInternalPins(currentEvent.internalPins || {});
   await loadSongLibrary();
   await loadGlobalSongLibrary();
   closeInlineEditors();
@@ -1576,6 +1618,8 @@ async function createEvent() {
   renderSongState(currentEvent.songState || {});
   refreshDisplayControls();
   renderSongHistory(currentEvent.songHistory || []);
+  renderTranslationMonitor(currentEvent.translationMonitor || {});
+  renderInternalPins(currentEvent.internalPins || {});
   await loadSongLibrary();
   await loadGlobalSongLibrary();
   socket.emit('join_event', { eventId: currentEvent.id, role: 'admin', code: currentEvent.adminCode });
@@ -2171,6 +2215,8 @@ socket.on('joined_event', ({ event, role }) => {
   refreshDisplayControls();
   renderSongHistory(event.songHistory || []);
   renderUsageStats(event.usageStats || {});
+  renderTranslationMonitor(event.translationMonitor || {});
+  renderInternalPins(event.internalPins || {});
   loadSongLibrary();
   loadGlobalSongLibrary();
   loadPinnedTextLibrary();
@@ -2212,6 +2258,8 @@ socket.on('azure_audio_ready', () => {
 });
 socket.on('participant_stats', renderParticipantStats);
 socket.on('usage_stats', renderUsageStats);
+socket.on('translation_monitor', renderTranslationMonitor);
+socket.on('internal_pins_updated', renderInternalPins);
 socket.on('server_error', ({ message }) => setStatus(message || 'Server error.'));
 socket.on('active_event_changed', async ({ eventId }) => {
   if (currentEvent) {
@@ -2427,6 +2475,23 @@ $('createRemoteOperatorBtn')?.addEventListener('click', async () => {
   } catch (err) {
     console.error(err);
     alert('Could not create operator.');
+  }
+});
+$('saveInternalPinsBtn')?.addEventListener('click', async () => {
+  if (!currentEvent) return alert('Open or create an event first.');
+  try {
+    const res = await fetch(`/api/events/${currentEvent.id}/internal-pins`, adminJsonOptions('POST', {
+      adminPin: $('adminPinInput')?.value || '',
+      moderatorPin: $('moderatorPinInput')?.value || ''
+    }));
+    const data = await res.json();
+    if (!data.ok) return alert(data.error || 'Could not save internal pins.');
+    currentEvent = data.event || currentEvent;
+    renderInternalPins(data.internalPins || currentEvent.internalPins || {});
+    setStatus('Internal pins saved.');
+  } catch (err) {
+    console.error(err);
+    alert('Could not save internal pins.');
   }
 });
 $('setActiveEventBtn').addEventListener('click', setActiveEvent);
