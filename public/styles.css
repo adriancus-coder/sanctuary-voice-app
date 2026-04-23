@@ -772,7 +772,12 @@ progress::-moz-progress-bar {
 }
 
 .song-section-list .song-section-item {
-  cursor: default;
+  width: 100%;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: rgba(255, 248, 236, 0.05);
 }
 
 .usage-details {

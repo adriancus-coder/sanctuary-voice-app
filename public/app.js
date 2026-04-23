@@ -43,7 +43,11 @@ let audioState = {
   chunkPeakLevel: 0,
   chunkMinLevel: 100,
   chunkActiveFrames: 0,
-  lastGateStatusAt: 0
+  lastGateStatusAt: 0,
+  speechProvider: 'openai',
+  azureProcessor: null,
+  azureSource: null,
+  azureReady: false
 };
 
 function langLabel(code) {
@@ -920,11 +924,9 @@ function renderSongJumpSelect(blocks = [], labels = [], currentIndex = -1) {
   if (!blocks.length) {
     select.innerHTML = '<option value="">No song sections yet</option>';
     select.disabled = true;
-    if ($('songJumpBtn')) $('songJumpBtn').disabled = true;
     return;
   }
   select.disabled = false;
-  if ($('songJumpBtn')) $('songJumpBtn').disabled = false;
   select.innerHTML = blocks.map((block, index) => {
     const label = labels[index] || `Verse ${index + 1}`;
     const preview = String(block || '').split('\n').find(Boolean) || '';
@@ -967,13 +969,13 @@ function renderSongState(songState) {
     const activeClass = index === currentIndex ? ' active' : '';
     const label = escapeHtml(labels[index] || `Verse ${index + 1}`);
     return `
-      <div class="history-item song-section-item${activeClass}">
+      <button class="history-item song-section-item${activeClass}" type="button" data-song-block-index="${index}">
         <div class="entry-head">
           <b>${label}</b>
-          <span class="small">${index === currentIndex ? 'Live now' : 'Available in Jump to selection'}</span>
+          <span class="small">${index === currentIndex ? 'Live now' : 'Click to send live'}</span>
         </div>
         <div class="small">${escapeHtmlWithBreaks(block)}</div>
-      </div>
+      </button>
     `;
   }).join('');
 }
@@ -1126,7 +1128,7 @@ async function sendSongItemToLive(item) {
   currentEvent.songState = data.songState || currentEvent.songState;
   renderActiveEventBadge(currentEvent);
   renderSongState(currentEvent.songState || {});
-  setStatus('First verse is live. Use Jump to selection for verses and chorus.');
+  setStatus('First verse is live. Choose any verse or chorus to send it live.');
 }
 
 async function sendSongToLive() {
@@ -1644,6 +1646,7 @@ async function loadAudioInputs(keepValue = true) {
 
 async function destroyAudioPipeline() {
   audioState.running = false;
+  stopAzureAudioStream();
   if (audioState.chunkTimer) clearTimeout(audioState.chunkTimer);
   audioState.chunkTimer = null;
   audioState.chunks = [];
@@ -1745,6 +1748,80 @@ async function createAudioPipeline() {
   startMeterLoop();
 }
 
+async function loadSpeechRuntimeConfig() {
+  try {
+    const res = await fetch('/api/health');
+    const data = await res.json();
+    audioState.speechProvider = data.speechProvider || 'openai';
+  } catch (_) {
+    audioState.speechProvider = 'openai';
+  }
+  return audioState.speechProvider;
+}
+
+function downsampleTo16kPcm(input, inputRate) {
+  const outputRate = 16000;
+  if (!input?.length) return new ArrayBuffer(0);
+  if (inputRate === outputRate) {
+    const output = new Int16Array(input.length);
+    for (let i = 0; i < input.length; i++) {
+      const sample = Math.max(-1, Math.min(1, input[i]));
+      output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+    }
+    return output.buffer;
+  }
+
+  const ratio = inputRate / outputRate;
+  const outputLength = Math.max(1, Math.round(input.length / ratio));
+  const output = new Int16Array(outputLength);
+  let inputOffset = 0;
+
+  for (let i = 0; i < outputLength; i++) {
+    const nextOffset = Math.round((i + 1) * ratio);
+    let sum = 0;
+    let count = 0;
+    for (let j = inputOffset; j < nextOffset && j < input.length; j++) {
+      sum += input[j];
+      count += 1;
+    }
+    const sample = Math.max(-1, Math.min(1, sum / Math.max(1, count)));
+    output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+    inputOffset = nextOffset;
+  }
+
+  return output.buffer;
+}
+
+async function startAzureAudioStream() {
+  if (!currentEvent || !audioState.context || !audioState.destination) return false;
+  audioState.azureReady = false;
+  socket.emit('azure_audio_start', { eventId: currentEvent.id });
+
+  audioState.azureSource = audioState.context.createMediaStreamSource(audioState.destination.stream);
+  audioState.azureProcessor = audioState.context.createScriptProcessor(4096, 1, 1);
+  audioState.azureProcessor.onaudioprocess = (event) => {
+    if (!audioState.running || audioState.speechProvider !== 'azure_sdk') return;
+    if (getInputGainPercent() <= 0) return;
+    const pcm = downsampleTo16kPcm(event.inputBuffer.getChannelData(0), audioState.context.sampleRate);
+    if (pcm.byteLength) socket.emit('azure_audio_chunk', { eventId: currentEvent.id, audio: pcm });
+  };
+  audioState.azureSource.connect(audioState.azureProcessor);
+  audioState.azureProcessor.connect(audioState.context.destination);
+  return true;
+}
+
+function stopAzureAudioStream() {
+  if (currentEvent) socket.emit('azure_audio_stop', { eventId: currentEvent.id });
+  if (audioState.azureProcessor) {
+    audioState.azureProcessor.disconnect();
+    audioState.azureProcessor.onaudioprocess = null;
+  }
+  if (audioState.azureSource) audioState.azureSource.disconnect();
+  audioState.azureProcessor = null;
+  audioState.azureSource = null;
+  audioState.azureReady = false;
+}
+
 function chooseRecorderMimeType() {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm'];
   return candidates.find((type) => window.MediaRecorder?.isTypeSupported?.(type)) || '';
@@ -1812,14 +1889,20 @@ async function startTranslation() {
   await syncSpeedToEvent();
   if (!window.MediaRecorder) return alert('Use Chrome or Edge.');
   try { await createAudioPipeline(); } catch (_) { return setStatus('Audio start failed.'); }
-  const mimeType = chooseRecorderMimeType();
-  if (!mimeType) return alert('Unsupported audio format in this browser.');
+  await loadSpeechRuntimeConfig();
   await setEventMode('live');
   audioState.running = true;
-  audioState.mimeType = mimeType;
   window.isRecognitionRunning = true;
   setOnAirState(true);
   await enableScreenWakeLock();
+  if (audioState.speechProvider === 'azure_sdk') {
+    await startAzureAudioStream();
+    setStatus('On-Air. Azure Speech is listening.');
+    return;
+  }
+  const mimeType = chooseRecorderMimeType();
+  if (!mimeType) return alert('Unsupported audio format in this browser.');
+  audioState.mimeType = mimeType;
   const startRecorderCycle = () => {
     if (!audioState.running) return;
     audioState.chunks = [];
@@ -1862,6 +1945,7 @@ async function stopTranslation() {
   window.isRecognitionRunning = false;
   if (audioState.chunkTimer) clearTimeout(audioState.chunkTimer);
   audioState.chunkTimer = null;
+  stopAzureAudioStream();
   setOnAirState(false);
   await disableScreenWakeLock();
   if (audioState.recorder && audioState.recorder.state === 'recording') {
@@ -2020,6 +2104,10 @@ socket.on('audio_state', ({ audioMuted, audioVolume }) => {
   renderAudioStateLabel();
 });
 socket.on('partial_transcript', ({ text }) => { $('partialTranscript').textContent = text || 'Waiting for full sentence...'; });
+socket.on('azure_audio_ready', () => {
+  audioState.azureReady = true;
+  if (audioState.running && audioState.speechProvider === 'azure_sdk') setStatus('On-Air. Azure Speech connected.');
+});
 socket.on('participant_stats', renderParticipantStats);
 socket.on('usage_stats', renderUsageStats);
 socket.on('server_error', ({ message }) => setStatus(message || 'Server error.'));
@@ -2250,7 +2338,7 @@ $('saveSongBtn').addEventListener('click', saveSongToLibrary);
 $('sendSongBtn').addEventListener('click', sendSongToLive);
 $('songPrevBtn')?.addEventListener('click', goToPrevSongBlock);
 $('songNextBtn')?.addEventListener('click', goToNextSongBlock);
-$('songJumpBtn')?.addEventListener('click', showSelectedSongSection);
+$('songJumpSelect')?.addEventListener('change', showSelectedSongSection);
 $('blankMainScreenBtn').addEventListener('click', blankMainScreen);
 $('displayRestoreBtn').addEventListener('click', restoreLastDisplayState);
 $('displayAutoBtn').addEventListener('click', () => setDisplayMode('auto'));
