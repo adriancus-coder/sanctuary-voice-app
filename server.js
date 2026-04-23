@@ -2470,7 +2470,7 @@ app.post('/api/events/:id/global-song-library', (req, res) => {
   const sourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
 
   if (!title || !text) {
-    return res.status(400).json({ ok: false, error: 'Titlu sau text lipsÄƒ.' });
+    return res.status(400).json({ ok: false, error: 'Titlu sau text lipsa.' });
   }
 
   upsertLibraryItem(db.globalSongLibrary, { title, text, labels, sourceLang }, 500);
@@ -2601,6 +2601,9 @@ io.on('connection', (socket) => {
   socket.on('submit_text', async ({ eventId, text }) => {
     const event = db.events[eventId];
     if (!event) return socket.emit('server_error', { message: 'Eveniment inexistent.' });
+    if (!socketCanControlEvent(socket, eventId, 'main_screen')) {
+      return socket.emit('server_error', { message: 'Nu ai permisiune pentru live text.' });
+    }
     const cleanText = String(text || '').trim();
     if (!cleanText) return;
     try {
@@ -2618,6 +2621,7 @@ io.on('connection', (socket) => {
   socket.on('admin_update_source', async ({ eventId, entryId, sourceText }) => {
     const event = db.events[eventId];
     if (!event) return;
+    if (!socketCanControlEvent(socket, eventId, 'main_screen')) return;
     const entry = event.transcripts.find((x) => x.id === entryId);
     if (!entry) return;
     const cleanSource = String(sourceText || '').trim();
@@ -2651,9 +2655,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('set_audio_state', ({ eventId, audioMuted, audioVolume, code }) => {
+  socket.on('set_audio_state', ({ eventId, audioMuted, audioVolume }) => {
     const event = db.events[eventId];
-    if (!event || code !== event.adminCode) return;
+    if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
     if (typeof audioMuted === 'boolean') event.audioMuted = audioMuted;
     if (typeof audioVolume === 'number') event.audioVolume = Math.max(0, Math.min(100, audioVolume));
     saveDb();
