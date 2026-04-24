@@ -1710,14 +1710,12 @@ function updateMonitorGain() {
 }
 
 function startMeterLoop() {
-  const displayAnalyser = audioState.rawAnalyser || audioState.analyser;
-  if (!displayAnalyser || !audioState.analyser) return;
-  const displayData = new Uint8Array(displayAnalyser.fftSize);
+  if (!audioState.analyser) return;
+  const displayData = new Uint8Array(audioState.analyser.fftSize);
   const gateData = new Uint8Array(audioState.analyser.fftSize);
   const draw = () => {
-    const activeDisplayAnalyser = audioState.rawAnalyser || audioState.analyser;
-    if (!activeDisplayAnalyser || !audioState.analyser) return;
-    activeDisplayAnalyser.getByteTimeDomainData(displayData);
+    if (!audioState.analyser) return;
+    audioState.analyser.getByteTimeDomainData(displayData);
     audioState.analyser.getByteTimeDomainData(gateData);
     let displaySumSquares = 0;
     let gateSumSquares = 0;
