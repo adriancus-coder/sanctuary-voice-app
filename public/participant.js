@@ -3,9 +3,9 @@ const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
 let participantWakeLock = null;
 const participantParams = new URLSearchParams(window.location.search);
-const LIVE_ENTRY_MIN_DISPLAY_MS = 1800;
-const LIVE_ENTRY_MAX_DISPLAY_MS = 5200;
-const LIVE_ENTRY_MAX_QUEUE = 2;
+const LIVE_ENTRY_MIN_DISPLAY_MS = 2600;
+const LIVE_ENTRY_MAX_DISPLAY_MS = 9000;
+const LIVE_ENTRY_MAX_QUEUE = 3;
 
 const voiceLocales = {
   ro: 'ro-RO',
@@ -60,6 +60,8 @@ const state = {
   visibleLiveEntry: null,
   awaitingFreshLiveEntry: false,
   allowTranscriptFallback: true,
+  freshLiveStartedAt: 0,
+  freshLiveBlockedEntryIds: new Set(),
   liveEntryShownAt: 0,
   liveEntryQueue: [],
   liveEntryTimer: null,
@@ -184,6 +186,20 @@ function getTextForEntry(entry) {
   return entry?.translations?.[state.currentLanguage] || entry?.original || '';
 }
 
+function getEntryTimestamp(entry) {
+  const value = entry?.createdAt || entry?.updatedAt || '';
+  const parsed = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isFreshLiveEntry(entry) {
+  if (!state.awaitingFreshLiveEntry || !state.freshLiveStartedAt) return true;
+  if (entry?.id && state.freshLiveBlockedEntryIds.has(entry.id)) return false;
+  const entryTime = getEntryTimestamp(entry);
+  if (!entryTime) return true;
+  return entryTime >= state.freshLiveStartedAt - 2000;
+}
+
 function getSongTextForCurrentLanguage(songState) {
   const sourceLang = songState?.sourceLang || state.currentEvent?.sourceLang || 'ro';
   if (state.currentLanguage === sourceLang) {
@@ -197,7 +213,8 @@ function getSongTextForCurrentLanguage(songState) {
 function getLiveEntryDuration(entry) {
   const text = String(getTextForEntry(entry) || '').trim();
   const words = countWords(text);
-  const readingMs = 1000 + (words * 230) + (Math.ceil(text.length / 36) * 180);
+  const lineCount = Math.max(1, Math.ceil(text.length / 42));
+  const readingMs = 1400 + (words * 320) + (lineCount * 360);
   return Math.max(LIVE_ENTRY_MIN_DISPLAY_MS, Math.min(LIVE_ENTRY_MAX_DISPLAY_MS, readingMs));
 }
 
@@ -399,6 +416,8 @@ function showLiveEntry(entry, { announce = false } = {}) {
   if (!entry) return;
   state.awaitingFreshLiveEntry = false;
   state.allowTranscriptFallback = false;
+  state.freshLiveStartedAt = 0;
+  state.freshLiveBlockedEntryIds = new Set();
   state.visibleLiveEntry = cloneEntry(entry);
   state.liveEntryShownAt = Date.now();
   renderLiveView({ announce });
@@ -407,6 +426,11 @@ function showLiveEntry(entry, { announce = false } = {}) {
 function waitForFreshLiveEntry() {
   state.awaitingFreshLiveEntry = true;
   state.allowTranscriptFallback = false;
+  state.freshLiveStartedAt = Date.now();
+  state.freshLiveBlockedEntryIds = new Set([
+    ...(state.currentEvent?.transcripts || []).map((entry) => entry.id).filter(Boolean),
+    state.currentEvent?.latestDisplayEntry?.id
+  ].filter(Boolean));
   state.visibleLiveEntry = null;
   state.liveEntryQueue = [];
   if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
@@ -433,6 +457,7 @@ function scheduleNextLiveEntry() {
 function enqueueLiveEntry(entry) {
   if (!entry) return;
   if (state.currentMode === 'song') return;
+  if (!isFreshLiveEntry(entry)) return;
   const candidate = cloneEntry(entry);
   const candidateSignature = buildLiveEntrySignature(candidate);
   if (!state.visibleLiveEntry) {
@@ -477,6 +502,8 @@ function seedVisibleLiveEntryFromTranscript() {
   state.visibleLiveEntry = latest ? cloneEntry(latest) : null;
   state.allowTranscriptFallback = false;
   state.awaitingFreshLiveEntry = false;
+  state.freshLiveStartedAt = 0;
+  state.freshLiveBlockedEntryIds = new Set();
   state.liveEntryShownAt = Date.now();
 }
 
@@ -549,9 +576,9 @@ socket.on('transcript_entry', (entry) => {
 
 socket.on('display_live_entry', (entry) => {
   if (!state.currentEvent) return;
-  state.currentEvent.latestDisplayEntry = cloneEntry(entry);
   setParticipantUpdating(false);
-  state.awaitingFreshLiveEntry = false;
+  if (!isFreshLiveEntry(entry)) return;
+  state.currentEvent.latestDisplayEntry = cloneEntry(entry);
   enqueueLiveEntry(entry);
 });
 
@@ -587,6 +614,9 @@ socket.on('active_event_changed', async () => {
     state.currentSongState = null;
     state.visibleLiveEntry = null;
     state.allowTranscriptFallback = false;
+    state.awaitingFreshLiveEntry = false;
+    state.freshLiveStartedAt = 0;
+    state.freshLiveBlockedEntryIds = new Set();
     state.liveEntryQueue = [];
     if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
     state.liveEntryTimer = null;
@@ -606,7 +636,10 @@ socket.on('mode_changed', ({ mode }) => {
   syncLanguageOptions({ ...state.currentEvent, mode: state.currentMode, songState: state.currentSongState });
   if (mode === 'song') {
     state.visibleLiveEntry = null;
+    state.awaitingFreshLiveEntry = false;
     state.allowTranscriptFallback = false;
+    state.freshLiveStartedAt = 0;
+    state.freshLiveBlockedEntryIds = new Set();
     state.liveEntryQueue = [];
     if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
     state.liveEntryTimer = null;
@@ -622,7 +655,10 @@ socket.on('song_state', (songState) => {
   state.currentMode = 'song';
   state.currentSongState = songState;
   state.visibleLiveEntry = null;
+  state.awaitingFreshLiveEntry = false;
   state.allowTranscriptFallback = false;
+  state.freshLiveStartedAt = 0;
+  state.freshLiveBlockedEntryIds = new Set();
   state.liveEntryQueue = [];
   if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
   state.liveEntryTimer = null;
