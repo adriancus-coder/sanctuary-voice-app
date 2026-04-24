@@ -472,7 +472,7 @@ function updateEntryInState(payload) {
 }
 
 function seedVisibleLiveEntryFromTranscript() {
-  const latest = getLatestEntry();
+  const latest = state.currentEvent?.latestDisplayEntry || getLatestEntry();
   state.visibleLiveEntry = latest ? cloneEntry(latest) : null;
   state.allowTranscriptFallback = false;
   state.awaitingFreshLiveEntry = false;
@@ -547,6 +547,7 @@ socket.on('transcript_entry', (entry) => {
 
 socket.on('display_live_entry', (entry) => {
   if (!state.currentEvent) return;
+  state.currentEvent.latestDisplayEntry = cloneEntry(entry);
   setParticipantUpdating(false);
   state.awaitingFreshLiveEntry = false;
   enqueueLiveEntry(entry);
@@ -629,6 +630,7 @@ socket.on('song_state', (songState) => {
 socket.on('song_clear', () => {
   state.currentMode = 'live';
   state.currentSongState = null;
+  if (state.currentEvent) state.currentEvent.latestDisplayEntry = null;
   syncLanguageOptions({ ...state.currentEvent, mode: 'live', songState: null });
   waitForFreshLiveEntry();
   renderLiveView({ announce: false });

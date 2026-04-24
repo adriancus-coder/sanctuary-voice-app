@@ -315,10 +315,7 @@ socket.on('joined_event', ({ event, languageNames }) => {
   state.manualSourceLang = event.displayState?.manualSourceLang || event.sourceLang || 'ro';
   state.manualTranslations = event.displayState?.manualTranslations || {};
   state.songState = event.songState || null;
-  state.latestLiveEntry = (event.transcripts || [])
-    .slice()
-    .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
-    .pop() || null;
+  state.latestLiveEntry = event.latestDisplayEntry || null;
   syncLanguageOptions(event);
   renderDisplay();
   setStatus('Connected.');
@@ -339,32 +336,19 @@ socket.on('song_state', (songState) => {
 
 socket.on('song_clear', () => {
   state.songState = null;
-  if (state.currentEvent) state.currentEvent.mode = 'live';
+  state.latestLiveEntry = null;
+  if (state.currentEvent) {
+    state.currentEvent.mode = 'live';
+    state.currentEvent.latestDisplayEntry = null;
+  }
   syncLanguageOptions({ ...state.currentEvent, displayState: { ...(state.currentEvent?.displayState || {}), mode: state.currentDisplayMode } });
   renderDisplay();
 });
 
-socket.on('transcript_entry', (entry) => {
-  if (state.currentDisplayMode !== 'auto') return;
-  state.latestLiveEntry = entry;
-  scheduleDisplayRender(60);
-});
-
 socket.on('display_live_entry', (entry) => {
   if (state.currentDisplayMode !== 'auto') return;
+  if (state.currentEvent) state.currentEvent.latestDisplayEntry = entry;
   state.latestLiveEntry = entry;
-  scheduleDisplayRender(45);
-});
-
-socket.on('transcript_source_updated', (payload) => {
-  if (state.currentDisplayMode !== 'auto') return;
-  if (!state.latestLiveEntry || state.latestLiveEntry.id !== payload.entryId) return;
-  state.latestLiveEntry = {
-    ...state.latestLiveEntry,
-    sourceLang: payload.sourceLang,
-    original: payload.original,
-    translations: payload.translations || {}
-  };
   scheduleDisplayRender(45);
 });
 
