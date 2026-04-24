@@ -360,6 +360,9 @@ function ensureEventUiState(event) {
   if (!event.songState || typeof event.songState !== 'object') {
     event.songState = defaultSongState();
   }
+  if (!event.latestDisplayEntry || typeof event.latestDisplayEntry !== 'object') {
+    event.latestDisplayEntry = null;
+  }
   if (typeof event.songState.sourceLang !== 'string' || !event.songState.sourceLang.trim()) {
     event.songState.sourceLang = event.sourceLang || 'ro';
   }
@@ -511,11 +514,11 @@ const LIVE_TEXT_MAX_WORDS = 22;
 const LIVE_TEXT_MAX_CHARS = 190;
 const LIVE_TEXT_SOFT_WAIT_MS = 1200;
 const LIVE_TEXT_HARD_WAIT_MS = 4200;
-const AZURE_LIVE_TEXT_MIN_WORDS = 5;
-const AZURE_LIVE_TEXT_TARGET_WORDS = 9;
-const AZURE_LIVE_TEXT_MAX_WORDS = 14;
-const AZURE_LIVE_TEXT_SOFT_WAIT_MS = 450;
-const AZURE_LIVE_TEXT_HARD_WAIT_MS = 1500;
+const AZURE_LIVE_TEXT_MIN_WORDS = 6;
+const AZURE_LIVE_TEXT_TARGET_WORDS = 11;
+const AZURE_LIVE_TEXT_MAX_WORDS = 17;
+const AZURE_LIVE_TEXT_SOFT_WAIT_MS = 700;
+const AZURE_LIVE_TEXT_HARD_WAIT_MS = 2600;
 
 const BUFFER_CONNECTORS = new Set([
   'și', 'si', 'să', 'sa', 'că', 'ca', 'dar', 'iar', 'ori', 'sau',
@@ -730,6 +733,14 @@ function sanitizeRemoteOperator(operator, includeCode = false) {
   };
 }
 
+function cloneDisplayEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  return {
+    ...entry,
+    translations: entry.translations ? { ...entry.translations } : {}
+  };
+}
+
 function normalizeEvent(event, options = {}) {
   const includeSecrets = !!options.includeSecrets;
   const includeControlData = !!options.includeControlData || includeSecrets;
@@ -754,6 +765,7 @@ function normalizeEvent(event, options = {}) {
     isActive: db.activeEventId === event.id,
     mode: event.mode || 'live',
     songState: event.songState || defaultSongState(),
+    latestDisplayEntry: cloneDisplayEntry(event.latestDisplayEntry),
     displayState: event.displayState || defaultDisplayState(),
     displayStatePrevious: event.displayStatePrevious || null,
     usageStats: buildUsageStats(event.id),
@@ -1096,6 +1108,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     lastTranscriptNorm: '',
     mode: 'live',
     songState: defaultSongState(),
+    latestDisplayEntry: null,
     displayState: { ...defaultDisplayState(), language: (targetLangs?.length ? targetLangs[0] : 'no') },
     displayStatePrevious: null,
     songLibrary: defaultSongLibrary(),
@@ -1471,17 +1484,6 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
   if (!cleanChunk) return null;
   const chunkNormalized = normalizeChunkText(cleanChunk);
   if (!chunkNormalized || chunkNormalized.length < 2) return null;
-  const previousEntry = event.transcripts[event.transcripts.length - 1];
-
-  if (previousEntry && previousEntry.participantDirty) {
-    previousEntry.participantDirty = false;
-    io.to(`event:${event.id}`).emit('transcript_source_updated', {
-      entryId: previousEntry.id,
-      sourceLang: previousEntry.sourceLang,
-      original: previousEntry.original,
-      translations: previousEntry.translations
-    });
-  }
 
   const sourceLang = sourceLangOverride || event.sourceLang || 'ro';
   const translationPairs = await Promise.all(
@@ -1507,10 +1509,11 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
     lastDeliveredPreview: cleanChunk.slice(0, 220),
     lastDeliveryTargetCount: Array.isArray(event.targetLangs) ? event.targetLangs.length : 0
   }, false);
+  event.latestDisplayEntry = cloneDisplayEntry(entry);
   saveDb();
   io.to(`event:${event.id}`).emit('transcript_entry', entry);
   if (event.displayState?.mode === 'auto') {
-    io.to(`event:${event.id}`).emit('display_live_entry', entry);
+    io.to(`event:${event.id}`).emit('display_live_entry', cloneDisplayEntry(event.latestDisplayEntry));
   }
   emitUsageStats(event.id);
   emitTranslationMonitor(event.id);
@@ -1532,7 +1535,6 @@ async function processText(event, cleanText, { force = false, sourceLang = '' } 
     lastEntry.original = firstChunk;
     await retranslateEntry(event, lastEntry);
     event.lastTranscriptNorm = normalizeChunkText(firstChunk);
-    lastEntry.participantDirty = false;
     saveDb();
 
     io.to(`event:${event.id}`).emit('transcript_source_updated', {
@@ -1541,9 +1543,6 @@ async function processText(event, cleanText, { force = false, sourceLang = '' } 
       original: lastEntry.original,
       translations: lastEntry.translations
     });
-    if (event.displayState?.mode === 'auto') {
-      io.to(`event:${event.id}`).emit('display_live_entry', lastEntry);
-    }
     updateTranslationMonitor(event, {
       lastDeliveredAt: new Date().toISOString(),
       lastDeliveredPreview: firstChunk.slice(0, 220),
@@ -2379,6 +2378,7 @@ app.post('/api/events/:id/song/clear', (req, res) => {
   event.songState = defaultSongState();
   event.mode = 'live';
   ensureEventUiState(event);
+  event.latestDisplayEntry = null;
   event.displayState.mode = 'auto';
   event.displayState.blackScreen = false;
   event.displayState.sceneLabel = '';
@@ -3043,9 +3043,6 @@ io.on('connection', (socket) => {
       });
 
       ensureEventUiState(event);
-      if (event.displayState?.mode === 'auto') {
-        io.to(`event:${eventId}`).emit('display_live_entry', entry);
-      }
       emitUsageStats(eventId);
     } catch (err) {
       console.error('admin_update_source error:', err);
@@ -3075,6 +3072,7 @@ io.on('connection', (socket) => {
     }
     event.mode = 'live';
     ensureEventUiState(event);
+    event.latestDisplayEntry = null;
     event.displayState.mode = 'auto';
     event.displayState.blackScreen = false;
     event.displayState.sceneLabel = '';
