@@ -20,6 +20,7 @@ const AUDIO_GATE_MIN_PEAK = 14;
 const AUDIO_GATE_MIN_ACTIVE_FRAMES = 12;
 const AUDIO_GATE_MIN_DYNAMIC_RANGE = 5;
 const AUDIO_GATE_STRONG_PEAK = 36;
+const AUDIO_PROCESSING_STORAGE_KEY = 'sanctuary_voice_audio_processing';
 
 let audioState = {
   stream: null,
@@ -1663,8 +1664,12 @@ async function loadAudioInputs(keepValue = true) {
   }
 }
 
-async function destroyAudioPipeline() {
+async function destroyAudioPipeline(options = {}) {
+  const preserveRunState = !!options.preserveRunState;
+  const wasRunning = audioState.running;
+  const wasWindowRunning = window.isRecognitionRunning;
   audioState.running = false;
+  if (!preserveRunState) window.isRecognitionRunning = false;
   stopAzureAudioStream();
   if (audioState.chunkTimer) clearTimeout(audioState.chunkTimer);
   audioState.chunkTimer = null;
@@ -1689,7 +1694,13 @@ async function destroyAudioPipeline() {
   audioState.busy = false;
   audioState.uploadQueue = [];
   $('audioLevel').value = 0;
-  setOnAirState(false);
+  if (preserveRunState) {
+    audioState.running = wasRunning;
+    window.isRecognitionRunning = wasWindowRunning;
+    setOnAirState(wasRunning);
+  } else {
+    setOnAirState(false);
+  }
 }
 
 function sliderToGain(value) {
@@ -1701,10 +1712,90 @@ function getInputGainPercent() {
   return Math.max(0, Number($('inputGainRange')?.value || 0));
 }
 
+function getAudioProcessingSettings() {
+  return {
+    echoCancellation: !!$('echoCancellationBox')?.checked,
+    noiseSuppression: !!$('noiseSuppressionBox')?.checked,
+    autoGainControl: !!$('autoGainControlBox')?.checked
+  };
+}
+
+function saveAudioProcessingSettings() {
+  try {
+    localStorage.setItem(AUDIO_PROCESSING_STORAGE_KEY, JSON.stringify(getAudioProcessingSettings()));
+  } catch (_) {}
+}
+
+function hydrateAudioProcessingSettings() {
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(AUDIO_PROCESSING_STORAGE_KEY) || '{}') || {};
+  } catch (_) {
+    saved = {};
+  }
+  const controls = [
+    ['echoCancellationBox', 'echoCancellation'],
+    ['noiseSuppressionBox', 'noiseSuppression'],
+    ['autoGainControlBox', 'autoGainControl']
+  ];
+  controls.forEach(([id, key]) => {
+    const el = $(id);
+    if (el) el.checked = !!saved[key];
+  });
+  updateAudioProcessingHint();
+}
+
+function updateAudioProcessingHint() {
+  const settings = getAudioProcessingSettings();
+  const active = Object.entries(settings)
+    .filter(([, enabled]) => enabled)
+    .map(([key]) => ({
+      echoCancellation: 'echo cancellation',
+      noiseSuppression: 'noise suppression',
+      autoGainControl: 'auto gain'
+    })[key]);
+  const hint = $('audioProcessingHint');
+  if (hint) {
+    hint.textContent = active.length
+      ? `Browser processing active: ${active.join(', ')}.`
+      : 'Processing is off by default for the most natural speech input.';
+  }
+}
+
+function getAudioConstraints(deviceId = '') {
+  const processing = getAudioProcessingSettings();
+  const audio = {
+    channelCount: 1,
+    sampleRate: 48000,
+    sampleSize: 16,
+    echoCancellation: processing.echoCancellation,
+    noiseSuppression: processing.noiseSuppression,
+    autoGainControl: processing.autoGainControl
+  };
+  if (deviceId) audio.deviceId = { exact: deviceId };
+  return { audio };
+}
+
+async function handleAudioProcessingChange() {
+  saveAudioProcessingSettings();
+  updateAudioProcessingHint();
+  if (audioState.running) {
+    setStatus('Restarting audio with new processing settings...');
+    await startTranslation();
+    return;
+  }
+  try {
+    await createAudioPipeline();
+    setStatus('Audio processing settings applied.');
+  } catch (_) {
+    setStatus('Audio settings saved. Start live to apply them.');
+  }
+}
+
 function updateInputGain() {
   const value = getInputGainPercent();
   const gain = sliderToGain(value);
-  $('inputGainLabel').textContent = `${value}% · ${gain.toFixed(1)}x`;
+  $('inputGainLabel').textContent = `${value}% - ${gain.toFixed(1)}x`;
   if (audioState.preampNode) audioState.preampNode.gain.value = gain;
   if (audioState.running && value <= 0) setStatus('Audio blocked: input gain is 0%.');
 }
@@ -1713,7 +1804,7 @@ function updateMonitorGain() {
   const enabled = !!$('monitorAudioBox').checked;
   const value = Number($('monitorGainRange').value || 0);
   const gain = enabled ? sliderToGain(value) : 0;
-  $('monitorGainLabel').textContent = `${value}% · ${gain.toFixed(1)}x`;
+  $('monitorGainLabel').textContent = `${value}% - ${gain.toFixed(1)}x`;
   if (audioState.monitorGainNode) audioState.monitorGainNode.gain.value = gain;
 }
 
@@ -1751,12 +1842,10 @@ function startMeterLoop() {
   draw();
 }
 
-async function createAudioPipeline() {
+async function createAudioPipeline(options = {}) {
   const deviceId = $('audioInput').value;
-  await destroyAudioPipeline();
-  audioState.stream = await navigator.mediaDevices.getUserMedia({
-    audio: deviceId ? { deviceId: { exact: deviceId }, channelCount: 2, sampleRate: 48000, sampleSize: 16, echoCancellation: false, noiseSuppression: false, autoGainControl: false } : { channelCount: 2, sampleRate: 48000, sampleSize: 16, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-  });
+  await destroyAudioPipeline({ preserveRunState: !!options.preserveRunState });
+  audioState.stream = await navigator.mediaDevices.getUserMedia(getAudioConstraints(deviceId));
   audioState.context = new (window.AudioContext || window.webkitAudioContext)();
   await audioState.context.resume();
   audioState.source = audioState.context.createMediaStreamSource(audioState.stream);
@@ -1836,7 +1925,25 @@ async function startBrowserAzureRecognition() {
     return false;
   }
   const speechConfig = await getBrowserAzureSpeechConfig();
-  const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+  try {
+    await createAudioPipeline({ preserveRunState: true });
+  } catch (err) {
+    console.error(err);
+    audioState.running = false;
+    window.isRecognitionRunning = false;
+    setOnAirState(false);
+    setStatus('Audio start failed.');
+    return false;
+  }
+  let audioConfig = null;
+  if (SpeechSDK.AudioConfig.fromStreamInput && audioState.destination?.stream) {
+    try {
+      audioConfig = SpeechSDK.AudioConfig.fromStreamInput(audioState.destination.stream);
+    } catch (err) {
+      console.warn('Could not attach processed audio stream to Azure SDK:', err);
+    }
+  }
+  if (!audioConfig) audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
   const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
   audioState.browserRecognizer = recognizer;
 
@@ -1923,11 +2030,11 @@ function downsampleTo16kPcm(input, inputRate) {
 }
 
 async function startAzureAudioStream() {
-  if (!currentEvent || !audioState.context || !audioState.destination) return false;
+  if (!currentEvent || !audioState.context || !audioState.preampNode) return false;
   audioState.azureReady = false;
   socket.emit('azure_audio_start', { eventId: currentEvent.id });
 
-  audioState.azureSource = audioState.context.createMediaStreamSource(audioState.destination.stream);
+  audioState.azureSource = audioState.preampNode;
   audioState.azureProcessor = audioState.context.createScriptProcessor(4096, 1, 1);
   audioState.azureProcessor.onaudioprocess = (event) => {
     if (!audioState.running || audioState.speechProvider !== 'azure_sdk') return;
@@ -1942,11 +2049,13 @@ async function startAzureAudioStream() {
 
 function stopAzureAudioStream() {
   if (currentEvent) socket.emit('azure_audio_stop', { eventId: currentEvent.id });
+  if (audioState.azureSource && audioState.azureProcessor) {
+    try { audioState.azureSource.disconnect(audioState.azureProcessor); } catch (_) {}
+  }
   if (audioState.azureProcessor) {
     audioState.azureProcessor.disconnect();
     audioState.azureProcessor.onaudioprocess = null;
   }
-  if (audioState.azureSource) audioState.azureSource.disconnect();
   audioState.azureProcessor = null;
   audioState.azureSource = null;
   audioState.azureReady = false;
@@ -2024,6 +2133,24 @@ async function startTranslation() {
   setOnAirState(true);
   await enableScreenWakeLock();
   if (audioState.speechProvider === 'azure_sdk') {
+    try {
+      await createAudioPipeline({ preserveRunState: true });
+    } catch (err) {
+      console.error(err);
+      audioState.running = false;
+      window.isRecognitionRunning = false;
+      setOnAirState(false);
+      return setStatus('Audio start failed.');
+    }
+    const streamStarted = await startAzureAudioStream().catch((err) => {
+      console.error(err);
+      setStatus(err.message || 'Azure audio stream failed.');
+      return false;
+    });
+    if (streamStarted) {
+      setStatus('On-Air. Connecting Azure Speech...');
+      return;
+    }
     const started = await startBrowserAzureRecognition().catch((err) => {
       console.error(err);
       setStatus(err.message || 'Azure Speech start failed.');
@@ -2032,7 +2159,12 @@ async function startTranslation() {
     if (started) return;
   }
   if (!window.MediaRecorder) return alert('Use Chrome or Edge.');
-  try { await createAudioPipeline(); } catch (_) { return setStatus('Audio start failed.'); }
+  try { await createAudioPipeline({ preserveRunState: true }); } catch (_) {
+    audioState.running = false;
+    window.isRecognitionRunning = false;
+    setOnAirState(false);
+    return setStatus('Audio start failed.');
+  }
   const mimeType = chooseRecorderMimeType();
   if (!mimeType) return alert('Unsupported audio format in this browser.');
   audioState.mimeType = mimeType;
@@ -2420,6 +2552,9 @@ $('volumeRange').addEventListener('input', () => {
 $('inputGainRange').addEventListener('input', updateInputGain);
 $('monitorAudioBox').addEventListener('change', updateMonitorGain);
 $('monitorGainRange').addEventListener('input', updateMonitorGain);
+['echoCancellationBox', 'noiseSuppressionBox', 'autoGainControlBox'].forEach((id) => {
+  $(id)?.addEventListener('change', () => handleAudioProcessingChange().catch(console.error));
+});
 $('audioInput').addEventListener('change', async () => {
   if (audioState.running) await startTranslation();
   else { try { await createAudioPipeline(); setStatus('Audio source changed.'); } catch (_) { setStatus('Selected source failed.'); } }
@@ -2722,7 +2857,8 @@ window.addEventListener('load', async () => {
   $('eventDate').value = now.toISOString().slice(0, 10);
   $('eventTime').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   hydratePermanentParticipantAccess();
-  try { await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (_) {}
+  hydrateAudioProcessingSettings();
+  try { await navigator.mediaDevices.getUserMedia(getAudioConstraints()); } catch (_) {}
   const langRes = await fetch('/api/languages');
   const langData = await langRes.json();
   availableLanguages = langData.languages || {};

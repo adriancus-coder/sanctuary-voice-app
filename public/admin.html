@@ -116,6 +116,19 @@
             <label>Audio input</label>
             <select id="audioInput"></select>
 
+            <details class="info-card soft-card audio-processing-card">
+              <summary>
+                <span class="label">Audio settings</span>
+                <span class="muted">Processing</span>
+              </summary>
+              <div class="audio-processing-options">
+                <label class="inline-check"><input type="checkbox" id="echoCancellationBox"> Echo cancellation</label>
+                <label class="inline-check"><input type="checkbox" id="noiseSuppressionBox"> Noise suppression</label>
+                <label class="inline-check"><input type="checkbox" id="autoGainControlBox"> Auto gain control</label>
+              </div>
+              <div id="audioProcessingHint" class="muted">Processing is off by default for the most natural speech input.</div>
+            </details>
+
             <div class="info-card accent-card">
               <div class="label">Signal monitor</div>
               <progress id="audioLevel" value="0" max="100"></progress>

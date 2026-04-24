@@ -701,6 +701,40 @@ progress::-moz-progress-bar {
   width: auto;
 }
 
+.audio-processing-card {
+  align-content: start;
+}
+
+.audio-processing-card summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+}
+
+.audio-processing-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.audio-processing-card[open] {
+  border-color: rgba(230, 194, 126, 0.42);
+}
+
+.audio-processing-options {
+  display: grid;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.audio-processing-options .inline-check {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  gap: 10px;
+}
+
 .link-stack {
   display: grid;
   gap: 8px;
