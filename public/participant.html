@@ -7,17 +7,19 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="participant-shell participant-shell-v2 participant-premium-shell">
-    <div class="participant-header panel glass-panel participant-hero-v2 participant-premium-hero">
-      <div class="eyebrow">Sanctuary Voice</div>
-      <h1 id="participantEventName">Connecting...</h1>
-      <div id="participantEventMeta" class="muted">Choose your language and follow the service live.</div>
-      <div class="participant-badge-row">
+  <div class="participant-shell participant-shell-v3 participant-listener-stage">
+    <header class="participant-listener-top">
+      <div class="participant-listener-title">
+        <div class="eyebrow">Sanctuary Voice</div>
+        <h1 id="participantEventName">Connecting...</h1>
+        <div id="participantEventMeta" class="muted">Choose your language and follow the service live.</div>
+      </div>
+      <div class="participant-badge-row participant-listener-badges">
         <div id="participantModeBadge" class="status-pill active">Live</div>
         <div id="participantLanguageBadge" class="status-pill">Language</div>
         <div id="participantWakeLockBadge" class="status-pill" style="display:none">Screen awake</div>
       </div>
-    </div>
+    </header>
 
     <div id="participantEventChooser" class="participant-event-chooser panel glass-panel">
       <div class="section-head">
@@ -33,7 +35,7 @@
       <div class="muted">Events that are not live are shown here, but can be opened only when they go live.</div>
     </div>
 
-    <div class="participant-controls panel glass-panel participant-premium-controls">
+    <div class="participant-controls participant-listener-controls">
       <div class="participant-control-group">
         <label for="languageSelect">Language</label>
         <select id="languageSelect"></select>
@@ -52,7 +54,7 @@
       </div>
     </div>
 
-    <div class="participant-live panel glass-panel participant-premium-live">
+    <main class="participant-live participant-listener-live">
       <div class="participant-live-stage">
         <div id="participantUpdatingBadge" class="updating-badge" style="display:none">Updating...</div>
         <div class="label">Live text</div>
@@ -62,7 +64,7 @@
         <div class="label history-label">Earlier lines</div>
         <div id="history" class="history-list"></div>
       </div>
-    </div>
+    </main>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>

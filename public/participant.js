@@ -109,9 +109,9 @@ async function disableWakeLock() {
   setWakeLockBadge(false);
 }
 
-const HISTORY_MIN_ITEMS = 4;
-const HISTORY_MAX_ITEMS = 8;
-const HISTORY_CHAR_BUDGET = 900;
+const HISTORY_MIN_ITEMS = 3;
+const HISTORY_MAX_ITEMS = 5;
+const HISTORY_CHAR_BUDGET = 560;
 
 function setStatus(text) {
   $('participantStatus').textContent = text;
