@@ -27,6 +27,7 @@ const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY || '';
 const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION || '';
 const MASTER_ADMIN_PIN = String(process.env.MASTER_ADMIN_PIN || process.env.APP_ADMIN_PIN || '').trim();
 const MASTER_MODERATOR_PIN = String(process.env.MASTER_MODERATOR_PIN || process.env.APP_MODERATOR_PIN || '').trim();
+const TRANSLATION_MONITOR_ENABLED = String(process.env.TRANSLATION_MONITOR_ENABLED || '').trim() === '1';
 
 console.log('API KEY:', OPENAI_API_KEY ? 'OK' : 'LIPSA');
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
@@ -215,15 +216,6 @@ function defaultTranslationMonitor() {
   };
 }
 
-function defaultInternalPins() {
-  return {
-    adminPin: '',
-    moderatorPin: '',
-    updatedAt: null,
-    updatedBy: ''
-  };
-}
-
 function cloneDisplaySnapshot(event) {
   ensureEventUiState(event);
   return {
@@ -390,14 +382,6 @@ function ensureEventUiState(event) {
     event.translationMonitor = {
       ...defaultTranslationMonitor(),
       ...event.translationMonitor
-    };
-  }
-  if (!event.internalPins || typeof event.internalPins !== 'object') {
-    event.internalPins = defaultInternalPins();
-  } else {
-    event.internalPins = {
-      ...defaultInternalPins(),
-      ...event.internalPins
     };
   }
   if (event.displayStatePrevious && typeof event.displayStatePrevious === 'object') {
@@ -773,17 +757,6 @@ function normalizeEvent(event, options = {}) {
     songLibrary: Array.isArray(event.songLibrary) ? event.songLibrary : [],
     songHistory: Array.isArray(event.songHistory) ? event.songHistory : []
   };
-  if (includeControlData) {
-    const pins = { ...(event.internalPins || defaultInternalPins()) };
-    payload.translationMonitor = buildTranslationMonitor(event.id);
-    payload.internalPins = includeSecrets
-      ? pins
-      : {
-          moderatorPin: pins.moderatorPin || '',
-          updatedAt: pins.updatedAt || null,
-          updatedBy: pins.updatedBy || ''
-        };
-  }
   if (includeSecrets) {
     payload.adminCode = event.adminCode;
     payload.screenOperatorCode = event.screenOperatorCode || '';
@@ -962,9 +935,6 @@ function resolveEventAccessFromCode(event, code) {
   if (String(event.adminCode || '') === suppliedCode) {
     return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
   }
-  if (String(event.internalPins?.adminPin || '') === suppliedCode) {
-    return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
-  }
   if (MASTER_MODERATOR_PIN && suppliedCode === MASTER_MODERATOR_PIN) {
     return {
       role: 'screen',
@@ -977,13 +947,6 @@ function resolveEventAccessFromCode(event, code) {
       role: 'screen',
       permissions: ['main_screen', 'song'],
       operator: { id: 'default-screen', name: 'Default operator', profile: 'full', code: suppliedCode }
-    };
-  }
-  if (String(event.internalPins?.moderatorPin || '') === suppliedCode) {
-    return {
-      role: 'screen',
-      permissions: ['main_screen', 'song'],
-      operator: { id: 'default-moderator', name: 'Moderator', profile: 'full', code: suppliedCode }
     };
   }
   const operator = (event.remoteOperators || []).find((item) => String(item.code || '') === suppliedCode);
@@ -1028,6 +991,12 @@ function canManageEvents(req) {
 function requireEventManager(req, res) {
   if (canManageEvents(req)) return true;
   res.status(403).json({ ok: false, error: 'Cod Admin necesar pentru administrarea evenimentelor.' });
+  return false;
+}
+
+function requireGlobalLibraryAdmin(req, res) {
+  if (canManageEvents(req)) return true;
+  res.status(403).json({ ok: false, error: 'Cod Admin necesar pentru modificarea bibliotecii.' });
   return false;
 }
 
@@ -1178,6 +1147,7 @@ function writeTranslationCache(key, value) {
 }
 
 function updateTranslationMonitor(event, patch = {}, shouldEmit = true) {
+  if (!TRANSLATION_MONITOR_ENABLED) return;
   if (!event) return;
   ensureEventUiState(event);
   event.translationMonitor = {
@@ -1785,20 +1755,10 @@ function emitUsageStats(eventId) {
 }
 
 function emitTranslationMonitor(eventId) {
+  if (!TRANSLATION_MONITOR_ENABLED) return;
   if (!eventId) return;
   const payload = buildTranslationMonitor(eventId);
   io.to(`event:${eventId}:admins`).emit('translation_monitor', payload);
-  io.to(`event:${eventId}:screens`).emit('translation_monitor', payload);
-}
-
-function emitInternalPins(eventId) {
-  if (!eventId) return;
-  const event = db.events[eventId];
-  if (!event) return;
-  ensureEventUiState(event);
-  const payload = { ...(event.internalPins || defaultInternalPins()) };
-  io.to(`event:${eventId}:admins`).emit('internal_pins_updated', payload);
-  io.to(`event:${eventId}:screens`).emit('internal_pins_updated', payload);
 }
 
 function recordParticipantJoin(event, participantId, language) {
@@ -2112,37 +2072,6 @@ app.delete('/api/events/:id/remote-operators/:operatorId', (req, res) => {
   event.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []).filter((item) => item.id !== req.params.operatorId);
   saveDb();
   res.json({ ok: true, remoteOperators: event.remoteOperators });
-});
-
-app.post('/api/events/:id/internal-pins', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  const role = requireEventRole(req, res, event, ['admin', 'screen']);
-  if (!role) return;
-  ensureEventUiState(event);
-
-  const requestedAdminPin = typeof req.body.adminPin === 'string' ? req.body.adminPin.trim() : null;
-  const requestedModeratorPin = typeof req.body.moderatorPin === 'string' ? req.body.moderatorPin.trim() : null;
-  const isValidPin = (value) => value === '' || /^\d{4,8}$/.test(value);
-
-  if (role === 'screen' && requestedAdminPin !== null) {
-    return res.status(403).json({ ok: false, error: 'Doar adminul poate modifica Admin pin.' });
-  }
-  if (requestedAdminPin !== null && !isValidPin(requestedAdminPin)) {
-    return res.status(400).json({ ok: false, error: 'Admin PIN trebuie sa aiba intre 4 si 8 cifre.' });
-  }
-  if (requestedModeratorPin !== null && !isValidPin(requestedModeratorPin)) {
-    return res.status(400).json({ ok: false, error: 'Moderator PIN trebuie sa aiba intre 4 si 8 cifre.' });
-  }
-
-  if (requestedAdminPin !== null) event.internalPins.adminPin = requestedAdminPin;
-  if (requestedModeratorPin !== null) event.internalPins.moderatorPin = requestedModeratorPin;
-  event.internalPins.updatedAt = new Date().toISOString();
-  event.internalPins.updatedBy = role === 'admin' ? 'admin' : 'moderator';
-
-  saveDb();
-  emitInternalPins(event.id);
-  res.json({ ok: true, internalPins: event.internalPins, event: normalizeEventForAccess(req, event) });
 });
 
 app.post('/api/events/:id/settings', (req, res) => {
@@ -2807,6 +2736,7 @@ app.get('/api/global-song-library', (req, res) => {
 });
 
 app.post('/api/global-song-library', (req, res) => {
+  if (!requireGlobalLibraryAdmin(req, res)) return;
   const title = String(req.body.title || '').trim();
   const text = sanitizeStructuredText(req.body.text || '');
   const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
@@ -2824,6 +2754,7 @@ app.get('/api/pinned-text-library', (req, res) => {
 });
 
 app.post('/api/pinned-text-library', (req, res) => {
+  if (!requireGlobalLibraryAdmin(req, res)) return;
   const title = String(req.body.title || '').trim();
   const text = sanitizeStructuredText(req.body.text || '');
   const sourceLang = String(req.body.sourceLang || 'ro').trim() || 'ro';
@@ -2836,12 +2767,14 @@ app.post('/api/pinned-text-library', (req, res) => {
 });
 
 app.delete('/api/pinned-text-library/:itemId', (req, res) => {
+  if (!requireGlobalLibraryAdmin(req, res)) return;
   db.pinnedTextLibrary = (db.pinnedTextLibrary || []).filter((item) => item.id !== req.params.itemId);
   saveDb();
   res.json({ ok: true, pinnedTextLibrary: db.pinnedTextLibrary });
 });
 
 app.delete('/api/global-song-library/:songId', (req, res) => {
+  if (!requireGlobalLibraryAdmin(req, res)) return;
   db.globalSongLibrary = (db.globalSongLibrary || []).filter((item) => item.id !== req.params.songId);
   saveDb();
   res.json({ ok: true, globalSongLibrary: db.globalSongLibrary });
