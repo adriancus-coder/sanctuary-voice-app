@@ -25,6 +25,7 @@ let audioState = {
   stream: null,
   context: null,
   source: null,
+  rawAnalyser: null,
   gainNode: null,
   preampNode: null,
   analyser: null,
@@ -62,6 +63,14 @@ function selectedLangs() {
 function setStatus(text) {
   const el = $('recognitionStatus');
   if (el) el.textContent = text;
+}
+
+function setPartialTranscript(text = '') {
+  const value = text || 'Waiting for full sentence...';
+  const compact = $('partialTranscript');
+  const large = $('partialTranscriptLarge');
+  if (compact) compact.textContent = value;
+  if (large) large.textContent = value;
 }
 
 function setOnAirState(isOn) {
@@ -505,46 +514,6 @@ function renderUsageStats(stats = {}) {
   $('usageReliabilityList').innerHTML = items.map((item) => `<div class="history-item">${escapeHtml(item)}</div>`).join('');
 }
 
-function monitorItem(label, value) {
-  return `<div class="monitor-item"><div class="monitor-label">${escapeHtml(label)}</div><div class="monitor-value">${escapeHtml(value || '-')}</div></div>`;
-}
-
-function renderTranslationMonitor(monitor = {}) {
-  const box = $('translationMonitorGrid');
-  const badge = $('translationMonitorBadge');
-  if (!box) return;
-  const pending = Number(monitor.pendingTranslations || 0);
-  const queueWords = Number(monitor.queueWords || 0);
-  if (badge) {
-    badge.textContent = pending > 0 ? `Translating ${pending}` : (queueWords > 0 ? `Queued ${queueWords}w` : 'Idle');
-  }
-  const items = [
-    monitorItem('Speech received', `${formatDateTime(monitor.lastSpeechReceivedAt)}${monitor.lastSpeechSourceLang ? ` · ${langLabel(monitor.lastSpeechSourceLang)}` : ''}`),
-    monitorItem('Provider', monitor.lastSpeechProvider || monitor.queueProvider || '-'),
-    monitorItem('Buffered text', monitor.lastBufferedText || monitor.lastSpeechPreview || 'Waiting...'),
-    monitorItem('Queue', monitor.queueActive ? `${queueWords} words · ${Math.round(Number(monitor.queueAgeMs || 0))} ms` : 'Empty'),
-    monitorItem('Translate started', formatDateTime(monitor.lastTranslateStartedAt)),
-    monitorItem('Translate finished', monitor.lastTranslateFinishedAt ? `${formatDateTime(monitor.lastTranslateFinishedAt)} · ${Math.round(Number(monitor.lastTranslateDurationMs || 0))} ms` : '-'),
-    monitorItem('Last target', monitor.lastTargetLang ? langLabel(monitor.lastTargetLang) : '-'),
-    monitorItem('Delivered', monitor.lastDeliveredAt ? `${formatDateTime(monitor.lastDeliveredAt)} · ${monitor.lastDeliveryTargetCount || 0} langs` : '-'),
-    monitorItem('Delivered preview', monitor.lastDeliveredPreview || 'Waiting...'),
-    monitorItem('Last cache hit', monitor.lastCacheHitAt ? `${formatDateTime(monitor.lastCacheHitAt)} · ${langLabel(monitor.lastCacheHitLang || '')}` : 'None'),
-    monitorItem('Last issue', monitor.lastErrorMessage ? `${monitor.lastErrorMessage} · ${formatDateTime(monitor.lastErrorAt)}` : 'No recent issues')
-  ];
-  box.innerHTML = items.join('');
-}
-
-function renderInternalPins(pins = {}) {
-  if ($('adminPinInput')) $('adminPinInput').value = pins.adminPin || '';
-  if ($('moderatorPinInput')) $('moderatorPinInput').value = pins.moderatorPin || '';
-  const meta = $('internalPinsMeta');
-  if (meta) {
-    meta.textContent = pins.updatedAt
-      ? `Updated ${formatDateTime(pins.updatedAt)} by ${pins.updatedBy || 'unknown'}.`
-      : 'No extra access PINs saved yet.';
-  }
-}
-
 function resetParticipantStats() {
   renderParticipantStats({ uniqueCount: 0, languages: [] });
   renderUsageStats({});
@@ -635,10 +604,11 @@ function adminJsonOptions(method, payload = {}) {
 }
 
 function globalJsonOptions(method, payload = {}) {
+  const code = currentEvent?.adminCode ? { code: currentEvent.adminCode } : {};
   return {
     method,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ ...payload, ...code })
   };
 }
 
@@ -1578,12 +1548,10 @@ async function openEventById(eventId) {
   if ($('manualSourceLang')) $('manualSourceLang').value = currentEvent.displayState?.manualSourceLang || currentEvent.sourceLang || 'ro';
   refreshDisplayControls();
   renderSongHistory(currentEvent.songHistory || []);
-  renderTranslationMonitor(currentEvent.translationMonitor || {});
-  renderInternalPins(currentEvent.internalPins || {});
   await loadSongLibrary();
   await loadGlobalSongLibrary();
   closeInlineEditors();
-  $('partialTranscript').textContent = 'Waiting for full sentence...';
+  setPartialTranscript();
   if (!currentEvent.adminCode) {
     setStatus('Event opened in read-only mode. Admin code is required for control.');
     return;
@@ -1618,8 +1586,6 @@ async function createEvent() {
   renderSongState(currentEvent.songState || {});
   refreshDisplayControls();
   renderSongHistory(currentEvent.songHistory || []);
-  renderTranslationMonitor(currentEvent.translationMonitor || {});
-  renderInternalPins(currentEvent.internalPins || {});
   await loadSongLibrary();
   await loadGlobalSongLibrary();
   socket.emit('join_event', { eventId: currentEvent.id, role: 'admin', code: currentEvent.adminCode });
@@ -1706,6 +1672,7 @@ async function destroyAudioPipeline() {
   if (audioState.context) await audioState.context.close().catch(() => {});
   audioState.context = null;
   audioState.source = null;
+  audioState.rawAnalyser = null;
   audioState.gainNode = null;
   audioState.preampNode = null;
   audioState.analyser = null;
@@ -1743,24 +1710,36 @@ function updateMonitorGain() {
 }
 
 function startMeterLoop() {
-  if (!audioState.analyser) return;
-  const data = new Uint8Array(audioState.analyser.fftSize);
+  const displayAnalyser = audioState.rawAnalyser || audioState.analyser;
+  if (!displayAnalyser || !audioState.analyser) return;
+  const displayData = new Uint8Array(displayAnalyser.fftSize);
+  const gateData = new Uint8Array(audioState.analyser.fftSize);
   const draw = () => {
-    if (!audioState.analyser) return;
-    audioState.analyser.getByteTimeDomainData(data);
-    let sumSquares = 0;
-    for (let i = 0; i < data.length; i++) {
-      const normalized = (data[i] - 128) / 128;
-      sumSquares += normalized * normalized;
+    const activeDisplayAnalyser = audioState.rawAnalyser || audioState.analyser;
+    if (!activeDisplayAnalyser || !audioState.analyser) return;
+    activeDisplayAnalyser.getByteTimeDomainData(displayData);
+    audioState.analyser.getByteTimeDomainData(gateData);
+    let displaySumSquares = 0;
+    let gateSumSquares = 0;
+    for (let i = 0; i < displayData.length; i++) {
+      const normalized = (displayData[i] - 128) / 128;
+      displaySumSquares += normalized * normalized;
     }
-    const rms = Math.sqrt(sumSquares / data.length);
-    const db = 20 * Math.log10(Math.max(rms, 0.00001));
-    const level = Math.max(0, Math.min(100, Math.round(((db + 60) / 60) * 100)));
-    $('audioLevel').value = level;
-    audioState.currentLevel = level;
-    audioState.chunkPeakLevel = Math.max(audioState.chunkPeakLevel || 0, level);
-    audioState.chunkMinLevel = Math.min(Number.isFinite(audioState.chunkMinLevel) ? audioState.chunkMinLevel : 100, level);
-    if (level >= AUDIO_GATE_MIN_PEAK) audioState.chunkActiveFrames = (audioState.chunkActiveFrames || 0) + 1;
+    for (let i = 0; i < gateData.length; i++) {
+      const normalized = (gateData[i] - 128) / 128;
+      gateSumSquares += normalized * normalized;
+    }
+    const displayRms = Math.sqrt(displaySumSquares / displayData.length);
+    const gateRms = Math.sqrt(gateSumSquares / gateData.length);
+    const displayDb = 20 * Math.log10(Math.max(displayRms, 0.00001));
+    const gateDb = 20 * Math.log10(Math.max(gateRms, 0.00001));
+    const displayLevel = Math.max(0, Math.min(100, Math.round(((displayDb + 60) / 60) * 100)));
+    const gateLevel = Math.max(0, Math.min(100, Math.round(((gateDb + 60) / 60) * 100)));
+    $('audioLevel').value = displayLevel;
+    audioState.currentLevel = displayLevel;
+    audioState.chunkPeakLevel = Math.max(audioState.chunkPeakLevel || 0, gateLevel);
+    audioState.chunkMinLevel = Math.min(Number.isFinite(audioState.chunkMinLevel) ? audioState.chunkMinLevel : 100, gateLevel);
+    if (gateLevel >= AUDIO_GATE_MIN_PEAK) audioState.chunkActiveFrames = (audioState.chunkActiveFrames || 0) + 1;
     audioState.meterFrame = requestAnimationFrame(draw);
   };
   draw();
@@ -1775,11 +1754,14 @@ async function createAudioPipeline() {
   audioState.context = new (window.AudioContext || window.webkitAudioContext)();
   await audioState.context.resume();
   audioState.source = audioState.context.createMediaStreamSource(audioState.stream);
+  audioState.rawAnalyser = audioState.context.createAnalyser();
+  audioState.rawAnalyser.fftSize = 2048;
   audioState.gainNode = audioState.context.createGain();
   audioState.preampNode = audioState.context.createGain();
   audioState.analyser = audioState.context.createAnalyser();
   audioState.analyser.fftSize = 2048;
   audioState.destination = audioState.context.createMediaStreamDestination();
+  audioState.source.connect(audioState.rawAnalyser);
   audioState.source.connect(audioState.gainNode);
   audioState.gainNode.connect(audioState.preampNode);
   audioState.preampNode.connect(audioState.analyser);
@@ -1854,14 +1836,14 @@ async function startBrowserAzureRecognition() {
 
   recognizer.recognizing = (_, event) => {
     const text = event.result?.text || '';
-    if (text) $('partialTranscript').textContent = text;
+    if (text) setPartialTranscript(text);
   };
 
   recognizer.recognized = (_, event) => {
     if (event.result.reason !== SpeechSDK.ResultReason.RecognizedSpeech) return;
     const text = String(event.result.text || '').trim();
     if (!text || !currentEvent) return;
-    $('partialTranscript').textContent = text;
+    setPartialTranscript(text);
     socket.emit('submit_text', { eventId: currentEvent.id, text });
   };
 
@@ -2215,8 +2197,6 @@ socket.on('joined_event', ({ event, role }) => {
   refreshDisplayControls();
   renderSongHistory(event.songHistory || []);
   renderUsageStats(event.usageStats || {});
-  renderTranslationMonitor(event.translationMonitor || {});
-  renderInternalPins(event.internalPins || {});
   loadSongLibrary();
   loadGlobalSongLibrary();
   loadPinnedTextLibrary();
@@ -2224,7 +2204,7 @@ socket.on('joined_event', ({ event, role }) => {
   populateEventLinks();
   closeInlineEditors();
   refreshEventList();
-  $('partialTranscript').textContent = 'Waiting for full sentence...';
+  setPartialTranscript();
 });
 
 socket.on('transcript_entry', (entry) => {
@@ -2233,7 +2213,7 @@ socket.on('transcript_entry', (entry) => {
   if (!getEntryById(entry.id)) currentEvent.transcripts.push(entry);
   renderEntry(entry);
   renderDisplayAuditSummary();
-  $('partialTranscript').textContent = 'Waiting for full sentence...';
+  setPartialTranscript();
 });
 
 socket.on('transcript_updated', (payload) => {
@@ -2243,7 +2223,7 @@ socket.on('transcript_updated', (payload) => {
 socket.on('transcript_source_updated', (payload) => {
   updateSourceEntry(payload);
   renderDisplayAuditSummary();
-  $('partialTranscript').textContent = 'Waiting for full sentence...';
+  setPartialTranscript();
 });
 socket.on('audio_state', ({ audioMuted, audioVolume }) => {
   currentMuted = audioMuted;
@@ -2251,15 +2231,13 @@ socket.on('audio_state', ({ audioMuted, audioVolume }) => {
   $('volumeRange').value = String(audioVolume);
   renderAudioStateLabel();
 });
-socket.on('partial_transcript', ({ text }) => { $('partialTranscript').textContent = text || 'Waiting for full sentence...'; });
+socket.on('partial_transcript', ({ text }) => { setPartialTranscript(text); });
 socket.on('azure_audio_ready', () => {
   audioState.azureReady = true;
   if (audioState.running && audioState.speechProvider === 'azure_sdk') setStatus('On-Air. Azure Speech connected.');
 });
 socket.on('participant_stats', renderParticipantStats);
 socket.on('usage_stats', renderUsageStats);
-socket.on('translation_monitor', renderTranslationMonitor);
-socket.on('internal_pins_updated', renderInternalPins);
 socket.on('server_error', ({ message }) => setStatus(message || 'Server error.'));
 socket.on('active_event_changed', async ({ eventId }) => {
   if (currentEvent) {
@@ -2475,23 +2453,6 @@ $('createRemoteOperatorBtn')?.addEventListener('click', async () => {
   } catch (err) {
     console.error(err);
     alert('Could not create operator.');
-  }
-});
-$('saveInternalPinsBtn')?.addEventListener('click', async () => {
-  if (!currentEvent) return alert('Open or create an event first.');
-  try {
-    const res = await fetch(`/api/events/${currentEvent.id}/internal-pins`, adminJsonOptions('POST', {
-      adminPin: $('adminPinInput')?.value || '',
-      moderatorPin: $('moderatorPinInput')?.value || ''
-    }));
-    const data = await res.json();
-    if (!data.ok) return alert(data.error || 'Could not save internal pins.');
-    currentEvent = data.event || currentEvent;
-    renderInternalPins(data.internalPins || currentEvent.internalPins || {});
-    setStatus('Internal pins saved.');
-  } catch (err) {
-    console.error(err);
-    alert('Could not save internal pins.');
   }
 });
 $('setActiveEventBtn').addEventListener('click', setActiveEvent);

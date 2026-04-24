@@ -81,6 +81,12 @@ function getRemoteDisplayLanguage() {
   return state.currentEvent?.displayState?.language || state.currentEvent?.targetLangs?.[0] || 'no';
 }
 
+function getRemoteParticipantLanguage() {
+  return state.currentEvent?.participantPreviewLang
+    || state.currentEvent?.targetLangs?.[0]
+    || getRemoteDisplayLanguage();
+}
+
 function getRemoteMainPreviewText() {
   const event = state.currentEvent;
   if (!event) return 'Waiting for preview…';
@@ -108,7 +114,7 @@ function getRemoteMainPreviewText() {
 function getRemoteParticipantPreviewText() {
   const event = state.currentEvent;
   if (!event) return 'Waiting for participant preview…';
-  const participantLang = getRemoteDisplayLanguage();
+  const participantLang = getRemoteParticipantLanguage();
   if ((event.displayState?.mode || 'auto') === 'song') {
     const songState = event.songState || {};
     const sourceLang = songState.sourceLang || event.sourceLang || 'ro';
@@ -135,13 +141,14 @@ function renderRemoteSimplePreviews() {
   }
   const displayState = event.displayState || {};
   const previewLang = getRemoteDisplayLanguage();
+  const participantLang = getRemoteParticipantLanguage();
   if (mainMeta) {
     mainMeta.textContent = displayState.blackScreen
       ? 'Black screen'
       : `${({ auto: 'Live follow', manual: 'Pinned text', song: 'Song' }[displayState.mode] || 'Live follow')} · ${langLabel(previewLang)}`;
   }
   if (participantMeta) {
-    participantMeta.textContent = `Participant language · ${langLabel(previewLang)}`;
+    participantMeta.textContent = `Participant language · ${langLabel(participantLang)}`;
   }
   mainText.textContent = getRemoteMainPreviewText();
   participantText.textContent = getRemoteParticipantPreviewText();
@@ -514,7 +521,7 @@ $('remoteOpenMainPreviewBtn').addEventListener('click', () => {
 });
 
 $('remoteOpenParticipantPreviewBtn').addEventListener('click', () => {
-  const displayLang = state.currentEvent?.displayState?.language || state.currentEvent?.targetLangs?.[0] || 'no';
+  const displayLang = getRemoteParticipantLanguage();
   const url = state.currentEvent?.id
     ? `/participant?event=${encodeURIComponent(state.currentEvent.id)}&preview=1&compact=1&focus=1&lang=${encodeURIComponent(displayLang)}&code=${encodeURIComponent(state.accessCode)}`
     : '';
@@ -523,7 +530,7 @@ $('remoteOpenParticipantPreviewBtn').addEventListener('click', () => {
 
 $('remoteOpenBothPreviewsBtn')?.addEventListener('click', () => {
   const mainUrl = state.currentEvent?.translateLink || '';
-  const displayLang = state.currentEvent?.displayState?.language || state.currentEvent?.targetLangs?.[0] || 'no';
+  const displayLang = getRemoteParticipantLanguage();
   const participantUrl = state.currentEvent?.id
     ? `/participant?event=${encodeURIComponent(state.currentEvent.id)}&preview=1&compact=1&focus=1&lang=${encodeURIComponent(displayLang)}&code=${encodeURIComponent(state.accessCode)}`
     : '';

@@ -169,35 +169,12 @@
         </div>
 
         <div class="cards-grid two dashboard-support-grid">
-          <div class="panel glass-panel section-stack">
+          <div class="panel glass-panel section-stack partial-transcript-large-panel">
             <div class="section-head">
-              <h2>Translation Monitor</h2>
-              <div id="translationMonitorBadge" class="live-chip">Idle</div>
+              <h2>Partial transcript</h2>
+              <div class="muted">Live recognition draft</div>
             </div>
-            <div id="translationMonitorGrid" class="monitor-grid">
-              <div class="muted">Waiting for live translation data.</div>
-            </div>
-          </div>
-
-          <div class="panel glass-panel section-stack">
-            <div class="section-head">
-              <h2>Access PINs</h2>
-              <div class="muted">Extra protection for Admin and Moderator access</div>
-            </div>
-            <div class="section-stack compact-stack">
-              <div>
-                <label>Admin PIN</label>
-                <input id="adminPinInput" type="text" inputmode="numeric" placeholder="Example: 2580">
-              </div>
-              <div>
-                <label>Moderator PIN</label>
-                <input id="moderatorPinInput" type="text" inputmode="numeric" placeholder="Example: 1470">
-              </div>
-              <div class="button-row compact-row">
-                <button id="saveInternalPinsBtn" class="btn btn-dark" type="button">Save PINs</button>
-              </div>
-              <div id="internalPinsMeta" class="muted">No extra access PINs saved yet.</div>
-            </div>
+            <div id="partialTranscriptLarge" class="partial-transcript-large">Waiting for full sentence...</div>
           </div>
         </div>
       </section>

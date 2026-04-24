@@ -558,6 +558,24 @@ progress::-moz-progress-bar {
   white-space: pre-wrap;
 }
 
+.partial-transcript-large-panel {
+  min-height: 260px;
+}
+
+.partial-transcript-large {
+  min-height: 190px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: clamp(1.35rem, 2.2vw, 2.15rem);
+  line-height: 1.28;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .metric-card,
 .event-card,
 .history-item,
