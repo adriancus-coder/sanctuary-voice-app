@@ -75,9 +75,17 @@ function setPartialTranscript(text = '') {
 
 function setOnAirState(isOn) {
   const badge = $('onAirBadge');
-  if (!badge) return;
-  badge.textContent = isOn ? 'On-Air' : 'Off-Air';
-  badge.className = isOn ? 'status-pill active' : 'status-pill';
+  if (badge) {
+    badge.textContent = isOn ? 'On-Air' : 'Off-Air';
+    badge.className = isOn ? 'status-pill active' : 'status-pill';
+  }
+  const startBtn = $('startRecognitionBtn');
+  if (startBtn) {
+    startBtn.textContent = isOn ? 'On-Air' : 'Start live';
+    startBtn.classList.toggle('btn-danger', !!isOn);
+    startBtn.classList.toggle('btn-primary', !isOn);
+    startBtn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+  }
 }
 
 async function enableScreenWakeLock() {
