@@ -1342,6 +1342,10 @@ body.participant-preview-mode .participant-event-chooser {
   gap: 14px;
 }
 
+.participant-event-chooser[hidden] {
+  display: none !important;
+}
+
 .participant-event-chooser h2 {
   margin: 4px 0 0;
   font-family: "Fraunces", serif;
@@ -1528,6 +1532,10 @@ body.participant-preview-mode .participant-event-chooser {
   color: #fff8ec;
 }
 
+.participant-listener-stage.has-live-event {
+  gap: clamp(8px, 1vw, 14px);
+}
+
 .participant-listener-top,
 .participant-listener-controls,
 .participant-listener-live {
@@ -1559,7 +1567,7 @@ body.participant-preview-mode .participant-event-chooser {
   line-height: 1;
 }
 
-.participant-listener-title .muted {
+.participant-shell:not(.remote-shell) .participant-listener-title .muted {
   color: rgba(255, 248, 236, 0.7);
 }
 
@@ -1604,6 +1612,12 @@ body.participant-preview-mode .participant-event-chooser {
   padding: 11px 18px;
 }
 
+.participant-shell:not(.remote-shell) .participant-listener-top .eyebrow,
+.participant-shell:not(.remote-shell) .participant-listener-live .label,
+.participant-shell:not(.remote-shell) .participant-listener-live .history-label {
+  color: rgba(244, 221, 171, 0.9);
+}
+
 .participant-listener-live {
   display: grid;
   grid-template-columns: 1fr;
@@ -1627,7 +1641,7 @@ body.participant-preview-mode .participant-event-chooser {
   justify-content: center;
 }
 
-.participant-listener-live .participant-main-text {
+.participant-shell:not(.remote-shell) .participant-listener-live .participant-main-text {
   max-width: 1180px;
   color: #fffaf0;
   font-size: clamp(2.15rem, 6.2vw, 6.9rem);
@@ -1660,7 +1674,7 @@ body.participant-preview-mode .participant-event-chooser {
   box-shadow: none;
 }
 
-.participant-listener-live .history-text {
+.participant-shell:not(.remote-shell) .participant-listener-live .history-text {
   color: rgba(255, 248, 236, 0.66);
   font-size: clamp(0.88rem, 1.45vw, 1.2rem);
   line-height: 1.28;

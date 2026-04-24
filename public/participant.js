@@ -126,6 +126,7 @@ function applyParticipantViewMode() {
   if (!shell) return;
   shell.classList.toggle('participant-compact', !!state.compactMode);
   shell.classList.toggle('participant-focus', !!state.focusMode);
+  shell.classList.toggle('has-live-event', !!state.currentEvent);
   const compactBtn = $('participantCompactBtn');
   const focusBtn = $('participantFocusBtn');
   if (compactBtn) {
@@ -526,6 +527,7 @@ socket.on('joined_event', ({ event, role }) => {
   const chooser = $('participantEventChooser');
   if (chooser) chooser.hidden = true;
   syncLanguageOptions(event);
+  applyParticipantViewMode();
   renderLiveView({ announce: false });
   setParticipantUpdating(false);
   setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Connected.');
@@ -594,6 +596,7 @@ socket.on('active_event_changed', async () => {
     $('history').innerHTML = '';
     const chooser = $('participantEventChooser');
     if (chooser) chooser.hidden = false;
+    applyParticipantViewMode();
   }
 });
 
