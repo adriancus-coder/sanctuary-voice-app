@@ -1914,7 +1914,7 @@ async function getBrowserAzureSpeechConfig() {
     ? (currentEvent.sourceLang || 'ro')
     : (currentEvent.liveSourceLang || currentEvent.sourceLang || 'ro');
   speechConfig.speechRecognitionLanguage = sourceLangToAzureLocale(sourceCode);
-  speechConfig.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, '900');
+  speechConfig.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, '750');
   return speechConfig;
 }
 
