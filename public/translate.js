@@ -1,6 +1,7 @@
 const socket = io();
 const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
+let mainScreenWakeLock = null;
 
 const params = new URLSearchParams(window.location.search);
 const state = {
@@ -32,6 +33,26 @@ function langLabel(code) {
 function setStatus(text) {
   const el = $('translateStatus');
   if (el) el.textContent = text;
+}
+
+async function enableMainScreenWakeLock() {
+  try {
+    if (!('wakeLock' in navigator)) return;
+    if (document.visibilityState !== 'visible') return;
+    if (mainScreenWakeLock) return;
+    mainScreenWakeLock = await navigator.wakeLock.request('screen');
+    mainScreenWakeLock.addEventListener('release', () => {
+      mainScreenWakeLock = null;
+    });
+  } catch (_) {}
+}
+
+async function disableMainScreenWakeLock() {
+  try {
+    if (!mainScreenWakeLock) return;
+    await mainScreenWakeLock.release();
+    mainScreenWakeLock = null;
+  } catch (_) {}
 }
 
 function detectPreferredSupportedLanguage(available = []) {
@@ -258,6 +279,7 @@ async function enterFullscreen() {
       return;
     }
     await document.documentElement.requestFullscreen();
+    await enableMainScreenWakeLock();
   } catch (_) {}
 }
 
@@ -292,6 +314,7 @@ function handleLanguageChange() {
 
 socket.on('connect', async () => {
   setStatus('Connecting...');
+  await enableMainScreenWakeLock();
   await joinEvent();
 });
 
@@ -430,13 +453,23 @@ socket.on('active_event_changed', async () => {
 $('translateLanguage')?.addEventListener('change', handleLanguageChange);
 $('fullscreenBtn')?.addEventListener('click', enterFullscreen);
 window.addEventListener('resize', autoFitText);
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible') {
+    await enableMainScreenWakeLock();
+  }
+});
 document.addEventListener('fullscreenchange', () => {
   document.body.classList.toggle('display-fullscreen', !!document.fullscreenElement);
   applyDisplaySettings();
   autoFitText();
+  enableMainScreenWakeLock();
+});
+window.addEventListener('beforeunload', () => {
+  disableMainScreenWakeLock();
 });
 
 window.addEventListener('load', async () => {
+  await enableMainScreenWakeLock();
   try {
     const res = await fetch('/api/languages');
     const data = await res.json();
