@@ -892,7 +892,8 @@ function getSongSourceLang() {
 async function loadDisplayPresets() {
   if (!currentEvent) return;
   try {
-    const res = await fetch(`/api/events/${currentEvent.id}/display-presets`);
+    const code = encodeURIComponent(currentEvent.adminCode || getStoredAdminCode(currentEvent.id) || '');
+    const res = await fetch(`/api/events/${currentEvent.id}/display-presets${code ? `?code=${code}` : ''}`);
     const data = await res.json();
     if (!data.ok) return;
     currentDisplayPresets = data.presets || [];
@@ -1839,7 +1840,7 @@ async function handleAudioProcessingChange() {
   updateAudioProcessingHint();
   if (audioState.running) {
     setStatus('Restarting audio with new processing settings...');
-    await startTranslation();
+    await startTranslation({ forceRestart: true });
     return;
   }
   try {
@@ -2181,8 +2182,12 @@ async function drainAudioUploadQueue() {
   }
 }
 
-async function startTranslation() {
+async function startTranslation(options = {}) {
   if (!currentEvent) return alert('Open or create an event first.');
+  if ((audioState.running || window.isRecognitionRunning) && !options.forceRestart) {
+    setStatus('Already On-Air. Press Stop first if you want to restart.');
+    return;
+  }
   await syncSpeedToEvent();
   await loadSpeechRuntimeConfig();
   await setEventMode('live');
@@ -2618,7 +2623,7 @@ $('monitorGainRange').addEventListener('input', updateMonitorGain);
   $(id)?.addEventListener('change', () => handleAudioProcessingChange().catch(console.error));
 });
 $('audioInput').addEventListener('change', async () => {
-  if (audioState.running) await startTranslation();
+  if (audioState.running) await startTranslation({ forceRestart: true });
   else { try { await createAudioPipeline(); setStatus('Audio source changed.'); } catch (_) { setStatus('Selected source failed.'); } }
 });
 $('startRecognitionBtn').addEventListener('click', startTranslation);
