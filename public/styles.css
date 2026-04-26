@@ -1745,6 +1745,56 @@ body.participant-preview-mode .participant-event-chooser {
   font-size: clamp(1.9rem, 5.4vw, 5.7rem);
 }
 
+.participant-ai-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(244, 221, 171, 0.18), transparent 32%),
+    rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.participant-ai-notice[hidden] {
+  display: none !important;
+}
+
+.participant-ai-notice-card {
+  width: min(100%, 560px);
+  padding: clamp(24px, 5vw, 42px);
+  border: 1px solid rgba(244, 221, 171, 0.24);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(244, 221, 171, 0.22), transparent 34%),
+    linear-gradient(145deg, rgba(18, 19, 21, 0.98), rgba(5, 7, 8, 0.98));
+  color: #fff8ec;
+  box-shadow:
+    0 32px 100px rgba(0, 0, 0, 0.5),
+    0 0 44px rgba(244, 221, 171, 0.12);
+}
+
+.participant-ai-notice-card h2 {
+  margin: 8px 0 14px;
+  color: #fff7e8;
+  font-size: clamp(1.65rem, 5vw, 2.5rem);
+  line-height: 1.05;
+}
+
+.participant-ai-notice-card p {
+  margin: 0 0 24px;
+  color: rgba(255, 248, 236, 0.82);
+  font-size: clamp(1.02rem, 3.2vw, 1.24rem);
+  line-height: 1.48;
+}
+
+.participant-ai-notice-card .btn {
+  width: 100%;
+  justify-content: center;
+}
+
 .updating-badge {
   margin-bottom: 6px;
   color: var(--gold-strong);

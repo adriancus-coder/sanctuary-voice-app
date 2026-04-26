@@ -170,18 +170,15 @@ function buildLiveEntrySignature(entry) {
 function getEntryById(entryId) {
   return (state.currentEvent?.transcripts || []).find((x) => x.id === entryId) || null;
 }
-
 function getLatestEntry() {
   const entries = sortEntries(state.currentEvent?.transcripts || []);
   return entries.length ? entries[entries.length - 1] : null;
 }
-
 function getVisibleLiveEntry() {
   if (state.awaitingFreshLiveEntry) return null;
   if (state.visibleLiveEntry) return state.visibleLiveEntry;
   return state.allowTranscriptFallback ? getLatestEntry() : null;
 }
-
 function getTextForEntry(entry) {
   return entry?.translations?.[state.currentLanguage] || entry?.original || '';
 }
@@ -507,12 +504,68 @@ function seedVisibleLiveEntryFromTranscript() {
   state.liveEntryShownAt = Date.now();
 }
 
+function getAiNoticeCopy(language) {
+  const copies = {
+    ro: {
+      title: 'Avertizare despre traducerea AI',
+      text: 'Acest serviciu folosește traducere AI. Textul poate conține erori, omisiuni sau interpretări greșite ale pasajelor biblice. Te rugăm să urmărești vorbitorul și Scriptura ca sursă de autoritate.',
+      button: 'Am înțeles'
+    },
+    no: {
+      title: 'Viktig om AI-oversettelse',
+      text: 'Denne tjenesten bruker AI-oversettelse. Teksten kan inneholde feil, utelatelser eller feil tolkning av bibelske tekster. Følg taleren og Skriften som autoritativ kilde.',
+      button: 'Jeg forstår'
+    },
+    en: {
+      title: 'AI translation notice',
+      text: 'This service uses AI translation. The text may contain errors, omissions, or incorrect interpretations of biblical passages. Please follow the speaker and Scripture as the authoritative source.',
+      button: 'I understand'
+    },
+    ru: {
+      title: 'Важное уведомление о переводе AI',
+      text: 'Этот сервис использует AI-перевод. Текст может содержать ошибки, пропуски или неверное толкование библейских отрывков. Пожалуйста, ориентируйтесь на говорящего и Писание как на авторитетный источник.',
+      button: 'Понятно'
+    },
+    el: {
+      title: 'Σημείωση για μετάφραση AI',
+      text: 'Αυτή η υπηρεσία χρησιμοποιεί μετάφραση AI. Το κείμενο μπορεί να περιέχει λάθη, παραλείψεις ή λανθασμένη ερμηνεία βιβλικών αποσπασμάτων. Παρακαλούμε να ακολουθείτε τον ομιλητή και τη Γραφή ως την έγκυρη πηγή.',
+      button: 'Κατάλαβα'
+    }
+  };
+  return copies[language] || copies.en;
+}
+
+function getAiNoticeKey() {
+  return `sanctuary_voice_ai_notice_${state.currentEvent?.id || 'event'}_${state.currentLanguage || 'lang'}`;
+}
+
+function showAiNoticeIfNeeded({ force = false } = {}) {
+  if (state.previewMode || !state.currentEvent || !state.currentLanguage) return;
+  const modal = $('participantAiNotice');
+  if (!modal) return;
+  if (!force && localStorage.getItem(getAiNoticeKey()) === '1') return;
+
+  const copy = getAiNoticeCopy(state.currentLanguage);
+  $('participantAiNoticeTitle').textContent = copy.title;
+  $('participantAiNoticeText').textContent = copy.text;
+  $('participantAiNoticeOk').textContent = copy.button;
+  modal.hidden = false;
+  $('participantAiNoticeOk')?.focus();
+}
+
+function acceptAiNotice() {
+  localStorage.setItem(getAiNoticeKey(), '1');
+  const modal = $('participantAiNotice');
+  if (modal) modal.hidden = true;
+}
+
 function handleLanguageChange() {
   state.currentLanguage = $('languageSelect').value;
   if (state.currentEvent?.id) {
     socket.emit('participant_language', { eventId: state.currentEvent.id, language: state.currentLanguage });
   }
   renderLiveView({ announce: false });
+  showAiNoticeIfNeeded();
 }
 
 async function joinParticipantEvent(eventId) {
@@ -563,9 +616,9 @@ socket.on('joined_event', ({ event, role }) => {
     setStatus('Moderator preview.');
   } else {
     enableWakeLock();
+    showAiNoticeIfNeeded();
   }
 });
-
 socket.on('transcript_entry', (entry) => {
   if (!state.currentEvent) return;
   state.currentEvent.transcripts = state.currentEvent.transcripts || [];
@@ -706,6 +759,8 @@ $('participantFocusBtn').addEventListener('click', () => {
   localStorage.setItem('sanctuary_voice_participant_focus', state.focusMode ? '1' : '0');
   applyParticipantViewMode();
 });
+
+$('participantAiNoticeOk')?.addEventListener('click', acceptAiNotice);
 
 window.addEventListener('load', async () => {
   try {

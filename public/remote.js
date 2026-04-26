@@ -3,13 +3,23 @@ const $ = (id) => document.getElementById(id);
 
 const params = new URLSearchParams(window.location.search);
 const state = {
+  fixedEventId: params.get('event') || '',
   eventId: params.get('event') || '',
   accessCode: params.get('code') || '',
   currentEvent: null,
   availableLanguages: {},
   access: null,
   globalSongLibrary: [],
-  glossaryOpen: false
+  glossaryOpen: false,
+  liveAudio: {
+    running: false,
+    stream: null,
+    context: null,
+    source: null,
+    processor: null,
+    analyser: null,
+    levelFrame: null
+  }
 };
 
 const remoteProfileLabels = {
@@ -36,6 +46,11 @@ function setStatus(text) {
   $('remoteStatus').textContent = text;
 }
 
+function setLiveAudioStatus(text) {
+  const el = $('remoteLiveAudioStatus');
+  if (el) el.textContent = text;
+}
+
 function formatDateTime(value) {
   if (!value) return '-';
   return new Date(value).toLocaleString();
@@ -53,6 +68,16 @@ function eventCodeOptions(method, payload = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...payload, code: state.accessCode })
   };
+}
+
+async function resolveRemoteEventId() {
+  if (state.fixedEventId) return state.fixedEventId;
+  try {
+    const res = await fetch('/api/events/active');
+    const data = await res.json();
+    if (data.ok && data.event?.id) return data.event.id;
+  } catch (_) {}
+  return '';
 }
 
 function updateHeader() {
@@ -260,6 +285,131 @@ function syncGlossaryToggle() {
   btn.textContent = state.glossaryOpen ? 'Hide glossary' : 'Open glossary';
 }
 
+function downsampleRemoteTo16kPcm(input, inputRate) {
+  const outputRate = 16000;
+  if (!input?.length) return new ArrayBuffer(0);
+  const ratio = inputRate / outputRate;
+  const outputLength = Math.max(1, Math.round(input.length / ratio));
+  const output = new Int16Array(outputLength);
+  let inputOffset = 0;
+  for (let i = 0; i < outputLength; i++) {
+    const nextOffset = Math.round((i + 1) * ratio);
+    let sum = 0;
+    let count = 0;
+    for (let j = inputOffset; j < nextOffset && j < input.length; j++) {
+      sum += input[j];
+      count += 1;
+    }
+    const sample = Math.max(-1, Math.min(1, sum / Math.max(1, count)));
+    output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+    inputOffset = nextOffset;
+  }
+  return output.buffer;
+}
+
+function renderRemoteLiveAudioState() {
+  const startBtn = $('remoteStartLiveAudioBtn');
+  const stopBtn = $('remoteStopLiveAudioBtn');
+  if (startBtn) {
+    startBtn.textContent = state.liveAudio.running ? 'On-Air' : 'Start translation';
+    startBtn.classList.toggle('btn-danger', state.liveAudio.running);
+    startBtn.classList.toggle('btn-primary', !state.liveAudio.running);
+  }
+  if (stopBtn) stopBtn.disabled = !state.liveAudio.running;
+}
+
+function startRemoteMeterLoop() {
+  const meter = $('remoteAudioLevel');
+  if (!meter || !state.liveAudio.analyser) return;
+  const data = new Uint8Array(state.liveAudio.analyser.fftSize);
+  const draw = () => {
+    if (!state.liveAudio.analyser) return;
+    state.liveAudio.analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const normalized = (data[i] - 128) / 128;
+      sum += normalized * normalized;
+    }
+    const rms = Math.sqrt(sum / data.length);
+    const db = 20 * Math.log10(Math.max(rms, 0.00001));
+    meter.value = Math.max(0, Math.min(100, Math.round(((db + 60) / 60) * 100)));
+    state.liveAudio.levelFrame = requestAnimationFrame(draw);
+  };
+  draw();
+}
+
+async function stopRemoteLiveAudio() {
+  state.liveAudio.running = false;
+  if (state.eventId) socket.emit('azure_audio_stop', { eventId: state.eventId });
+  if (state.liveAudio.levelFrame) cancelAnimationFrame(state.liveAudio.levelFrame);
+  state.liveAudio.levelFrame = null;
+  if (state.liveAudio.source && state.liveAudio.processor) {
+    try { state.liveAudio.source.disconnect(state.liveAudio.processor); } catch (_) {}
+  }
+  if (state.liveAudio.source && state.liveAudio.analyser) {
+    try { state.liveAudio.source.disconnect(state.liveAudio.analyser); } catch (_) {}
+  }
+  if (state.liveAudio.processor) {
+    try { state.liveAudio.processor.disconnect(); } catch (_) {}
+    state.liveAudio.processor.onaudioprocess = null;
+  }
+  if (state.liveAudio.stream) {
+    state.liveAudio.stream.getTracks().forEach((track) => track.stop());
+  }
+  if (state.liveAudio.context) {
+    await state.liveAudio.context.close().catch(() => {});
+  }
+  state.liveAudio.stream = null;
+  state.liveAudio.context = null;
+  state.liveAudio.source = null;
+  state.liveAudio.processor = null;
+  state.liveAudio.analyser = null;
+  if ($('remoteAudioLevel')) $('remoteAudioLevel').value = 0;
+  renderRemoteLiveAudioState();
+}
+
+async function startRemoteLiveAudio() {
+  if (!state.currentEvent || !state.eventId) return setLiveAudioStatus('No live event connected.');
+  await stopRemoteLiveAudio();
+  try {
+    await post(`/api/events/${state.eventId}/mode`, { mode: 'live' });
+    state.liveAudio.stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        sampleRate: 48000,
+        sampleSize: 16,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      }
+    });
+    state.liveAudio.context = new (window.AudioContext || window.webkitAudioContext)();
+    await state.liveAudio.context.resume();
+    state.liveAudio.source = state.liveAudio.context.createMediaStreamSource(state.liveAudio.stream);
+    state.liveAudio.analyser = state.liveAudio.context.createAnalyser();
+    state.liveAudio.analyser.fftSize = 2048;
+    state.liveAudio.processor = state.liveAudio.context.createScriptProcessor(4096, 1, 1);
+    state.liveAudio.processor.onaudioprocess = (event) => {
+      if (!state.liveAudio.running) return;
+      const pcm = downsampleRemoteTo16kPcm(event.inputBuffer.getChannelData(0), state.liveAudio.context.sampleRate);
+      if (pcm.byteLength) socket.emit('azure_audio_chunk', { eventId: state.eventId, audio: pcm });
+    };
+    state.liveAudio.source.connect(state.liveAudio.analyser);
+    state.liveAudio.source.connect(state.liveAudio.processor);
+    state.liveAudio.processor.connect(state.liveAudio.context.destination);
+    state.liveAudio.running = true;
+    socket.emit('azure_audio_start', { eventId: state.eventId });
+    startRemoteMeterLoop();
+    renderRemoteLiveAudioState();
+    setLiveAudioStatus('On-Air. Listening from this device.');
+    setStatus('Remote translation started.');
+  } catch (err) {
+    await stopRemoteLiveAudio();
+    setLiveAudioStatus(err.message || 'Could not start remote translation.');
+    setStatus(err.message || 'Could not start remote translation.');
+  }
+}
+
 function clearRemoteSongEditor() {
   if ($('remoteSongTitle')) $('remoteSongTitle').value = '';
   if ($('remoteSongText')) $('remoteSongText').value = '';
@@ -340,7 +490,9 @@ function refreshRemoteUi() {
   const songEditorPanel = $('remoteSongEditorPanel');
   const churchLibraryPanel = $('remoteChurchLibraryPanel');
   const glossaryPanel = $('remoteGlossaryPanel');
+  const liveAudioPanel = $('remoteLiveAudioPanel');
   if (mainScreenPanel) mainScreenPanel.hidden = !mainScreenAllowed;
+  if (liveAudioPanel) liveAudioPanel.hidden = !mainScreenAllowed;
   if (quickLanguages) quickLanguages.hidden = !mainScreenAllowed;
   if (shortcuts) shortcuts.hidden = !mainScreenAllowed;
   if (songPanel || fallbackSongPanel) (songPanel || fallbackSongPanel).hidden = !songAllowed;
@@ -355,6 +507,7 @@ function refreshRemoteUi() {
   renderRemoteSimplePreviews();
   renderRemoteSongJumpSelect();
   renderRemoteSongLibrary();
+  renderRemoteLiveAudioState();
   if (mainScreenAllowed) {
     renderQuickLanguages();
     renderPresets();
@@ -380,10 +533,15 @@ async function post(path, payload = {}) {
 }
 
 async function join() {
-  if (!state.eventId) {
-    setStatus('Missing event.');
+  const eventId = await resolveRemoteEventId();
+  if (!eventId) {
+    state.eventId = '';
+    state.currentEvent = null;
+    refreshRemoteUi();
+    setStatus('No live event yet. This permanent remote will connect automatically when an event goes live.');
     return;
   }
+  state.eventId = eventId;
   if (!state.accessCode) {
     state.accessCode = (prompt('Enter moderator code or PIN:') || '').trim();
   }
@@ -404,11 +562,26 @@ socket.on('join_error', ({ message }) => setStatus(message || 'Cannot join remot
 socket.on('joined_event', ({ role, event, access }) => {
   if (role !== 'screen') return;
   state.currentEvent = event;
+  state.eventId = event?.id || state.eventId;
   state.access = access || null;
   clearRemoteSongEditor();
   refreshRemoteUi();
   loadRemoteSongLibrary();
   setStatus(access?.operator?.name ? `Remote control connected as ${access.operator.name}.` : 'Remote control connected.');
+});
+socket.on('active_event_changed', async ({ eventId }) => {
+  if (state.fixedEventId) return;
+  if (state.liveAudio.running) await stopRemoteLiveAudio();
+  state.eventId = eventId || '';
+  state.currentEvent = null;
+  await join();
+});
+socket.on('azure_audio_ready', () => {
+  if (state.liveAudio.running) setLiveAudioStatus('On-Air. Azure Speech connected.');
+});
+socket.on('server_error', ({ message }) => {
+  setLiveAudioStatus(message || 'Server error.');
+  setStatus(message || 'Server error.');
 });
 socket.on('display_mode_changed', (payload) => {
   if (!state.currentEvent) return;
@@ -447,6 +620,11 @@ socket.on('display_presets_updated', ({ presets }) => {
 $('remoteLiveBtn').addEventListener('click', async () => {
   try { await post(`/api/events/${state.eventId}/display/mode`, { mode: 'auto' }); setStatus('Main screen set to live follow.'); } catch (err) { setStatus(err.message); }
 });
+$('remoteStartLiveAudioBtn')?.addEventListener('click', () => startRemoteLiveAudio());
+$('remoteStopLiveAudioBtn')?.addEventListener('click', () => stopRemoteLiveAudio().then(() => {
+  setLiveAudioStatus('Stopped.');
+  setStatus('Remote translation stopped.');
+}));
 $('remotePinnedBtn').addEventListener('click', async () => {
   try { await post(`/api/events/${state.eventId}/display/mode`, { mode: 'manual' }); setStatus('Main screen set to pinned text.'); } catch (err) { setStatus(err.message); }
 });
@@ -691,4 +869,10 @@ window.addEventListener('load', async () => {
   syncGlossaryToggle();
   refreshRemoteUi();
   await join();
+});
+
+window.addEventListener('beforeunload', () => {
+  if (state.liveAudio.running && state.eventId) {
+    socket.emit('azure_audio_stop', { eventId: state.eventId });
+  }
 });

@@ -888,13 +888,15 @@ async function syncSpeedToEvent() {
 
 function populateEventLinks() {
   if (!currentEvent) return;
+  const mainOperatorCode = currentEvent.mainOperatorCode || currentEvent.screenOperatorCode || '';
+  const mainOperatorLink = currentEvent.mainOperatorLink || currentEvent.remoteControlLink || '';
   $('adminCode').textContent = currentEvent.adminCode || '-';
-  if ($('screenOperatorCode')) $('screenOperatorCode').textContent = currentEvent.screenOperatorCode || '-';
-  if ($('accessScreenOperatorCode')) $('accessScreenOperatorCode').textContent = currentEvent.screenOperatorCode || '-';
+  if ($('screenOperatorCode')) $('screenOperatorCode').textContent = mainOperatorCode || '-';
+  if ($('accessScreenOperatorCode')) $('accessScreenOperatorCode').textContent = mainOperatorCode || '-';
   $('participantLink').value = currentEvent.participantLink || '';
   $('translateLink').value = currentEvent.translateLink || '';
-  if ($('remoteControlLink')) $('remoteControlLink').value = currentEvent.remoteControlLink || '';
-  if ($('accessRemoteControlLink')) $('accessRemoteControlLink').value = currentEvent.remoteControlLink || '';
+  if ($('remoteControlLink')) $('remoteControlLink').value = mainOperatorLink;
+  if ($('accessRemoteControlLink')) $('accessRemoteControlLink').value = mainOperatorLink;
   $('qrImage').src = `/api/participant-qr.png?ts=${Date.now()}`;
   renderRemoteOperators(currentEvent.remoteOperators || []);
 }

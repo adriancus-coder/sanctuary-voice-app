@@ -67,6 +67,18 @@
     </main>
   </div>
 
+  <div id="participantAiNotice" class="participant-ai-notice" hidden role="dialog" aria-modal="true" aria-labelledby="participantAiNoticeTitle">
+    <div class="participant-ai-notice-card">
+      <div class="eyebrow">Important</div>
+      <h2 id="participantAiNoticeTitle">AI translation notice</h2>
+      <p id="participantAiNoticeText">
+        This service uses AI translation. The text may contain errors, omissions, or incorrect interpretations of biblical passages.
+        Please follow the speaker and Scripture as the authoritative source.
+      </p>
+      <button id="participantAiNoticeOk" class="btn btn-primary" type="button">I understand</button>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="/participant.js"></script>
 </body>
