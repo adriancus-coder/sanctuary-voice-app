@@ -27,6 +27,7 @@ const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY || '';
 const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION || '';
 const MASTER_ADMIN_PIN = String(process.env.MASTER_ADMIN_PIN || process.env.APP_ADMIN_PIN || '').trim();
 const MASTER_MODERATOR_PIN = String(process.env.MASTER_MODERATOR_PIN || process.env.APP_MODERATOR_PIN || '').trim();
+const MAIN_OPERATOR_PIN = String(process.env.MAIN_OPERATOR_PIN || process.env.MAIN_OPERATOR_CODE || '').trim();
 const TRANSLATION_MONITOR_ENABLED = String(process.env.TRANSLATION_MONITOR_ENABLED || '').trim() === '1';
 
 console.log('API KEY:', OPENAI_API_KEY ? 'OK' : 'LIPSA');
@@ -400,7 +401,14 @@ function ensureEventUiState(event) {
 }
 
 function defaultDb() {
-  return { events: {}, globalMemory: {}, globalSongLibrary: defaultGlobalSongLibrary(), pinnedTextLibrary: defaultPinnedTextLibrary(), activeEventId: null };
+  return {
+    events: {},
+    globalMemory: {},
+    globalSongLibrary: defaultGlobalSongLibrary(),
+    pinnedTextLibrary: defaultPinnedTextLibrary(),
+    globalAccess: {},
+    activeEventId: null
+  };
 }
 
 const REMOTE_OPERATOR_PROFILES = {
@@ -477,6 +485,9 @@ if (!Array.isArray(db.globalSongLibrary)) {
 }
 if (!Array.isArray(db.pinnedTextLibrary)) {
   db.pinnedTextLibrary = defaultPinnedTextLibrary();
+}
+if (!db.globalAccess || typeof db.globalAccess !== 'object') {
+  db.globalAccess = {};
 }
 
 function saveDb() {
@@ -758,9 +769,12 @@ function normalizeEvent(event, options = {}) {
     songHistory: Array.isArray(event.songHistory) ? event.songHistory : []
   };
   if (includeSecrets) {
+    const globalAccess = ensureGlobalAccess();
     payload.adminCode = event.adminCode;
     payload.screenOperatorCode = event.screenOperatorCode || '';
     payload.remoteControlLink = event.remoteControlLink || '';
+    payload.mainOperatorCode = globalAccess.mainOperatorCode || '';
+    payload.mainOperatorLink = event.mainOperatorLink || '';
     payload.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []);
   }
   return payload;
@@ -929,6 +943,7 @@ function getSuppliedEventCode(req) {
 function resolveEventAccessFromCode(event, code) {
   const suppliedCode = String(code || '').trim();
   if (!suppliedCode) return { role: '', permissions: [], operator: null };
+  const globalAccess = ensureGlobalAccess();
   if (MASTER_ADMIN_PIN && suppliedCode === MASTER_ADMIN_PIN) {
     return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
   }
@@ -940,6 +955,13 @@ function resolveEventAccessFromCode(event, code) {
       role: 'screen',
       permissions: ['main_screen', 'song'],
       operator: { id: 'master-moderator', name: 'Master Moderator', profile: 'full', code: suppliedCode }
+    };
+  }
+  if (globalAccess.mainOperatorCode && suppliedCode === globalAccess.mainOperatorCode) {
+    return {
+      role: 'screen',
+      permissions: ['main_screen', 'song'],
+      operator: { id: 'main-operator', name: 'Main Operator', profile: 'full', code: suppliedCode, permanent: true }
     };
   }
   if (String(event.screenOperatorCode || '') === suppliedCode) {
@@ -1031,9 +1053,11 @@ function ensureEventAccessLinks(event, baseUrl) {
   }
   event.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []);
   if (baseUrl) {
+    const globalAccess = ensureGlobalAccess(baseUrl);
     event.participantLink = `${baseUrl}/participant`;
     event.translateLink = `${baseUrl}/translate?event=${event.id}`;
     event.songLink = `${baseUrl}/song?event=${event.id}`;
+    event.mainOperatorLink = globalAccess.mainOperatorLink;
     event.remoteControlLink = `${baseUrl}/remote?event=${event.id}&code=${encodeURIComponent(event.screenOperatorCode)}`;
     event.remoteOperators = event.remoteOperators.map((operator) => ({
       ...operator,
@@ -1049,6 +1073,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
   const participantLink = `${baseUrl}/participant`;
   const translateLink = `${baseUrl}/translate?event=${id}`;
   const songLink = `${baseUrl}/song?event=${id}`;
+  const mainOperatorLink = ensureGlobalAccess(baseUrl).mainOperatorLink;
   const remoteControlLink = `${baseUrl}/remote?event=${id}&code=${encodeURIComponent(screenOperatorCode)}`;
   const qrCodeDataUrl = await QRCode.toDataURL(participantLink);
 
@@ -1066,6 +1091,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     participantLink,
     translateLink,
     songLink,
+    mainOperatorLink,
     remoteControlLink,
     qrCodeDataUrl,
     transcripts: [],
@@ -1144,6 +1170,30 @@ function writeTranslationCache(key, value) {
     const firstKey = translationCache.keys().next().value;
     translationCache.delete(firstKey);
   }
+}
+
+function buildAccessCode(prefix) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+}
+
+function ensureGlobalAccess(baseUrl = '') {
+  if (!db.globalAccess || typeof db.globalAccess !== 'object') {
+    db.globalAccess = {};
+  }
+  const configuredCode = MAIN_OPERATOR_PIN;
+  if (configuredCode && db.globalAccess.mainOperatorCode !== configuredCode) {
+    db.globalAccess.mainOperatorCode = configuredCode;
+  }
+  if (!db.globalAccess.mainOperatorCode) {
+    db.globalAccess.mainOperatorCode = buildAccessCode('SV-MAIN');
+  }
+  const mainOperatorCode = String(db.globalAccess.mainOperatorCode || '').trim();
+  return {
+    mainOperatorCode,
+    mainOperatorLink: baseUrl && mainOperatorCode
+      ? `${baseUrl}/remote?code=${encodeURIComponent(mainOperatorCode)}`
+      : ''
+  };
 }
 
 function updateTranslationMonitor(event, patch = {}, shouldEmit = true) {
