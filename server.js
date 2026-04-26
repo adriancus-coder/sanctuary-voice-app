@@ -133,12 +133,14 @@ function defaultDisplayState() {
     blackScreen: false,
     theme: 'dark',
     language: 'no',
+    secondaryLanguage: '',
     backgroundPreset: 'none',
     customBackground: '',
     showClock: false,
     clockPosition: 'top-right',
     clockScale: 1,
     textSize: 'large',
+    textScale: 1,
     screenStyle: 'focus',
     displayResolution: 'auto',
     sceneLabel: '',
@@ -191,6 +193,12 @@ function defaultUsageStats() {
   };
 }
 
+function normalizeDisplayTextScale(value, fallback = 1) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(1.4, Math.max(0.65, Math.round(numeric * 100) / 100));
+}
+
 function defaultTranslationMonitor() {
   return {
     lastSpeechReceivedAt: null,
@@ -224,12 +232,14 @@ function cloneDisplaySnapshot(event) {
     blackScreen: !!event.displayState.blackScreen,
     theme: event.displayState.theme,
     language: event.displayState.language,
+    secondaryLanguage: event.displayState.secondaryLanguage || '',
     backgroundPreset: event.displayState.backgroundPreset,
     customBackground: event.displayState.customBackground,
     showClock: !!event.displayState.showClock,
     clockPosition: event.displayState.clockPosition,
     clockScale: event.displayState.clockScale || 1,
     textSize: event.displayState.textSize,
+    textScale: event.displayState.textScale || 1,
     screenStyle: event.displayState.screenStyle,
     displayResolution: event.displayState.displayResolution || 'auto',
     sceneLabel: typeof event.displayState.sceneLabel === 'string' ? event.displayState.sceneLabel : '',
@@ -262,18 +272,23 @@ function applyDisplaySnapshot(event, snapshot, updatedAt = new Date().toISOStrin
   if (safe.mode === 'manual' && manualSourceLang && !allowedDisplayLanguages.includes(manualSourceLang)) {
     allowedDisplayLanguages.push(manualSourceLang);
   }
+  const primaryLanguage = allowedDisplayLanguages.includes(safe.language)
+    ? safe.language
+    : (allowedDisplayLanguages[0] || event.targetLangs[0] || 'no');
   event.displayState = {
     ...event.displayState,
     mode: ['auto', 'manual', 'song'].includes(safe.mode) ? safe.mode : 'auto',
     blackScreen: !!safe.blackScreen,
     theme: ['dark', 'light'].includes(safe.theme) ? safe.theme : 'dark',
-    language: allowedDisplayLanguages.includes(safe.language) ? safe.language : (allowedDisplayLanguages[0] || event.targetLangs[0] || 'no'),
+    language: primaryLanguage,
+    secondaryLanguage: allowedDisplayLanguages.includes(safe.secondaryLanguage) && safe.secondaryLanguage !== primaryLanguage ? safe.secondaryLanguage : '',
     backgroundPreset: ['none', 'warm', 'sanctuary', 'soft-light'].includes(safe.backgroundPreset) ? safe.backgroundPreset : 'none',
     customBackground: typeof safe.customBackground === 'string' ? safe.customBackground : '',
     showClock: !!safe.showClock,
     clockPosition: ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(safe.clockPosition) ? safe.clockPosition : 'top-right',
     clockScale: typeof safe.clockScale === 'number' ? Math.min(1.8, Math.max(0.7, safe.clockScale)) : 1,
     textSize: ['compact', 'large', 'xlarge'].includes(safe.textSize) ? safe.textSize : 'large',
+    textScale: normalizeDisplayTextScale(safe.textScale, 1),
     screenStyle: ['focus', 'wide'].includes(safe.screenStyle) ? safe.screenStyle : 'focus',
     displayResolution: ['auto', '16-9', '16-10', '4-3'].includes(safe.displayResolution) ? safe.displayResolution : 'auto',
     sceneLabel: typeof safe.sceneLabel === 'string' ? safe.sceneLabel : '',
@@ -309,6 +324,13 @@ function ensureEventUiState(event) {
       ? event.displayState.language
       : (allowedDisplayLanguages[0] || event.targetLangs[0] || 'no');
   }
+  {
+    const allowedDisplayLanguages = getDisplayLanguageChoices(event);
+    const secondaryLanguage = String(event.displayState.secondaryLanguage || '').trim();
+    event.displayState.secondaryLanguage = allowedDisplayLanguages.includes(secondaryLanguage) && secondaryLanguage !== event.displayState.language
+      ? secondaryLanguage
+      : '';
+  }
   if (typeof event.displayState.customBackground !== 'string') {
     event.displayState.customBackground = '';
   }
@@ -332,6 +354,7 @@ function ensureEventUiState(event) {
   if (!['compact', 'large', 'xlarge'].includes(event.displayState.textSize)) {
     event.displayState.textSize = 'large';
   }
+  event.displayState.textScale = normalizeDisplayTextScale(event.displayState.textScale, 1);
   if (!['focus', 'wide'].includes(event.displayState.screenStyle)) {
     event.displayState.screenStyle = 'focus';
   }
@@ -787,12 +810,14 @@ function buildDisplayPayload(event) {
     blackScreen: !!event.displayState.blackScreen,
     theme: event.displayState.theme,
     language: event.displayState.language,
+    secondaryLanguage: event.displayState.secondaryLanguage || '',
     backgroundPreset: event.displayState.backgroundPreset,
     customBackground: event.displayState.customBackground,
     showClock: event.displayState.showClock,
     clockPosition: event.displayState.clockPosition,
     clockScale: event.displayState.clockScale || 1,
     textSize: event.displayState.textSize,
+    textScale: event.displayState.textScale || 1,
     screenStyle: event.displayState.screenStyle,
     displayResolution: event.displayState.displayResolution || 'auto',
     sceneLabel: event.displayState.sceneLabel,
@@ -814,20 +839,25 @@ function normalizeDisplayPreset(input = {}) {
   const clockPosition = ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(input.clockPosition) ? input.clockPosition : 'top-right';
   const clockScale = typeof input.clockScale === 'number' ? Math.min(1.8, Math.max(0.7, input.clockScale)) : 1;
   const textSize = ['compact', 'large', 'xlarge'].includes(input.textSize) ? input.textSize : 'large';
+  const textScale = normalizeDisplayTextScale(input.textScale, 1);
   const screenStyle = ['focus', 'wide'].includes(input.screenStyle) ? input.screenStyle : 'focus';
   const displayResolution = ['auto', '16-9', '16-10', '4-3'].includes(input.displayResolution) ? input.displayResolution : 'auto';
+  const language = String(input.language || 'no').trim() || 'no';
+  const secondaryLanguage = String(input.secondaryLanguage || '').trim();
   return {
     id: input.id || randomUUID(),
     name,
     mode,
     theme,
-    language: String(input.language || 'no').trim() || 'no',
+    language,
+    secondaryLanguage: secondaryLanguage && secondaryLanguage !== language ? secondaryLanguage : '',
     backgroundPreset,
     customBackground: typeof input.customBackground === 'string' ? input.customBackground.trim() : '',
     showClock: !!input.showClock,
     clockPosition,
     clockScale,
     textSize,
+    textScale,
     screenStyle,
     displayResolution,
     updatedAt: new Date().toISOString()
@@ -2439,12 +2469,18 @@ app.post('/api/events/:id/display/language', (req, res) => {
   if (!requireEventPermission(req, res, 'main_screen')) return;
   ensureEventUiState(event);
   const language = String(req.body.language || '').trim();
+  const hasSecondaryLanguage = Object.prototype.hasOwnProperty.call(req.body || {}, 'secondaryLanguage');
+  const secondaryLanguage = hasSecondaryLanguage ? String(req.body.secondaryLanguage || '').trim() : event.displayState.secondaryLanguage || '';
   const allowedDisplayLanguages = getDisplayLanguageChoices(event);
   if (!allowedDisplayLanguages.includes(language)) {
     return res.status(400).json({ ok: false, error: 'Limba invalida pentru ecran.' });
   }
+  if (secondaryLanguage && !allowedDisplayLanguages.includes(secondaryLanguage)) {
+    return res.status(400).json({ ok: false, error: 'A doua limba este invalida pentru ecran.' });
+  }
   rememberDisplayState(event);
   event.displayState.language = language;
+  event.displayState.secondaryLanguage = secondaryLanguage && secondaryLanguage !== language ? secondaryLanguage : '';
   event.displayState.sceneLabel = '';
   event.displayState.updatedAt = new Date().toISOString();
   recordScreenAction(event, 'display');
@@ -2466,8 +2502,11 @@ app.post('/api/events/:id/display/settings', (req, res) => {
   const clockPosition = typeof req.body.clockPosition === 'string' ? req.body.clockPosition.trim() : event.displayState.clockPosition;
   const clockScale = typeof req.body.clockScale === 'number' ? req.body.clockScale : event.displayState.clockScale;
   const textSize = typeof req.body.textSize === 'string' ? req.body.textSize.trim() : event.displayState.textSize;
+  const textScale = typeof req.body.textScale === 'number' ? req.body.textScale : event.displayState.textScale;
   const screenStyle = typeof req.body.screenStyle === 'string' ? req.body.screenStyle.trim() : event.displayState.screenStyle;
   const displayResolution = typeof req.body.displayResolution === 'string' ? req.body.displayResolution.trim() : event.displayState.displayResolution;
+  const secondaryLanguage = typeof req.body.secondaryLanguage === 'string' ? req.body.secondaryLanguage.trim() : event.displayState.secondaryLanguage || '';
+  const allowedDisplayLanguages = getDisplayLanguageChoices(event);
   if (!['none', 'warm', 'sanctuary', 'soft-light'].includes(backgroundPreset)) {
     return res.status(400).json({ ok: false, error: 'Preset fundal invalid.' });
   }
@@ -2480,11 +2519,17 @@ app.post('/api/events/:id/display/settings', (req, res) => {
   if (!['compact', 'large', 'xlarge'].includes(textSize)) {
     return res.status(400).json({ ok: false, error: 'Marime text invalida.' });
   }
+  if (typeof textScale !== 'number' || Number.isNaN(textScale) || textScale < 0.65 || textScale > 1.4) {
+    return res.status(400).json({ ok: false, error: 'Zoom text invalid.' });
+  }
   if (!['focus', 'wide'].includes(screenStyle)) {
     return res.status(400).json({ ok: false, error: 'Layout ecran invalid.' });
   }
   if (!['auto', '16-9', '16-10', '4-3'].includes(displayResolution)) {
     return res.status(400).json({ ok: false, error: 'Rezolutie ecran invalida.' });
+  }
+  if (secondaryLanguage && !allowedDisplayLanguages.includes(secondaryLanguage)) {
+    return res.status(400).json({ ok: false, error: 'A doua limba este invalida pentru ecran.' });
   }
   rememberDisplayState(event);
   event.displayState.backgroundPreset = backgroundPreset;
@@ -2493,8 +2538,10 @@ app.post('/api/events/:id/display/settings', (req, res) => {
   event.displayState.clockPosition = clockPosition;
   event.displayState.clockScale = clockScale;
   event.displayState.textSize = textSize;
+  event.displayState.textScale = normalizeDisplayTextScale(textScale, 1);
   event.displayState.screenStyle = screenStyle;
   event.displayState.displayResolution = displayResolution;
+  event.displayState.secondaryLanguage = secondaryLanguage && secondaryLanguage !== event.displayState.language ? secondaryLanguage : '';
   event.displayState.sceneLabel = '';
   event.displayState.updatedAt = new Date().toISOString();
   recordScreenAction(event, 'display');
@@ -2552,6 +2599,9 @@ app.post('/api/events/:id/display/shortcut', (req, res) => {
   event.displayState.language = event.targetLangs.includes(String(req.body.language || '').trim())
     ? String(req.body.language || '').trim()
     : (event.displayState.language || event.targetLangs[0] || 'no');
+  if (event.displayState.secondaryLanguage === event.displayState.language) {
+    event.displayState.secondaryLanguage = '';
+  }
   event.displayState.backgroundPreset = shortcut.backgroundPreset;
   event.displayState.customBackground = shortcut.customBackground;
   event.displayState.showClock = !!shortcut.showClock;
@@ -2589,6 +2639,9 @@ app.post('/api/events/:id/display-presets', (req, res) => {
   }
   if (!event.targetLangs.includes(preset.language)) {
     preset.language = event.targetLangs[0] || 'no';
+  }
+  if (preset.secondaryLanguage && (!event.targetLangs.includes(preset.secondaryLanguage) || preset.secondaryLanguage === preset.language)) {
+    preset.secondaryLanguage = '';
   }
 
   const existingIndex = event.displayPresets.findIndex((item) => String(item.name || '').toLowerCase() === preset.name.toLowerCase());
@@ -2628,12 +2681,16 @@ app.post('/api/events/:id/display-presets/:presetId/apply', (req, res) => {
   {
     const allowedDisplayLanguages = getDisplayLanguageChoices(event, preset.mode);
     event.displayState.language = allowedDisplayLanguages.includes(preset.language) ? preset.language : (allowedDisplayLanguages[0] || event.targetLangs[0] || 'no');
+    event.displayState.secondaryLanguage = allowedDisplayLanguages.includes(preset.secondaryLanguage) && preset.secondaryLanguage !== event.displayState.language
+      ? preset.secondaryLanguage
+      : '';
   }
   event.displayState.backgroundPreset = preset.backgroundPreset;
   event.displayState.customBackground = preset.customBackground;
   event.displayState.showClock = !!preset.showClock;
   event.displayState.clockPosition = preset.clockPosition;
   event.displayState.textSize = preset.textSize;
+  event.displayState.textScale = normalizeDisplayTextScale(preset.textScale, 1);
   event.displayState.screenStyle = preset.screenStyle;
   event.displayState.sceneLabel = preset.name;
   event.displayState.updatedAt = new Date().toISOString();
