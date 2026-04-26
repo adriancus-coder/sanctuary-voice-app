@@ -106,13 +106,19 @@ function getRemoteDisplayLanguage() {
   return state.currentEvent?.displayState?.language || state.currentEvent?.targetLangs?.[0] || 'no';
 }
 
+function getRemoteDisplayLanguages() {
+  const primary = getRemoteDisplayLanguage();
+  const secondary = state.currentEvent?.displayState?.secondaryLanguage || '';
+  return secondary && secondary !== primary ? [primary, secondary] : [primary];
+}
+
 function getRemoteParticipantLanguage() {
   return state.currentEvent?.participantPreviewLang
     || state.currentEvent?.targetLangs?.[0]
     || getRemoteDisplayLanguage();
 }
 
-function getRemoteMainPreviewText() {
+function getRemoteMainPreviewTextForLanguage(displayLang) {
   const event = state.currentEvent;
   if (!event) return 'Waiting for preview…';
   const displayState = event.displayState || {};
@@ -120,20 +126,28 @@ function getRemoteMainPreviewText() {
   if (displayState.mode === 'song') {
     const songState = event.songState || {};
     const sourceLang = songState.sourceLang || event.sourceLang || 'ro';
-    const displayLang = getRemoteDisplayLanguage();
     if (displayLang === sourceLang) return songState.activeBlock || 'Waiting for song…';
     return songState.translations?.[displayLang] || songState.activeBlock || 'Waiting for song translation…';
   }
   if (displayState.mode === 'manual') {
-    const displayLang = getRemoteDisplayLanguage();
     const sourceLang = displayState.manualSourceLang || event.sourceLang || 'ro';
     if (displayLang === sourceLang) return displayState.manualSource || 'Pinned text mode';
     return displayState.manualTranslations?.[displayLang] || displayState.manualSource || 'Pinned text mode';
   }
   const latestEntry = getLatestRemoteEntry();
   if (!latestEntry) return 'Waiting for live translation…';
-  const displayLang = getRemoteDisplayLanguage();
   return latestEntry.translations?.[displayLang] || latestEntry.original || 'Waiting for live translation…';
+}
+
+function getRemoteMainPreviewText() {
+  const event = state.currentEvent;
+  if (!event) return 'Waiting for previewâ€¦';
+  if (event.displayState?.blackScreen) return 'Black screen';
+  const languages = getRemoteDisplayLanguages();
+  if (languages.length === 1) return getRemoteMainPreviewTextForLanguage(languages[0]);
+  return languages
+    .map((lang) => `${langLabel(lang)}: ${getRemoteMainPreviewTextForLanguage(lang)}`)
+    .join('\n\n');
 }
 
 function getRemoteParticipantPreviewText() {
@@ -165,7 +179,8 @@ function renderRemoteSimplePreviews() {
     return;
   }
   const displayState = event.displayState || {};
-  const previewLang = getRemoteDisplayLanguage();
+  const previewLangs = getRemoteDisplayLanguages();
+  const previewLang = previewLangs[0];
   const participantLang = getRemoteParticipantLanguage();
   if (mainMeta) {
     mainMeta.textContent = displayState.blackScreen

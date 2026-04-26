@@ -450,6 +450,11 @@
                   <label>Screen language</label>
                   <select id="displayLanguageSelect"></select>
                 </div>
+                <div>
+                  <label>Second language</label>
+                  <select id="displaySecondaryLanguageSelect"></select>
+                  <div class="small">Choose "Single language" to keep the current full-screen layout.</div>
+                </div>
               </div>
               <div class="split-2">
                 <div>
@@ -506,6 +511,16 @@
                     <button id="clockSizePlusBtn" class="btn btn-dark" type="button">+</button>
                     <input id="displayClockScaleInput" type="hidden" value="1">
                   </div>
+                </div>
+                <div>
+                  <label>Text zoom</label>
+                  <div class="button-row compact-row clock-size-row">
+                    <button id="textZoomMinusBtn" class="btn btn-dark" type="button">-</button>
+                    <span id="displayTextScaleValue" class="status-pill">100%</span>
+                    <button id="textZoomPlusBtn" class="btn btn-dark" type="button">+</button>
+                    <input id="displayTextScaleInput" type="hidden" value="1">
+                  </div>
+                  <div class="small">Fine tune when the projector needs manual fitting.</div>
                 </div>
               </div>
               <label>Custom background image URL</label>

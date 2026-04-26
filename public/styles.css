@@ -1986,12 +1986,72 @@ body.participant-preview-mode .participant-event-chooser {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
   position: relative;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(3, 5, 10, 0.92), rgba(7, 10, 16, 0.98)),
     radial-gradient(circle at top, rgba(200, 138, 43, 0.18), transparent 32%),
     radial-gradient(circle at bottom, rgba(15, 118, 110, 0.12), transparent 34%);
+}
+
+.unified-display-dual {
+  width: min(100%, 1680px);
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(18px, 3vw, 48px);
+  align-items: stretch;
+  position: relative;
+  z-index: 1;
+}
+
+.unified-display-dual[hidden] {
+  display: none !important;
+}
+
+.unified-display-language-card {
+  min-width: 0;
+  min-height: min(64vh, 720px);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: clamp(14px, 2vw, 24px);
+  align-items: center;
+  padding: clamp(22px, 3.4vw, 56px);
+  border: 1px solid rgba(244, 221, 171, 0.14);
+  border-radius: clamp(26px, 3.2vw, 44px);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(244, 221, 171, 0.08), transparent 36%),
+    rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 1px 0 rgba(255, 248, 236, 0.04);
+  overflow: hidden;
+}
+
+.unified-display-language-label {
+  align-self: start;
+  color: rgba(244, 221, 171, 0.82);
+  font-size: clamp(1rem, 1.8vw, 1.45rem);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.unified-display-language-text {
+  align-self: center;
+  justify-self: center;
+  color: #fff;
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 850;
+  letter-spacing: -0.055em;
+  line-height: 1.08;
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.35),
+    0 0 34px rgba(255, 236, 198, 0.16);
+  animation: displayFadeIn 280ms ease;
 }
 
 .unified-display-text {
@@ -2026,6 +2086,22 @@ body.participant-preview-mode .participant-event-chooser {
   text-shadow: none;
 }
 
+.display-theme-light .unified-display-language-card {
+  border-color: rgba(24, 32, 43, 0.12);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(200, 138, 43, 0.08), transparent 36%),
+    rgba(255, 255, 255, 0.56);
+}
+
+.display-theme-light .unified-display-language-label {
+  color: rgba(70, 50, 24, 0.72);
+}
+
+.display-theme-light .unified-display-language-text {
+  color: #18202b;
+  text-shadow: none;
+}
+
 .unified-display-live[data-resolution="16-9"] {
   aspect-ratio: 16 / 9;
   min-height: auto;
@@ -2046,7 +2122,8 @@ body.participant-preview-mode .participant-event-chooser {
 
 .display-theme-dark .display-single-text,
 .display-theme-dark .song-only-translation,
-.display-theme-dark .unified-display-text {
+.display-theme-dark .unified-display-text,
+.display-theme-dark .unified-display-language-text {
   color: #fff !important;
   text-shadow: none;
 }
@@ -2253,6 +2330,14 @@ body.participant-preview-mode .participant-event-chooser {
   .song-only-translation,
   .unified-display-text {
     font-size: clamp(2rem, 10vw, 3.5rem);
+  }
+
+  .unified-display-dual {
+    grid-template-columns: 1fr;
+  }
+
+  .unified-display-language-card {
+    min-height: 34vh;
   }
 
   .participant-event-card {

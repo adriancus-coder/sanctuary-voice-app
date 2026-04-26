@@ -8,6 +8,7 @@ const state = {
   fixedEventId: params.get('event') || '',
   currentEvent: null,
   currentLanguage: params.get('lang') || 'no',
+  secondaryLanguage: '',
   currentDisplayMode: 'auto',
   currentTheme: 'dark',
   backgroundPreset: 'none',
@@ -16,6 +17,7 @@ const state = {
   clockPosition: 'top-right',
   clockScale: 1,
   textSize: 'large',
+  textScale: 1,
   screenStyle: 'focus',
   displayResolution: 'auto',
   blackScreen: false,
@@ -160,28 +162,36 @@ function updateClock() {
   clock.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function getTextToDisplay() {
+function getDisplayLanguages() {
+  if (state.blackScreen) return [];
+  const secondaryLanguage = state.secondaryLanguage && state.secondaryLanguage !== state.currentLanguage
+    ? state.secondaryLanguage
+    : '';
+  return secondaryLanguage ? [state.currentLanguage, secondaryLanguage] : [state.currentLanguage];
+}
+
+function getTextToDisplay(language = state.currentLanguage) {
   if (state.blackScreen) {
     return '';
   }
   if (state.currentDisplayMode === 'song' && state.songState) {
     const sourceLang = state.songState?.sourceLang || state.currentEvent?.sourceLang || 'ro';
-    if (state.currentLanguage === sourceLang) {
+    if (language === sourceLang) {
       return state.songState.activeBlock
         || 'Waiting for song text...';
     }
-    return state.songState.translations?.[state.currentLanguage]
+    return state.songState.translations?.[language]
       || state.songState.activeBlock
       || 'Waiting for song translation...';
   }
   if (state.currentDisplayMode === 'manual') {
-    if (state.currentLanguage === (state.manualSourceLang || state.currentEvent?.sourceLang || 'ro')) {
+    if (language === (state.manualSourceLang || state.currentEvent?.sourceLang || 'ro')) {
       return state.currentEvent?.displayState?.manualSource || '';
     }
-    return state.manualTranslations?.[state.currentLanguage] || state.currentEvent?.displayState?.manualSource || '';
+    return state.manualTranslations?.[language] || state.currentEvent?.displayState?.manualSource || '';
   }
   if (state.latestLiveEntry) {
-    return state.latestLiveEntry.translations?.[state.currentLanguage]
+    return state.latestLiveEntry.translations?.[language]
       || state.latestLiveEntry.original
       || 'Waiting for translation...';
   }
@@ -195,39 +205,34 @@ function updateMeta() {
     song: 'Song'
   };
   $('translateModeBadge').textContent = state.blackScreen ? 'Black screen' : (modeLabels[state.currentDisplayMode] || 'Auto');
-  $('translateLanguageLabel').textContent = langLabel(state.currentLanguage);
+  $('translateLanguageLabel').textContent = getDisplayLanguages().map(langLabel).join(' + ') || langLabel(state.currentLanguage);
   $('translateEventName').textContent = state.currentEvent?.name || 'Sanctuary Voice Main Screen';
   $('translateScreenLabel').textContent = state.blackScreen
     ? ''
     : (state.currentDisplayMode === 'song' ? 'Song' : state.currentDisplayMode === 'manual' ? 'Pinned text' : 'Live translation');
 }
 
-function autoFitText() {
-  const box = $('translateText');
-  const wrap = $('translateTextWrap');
-  const label = $('translateScreenLabel');
-  const clock = $('displayClock');
-  if (!box || !wrap) return;
-
-  const wrapStyle = window.getComputedStyle(wrap);
-  const paddingX = (parseFloat(wrapStyle.paddingLeft) || 0) + (parseFloat(wrapStyle.paddingRight) || 0);
-  const paddingY = (parseFloat(wrapStyle.paddingTop) || 0) + (parseFloat(wrapStyle.paddingBottom) || 0);
-  const labelHeight = label && !label.hidden ? label.getBoundingClientRect().height + 18 : 0;
-  const clockReserve = clock && clock.style.display !== 'none' ? Math.max(clock.getBoundingClientRect().height + 20, 48) : 0;
-  const availableWidth = Math.max(wrap.clientWidth - paddingX - 32, 180);
-  const availableHeight = Math.max(wrap.clientHeight - paddingY - labelHeight - clockReserve - 20, 120);
-
+function fitDisplayTextElement(box, container, options = {}) {
+  if (!box || !container) return;
+  const containerStyle = window.getComputedStyle(container);
+  const paddingX = (parseFloat(containerStyle.paddingLeft) || 0) + (parseFloat(containerStyle.paddingRight) || 0);
+  const paddingY = (parseFloat(containerStyle.paddingTop) || 0) + (parseFloat(containerStyle.paddingBottom) || 0);
+  const availableWidth = Math.max(container.clientWidth - paddingX - 28, 180);
+  const availableHeight = Math.max(container.clientHeight - paddingY - (options.reserveHeight || 0) - 20, 120);
   box.style.fontSize = '';
   box.style.lineHeight = '';
   box.style.maxWidth = `${availableWidth}px`;
   box.style.maxHeight = `${availableHeight}px`;
   box.style.transform = '';
   box.style.transformOrigin = 'center center';
-  let size = Math.min(Math.max(Math.floor(availableWidth / 10.6), 24), 118);
+  let size = Math.min(Math.max(Math.floor(availableWidth / (options.dense ? 12.6 : 10.6)), 24), options.maxSize || 118);
   const sizeMode = state.textSize || 'large';
   if (sizeMode === 'compact') size = Math.round(size * 0.82);
   if (sizeMode === 'xlarge') size = Math.round(size * 1.08);
-  size = Math.min(Math.max(size, 18), 118);
+  const manualScale = Math.min(1.4, Math.max(0.65, Number(state.textScale || 1)));
+  const maxSize = Math.round((options.maxSize || 118) * 1.4);
+  size = Math.round(size * manualScale);
+  size = Math.min(Math.max(size, 18), maxSize);
   box.style.fontSize = `${size}px`;
   box.style.lineHeight = size <= 42 ? '1.04' : size <= 64 ? '1.08' : '1.12';
 
@@ -253,10 +258,49 @@ function autoFitText() {
   }
 }
 
+function autoFitText() {
+  const dual = $('translateDualText');
+  if (dual && !dual.hidden) {
+    document.querySelectorAll('.unified-display-language-card').forEach((card) => {
+      const languageLabel = card.querySelector('.unified-display-language-label');
+      const languageText = card.querySelector('.unified-display-language-text');
+      const reserveHeight = languageLabel ? languageLabel.getBoundingClientRect().height + 18 : 0;
+      fitDisplayTextElement(languageText, card, { reserveHeight, dense: true, maxSize: 82 });
+    });
+    return;
+  }
+
+  const box = $('translateText');
+  const wrap = $('translateTextWrap');
+  const label = $('translateScreenLabel');
+  const clock = $('displayClock');
+  const labelHeight = label && !label.hidden ? label.getBoundingClientRect().height + 18 : 0;
+  const clockReserve = clock && clock.style.display !== 'none' ? Math.max(clock.getBoundingClientRect().height + 20, 48) : 0;
+  fitDisplayTextElement(box, wrap, { reserveHeight: labelHeight + clockReserve, dense: false, maxSize: 118 });
+}
+
 function renderDisplay() {
-  $('translateText').textContent = getTextToDisplay();
-  $('translateText').dataset.textSize = state.textSize || 'large';
-  $('translateText').dataset.screenStyle = state.screenStyle || 'focus';
+  const languages = getDisplayLanguages();
+  const useDual = languages.length === 2;
+  const singleText = $('translateText');
+  const dualText = $('translateDualText');
+  if (singleText) {
+    singleText.hidden = useDual;
+    singleText.textContent = getTextToDisplay(languages[0] || state.currentLanguage);
+  }
+  if (dualText) {
+    dualText.hidden = !useDual;
+    dualText.dataset.textSize = state.textSize || 'large';
+    dualText.dataset.screenStyle = state.screenStyle || 'focus';
+    if ($('translatePrimaryLanguageLabel')) $('translatePrimaryLanguageLabel').textContent = langLabel(languages[0] || state.currentLanguage);
+    if ($('translatePrimaryText')) $('translatePrimaryText').textContent = getTextToDisplay(languages[0] || state.currentLanguage);
+    if ($('translateSecondaryLanguageLabel')) $('translateSecondaryLanguageLabel').textContent = langLabel(languages[1] || '');
+    if ($('translateSecondaryText')) $('translateSecondaryText').textContent = getTextToDisplay(languages[1] || state.currentLanguage);
+  }
+  if ($('translateText')) {
+    $('translateText').dataset.textSize = state.textSize || 'large';
+    $('translateText').dataset.screenStyle = state.screenStyle || 'focus';
+  }
   updateMeta();
   applyDisplayTheme(state.currentTheme);
   applyDisplaySettings();
@@ -326,6 +370,7 @@ socket.on('joined_event', ({ event, languageNames }) => {
   state.currentDisplayMode = event.displayState?.mode || 'auto';
   state.currentTheme = event.displayState?.theme || 'dark';
   state.currentLanguage = event.displayState?.language || state.currentLanguage;
+  state.secondaryLanguage = event.displayState?.secondaryLanguage || '';
   state.blackScreen = !!event.displayState?.blackScreen;
   state.backgroundPreset = event.displayState?.backgroundPreset || 'none';
   state.customBackground = event.displayState?.customBackground || '';
@@ -333,6 +378,7 @@ socket.on('joined_event', ({ event, languageNames }) => {
   state.clockPosition = event.displayState?.clockPosition || 'top-right';
   state.clockScale = event.displayState?.clockScale || 1;
   state.textSize = event.displayState?.textSize || 'large';
+  state.textScale = event.displayState?.textScale || 1;
   state.screenStyle = event.displayState?.screenStyle || 'focus';
   state.displayResolution = event.displayState?.displayResolution || 'auto';
   state.manualSourceLang = event.displayState?.manualSourceLang || event.sourceLang || 'ro';
@@ -374,8 +420,7 @@ socket.on('display_live_entry', (entry) => {
   state.latestLiveEntry = entry;
   scheduleDisplayRender(45);
 });
-
-socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, screenStyle, displayResolution, manualTranslations, manualSourceLang }) => {
+socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, secondaryLanguage, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, textScale, screenStyle, displayResolution, manualTranslations, manualSourceLang }) => {
   if (state.currentEvent) {
     state.currentEvent.displayState = {
       ...(state.currentEvent.displayState || {}),
@@ -383,12 +428,14 @@ socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgro
       blackScreen: !!blackScreen,
       theme: theme || state.currentTheme || 'dark',
       language: language || state.currentLanguage,
+      secondaryLanguage: secondaryLanguage || '',
       backgroundPreset: backgroundPreset || state.backgroundPreset || 'none',
       customBackground: typeof customBackground === 'string' ? customBackground : state.customBackground,
       showClock: typeof showClock === 'boolean' ? showClock : state.showClock,
       clockPosition: clockPosition || state.clockPosition,
       clockScale: clockScale || state.clockScale,
       textSize: textSize || state.textSize || 'large',
+      textScale: textScale || state.textScale || 1,
       screenStyle: screenStyle || state.screenStyle || 'focus',
       displayResolution: displayResolution || state.displayResolution || 'auto',
       manualSourceLang: manualSourceLang || state.manualSourceLang || state.currentEvent?.sourceLang || 'ro'
@@ -398,12 +445,14 @@ socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, backgro
   state.blackScreen = !!blackScreen;
   state.currentTheme = theme || state.currentTheme || 'dark';
   state.currentLanguage = language || state.currentLanguage;
+  state.secondaryLanguage = secondaryLanguage || '';
   state.backgroundPreset = backgroundPreset || state.backgroundPreset || 'none';
   state.customBackground = typeof customBackground === 'string' ? customBackground : state.customBackground;
   state.showClock = typeof showClock === 'boolean' ? showClock : state.showClock;
   state.clockPosition = clockPosition || state.clockPosition;
   state.clockScale = clockScale || state.clockScale;
   state.textSize = textSize || state.textSize || 'large';
+  state.textScale = textScale || state.textScale || 1;
   state.screenStyle = screenStyle || state.screenStyle || 'focus';
   state.displayResolution = displayResolution || state.displayResolution || 'auto';
   state.manualSourceLang = manualSourceLang || state.manualSourceLang || state.currentEvent?.sourceLang || 'ro';
@@ -418,17 +467,19 @@ socket.on('display_theme_changed', ({ theme }) => {
   renderDisplay();
 });
 
-socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, screenStyle, displayResolution, manualTranslations, manualSourceLang, manualSource }) => {
+socket.on('display_manual_update', ({ mode, blackScreen, theme, language, secondaryLanguage, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, textScale, screenStyle, displayResolution, manualTranslations, manualSourceLang, manualSource }) => {
   state.currentDisplayMode = mode || 'manual';
   state.blackScreen = !!blackScreen;
   state.currentTheme = theme || state.currentTheme || 'dark';
   state.currentLanguage = language || state.currentLanguage;
+  state.secondaryLanguage = secondaryLanguage || '';
   state.backgroundPreset = backgroundPreset || state.backgroundPreset || 'none';
   state.customBackground = typeof customBackground === 'string' ? customBackground : state.customBackground;
   state.showClock = typeof showClock === 'boolean' ? showClock : state.showClock;
   state.clockPosition = clockPosition || state.clockPosition;
   state.clockScale = clockScale || state.clockScale;
   state.textSize = textSize || state.textSize || 'large';
+  state.textScale = textScale || state.textScale || 1;
   state.screenStyle = screenStyle || state.screenStyle || 'focus';
   state.displayResolution = displayResolution || state.displayResolution || 'auto';
   state.manualSourceLang = manualSourceLang || state.manualSourceLang || state.currentEvent?.sourceLang || 'ro';
@@ -437,7 +488,9 @@ socket.on('display_manual_update', ({ mode, blackScreen, theme, language, backgr
     state.currentEvent.displayState = state.currentEvent.displayState || {};
     state.currentEvent.displayState.mode = state.currentDisplayMode;
     state.currentEvent.displayState.language = state.currentLanguage;
+    state.currentEvent.displayState.secondaryLanguage = state.secondaryLanguage;
     state.currentEvent.displayState.clockScale = state.clockScale;
+    state.currentEvent.displayState.textScale = state.textScale;
     state.currentEvent.displayState.displayResolution = state.displayResolution;
     state.currentEvent.displayState.manualSource = manualSource || state.currentEvent.displayState.manualSource || '';
     state.currentEvent.displayState.manualSourceLang = state.manualSourceLang;
