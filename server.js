@@ -1723,8 +1723,17 @@ function closeAzureSpeechSession(socketId) {
   }
 }
 
+function closeAzureSpeechSessionsForEvent(eventId, exceptSocketId = '') {
+  for (const [socketId, session] of azureSpeechSessions.entries()) {
+    if (session?.eventId === eventId && socketId !== exceptSocketId) {
+      closeAzureSpeechSession(socketId);
+    }
+  }
+}
+
 function startAzureSpeechSession(socket, event) {
   closeAzureSpeechSession(socket.id);
+  closeAzureSpeechSessionsForEvent(event.id, socket.id);
   const sdk = loadAzureSpeechSdk();
   if (!sdk || !AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
     socket.emit('server_error', { message: 'Azure Speech nu este configurat pe server.' });
@@ -1750,8 +1759,14 @@ function startAzureSpeechSession(socket, event) {
     if (text) queueSpeechText(event.id, text, effectiveSourceLang, 'azure_sdk');
   };
   recognizer.canceled = (_, result) => {
-    console.error('azure speech canceled:', result?.errorDetails || result?.reason || 'unknown');
-    socket.emit('server_error', { message: 'Azure Speech s-a oprit. Verifica setarile Azure.' });
+    const details = String(result?.errorDetails || result?.reason || 'unknown');
+    console.error('azure speech canceled:', details);
+    const isQuotaError = details.toLowerCase().includes('quota');
+    socket.emit('server_error', {
+      message: isQuotaError
+        ? 'Azure Speech quota exceeded. Inchide alte taburi On-Air sau verifica quota/subscription in Azure.'
+        : 'Azure Speech s-a oprit. Verifica setarile Azure.'
+    });
     closeAzureSpeechSession(socket.id);
   };
   recognizer.sessionStopped = () => closeAzureSpeechSession(socket.id);
