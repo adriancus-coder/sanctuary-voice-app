@@ -179,6 +179,22 @@ function renderRemoteSimplePreviews() {
   participantText.textContent = getRemoteParticipantPreviewText();
 }
 
+function getRemoteMainScreenUrl() {
+  if (state.currentEvent?.translateLink) return state.currentEvent.translateLink;
+  if (state.eventId) return `/translate?event=${encodeURIComponent(state.eventId)}`;
+  return '';
+}
+
+function openRemoteMainScreen() {
+  const url = getRemoteMainScreenUrl();
+  if (!url) {
+    setStatus('No live event connected yet.');
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
+  setStatus('Main screen opened. Move that tab to the projector if needed.');
+}
+
 function filterAndSortRemoteLibrary(items = []) {
   const query = ($('remoteSongLibrarySearch')?.value || '').trim().toLowerCase();
   const sortMode = $('remoteSongLibrarySort')?.value || 'az';
@@ -491,8 +507,13 @@ function refreshRemoteUi() {
   const churchLibraryPanel = $('remoteChurchLibraryPanel');
   const glossaryPanel = $('remoteGlossaryPanel');
   const liveAudioPanel = $('remoteLiveAudioPanel');
+  const openMainScreenBtn = $('remoteOpenMainScreenBtn');
   if (mainScreenPanel) mainScreenPanel.hidden = !mainScreenAllowed;
   if (liveAudioPanel) liveAudioPanel.hidden = !mainScreenAllowed;
+  if (openMainScreenBtn) {
+    openMainScreenBtn.hidden = !mainScreenAllowed;
+    openMainScreenBtn.disabled = !mainScreenAllowed || !state.eventId;
+  }
   if (quickLanguages) quickLanguages.hidden = !mainScreenAllowed;
   if (shortcuts) shortcuts.hidden = !mainScreenAllowed;
   if (songPanel || fallbackSongPanel) (songPanel || fallbackSongPanel).hidden = !songAllowed;
@@ -637,6 +658,7 @@ $('remoteBlackBtn').addEventListener('click', async () => {
 $('remoteUndoBtn').addEventListener('click', async () => {
   try { await post(`/api/events/${state.eventId}/display/restore-last`); setStatus('Restored previous screen state.'); } catch (err) { setStatus(err.message); }
 });
+$('remoteOpenMainScreenBtn')?.addEventListener('click', openRemoteMainScreen);
 $('remotePrevSongBtn')?.addEventListener('click', async () => {
   try { await post(`/api/events/${state.eventId}/song/prev`); setStatus('Moved to previous verse.'); } catch (err) { setStatus(err.message); }
 });
@@ -693,10 +715,7 @@ $('remotePresetsList')?.addEventListener('click', async (e) => {
   }
 });
 
-$('remoteOpenMainPreviewBtn').addEventListener('click', () => {
-  const url = state.currentEvent?.translateLink || '';
-  if (url) window.open(url, '_blank');
-});
+$('remoteOpenMainPreviewBtn').addEventListener('click', openRemoteMainScreen);
 
 $('remoteOpenParticipantPreviewBtn').addEventListener('click', () => {
   const displayLang = getRemoteParticipantLanguage();
