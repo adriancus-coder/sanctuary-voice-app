@@ -30,6 +30,9 @@
         <button class="nav-btn" data-tab="glossary" type="button">Glossary</button>
         <button class="nav-btn" data-tab="manual" type="button">Quick Text</button>
       </nav>
+      <div class="sidebar-admin-actions">
+        <button id="adminLogoutBtn" class="btn btn-dark full-width-btn" type="button">Logout admin</button>
+      </div>
 
       <div class="sidebar-screen-links">
         <a class="screen-link-card" href="/translate" target="_blank" rel="noreferrer">
@@ -552,7 +555,7 @@
               <label>Song language</label>
               <select id="songSourceLang"></select>
               <label>Song text or lyrics</label>
-              <textarea id="songText" class="song-textarea" placeholder="Use markers like 1., 2., R., R2. to create verses and choruses."></textarea>
+              <textarea id="songText" class="song-textarea" placeholder="Use markers like 1., 2., R., R2. or R: %repeat note% to create verses and choruses."></textarea>
               <div class="button-row">
                 <button id="saveSongBtn" class="btn btn-dark">Save to church library</button>
                 <button id="sendSongBtn" class="btn btn-primary">Send first verse</button>

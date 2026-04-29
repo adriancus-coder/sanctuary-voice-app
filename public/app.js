@@ -15,6 +15,7 @@ let lastManualEnterAt = 0;
 let screenWakeLock = null;
 window.isRecognitionRunning = false;
 let availableLanguages = {};
+let publicBaseUrl = 'https://sanctuaryvoice.com';
 
 const AUDIO_GATE_MIN_PEAK = 14;
 const AUDIO_GATE_MIN_ACTIVE_FRAMES = 12;
@@ -47,6 +48,7 @@ let audioState = {
   chunkActiveFrames: 0,
   lastGateStatusAt: 0,
   speechProvider: 'openai',
+  openAiFallbackActive: false,
   azureProcessor: null,
   azureSource: null,
   azureReady: false
@@ -501,34 +503,82 @@ function getSongEditorLabels() {
 }
 
 function inferSongLabelsFromText(text) {
-  return String(text || '').split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean).map((block, index) => {
-    const firstLine = String(block || '').split('\n').map((line) => line.trim()).find(Boolean) || '';
-    const match = firstLine.match(/^((?:r|refren|chorus)\s*\d*|\d+)\./i);
-    if (!match) return `Verse ${index + 1}`;
-    const marker = match[1].replace(/\s+/g, '').toLowerCase();
-    if (/^\d+$/.test(marker)) return `Strofa ${marker}`;
-    if (marker.startsWith('chorus')) {
-      const number = marker.replace('chorus', '');
-      return number ? `Chorus ${number}` : 'Chorus';
-    }
-    const number = marker.replace(/^r(?:efren)?/, '');
-    return number ? `Refren ${number}` : 'Refren';
-  });
+  return buildSongEntriesFromTextLocal(text).map((entry, index) => entry.label || `Verse ${index + 1}`);
 }
 
 function splitSongBlocksLocal(text) {
-  return String(text || '')
-    .split(/\n\s*\n/)
-    .map((block) => {
-      const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
-      if (!lines.length) return '';
-      const match = lines[0].match(/^((?:r|refren|chorus)\s*\d*|\d+)\.\s*(.*)$/i);
-      if (!match) return lines.join('\n');
-      const rest = String(match[2] || '').trim();
-      return (rest ? [rest, ...lines.slice(1)] : lines.slice(1)).join('\n');
-    })
-    .map((block) => block.trim())
-    .filter(Boolean);
+  return buildSongEntriesFromTextLocal(text).map((entry) => entry.text);
+}
+
+function appendSongInlineNoteLocal(text, note) {
+  const safeNote = String(note || '').trim();
+  if (!safeNote) return String(text || '').trim();
+  const lines = String(text || '').split('\n');
+  const index = lines.findIndex((line) => line.trim());
+  if (index < 0) return safeNote;
+  if (!lines[index].includes(safeNote)) lines[index] = `${lines[index].trim()} ${safeNote}`;
+  return lines.join('\n').trim();
+}
+
+function parseSongSectionMarkerLocal(block) {
+  const lines = String(block || '').split('\n').map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return { label: '', text: '', baseText: '', type: 'verse' };
+  const match = lines[0].match(/^((?:r|refren|chorus)\s*\d*|\d+)([.:])\s*(.*)$/i);
+  if (!match) {
+    const text = lines.join('\n');
+    return { label: '', text, baseText: text, type: 'verse' };
+  }
+
+  const marker = match[1].replace(/\s+/g, '').toLowerCase();
+  const delimiter = match[2];
+  let rest = String(match[3] || '').trim();
+  let inlineNote = '';
+  const inlineNoteMatch = rest.match(/^(%[^%]+%)\s*(.*)$/);
+  if (inlineNoteMatch) {
+    inlineNote = inlineNoteMatch[1].trim();
+    rest = String(inlineNoteMatch[2] || '').trim();
+  }
+  const contentLines = rest ? [rest, ...lines.slice(1)] : lines.slice(1);
+  const baseText = contentLines.join('\n').trim();
+  const text = inlineNote && baseText ? appendSongInlineNoteLocal(baseText, inlineNote) : baseText;
+
+  if (/^\d+$/.test(marker)) return { label: `Strofa ${marker}`, text, baseText, type: 'verse' };
+  if (marker.startsWith('chorus')) {
+    const number = marker.replace('chorus', '');
+    return {
+      label: `${number ? `Chorus ${number}` : 'Chorus'}${inlineNote ? ` ${inlineNote}` : ''}`,
+      text,
+      baseText,
+      type: 'chorus',
+      inlineNote,
+      repeatPreviousChorus: delimiter === ':' && !!inlineNote && !baseText
+    };
+  }
+  const number = marker.replace(/^r(?:efren)?/, '');
+  return {
+    label: `${number ? `Refren ${number}` : 'Refren'}${inlineNote ? ` ${inlineNote}` : ''}`,
+    text,
+    baseText,
+    type: 'chorus',
+    inlineNote,
+    repeatPreviousChorus: delimiter === ':' && !!inlineNote && !baseText
+  };
+}
+
+function buildSongEntriesFromTextLocal(text) {
+  const rawBlocks = String(text || '').split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
+  let lastChorusBaseText = '';
+  return rawBlocks.map((block, index) => {
+    const parsed = parseSongSectionMarkerLocal(block);
+    let blockText = parsed.text || block;
+    if (parsed.repeatPreviousChorus) {
+      blockText = lastChorusBaseText ? appendSongInlineNoteLocal(lastChorusBaseText, parsed.inlineNote) : (parsed.inlineNote || blockText);
+    }
+    if (parsed.type === 'chorus' && !parsed.repeatPreviousChorus && parsed.baseText) {
+      lastChorusBaseText = parsed.baseText;
+    }
+    return { text: String(blockText || '').trim(), label: parsed.label || `Verse ${index + 1}` };
+  }).filter((entry) => entry.text);
 }
 
 function renderParticipantStats(stats = {}) {
@@ -720,7 +770,10 @@ function downloadPermanentQr() {
 }
 
 function hydratePermanentParticipantAccess() {
-  const link = `${window.location.origin}/participant`;
+  const origin = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? window.location.origin
+    : publicBaseUrl;
+  const link = `${origin.replace(/\/+$/, '')}/participant`;
   if ($('permanentParticipantLink')) $('permanentParticipantLink').value = link;
   if ($('permanentQrImage')) $('permanentQrImage').src = `/api/participant-qr.png?ts=${Date.now()}`;
 }
@@ -1840,7 +1893,10 @@ async function handleAudioProcessingChange() {
   updateAudioProcessingHint();
   if (audioState.running) {
     setStatus('Restarting audio with new processing settings...');
-    await startTranslation({ forceRestart: true });
+    const restartOptions = audioState.openAiFallbackActive
+      ? { forceRestart: true, forceSpeechProvider: 'openai' }
+      : { forceRestart: true };
+    await startTranslation(restartOptions);
     return;
   }
   try {
@@ -1935,6 +1991,10 @@ async function loadSpeechRuntimeConfig() {
     const res = await fetch('/api/health');
     const data = await res.json();
     audioState.speechProvider = data.speechProvider || 'openai';
+    if (data.publicBaseUrl) {
+      publicBaseUrl = String(data.publicBaseUrl).replace(/\/+$/, '');
+      hydratePermanentParticipantAccess();
+    }
   } catch (_) {
     audioState.speechProvider = 'openai';
   }
@@ -2189,7 +2249,12 @@ async function startTranslation(options = {}) {
     return;
   }
   await syncSpeedToEvent();
-  await loadSpeechRuntimeConfig();
+  if (options.forceSpeechProvider) {
+    audioState.speechProvider = options.forceSpeechProvider;
+  } else {
+    await loadSpeechRuntimeConfig();
+    audioState.openAiFallbackActive = false;
+  }
   await setEventMode('live');
   audioState.running = true;
   window.isRecognitionRunning = true;
@@ -2271,6 +2336,7 @@ async function startTranslation(options = {}) {
 async function stopTranslation() {
   audioState.running = false;
   window.isRecognitionRunning = false;
+  audioState.openAiFallbackActive = false;
   if (audioState.chunkTimer) clearTimeout(audioState.chunkTimer);
   audioState.chunkTimer = null;
   stopBrowserAzureRecognition();
@@ -2439,7 +2505,34 @@ socket.on('azure_audio_ready', () => {
 });
 socket.on('participant_stats', renderParticipantStats);
 socket.on('usage_stats', renderUsageStats);
-socket.on('server_error', ({ message }) => setStatus(message || 'Server error.'));
+async function fallbackToOpenAiFromAzure(payload = {}) {
+  const message = payload.message || 'Azure Speech failed.';
+  const code = String(payload.code || '').toLowerCase();
+  const text = `${code} ${message}`.toLowerCase();
+  const isAzureSpeechError = payload.provider === 'azure_sdk' || text.includes('azure speech');
+  const shouldFallback = isAzureSpeechError
+    && audioState.running
+    && audioState.speechProvider === 'azure_sdk'
+    && !audioState.openAiFallbackActive
+    && (text.includes('quota') || text.includes('failed') || text.includes('oprit') || text.includes('nu am putut porni'));
+  if (!shouldFallback) return false;
+  audioState.openAiFallbackActive = true;
+  setStatus(`${message} Switching to OpenAI backup...`);
+  stopAzureAudioStream();
+  stopBrowserAzureRecognition();
+  audioState.speechProvider = 'openai';
+  await startTranslation({ forceRestart: true, forceSpeechProvider: 'openai' });
+  return true;
+}
+
+socket.on('server_error', (payload = {}) => {
+  const message = payload.message || 'Server error.';
+  setStatus(message);
+  fallbackToOpenAiFromAzure(payload).catch((err) => {
+    console.error(err);
+    setStatus('Azure failed and OpenAI backup could not start.');
+  });
+});
 socket.on('active_event_changed', async ({ eventId }) => {
   if (currentEvent) {
     currentEvent.isActive = currentEvent.id === eventId;
@@ -2623,7 +2716,12 @@ $('monitorGainRange').addEventListener('input', updateMonitorGain);
   $(id)?.addEventListener('change', () => handleAudioProcessingChange().catch(console.error));
 });
 $('audioInput').addEventListener('change', async () => {
-  if (audioState.running) await startTranslation({ forceRestart: true });
+  if (audioState.running) {
+    const restartOptions = audioState.openAiFallbackActive
+      ? { forceRestart: true, forceSpeechProvider: 'openai' }
+      : { forceRestart: true };
+    await startTranslation(restartOptions);
+  }
   else { try { await createAudioPipeline(); setStatus('Audio source changed.'); } catch (_) { setStatus('Selected source failed.'); } }
 });
 $('startRecognitionBtn').addEventListener('click', startTranslation);
@@ -2874,6 +2972,17 @@ $('remoteOperatorsList')?.addEventListener('click', async (e) => {
     }
   }
 });
+async function logoutAdminSession() {
+  try {
+    await fetch('/api/admin-logout', { method: 'POST' });
+  } catch (err) {
+    console.error(err);
+  } finally {
+    window.location.href = '/admin-login';
+  }
+}
+
+$('adminLogoutBtn')?.addEventListener('click', logoutAdminSession);
 $('openTranslateScreenBtn').addEventListener('click', () => { const url = $('translateLink').value || '/translate'; if (url) window.open(url, '_blank'); });
 $('eventList').addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-action]');

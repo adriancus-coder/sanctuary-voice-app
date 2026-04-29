@@ -534,6 +534,10 @@ progress::-moz-progress-bar {
   width: 100%;
 }
 
+.sidebar-admin-actions {
+  margin-top: 14px;
+}
+
 .spread-row {
   justify-content: flex-start;
 }
