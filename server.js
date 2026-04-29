@@ -35,6 +35,7 @@ const DEFAULT_ORG_NAME = String(process.env.DEFAULT_ORG_NAME || process.env.ORGA
 const DEFAULT_ORG_PLAN = String(process.env.DEFAULT_ORG_PLAN || 'internal').trim() || 'internal';
 const COMMERCIAL_MODE = ['1', 'true', 'yes'].includes(String(process.env.COMMERCIAL_MODE || '').trim().toLowerCase());
 const ADMIN_SESSION_COOKIE = 'sv_admin_session';
+const ADMIN_SESSION_PERSISTENT = ['1', 'true', 'yes'].includes(String(process.env.ADMIN_SESSION_PERSISTENT || '').trim().toLowerCase());
 const ADMIN_SESSION_MAX_AGE_MS = Math.max(1, Number(process.env.ADMIN_SESSION_MAX_AGE_HOURS || 12) || 12) * 60 * 60 * 1000;
 const ADMIN_SESSION_SECRET = String(
   process.env.ADMIN_SESSION_SECRET
@@ -248,14 +249,16 @@ function getCookieSecureFlag(req) {
   return Boolean(req.secure || forwardedProto === 'https');
 }
 
-function buildAdminSessionCookie(req, value, maxAgeMs = ADMIN_SESSION_MAX_AGE_MS) {
+function buildAdminSessionCookie(req, value, maxAgeMs = null) {
   const parts = [
     `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(value)}`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
-    `Max-Age=${Math.max(0, Math.floor(maxAgeMs / 1000))}`
+    'SameSite=Lax'
   ];
+  if (typeof maxAgeMs === 'number') {
+    parts.push(`Max-Age=${Math.max(0, Math.floor(maxAgeMs / 1000))}`);
+  }
   if (getCookieSecureFlag(req)) parts.push('Secure');
   return parts.join('; ');
 }
@@ -268,7 +271,11 @@ function setAdminSessionCookie(req, res) {
     iat: now,
     exp: now + ADMIN_SESSION_MAX_AGE_MS
   });
-  res.setHeader('Set-Cookie', buildAdminSessionCookie(req, token));
+  res.setHeader('Set-Cookie', buildAdminSessionCookie(
+    req,
+    token,
+    ADMIN_SESSION_PERSISTENT ? ADMIN_SESSION_MAX_AGE_MS : null
+  ));
 }
 
 function clearAdminSessionCookie(req, res) {

@@ -52,6 +52,7 @@ npm start
 - `MASTER_ADMIN_PIN`
 - `MAIN_OPERATOR_PIN`
 - `ADMIN_SESSION_SECRET`
+- `ADMIN_SESSION_PERSISTENT`
 - `COMMERCIAL_MODE`
 - `DEFAULT_ORG_ID`
 - `DEFAULT_ORG_NAME`
@@ -74,8 +75,9 @@ Aplicatia are o organizatie implicita. Evenimentele, codul permanent de operator
 - `MASTER_ADMIN_PIN=<pin-admin-secret>`
 - `MAIN_OPERATOR_PIN=<pin-operator-secret>`
 - `ADMIN_SESSION_SECRET=<long-random-secret>`
+- `ADMIN_SESSION_PERSISTENT=0`
 
-In modul comercial, crearea primului eveniment nu mai ramane deschisa public daca nu exista niciun eveniment. Pagina `/admin` cere login cu `MASTER_ADMIN_PIN`, iar sesiunea este pastrata intr-un cookie HttpOnly semnat cu `ADMIN_SESSION_SECRET`.
+In modul comercial, crearea primului eveniment nu mai ramane deschisa public daca nu exista niciun eveniment. Pagina `/admin` cere login cu `MASTER_ADMIN_PIN`, iar sesiunea este pastrata intr-un cookie HttpOnly semnat cu `ADMIN_SESSION_SECRET`. Implicit, cookie-ul este doar pentru sesiunea curenta de browser, astfel incat Admin cere PIN din nou la o sesiune noua. Daca vrei sesiune persistenta, seteaza `ADMIN_SESSION_PERSISTENT=1`.
 
 ## Deploy pe Render cu New Web Service
 
