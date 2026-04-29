@@ -39,6 +39,7 @@ npm start
 4. Deschide:
 
 - `/admin`
+- `/main-screen`
 - `/translate`
 - `/song`
 - `/participant`

@@ -104,6 +104,7 @@ app.get('/admin.html', requireAdminPage, sendAdminPage);
 app.get('/participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
 app.get('/participant.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
 app.get('/live', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
+app.get('/main-screen', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/translate', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/song', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
