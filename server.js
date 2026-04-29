@@ -29,6 +29,11 @@ const MASTER_ADMIN_PIN = String(process.env.MASTER_ADMIN_PIN || process.env.APP_
 const MASTER_MODERATOR_PIN = String(process.env.MASTER_MODERATOR_PIN || process.env.APP_MODERATOR_PIN || '').trim();
 const MAIN_OPERATOR_PIN = String(process.env.MAIN_OPERATOR_PIN || process.env.MAIN_OPERATOR_CODE || '').trim();
 const TRANSLATION_MONITOR_ENABLED = String(process.env.TRANSLATION_MONITOR_ENABLED || '').trim() === '1';
+const PUBLIC_BASE_URL = normalizePublicBaseUrl(process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'https://sanctuaryvoice.com');
+const DEFAULT_ORG_ID = String(process.env.DEFAULT_ORG_ID || process.env.ORGANIZATION_ID || 'sanctuary-voice').trim() || 'sanctuary-voice';
+const DEFAULT_ORG_NAME = String(process.env.DEFAULT_ORG_NAME || process.env.ORGANIZATION_NAME || 'Sanctuary Voice').trim() || 'Sanctuary Voice';
+const DEFAULT_ORG_PLAN = String(process.env.DEFAULT_ORG_PLAN || 'internal').trim() || 'internal';
+const COMMERCIAL_MODE = ['1', 'true', 'yes'].includes(String(process.env.COMMERCIAL_MODE || '').trim().toLowerCase());
 
 console.log('API KEY:', OPENAI_API_KEY ? 'OK' : 'LIPSA');
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
@@ -165,6 +170,32 @@ function defaultGlobalSongLibrary() {
 
 function defaultPinnedTextLibrary() {
   return [];
+}
+
+function normalizeOrgId(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || DEFAULT_ORG_ID;
+}
+
+function defaultOrganization(id = DEFAULT_ORG_ID, name = DEFAULT_ORG_NAME) {
+  const orgId = normalizeOrgId(id);
+  return {
+    id: orgId,
+    name: String(name || DEFAULT_ORG_NAME).trim() || DEFAULT_ORG_NAME,
+    slug: orgId,
+    plan: DEFAULT_ORG_PLAN,
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    activeEventId: null,
+    globalAccess: {},
+    globalMemory: {},
+    globalSongLibrary: defaultGlobalSongLibrary(),
+    pinnedTextLibrary: defaultPinnedTextLibrary()
+  };
 }
 
 function defaultSongHistory() {
@@ -425,6 +456,10 @@ function ensureEventUiState(event) {
 
 function defaultDb() {
   return {
+    organizations: {
+      [DEFAULT_ORG_ID]: defaultOrganization(DEFAULT_ORG_ID, DEFAULT_ORG_NAME)
+    },
+    activeOrganizationId: DEFAULT_ORG_ID,
     events: {},
     globalMemory: {},
     globalSongLibrary: defaultGlobalSongLibrary(),
@@ -502,7 +537,75 @@ function loadDb() {
   }
 }
 
+function ensureOrganization(orgId = DEFAULT_ORG_ID, seed = {}) {
+  const id = normalizeOrgId(orgId);
+  if (!db.organizations || typeof db.organizations !== 'object') db.organizations = {};
+  if (!db.organizations[id]) {
+    db.organizations[id] = {
+      ...defaultOrganization(id, seed.name || DEFAULT_ORG_NAME),
+      ...seed
+    };
+  }
+  const org = db.organizations[id];
+  org.id = id;
+  org.name = String(org.name || seed.name || DEFAULT_ORG_NAME).trim() || DEFAULT_ORG_NAME;
+  org.slug = normalizeOrgId(org.slug || id);
+  org.plan = String(org.plan || DEFAULT_ORG_PLAN).trim() || DEFAULT_ORG_PLAN;
+  org.status = String(org.status || 'active').trim() || 'active';
+  org.createdAt = org.createdAt || new Date().toISOString();
+  org.globalAccess = org.globalAccess && typeof org.globalAccess === 'object' ? org.globalAccess : {};
+  org.globalMemory = org.globalMemory && typeof org.globalMemory === 'object' ? org.globalMemory : {};
+  org.globalSongLibrary = Array.isArray(org.globalSongLibrary) ? org.globalSongLibrary : defaultGlobalSongLibrary();
+  org.pinnedTextLibrary = Array.isArray(org.pinnedTextLibrary) ? org.pinnedTextLibrary : defaultPinnedTextLibrary();
+  org.activeEventId = org.activeEventId || null;
+  return org;
+}
+
+function getDefaultOrganization() {
+  return ensureOrganization(DEFAULT_ORG_ID, { name: DEFAULT_ORG_NAME });
+}
+
+function syncLegacyGlobalsFromDefaultOrg() {
+  const org = getDefaultOrganization();
+  db.activeOrganizationId = org.id;
+  db.globalAccess = org.globalAccess;
+  db.globalMemory = org.globalMemory;
+  db.globalSongLibrary = org.globalSongLibrary;
+  db.pinnedTextLibrary = org.pinnedTextLibrary;
+  db.activeEventId = org.activeEventId || null;
+}
+
+function ensureCommercialState() {
+  if (!db.organizations || typeof db.organizations !== 'object') db.organizations = {};
+  const existingLegacy = {
+    globalAccess: db.globalAccess && typeof db.globalAccess === 'object' ? db.globalAccess : {},
+    globalMemory: db.globalMemory && typeof db.globalMemory === 'object' ? db.globalMemory : {},
+    globalSongLibrary: Array.isArray(db.globalSongLibrary) ? db.globalSongLibrary : defaultGlobalSongLibrary(),
+    pinnedTextLibrary: Array.isArray(db.pinnedTextLibrary) ? db.pinnedTextLibrary : defaultPinnedTextLibrary(),
+    activeEventId: db.activeEventId || null
+  };
+  const org = ensureOrganization(DEFAULT_ORG_ID, {
+    name: DEFAULT_ORG_NAME,
+    ...existingLegacy
+  });
+  org.globalAccess = Object.keys(org.globalAccess || {}).length ? org.globalAccess : existingLegacy.globalAccess;
+  org.globalMemory = Object.keys(org.globalMemory || {}).length ? org.globalMemory : existingLegacy.globalMemory;
+  org.globalSongLibrary = Array.isArray(org.globalSongLibrary) && org.globalSongLibrary.length
+    ? org.globalSongLibrary
+    : existingLegacy.globalSongLibrary;
+  org.pinnedTextLibrary = Array.isArray(org.pinnedTextLibrary) && org.pinnedTextLibrary.length
+    ? org.pinnedTextLibrary
+    : existingLegacy.pinnedTextLibrary;
+  org.activeEventId = org.activeEventId || existingLegacy.activeEventId || null;
+
+  for (const event of Object.values(db.events || {})) {
+    event.organizationId = normalizeOrgId(event.organizationId || org.id);
+  }
+  syncLegacyGlobalsFromDefaultOrg();
+}
+
 const db = loadDb();
+ensureCommercialState();
 if (!Array.isArray(db.globalSongLibrary)) {
   db.globalSongLibrary = defaultGlobalSongLibrary();
 }
@@ -512,14 +615,93 @@ if (!Array.isArray(db.pinnedTextLibrary)) {
 if (!db.globalAccess || typeof db.globalAccess !== 'object') {
   db.globalAccess = {};
 }
+syncLegacyGlobalsFromDefaultOrg();
 
 function saveDb() {
   try {
     ensureDataDir();
+    syncLegacyGlobalsFromDefaultOrg();
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
   } catch (err) {
     console.error('saveDb error:', err);
   }
+}
+
+function getOrganizationForEvent(event) {
+  return ensureOrganization(event?.organizationId || DEFAULT_ORG_ID);
+}
+
+function getEventOrgId(event) {
+  return getOrganizationForEvent(event).id;
+}
+
+function getActiveEventIdForOrg(orgId = DEFAULT_ORG_ID) {
+  return ensureOrganization(orgId).activeEventId || null;
+}
+
+function setActiveEventIdForOrg(orgId = DEFAULT_ORG_ID, eventId = null) {
+  const org = ensureOrganization(orgId);
+  org.activeEventId = eventId || null;
+  if (org.id === DEFAULT_ORG_ID) db.activeEventId = org.activeEventId;
+  return org.activeEventId;
+}
+
+function isEventActive(event) {
+  return !!event?.id && getActiveEventIdForOrg(getEventOrgId(event)) === event.id;
+}
+
+function getOrganizationEvents(orgId = DEFAULT_ORG_ID) {
+  const targetOrgId = normalizeOrgId(orgId);
+  return Object.values(db.events || {}).filter((event) => getEventOrgId(event) === targetOrgId);
+}
+
+function getOrganizationSongLibrary(orgId = DEFAULT_ORG_ID) {
+  return ensureOrganization(orgId).globalSongLibrary;
+}
+
+function getOrganizationPinnedTextLibrary(orgId = DEFAULT_ORG_ID) {
+  return ensureOrganization(orgId).pinnedTextLibrary;
+}
+
+function getOrganizationMemory(eventOrOrgId = DEFAULT_ORG_ID) {
+  const orgId = typeof eventOrOrgId === 'string' ? eventOrOrgId : getEventOrgId(eventOrOrgId);
+  return ensureOrganization(orgId).globalMemory;
+}
+
+function getOrganizationAccess(eventOrOrgId = DEFAULT_ORG_ID) {
+  const orgId = typeof eventOrOrgId === 'string' ? eventOrOrgId : getEventOrgId(eventOrOrgId);
+  return ensureOrganization(orgId).globalAccess;
+}
+
+function buildPublicOrganization(org = getDefaultOrganization()) {
+  return {
+    id: org.id,
+    name: org.name,
+    slug: org.slug,
+    plan: org.plan,
+    status: org.status
+  };
+}
+
+function buildOrganizationStatus(orgId = DEFAULT_ORG_ID) {
+  const org = ensureOrganization(orgId);
+  const events = getOrganizationEvents(org.id);
+  const activeEventId = getActiveEventIdForOrg(org.id);
+  const activeEvent = activeEventId ? db.events[activeEventId] : null;
+  const transcriptCount = events.reduce((sum, event) => sum + (Array.isArray(event.transcripts) ? event.transcripts.length : 0), 0);
+  return {
+    organization: buildPublicOrganization(org),
+    commercialMode: COMMERCIAL_MODE,
+    activeEventId,
+    activeEvent: activeEvent ? summarizeEvent(activeEvent) : null,
+    counts: {
+      events: events.length,
+      transcripts: transcriptCount,
+      churchLibrarySongs: Array.isArray(org.globalSongLibrary) ? org.globalSongLibrary.length : 0,
+      pinnedTexts: Array.isArray(org.pinnedTextLibrary) ? org.pinnedTextLibrary.length : 0,
+      glossaryTerms: Object.keys(org.globalMemory || {}).length
+    }
+  };
 }
 
 const speechBuffers = new Map();
@@ -546,8 +728,11 @@ const BUFFER_CONNECTORS = new Set([
 ]);
 
 function summarizeEvent(event) {
+  const org = getOrganizationForEvent(event);
   return {
     id: event.id,
+    organizationId: org.id,
+    organizationName: org.name,
     name: event.name,
     createdAt: event.createdAt || null,
     scheduledAt: event.scheduledAt || null,
@@ -555,7 +740,7 @@ function summarizeEvent(event) {
     liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
     targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
     transcriptCount: Array.isArray(event.transcripts) ? event.transcripts.length : 0,
-    isActive: db.activeEventId === event.id,
+    isActive: isEventActive(event),
     participantLink: event.participantLink || '',
     translateLink: event.translateLink || '',
     songLink: event.songLink || '',
@@ -762,8 +947,11 @@ function cloneDisplayEntry(entry) {
 function normalizeEvent(event, options = {}) {
   const includeSecrets = !!options.includeSecrets;
   const includeControlData = !!options.includeControlData || includeSecrets;
+  const org = getOrganizationForEvent(event);
   const payload = {
     id: event.id,
+    organizationId: org.id,
+    organization: buildPublicOrganization(org),
     name: event.name,
     sourceLang: event.sourceLang || 'ro',
     liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
@@ -780,7 +968,7 @@ function normalizeEvent(event, options = {}) {
     audioVolume: typeof event.audioVolume === 'number' ? event.audioVolume : 70,
     createdAt: event.createdAt || new Date().toISOString(),
     scheduledAt: event.scheduledAt || null,
-    isActive: db.activeEventId === event.id,
+    isActive: isEventActive(event),
     mode: event.mode || 'live',
     songState: event.songState || defaultSongState(),
     latestDisplayEntry: cloneDisplayEntry(event.latestDisplayEntry),
@@ -792,7 +980,7 @@ function normalizeEvent(event, options = {}) {
     songHistory: Array.isArray(event.songHistory) ? event.songHistory : []
   };
   if (includeSecrets) {
-    const globalAccess = ensureGlobalAccess();
+    const globalAccess = ensureGlobalAccess('', event);
     payload.adminCode = event.adminCode;
     payload.screenOperatorCode = event.screenOperatorCode || '';
     payload.remoteControlLink = event.remoteControlLink || '';
@@ -973,7 +1161,7 @@ function getSuppliedEventCode(req) {
 function resolveEventAccessFromCode(event, code) {
   const suppliedCode = String(code || '').trim();
   if (!suppliedCode) return { role: '', permissions: [], operator: null };
-  const globalAccess = ensureGlobalAccess();
+  const globalAccess = ensureGlobalAccess('', event);
   if (MASTER_ADMIN_PIN && suppliedCode === MASTER_ADMIN_PIN) {
     return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
   }
@@ -1036,7 +1224,7 @@ function canManageEvents(req) {
   const appAdminCode = String(process.env.APP_ADMIN_CODE || process.env.ADMIN_CODE || '').trim();
   if (appAdminCode && suppliedCode === appAdminCode) return true;
   const events = Object.values(db.events || {});
-  if (!events.length && !appAdminCode) return true;
+  if (!events.length && !appAdminCode && !MASTER_ADMIN_PIN && !COMMERCIAL_MODE) return true;
   return events.some((event) => String(event.adminCode || '') === suppliedCode);
 }
 
@@ -1071,10 +1259,28 @@ function socketCanControlEvent(socket, eventId, permission = '') {
   return (socket.data.permissions || []).includes(permission);
 }
 
-function buildBaseUrl(req) {
+function normalizePublicBaseUrl(value) {
+  const clean = String(value || '').trim().replace(/\/+$/, '');
+  if (!clean) return '';
+  if (!/^https?:\/\//i.test(clean)) return `https://${clean}`;
+  return clean;
+}
+
+function isLocalRequestHost(host = '') {
+  const cleanHost = String(host || '').split(':')[0].toLowerCase();
+  return cleanHost === 'localhost' || cleanHost === '127.0.0.1' || cleanHost === '::1';
+}
+
+function buildRequestBaseUrl(req) {
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0].trim();
   const host = req.get('host');
   return `${proto}://${host}`;
+}
+
+function buildBaseUrl(req) {
+  const host = req.get('host') || '';
+  if (PUBLIC_BASE_URL && !isLocalRequestHost(host)) return PUBLIC_BASE_URL;
+  return buildRequestBaseUrl(req);
 }
 
 function ensureEventAccessLinks(event, baseUrl) {
@@ -1083,7 +1289,7 @@ function ensureEventAccessLinks(event, baseUrl) {
   }
   event.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []);
   if (baseUrl) {
-    const globalAccess = ensureGlobalAccess(baseUrl);
+    const globalAccess = ensureGlobalAccess(baseUrl, event);
     event.participantLink = `${baseUrl}/participant`;
     event.translateLink = `${baseUrl}/translate?event=${event.id}`;
     event.songLink = `${baseUrl}/song?event=${event.id}`;
@@ -1096,19 +1302,21 @@ function ensureEventAccessLinks(event, baseUrl) {
   }
 }
 
-async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt }) {
+async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt, organizationId = DEFAULT_ORG_ID }) {
+  const organization = ensureOrganization(organizationId);
   const id = randomUUID();
   const adminCode = `SV-ADMIN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   const screenOperatorCode = `SV-SCREEN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   const participantLink = `${baseUrl}/participant`;
   const translateLink = `${baseUrl}/translate?event=${id}`;
   const songLink = `${baseUrl}/song?event=${id}`;
-  const mainOperatorLink = ensureGlobalAccess(baseUrl).mainOperatorLink;
+  const mainOperatorLink = ensureGlobalAccess(baseUrl, organization.id).mainOperatorLink;
   const remoteControlLink = `${baseUrl}/remote?event=${id}&code=${encodeURIComponent(screenOperatorCode)}`;
   const qrCodeDataUrl = await QRCode.toDataURL(participantLink);
 
   const event = {
     id,
+    organizationId: organization.id,
     name: name || 'Eveniment nou',
     sourceLang: sourceLang || 'ro',
     liveSourceLang: sourceLang || 'ro',
@@ -1142,7 +1350,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
   };
 
   db.events[id] = event;
-  db.activeEventId = id;
+  setActiveEventIdForOrg(organization.id, id);
   saveDb();
   setImmediate(() => io.emit('active_event_changed', { eventId: id }));
   return event;
@@ -1206,18 +1414,16 @@ function buildAccessCode(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 }
 
-function ensureGlobalAccess(baseUrl = '') {
-  if (!db.globalAccess || typeof db.globalAccess !== 'object') {
-    db.globalAccess = {};
-  }
+function ensureGlobalAccess(baseUrl = '', eventOrOrgId = DEFAULT_ORG_ID) {
+  const access = getOrganizationAccess(eventOrOrgId);
   const configuredCode = MAIN_OPERATOR_PIN;
-  if (configuredCode && db.globalAccess.mainOperatorCode !== configuredCode) {
-    db.globalAccess.mainOperatorCode = configuredCode;
+  if (configuredCode && access.mainOperatorCode !== configuredCode) {
+    access.mainOperatorCode = configuredCode;
   }
-  if (!db.globalAccess.mainOperatorCode) {
-    db.globalAccess.mainOperatorCode = buildAccessCode('SV-MAIN');
+  if (!access.mainOperatorCode) {
+    access.mainOperatorCode = buildAccessCode('SV-MAIN');
   }
-  const mainOperatorCode = String(db.globalAccess.mainOperatorCode || '').trim();
+  const mainOperatorCode = String(access.mainOperatorCode || '').trim();
   return {
     mainOperatorCode,
     mainOperatorLink: baseUrl && mainOperatorCode
@@ -1239,7 +1445,7 @@ function updateTranslationMonitor(event, patch = {}, shouldEmit = true) {
 
 function getGlossaryForLang(langCode, event) {
   const langMemory = {};
-  for (const [key, value] of Object.entries(db.globalMemory || {})) {
+  for (const [key, value] of Object.entries(getOrganizationMemory(event) || {})) {
     const prefix = `${langCode.toUpperCase()}::`;
     if (key.startsWith(prefix)) langMemory[key.slice(prefix.length)] = value;
   }
@@ -1248,7 +1454,7 @@ function getGlossaryForLang(langCode, event) {
 
 function getSourceCorrections(event) {
   const corrections = {};
-  for (const [key, value] of Object.entries(db.globalMemory || {})) {
+  for (const [key, value] of Object.entries(getOrganizationMemory(event) || {})) {
     const prefix = 'SRC::';
     if (key.startsWith(prefix)) corrections[key.slice(prefix.length)] = value;
   }
@@ -1763,6 +1969,8 @@ function startAzureSpeechSession(socket, event) {
     console.error('azure speech canceled:', details);
     const isQuotaError = details.toLowerCase().includes('quota');
     socket.emit('server_error', {
+      provider: 'azure_sdk',
+      code: isQuotaError ? 'azure_quota_exceeded' : 'azure_canceled',
       message: isQuotaError
         ? 'Azure Speech quota exceeded. Inchide alte taburi On-Air sau verifica quota/subscription in Azure.'
         : 'Azure Speech s-a oprit. Verifica setarile Azure.'
@@ -1782,7 +1990,11 @@ function startAzureSpeechSession(socket, event) {
     () => socket.emit('azure_audio_ready', { ok: true }),
     (err) => {
       console.error('azure speech start error:', err);
-      socket.emit('server_error', { message: 'Nu am putut porni Azure Speech.' });
+      socket.emit('server_error', {
+        provider: 'azure_sdk',
+        code: 'azure_start_failed',
+        message: 'Nu am putut porni Azure Speech.'
+      });
       closeAzureSpeechSession(socket.id);
     }
   );
@@ -1956,32 +2168,74 @@ function splitSongBlocks(text) {
 function parseSongSectionMarker(block) {
   const lines = String(block || '').split('\n').map((line) => line.trim()).filter(Boolean);
   if (!lines.length) return { label: '', text: '' };
-  const match = lines[0].match(/^((?:r|refren|chorus)\s*\d*|\d+)\.\s*(.*)$/i);
-  if (!match) return { label: '', text: lines.join('\n') };
+  const match = lines[0].match(/^((?:r|refren|chorus)\s*\d*|\d+)([.:])\s*(.*)$/i);
+  if (!match) return { label: '', text: lines.join('\n'), baseText: lines.join('\n'), type: 'verse' };
 
   const marker = match[1].replace(/\s+/g, '').toLowerCase();
-  const rest = String(match[2] || '').trim();
+  const delimiter = match[2];
+  let rest = String(match[3] || '').trim();
+  let inlineNote = '';
+  const inlineNoteMatch = rest.match(/^(%[^%]+%)\s*(.*)$/);
+  if (inlineNoteMatch) {
+    inlineNote = inlineNoteMatch[1].trim();
+    rest = String(inlineNoteMatch[2] || '').trim();
+  }
   const contentLines = rest ? [rest, ...lines.slice(1)] : lines.slice(1);
-  const text = contentLines.join('\n').trim();
+  const baseText = contentLines.join('\n').trim();
+  const text = inlineNote && baseText ? appendSongInlineNote(baseText, inlineNote) : baseText;
 
-  if (/^\d+$/.test(marker)) return { label: `Strofa ${marker}`, text };
+  if (/^\d+$/.test(marker)) return { label: `Strofa ${marker}`, text, baseText, type: 'verse' };
   if (marker.startsWith('chorus')) {
     const number = marker.replace('chorus', '');
-    return { label: number ? `Chorus ${number}` : 'Chorus', text };
+    return {
+      label: `${number ? `Chorus ${number}` : 'Chorus'}${inlineNote ? ` ${inlineNote}` : ''}`,
+      text,
+      baseText,
+      type: 'chorus',
+      inlineNote,
+      repeatPreviousChorus: delimiter === ':' && !!inlineNote && !baseText
+    };
   }
   const number = marker.replace(/^r(?:efren)?/, '');
-  return { label: number ? `Refren ${number}` : 'Refren', text };
+  return {
+    label: `${number ? `Refren ${number}` : 'Refren'}${inlineNote ? ` ${inlineNote}` : ''}`,
+    text,
+    baseText,
+    type: 'chorus',
+    inlineNote,
+    repeatPreviousChorus: delimiter === ':' && !!inlineNote && !baseText
+  };
+}
+
+function appendSongInlineNote(text, note) {
+  const safeNote = String(note || '').trim();
+  if (!safeNote) return String(text || '').trim();
+  const lines = String(text || '').split('\n');
+  const index = lines.findIndex((line) => line.trim());
+  if (index < 0) return safeNote;
+  if (!lines[index].includes(safeNote)) lines[index] = `${lines[index].trim()} ${safeNote}`;
+  return lines.join('\n').trim();
 }
 
 function splitSongBlocksWithLabels(text, labels = []) {
   const rawBlocks = splitSongBlocks(text);
   const parsed = rawBlocks.map(parseSongSectionMarker);
-  const blocks = parsed.map((item, index) => item.text || rawBlocks[index]).filter(Boolean);
-  const blockLabels = blocks.map((_, index) => {
+  let lastChorusBaseText = '';
+  const entries = parsed.map((item, index) => {
+    let blockText = item.text || rawBlocks[index] || '';
+    if (item.repeatPreviousChorus) {
+      blockText = lastChorusBaseText ? appendSongInlineNote(lastChorusBaseText, item.inlineNote) : (item.inlineNote || blockText);
+    }
+    if (item.type === 'chorus' && !item.repeatPreviousChorus && item.baseText) {
+      lastChorusBaseText = item.baseText;
+    }
     const provided = String(labels[index] || '').trim();
-    return provided || parsed[index]?.label || `Verse ${index + 1}`;
-  });
-  return { blocks, labels: blockLabels };
+    return { text: String(blockText || '').trim(), label: provided || item.label || `Verse ${index + 1}` };
+  }).filter((item) => item.text);
+  return {
+    blocks: entries.map((item) => item.text),
+    labels: entries.map((item) => item.label)
+  };
 }
 
 function buildBlockLabels(blocks, labels = []) {
@@ -2020,13 +2274,17 @@ function setSongIndex(event, index) {
 }
 
 app.get('/api/health', (req, res) => {
+  const organization = getDefaultOrganization();
   res.json({
     ok: true,
     openaiConfigured: !!OPENAI_API_KEY,
     model: OPENAI_MODEL,
     transcribeModel: OPENAI_TRANSCRIBE_MODEL,
     speechProvider: getActiveSpeechProvider(),
-    azureSpeechConfigured: !!(AZURE_SPEECH_KEY && AZURE_SPEECH_REGION)
+    azureSpeechConfigured: !!(AZURE_SPEECH_KEY && AZURE_SPEECH_REGION),
+    commercialMode: COMMERCIAL_MODE,
+    publicBaseUrl: buildBaseUrl(req),
+    organization: buildPublicOrganization(organization)
   });
 });
 
@@ -2060,6 +2318,10 @@ app.get('/api/languages', (req, res) => {
   res.json({ ok: true, languages: LANGUAGE_NAMES_RO });
 });
 
+app.get('/api/organization', (req, res) => {
+  res.json({ ok: true, ...buildOrganizationStatus(DEFAULT_ORG_ID) });
+});
+
 app.get('/api/participant-qr.png', async (req, res) => {
   try {
     const participantUrl = `${buildBaseUrl(req)}/participant`;
@@ -2076,15 +2338,16 @@ app.get('/api/participant-qr.png', async (req, res) => {
 app.post('/api/events', async (req, res) => {
   if (!requireEventManager(req, res)) return;
   try {
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-    const baseUrl = `${protocol}://${req.get('host')}`;
+    const baseUrl = buildBaseUrl(req);
+    const organizationId = normalizeOrgId(req.body.organizationId || DEFAULT_ORG_ID);
     const event = await createEvent({
       name: req.body.name,
       speed: req.body.speed,
       sourceLang: req.body.sourceLang || 'ro',
       targetLangs: req.body.targetLangs || ['no', 'en'],
       baseUrl,
-      scheduledAt: req.body.scheduledAt || null
+      scheduledAt: req.body.scheduledAt || null,
+      organizationId
     });
     res.json({ ok: true, event: normalizeEvent(event, { includeSecrets: true }) });
   } catch (err) {
@@ -2094,16 +2357,17 @@ app.post('/api/events', async (req, res) => {
 });
 
 app.get('/api/events/active', (req, res) => {
-  const activeEventId = db.activeEventId;
+  const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
   const event = activeEventId ? db.events[activeEventId] : null;
   if (!event) return res.status(404).json({ ok: false, error: 'Nu există eveniment activ.' });
   ensureEventAccessLinks(event, buildBaseUrl(req));
   saveDb();
-  res.json({ ok: true, event: normalizeEvent(event), languageNames: LANGUAGE_NAMES_RO });
+  res.json({ ok: true, event: normalizeEvent(event), languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization(getOrganizationForEvent(event)) });
 });
 
 app.get('/api/events/public', (req, res) => {
-  const events = Object.values(db.events || {})
+  const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
+  const events = getOrganizationEvents(DEFAULT_ORG_ID)
     .sort((a, b) => {
       const left = new Date(a.scheduledAt || a.createdAt || 0);
       const right = new Date(b.scheduledAt || b.createdAt || 0);
@@ -2116,16 +2380,17 @@ app.get('/api/events/public', (req, res) => {
       createdAt: event.createdAt || null,
       sourceLang: event.sourceLang || 'ro',
       targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
-      isActive: db.activeEventId === event.id
+      isActive: activeEventId === event.id
     }));
-  res.json({ ok: true, events, activeEventId: db.activeEventId || null, languageNames: LANGUAGE_NAMES_RO });
+  res.json({ ok: true, events, activeEventId: activeEventId || null, languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization() });
 });
 
 app.get('/api/events', (req, res) => {
-  const events = Object.values(db.events || {})
+  const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
+  const events = getOrganizationEvents(DEFAULT_ORG_ID)
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
     .map(summarizeEvent);
-  res.json({ ok: true, events, activeEventId: db.activeEventId || null, languageNames: LANGUAGE_NAMES_RO });
+  res.json({ ok: true, events, activeEventId: activeEventId || null, languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization() });
 });
 
 app.get('/api/events/:id', (req, res) => {
@@ -2134,7 +2399,7 @@ app.get('/api/events/:id', (req, res) => {
   ensureEventAccessLinks(event, buildBaseUrl(req));
   saveDb();
   const access = resolveEventAccessFromCode(event, getSuppliedEventCode(req));
-  res.json({ ok: true, event: normalizeEvent(event, { includeSecrets: access.role === 'admin' }), languageNames: LANGUAGE_NAMES_RO });
+  res.json({ ok: true, event: normalizeEvent(event, { includeSecrets: access.role === 'admin' }), languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization(getOrganizationForEvent(event)) });
 });
 
 app.post('/api/events/:id/remote-operators', (req, res) => {
@@ -2227,7 +2492,7 @@ app.post('/api/events/:id/activate', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
   if (!requireEventAdmin(req, res, event)) return;
-  db.activeEventId = event.id;
+  setActiveEventIdForOrg(getEventOrgId(event), event.id);
   saveDb();
   io.emit('active_event_changed', { eventId: event.id });
   res.json({ ok: true, event: normalizeEventForAccess(req, event) });
@@ -2240,13 +2505,14 @@ app.delete('/api/events/:id', (req, res) => {
   delete db.events[req.params.id];
   speechBuffers.delete(req.params.id);
   participantPresence.delete(req.params.id);
-  if (db.activeEventId === req.params.id) {
-    const remaining = Object.values(db.events).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    db.activeEventId = remaining[0]?.id || null;
+  const orgId = getEventOrgId(event);
+  if (getActiveEventIdForOrg(orgId) === req.params.id) {
+    const remaining = getOrganizationEvents(orgId).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    setActiveEventIdForOrg(orgId, remaining[0]?.id || null);
   }
   saveDb();
-  io.emit('active_event_changed', { eventId: db.activeEventId || null });
-  res.json({ ok: true, activeEventId: db.activeEventId || null });
+  io.emit('active_event_changed', { eventId: getActiveEventIdForOrg(orgId) || null });
+  res.json({ ok: true, activeEventId: getActiveEventIdForOrg(orgId) || null });
 });
 
 app.post('/api/events/:id/glossary', (req, res) => {
@@ -2261,7 +2527,7 @@ app.post('/api/events/:id/glossary', (req, res) => {
   if (!lang) return res.status(400).json({ ok: false, error: 'Limbă lipsă.' });
   event.glossary[lang] = event.glossary[lang] || {};
   event.glossary[lang][source] = target;
-  if (permanent) db.globalMemory[`${lang.toUpperCase()}::${source}`] = target;
+  if (permanent) getOrganizationMemory(event)[`${lang.toUpperCase()}::${source}`] = target;
   saveDb();
   io.to(`event:${event.id}`).emit('glossary_updated', { source, target, permanent });
   res.json({ ok: true });
@@ -2277,7 +2543,7 @@ app.post('/api/events/:id/source-corrections', (req, res) => {
   if (!heard || !correct) return res.status(400).json({ ok: false, error: 'Date lipsă.' });
   event.sourceCorrections = event.sourceCorrections || {};
   event.sourceCorrections[heard] = correct;
-  if (permanent) db.globalMemory[`SRC::${heard}`] = correct;
+  if (permanent) getOrganizationMemory(event)[`SRC::${heard}`] = correct;
   saveDb();
   io.to(`event:${event.id}`).emit('source_corrections_updated', { heard, correct, permanent });
   res.json({ ok: true });
@@ -2854,7 +3120,8 @@ app.delete('/api/events/:id/song-library/:songId', (req, res) => {
 });
 
 app.get('/api/global-song-library', (req, res) => {
-  res.json({ ok: true, globalSongLibrary: Array.isArray(db.globalSongLibrary) ? db.globalSongLibrary : [] });
+  const library = getOrganizationSongLibrary(DEFAULT_ORG_ID);
+  res.json({ ok: true, globalSongLibrary: Array.isArray(library) ? library : [], organization: buildPublicOrganization() });
 });
 
 app.post('/api/global-song-library', (req, res) => {
@@ -2866,13 +3133,15 @@ app.post('/api/global-song-library', (req, res) => {
   if (!title || !text) {
     return res.status(400).json({ ok: false, error: 'Titlu sau text lipsa.' });
   }
-  upsertLibraryItem(db.globalSongLibrary, { title, text, labels, sourceLang }, 500);
+  const library = getOrganizationSongLibrary(DEFAULT_ORG_ID);
+  upsertLibraryItem(library, { title, text, labels, sourceLang }, 500);
   saveDb();
-  res.json({ ok: true, globalSongLibrary: db.globalSongLibrary });
+  res.json({ ok: true, globalSongLibrary: library });
 });
 
 app.get('/api/pinned-text-library', (req, res) => {
-  res.json({ ok: true, pinnedTextLibrary: Array.isArray(db.pinnedTextLibrary) ? db.pinnedTextLibrary : [] });
+  const library = getOrganizationPinnedTextLibrary(DEFAULT_ORG_ID);
+  res.json({ ok: true, pinnedTextLibrary: Array.isArray(library) ? library : [], organization: buildPublicOrganization() });
 });
 
 app.post('/api/pinned-text-library', (req, res) => {
@@ -2883,30 +3152,34 @@ app.post('/api/pinned-text-library', (req, res) => {
   if (!title || !text) {
     return res.status(400).json({ ok: false, error: 'Titlu sau text lipsa.' });
   }
-  upsertLibraryItem(db.pinnedTextLibrary, { title, text, labels: [], sourceLang }, 300);
+  const library = getOrganizationPinnedTextLibrary(DEFAULT_ORG_ID);
+  upsertLibraryItem(library, { title, text, labels: [], sourceLang }, 300);
   saveDb();
-  res.json({ ok: true, pinnedTextLibrary: db.pinnedTextLibrary });
+  res.json({ ok: true, pinnedTextLibrary: library });
 });
 
 app.delete('/api/pinned-text-library/:itemId', (req, res) => {
   if (!requireGlobalLibraryAdmin(req, res)) return;
-  db.pinnedTextLibrary = (db.pinnedTextLibrary || []).filter((item) => item.id !== req.params.itemId);
+  const org = getDefaultOrganization();
+  org.pinnedTextLibrary = (org.pinnedTextLibrary || []).filter((item) => item.id !== req.params.itemId);
   saveDb();
-  res.json({ ok: true, pinnedTextLibrary: db.pinnedTextLibrary });
+  res.json({ ok: true, pinnedTextLibrary: org.pinnedTextLibrary });
 });
 
 app.delete('/api/global-song-library/:songId', (req, res) => {
   if (!requireGlobalLibraryAdmin(req, res)) return;
-  db.globalSongLibrary = (db.globalSongLibrary || []).filter((item) => item.id !== req.params.songId);
+  const org = getDefaultOrganization();
+  org.globalSongLibrary = (org.globalSongLibrary || []).filter((item) => item.id !== req.params.songId);
   saveDb();
-  res.json({ ok: true, globalSongLibrary: db.globalSongLibrary });
+  res.json({ ok: true, globalSongLibrary: org.globalSongLibrary });
 });
 
 app.get('/api/events/:id/global-song-library', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
 
-  res.json({ ok: true, globalSongLibrary: Array.isArray(db.globalSongLibrary) ? db.globalSongLibrary : [] });
+  const library = getOrganizationSongLibrary(getEventOrgId(event));
+  res.json({ ok: true, globalSongLibrary: Array.isArray(library) ? library : [] });
 });
 
 app.post('/api/events/:id/global-song-library', (req, res) => {
@@ -2924,9 +3197,10 @@ app.post('/api/events/:id/global-song-library', (req, res) => {
     return res.status(400).json({ ok: false, error: 'Titlu sau text lipsa.' });
   }
 
-  upsertLibraryItem(db.globalSongLibrary, { title, text, labels, sourceLang }, 500);
+  const library = getOrganizationSongLibrary(getEventOrgId(event));
+  upsertLibraryItem(library, { title, text, labels, sourceLang }, 500);
   saveDb();
-  res.json({ ok: true, globalSongLibrary: db.globalSongLibrary });
+  res.json({ ok: true, globalSongLibrary: library });
 });
 
 app.post('/api/events/:id/global-song-library/:songId/add-to-event', (req, res) => {
@@ -2941,14 +3215,18 @@ app.post('/api/events/:id/global-song-library/:songId/add-to-event', (req, res) 
   }
 
   ensureEventUiState(event);
-  const item = (db.globalSongLibrary || []).find((entry) => entry.id === req.params.songId);
+  if (getEventOrgId(adminEvent) !== getEventOrgId(event)) {
+    return res.status(403).json({ ok: false, error: 'Evenimentul selectat apartine altei organizatii.' });
+  }
+  const library = getOrganizationSongLibrary(getEventOrgId(adminEvent));
+  const item = (library || []).find((entry) => entry.id === req.params.songId);
   if (!item) {
     return res.status(404).json({ ok: false, error: 'Cantarea nu exista in biblioteca generala.' });
   }
 
   upsertLibraryItem(event.songLibrary, { title: item.title, text: item.text, labels: item.labels || [], sourceLang: item.sourceLang || event.sourceLang || 'ro' }, 100);
   saveDb();
-  res.json({ ok: true, targetEvent: summarizeEvent(event), songLibrary: event.songLibrary, globalSongLibrary: db.globalSongLibrary });
+  res.json({ ok: true, targetEvent: summarizeEvent(event), songLibrary: event.songLibrary, globalSongLibrary: library });
 });
 
 app.delete('/api/events/:id/global-song-library/:songId', (req, res) => {
@@ -2956,9 +3234,10 @@ app.delete('/api/events/:id/global-song-library/:songId', (req, res) => {
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
   if (!requireEventAdmin(req, res, event)) return;
 
-  db.globalSongLibrary = (db.globalSongLibrary || []).filter((item) => item.id !== req.params.songId);
+  const org = getOrganizationForEvent(event);
+  org.globalSongLibrary = (org.globalSongLibrary || []).filter((item) => item.id !== req.params.songId);
   saveDb();
-  res.json({ ok: true, globalSongLibrary: db.globalSongLibrary });
+  res.json({ ok: true, globalSongLibrary: org.globalSongLibrary });
 });
 
 app.post('/api/events/:id/transcribe', upload.single('audio'), async (req, res) => {
@@ -3000,7 +3279,7 @@ io.on('connection', (socket) => {
     if (role === 'admin' && access.role !== 'admin') return socket.emit('join_error', { message: 'Cod Admin invalid.' });
     if (role === 'screen' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
     if (role === 'participant_preview' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
-    if ((role || 'participant') === 'participant' && db.activeEventId !== eventId) {
+    if ((role || 'participant') === 'participant' && !isEventActive(event)) {
       return socket.emit('join_error', { message: 'Evenimentul nu este live inca.' });
     }
 
@@ -3038,7 +3317,8 @@ io.on('connection', (socket) => {
       access: socket.data.role === 'screen'
         ? { permissions: access.permissions || [], operator: normalizeSocketOperator(access.operator) }
         : null,
-      languageNames: LANGUAGE_NAMES_RO
+      languageNames: LANGUAGE_NAMES_RO,
+      organization: buildPublicOrganization(getOrganizationForEvent(event))
     });
   });
 
@@ -3146,7 +3426,11 @@ io.on('connection', (socket) => {
       session.pushStream.write(buffer);
     } catch (err) {
       console.error('azure audio chunk error:', err?.message || err);
-      socket.emit('server_error', { message: 'Azure Speech audio stream failed.' });
+      socket.emit('server_error', {
+        provider: 'azure_sdk',
+        code: 'azure_stream_failed',
+        message: 'Azure Speech audio stream failed.'
+      });
       closeAzureSpeechSession(socket.id);
     }
   });

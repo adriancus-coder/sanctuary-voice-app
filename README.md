@@ -48,12 +48,32 @@ npm start
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `OPENAI_TRANSCRIBE_MODEL`
+- `PUBLIC_BASE_URL`
+- `MASTER_ADMIN_PIN`
+- `MAIN_OPERATOR_PIN`
+- `COMMERCIAL_MODE`
+- `DEFAULT_ORG_ID`
+- `DEFAULT_ORG_NAME`
+- `DEFAULT_ORG_PLAN`
 - `PORT`
 
 Valori implicite recomandate:
 
 - `OPENAI_MODEL=gpt-4.1-nano`
 - `OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe`
+- `PUBLIC_BASE_URL=https://sanctuaryvoice.com`
+- `DEFAULT_ORG_ID=sanctuary-voice`
+- `DEFAULT_ORG_NAME=Sanctuary Voice`
+
+## Commercial foundation
+
+Aplicatia are o organizatie implicita. Evenimentele, codul permanent de operator, Church Library, Pinned Text Library si memoria/glossary permanenta sunt legate de aceasta organizatie. Pentru modul comercial seteaza:
+
+- `COMMERCIAL_MODE=1`
+- `MASTER_ADMIN_PIN=<pin-admin-secret>`
+- `MAIN_OPERATOR_PIN=<pin-operator-secret>`
+
+In modul comercial, crearea primului eveniment nu mai ramane deschisa public daca nu exista niciun eveniment.
 
 ## Deploy pe Render cu New Web Service
 
