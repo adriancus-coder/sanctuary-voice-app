@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const multer = require('multer');
-const { randomUUID } = require('crypto');
+const { createHmac, randomUUID, timingSafeEqual } = require('crypto');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const OpenAI = require('openai');
@@ -34,16 +34,57 @@ const DEFAULT_ORG_ID = String(process.env.DEFAULT_ORG_ID || process.env.ORGANIZA
 const DEFAULT_ORG_NAME = String(process.env.DEFAULT_ORG_NAME || process.env.ORGANIZATION_NAME || 'Sanctuary Voice').trim() || 'Sanctuary Voice';
 const DEFAULT_ORG_PLAN = String(process.env.DEFAULT_ORG_PLAN || 'internal').trim() || 'internal';
 const COMMERCIAL_MODE = ['1', 'true', 'yes'].includes(String(process.env.COMMERCIAL_MODE || '').trim().toLowerCase());
+const ADMIN_SESSION_COOKIE = 'sv_admin_session';
+const ADMIN_SESSION_MAX_AGE_MS = Math.max(1, Number(process.env.ADMIN_SESSION_MAX_AGE_HOURS || 12) || 12) * 60 * 60 * 1000;
+const ADMIN_SESSION_SECRET = String(
+  process.env.ADMIN_SESSION_SECRET
+  || process.env.SESSION_SECRET
+  || OPENAI_API_KEY
+  || MASTER_ADMIN_PIN
+  || 'sanctuary-voice-dev-session'
+).trim();
 
 console.log('API KEY:', OPENAI_API_KEY ? 'OK' : 'LIPSA');
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 app.use(express.json({ limit: '8mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.get('/admin-login', (req, res) => {
+  const nextPath = sanitizeLocalNextPath(req.query.next || '/admin');
+  if (hasValidAdminSession(req)) return res.redirect(nextPath);
+  const setupError = COMMERCIAL_MODE && !isAdminLoginConfigured()
+    ? 'Admin PIN is not configured. Add MASTER_ADMIN_PIN in Render Environment first.'
+    : '';
+  res.send(renderAdminLoginPage({ error: setupError, nextPath }));
+});
+app.post('/api/admin-login', (req, res) => {
+  const pin = String(req.body.pin || req.body.code || '').trim();
+  const nextPath = sanitizeLocalNextPath(req.body.next || req.query.next || '/admin');
+  if (!isAdminLoginConfigured()) {
+    return res.status(500).send(renderAdminLoginPage({
+      error: 'Admin PIN is not configured. Add MASTER_ADMIN_PIN in Render Environment first.',
+      nextPath
+    }));
+  }
+  if (!isAllowedAdminPin(pin)) {
+    return res.status(403).send(renderAdminLoginPage({ error: 'Invalid admin PIN.', nextPath }));
+  }
+  setAdminSessionCookie(req, res);
+  return res.redirect(nextPath);
+});
+app.post('/api/admin-logout', (req, res) => {
+  clearAdminSessionCookie(req, res);
+  res.json({ ok: true });
+});
+app.use((req, res, next) => {
+  if (req.path === '/admin.html') return requireAdminPage(req, res, next);
+  return next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/', requireAdminPage, sendAdminPage);
+app.get('/admin', requireAdminPage, sendAdminPage);
+app.get('/admin.html', requireAdminPage, sendAdminPage);
 app.get('/participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
 app.get('/participant.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
 app.get('/live', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
@@ -115,6 +156,235 @@ const LANGUAGE_NAMES_RO = {
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function sendAdminPage(req, res) {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+}
+
+function getConfiguredAdminPins() {
+  const pins = [
+    MASTER_ADMIN_PIN,
+    process.env.APP_ADMIN_CODE,
+    process.env.ADMIN_CODE
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  return Array.from(new Set(pins));
+}
+
+function isAdminLoginConfigured() {
+  return getConfiguredAdminPins().length > 0;
+}
+
+function safeStringEqual(left, right) {
+  const leftBuffer = Buffer.from(String(left || ''));
+  const rightBuffer = Buffer.from(String(right || ''));
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function isAllowedAdminPin(pin) {
+  const suppliedPin = String(pin || '').trim();
+  if (!suppliedPin) return false;
+  return getConfiguredAdminPins().some((configuredPin) => safeStringEqual(suppliedPin, configuredPin));
+}
+
+function parseCookies(req) {
+  const header = String(req.headers.cookie || '');
+  return header.split(';').reduce((cookies, part) => {
+    const index = part.indexOf('=');
+    if (index === -1) return cookies;
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+    if (key) {
+      try {
+        cookies[key] = decodeURIComponent(value);
+      } catch (err) {
+        cookies[key] = value;
+      }
+    }
+    return cookies;
+  }, {});
+}
+
+function base64urlEncode(value) {
+  return Buffer.from(value).toString('base64url');
+}
+
+function base64urlDecode(value) {
+  return Buffer.from(value, 'base64url').toString('utf8');
+}
+
+function signAdminSession(payload) {
+  const body = base64urlEncode(JSON.stringify(payload));
+  const signature = createHmac('sha256', ADMIN_SESSION_SECRET).update(body).digest('base64url');
+  return `${body}.${signature}`;
+}
+
+function verifyAdminSession(token) {
+  const rawToken = String(token || '');
+  const [body, signature] = rawToken.split('.');
+  if (!body || !signature) return null;
+  const expectedSignature = createHmac('sha256', ADMIN_SESSION_SECRET).update(body).digest('base64url');
+  if (!safeStringEqual(signature, expectedSignature)) return null;
+  try {
+    const session = JSON.parse(base64urlDecode(body));
+    if (session.role !== 'admin') return null;
+    if (session.exp && Number(session.exp) < Date.now()) return null;
+    if (session.orgId && String(session.orgId) !== DEFAULT_ORG_ID) return null;
+    return session;
+  } catch (err) {
+    return null;
+  }
+}
+
+function hasValidAdminSession(req) {
+  if (!COMMERCIAL_MODE && !isAdminLoginConfigured()) return true;
+  const cookies = parseCookies(req);
+  return Boolean(verifyAdminSession(cookies[ADMIN_SESSION_COOKIE]));
+}
+
+function getCookieSecureFlag(req) {
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  return Boolean(req.secure || forwardedProto === 'https');
+}
+
+function buildAdminSessionCookie(req, value, maxAgeMs = ADMIN_SESSION_MAX_AGE_MS) {
+  const parts = [
+    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(value)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${Math.max(0, Math.floor(maxAgeMs / 1000))}`
+  ];
+  if (getCookieSecureFlag(req)) parts.push('Secure');
+  return parts.join('; ');
+}
+
+function setAdminSessionCookie(req, res) {
+  const now = Date.now();
+  const token = signAdminSession({
+    role: 'admin',
+    orgId: DEFAULT_ORG_ID,
+    iat: now,
+    exp: now + ADMIN_SESSION_MAX_AGE_MS
+  });
+  res.setHeader('Set-Cookie', buildAdminSessionCookie(req, token));
+}
+
+function clearAdminSessionCookie(req, res) {
+  res.setHeader('Set-Cookie', buildAdminSessionCookie(req, '', 0));
+}
+
+function sanitizeLocalNextPath(value) {
+  const nextPath = String(value || '/admin').trim();
+  if (!nextPath.startsWith('/') || nextPath.startsWith('//')) return '/admin';
+  if (nextPath.startsWith('/api/')) return '/admin';
+  return nextPath;
+}
+
+function requireAdminPage(req, res, next) {
+  if (hasValidAdminSession(req)) return next();
+  const nextPath = encodeURIComponent(sanitizeLocalNextPath(req.originalUrl || '/admin'));
+  return res.redirect(`/admin-login?next=${nextPath}`);
+}
+
+function requireAdminApiSession(req, res) {
+  if (hasValidAdminSession(req)) return true;
+  res.status(401).json({ ok: false, error: 'Admin login required.' });
+  return false;
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderAdminLoginPage({ error = '', nextPath = '/admin' } = {}) {
+  const errorHtml = error ? `<div class="login-error">${escapeHtml(error)}</div>` : '';
+  return `<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sanctuary Voice Admin Login</title>
+  <style>
+    :root { color-scheme: dark; --gold: #e8c477; --ink: #f8f0e0; --muted: #b9b0a3; --panel: rgba(18, 18, 18, 0.9); }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 50% 12%, rgba(232, 196, 119, 0.2), transparent 28%),
+        radial-gradient(circle at 15% 80%, rgba(38, 101, 82, 0.18), transparent 32%),
+        #070807;
+    }
+    .login-card {
+      width: min(92vw, 460px);
+      padding: 34px;
+      border: 1px solid rgba(232, 196, 119, 0.28);
+      border-radius: 28px;
+      background: linear-gradient(150deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)), var(--panel);
+      box-shadow: 0 30px 100px rgba(0, 0, 0, 0.55), 0 0 70px rgba(232, 196, 119, 0.16);
+    }
+    .eyebrow { letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); font: 700 13px/1.4 Arial, sans-serif; }
+    h1 { margin: 12px 0 10px; font-size: clamp(38px, 8vw, 58px); line-height: 0.95; }
+    p { margin: 0 0 24px; color: var(--muted); font: 18px/1.45 Arial, sans-serif; }
+    label { display: block; margin-bottom: 10px; color: var(--gold); font: 700 13px/1.4 Arial, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; }
+    input {
+      width: 100%;
+      border: 1px solid rgba(232, 196, 119, 0.28);
+      border-radius: 16px;
+      padding: 16px 18px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.08);
+      font: 600 22px/1.2 Arial, sans-serif;
+    }
+    button {
+      width: 100%;
+      margin-top: 18px;
+      border: 0;
+      border-radius: 999px;
+      padding: 16px 18px;
+      cursor: pointer;
+      color: #1d160b;
+      background: linear-gradient(135deg, #f4deb0, #d19a35);
+      font: 800 18px/1.2 Arial, sans-serif;
+      box-shadow: 0 18px 48px rgba(209, 154, 53, 0.25);
+    }
+    .login-error {
+      margin: 0 0 18px;
+      border: 1px solid rgba(255, 117, 117, 0.42);
+      border-radius: 14px;
+      padding: 12px 14px;
+      color: #ffd4d4;
+      background: rgba(145, 18, 18, 0.25);
+      font: 600 15px/1.4 Arial, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <main class="login-card">
+    <div class="eyebrow">Sanctuary Voice</div>
+    <h1>Admin access</h1>
+    <p>Enter the admin PIN to continue to the control center.</p>
+    ${errorHtml}
+    <form method="post" action="/api/admin-login">
+      <input type="hidden" name="next" value="${escapeHtml(nextPath)}">
+      <label for="pin">Admin PIN</label>
+      <input id="pin" name="pin" type="password" autocomplete="current-password" autofocus required>
+      <button type="submit">Open Admin</button>
+    </form>
+  </main>
+</body>
+</html>`;
 }
 
 function defaultSongState() {
@@ -1201,6 +1471,12 @@ function resolveEventAccessFromCode(event, code) {
 }
 
 function requireEventRole(req, res, event, allowedRoles = ['admin']) {
+  if (allowedRoles.includes('admin') && hasValidAdminSession(req) && getEventOrgId(event) === DEFAULT_ORG_ID) {
+    const access = { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
+    req.eventRole = access.role;
+    req.eventAccess = access;
+    return access.role;
+  }
   const access = resolveEventAccessFromCode(event, getSuppliedEventCode(req));
   if (!allowedRoles.includes(access.role)) {
     res.status(403).json({ ok: false, error: 'Cod de acces invalid.' });
@@ -1219,6 +1495,7 @@ function requireEventPermission(req, res, permission) {
 }
 
 function canManageEvents(req) {
+  if (hasValidAdminSession(req)) return true;
   const suppliedCode = getSuppliedEventCode(req);
   if (MASTER_ADMIN_PIN && suppliedCode === MASTER_ADMIN_PIN) return true;
   const appAdminCode = String(process.env.APP_ADMIN_CODE || process.env.ADMIN_CODE || '').trim();
@@ -2386,6 +2663,7 @@ app.get('/api/events/public', (req, res) => {
 });
 
 app.get('/api/events', (req, res) => {
+  if ((COMMERCIAL_MODE || isAdminLoginConfigured()) && !requireAdminApiSession(req, res)) return;
   const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
   const events = getOrganizationEvents(DEFAULT_ORG_ID)
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
@@ -2398,7 +2676,9 @@ app.get('/api/events/:id', (req, res) => {
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
   ensureEventAccessLinks(event, buildBaseUrl(req));
   saveDb();
-  const access = resolveEventAccessFromCode(event, getSuppliedEventCode(req));
+  const access = hasValidAdminSession(req)
+    ? { role: 'admin', permissions: ['main_screen', 'song'], operator: null }
+    : resolveEventAccessFromCode(event, getSuppliedEventCode(req));
   res.json({ ok: true, event: normalizeEvent(event, { includeSecrets: access.role === 'admin' }), languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization(getOrganizationForEvent(event)) });
 });
 
