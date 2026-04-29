@@ -49,6 +49,8 @@ npm start
 - `OPENAI_MODEL`
 - `OPENAI_TRANSCRIBE_MODEL`
 - `PUBLIC_BASE_URL`
+- `ADMIN_APP_BASE_URL`
+- `ADMIN_APP_HOSTNAMES`
 - `MASTER_ADMIN_PIN`
 - `MAIN_OPERATOR_PIN`
 - `ADMIN_SESSION_SECRET`
@@ -64,6 +66,8 @@ Valori implicite recomandate:
 - `OPENAI_MODEL=gpt-4.1-nano`
 - `OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe`
 - `PUBLIC_BASE_URL=https://sanctuaryvoice.com`
+- `ADMIN_APP_BASE_URL=https://app.sanctuaryvoice.com`
+- `ADMIN_APP_HOSTNAMES=app.sanctuaryvoice.com,control.sanctuaryvoice.com,kontrol.sanctuaryvoice.com`
 - `DEFAULT_ORG_ID=sanctuary-voice`
 - `DEFAULT_ORG_NAME=Sanctuary Voice`
 
@@ -78,6 +82,15 @@ Aplicatia are o organizatie implicita. Evenimentele, codul permanent de operator
 - `ADMIN_SESSION_PERSISTENT=0`
 
 In modul comercial, crearea primului eveniment nu mai ramane deschisa public daca nu exista niciun eveniment. Pagina `/admin` cere login cu `MASTER_ADMIN_PIN`, iar sesiunea este pastrata intr-un cookie HttpOnly semnat cu `ADMIN_SESSION_SECRET`. Implicit, cookie-ul este doar pentru sesiunea curenta de browser, astfel incat Admin cere PIN din nou la o sesiune noua. Daca vrei sesiune persistenta, seteaza `ADMIN_SESSION_PERSISTENT=1`.
+
+## Public site and Admin app domain
+
+`sanctuaryvoice.com` serveste pagina publica de prezentare. Adminul ramane la `/admin`, dar poate fi mutat pe subdomeniul aplicatiei:
+
+- `ADMIN_APP_BASE_URL=https://app.sanctuaryvoice.com`
+- `ADMIN_APP_HOSTNAMES=app.sanctuaryvoice.com,control.sanctuaryvoice.com,kontrol.sanctuaryvoice.com`
+
+Cu aceste valori, `sanctuaryvoice.com/admin` redirectioneaza catre `app.sanctuaryvoice.com/admin`, iar dupa login ramai in aplicatia organizatiei.
 
 ## Deploy pe Render cu New Web Service
 

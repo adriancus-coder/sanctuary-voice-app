@@ -30,6 +30,11 @@ const MASTER_MODERATOR_PIN = String(process.env.MASTER_MODERATOR_PIN || process.
 const MAIN_OPERATOR_PIN = String(process.env.MAIN_OPERATOR_PIN || process.env.MAIN_OPERATOR_CODE || '').trim();
 const TRANSLATION_MONITOR_ENABLED = String(process.env.TRANSLATION_MONITOR_ENABLED || '').trim() === '1';
 const PUBLIC_BASE_URL = normalizePublicBaseUrl(process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'https://sanctuaryvoice.com');
+const ADMIN_APP_BASE_URL = normalizePublicBaseUrl(process.env.ADMIN_APP_BASE_URL || process.env.APP_ADMIN_BASE_URL || '');
+const ADMIN_APP_HOSTNAMES = String(process.env.ADMIN_APP_HOSTNAMES || 'app.sanctuaryvoice.com,control.sanctuaryvoice.com,kontrol.sanctuaryvoice.com')
+  .split(',')
+  .map((host) => host.trim().toLowerCase())
+  .filter(Boolean);
 const DEFAULT_ORG_ID = String(process.env.DEFAULT_ORG_ID || process.env.ORGANIZATION_ID || 'sanctuary-voice').trim() || 'sanctuary-voice';
 const DEFAULT_ORG_NAME = String(process.env.DEFAULT_ORG_NAME || process.env.ORGANIZATION_NAME || 'Sanctuary Voice').trim() || 'Sanctuary Voice';
 const DEFAULT_ORG_PLAN = String(process.env.DEFAULT_ORG_PLAN || 'internal').trim() || 'internal';
@@ -52,6 +57,9 @@ app.use(express.json({ limit: '8mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.get('/admin-login', (req, res) => {
   const nextPath = sanitizeLocalNextPath(req.query.next || '/admin');
+  if (shouldRedirectAdminTrafficToApp(req)) {
+    return res.redirect(buildAdminAppUrl(`/admin-login?next=${encodeURIComponent(nextPath)}`));
+  }
   if (hasValidAdminSession(req)) return res.redirect(nextPath);
   const setupError = COMMERCIAL_MODE && !isAdminLoginConfigured()
     ? 'Admin PIN is not configured. Add MASTER_ADMIN_PIN in Render Environment first.'
@@ -61,6 +69,9 @@ app.get('/admin-login', (req, res) => {
 app.post('/api/admin-login', (req, res) => {
   const pin = String(req.body.pin || req.body.code || '').trim();
   const nextPath = sanitizeLocalNextPath(req.body.next || req.query.next || '/admin');
+  if (shouldRedirectAdminTrafficToApp(req)) {
+    return res.redirect(307, buildAdminAppUrl(`/api/admin-login?next=${encodeURIComponent(nextPath)}`));
+  }
   if (!isAdminLoginConfigured()) {
     return res.status(500).send(renderAdminLoginPage({
       error: 'Admin PIN is not configured. Add MASTER_ADMIN_PIN in Render Environment first.',
@@ -83,7 +94,11 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/', requireAdminPage, sendAdminPage);
+app.get('/', (req, res, next) => {
+  if (isAdminAppHost(req)) return res.redirect('/admin');
+  return sendLandingPage(req, res, next);
+});
+app.get('/home', sendLandingPage);
 app.get('/admin', requireAdminPage, sendAdminPage);
 app.get('/admin.html', requireAdminPage, sendAdminPage);
 app.get('/participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
@@ -161,6 +176,41 @@ function ensureDataDir() {
 
 function sendAdminPage(req, res) {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+}
+
+function sendLandingPage(req, res) {
+  res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+}
+
+function getRequestHostname(req) {
+  return String(req.get('host') || '').split(':')[0].toLowerCase();
+}
+
+function getAdminAppHostname() {
+  try {
+    return ADMIN_APP_BASE_URL ? new URL(ADMIN_APP_BASE_URL).hostname.toLowerCase() : '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function isAdminAppHost(req) {
+  const host = getRequestHostname(req);
+  if (!host) return false;
+  const configuredHost = getAdminAppHostname();
+  return Boolean((configuredHost && host === configuredHost) || ADMIN_APP_HOSTNAMES.includes(host));
+}
+
+function shouldRedirectAdminTrafficToApp(req) {
+  if (!ADMIN_APP_BASE_URL) return false;
+  const host = getRequestHostname(req);
+  if (!host || isLocalRequestHost(host)) return false;
+  return !isAdminAppHost(req);
+}
+
+function buildAdminAppUrl(pathname = '/admin') {
+  const pathPart = String(pathname || '/admin').startsWith('/') ? String(pathname || '/admin') : `/${pathname}`;
+  return ADMIN_APP_BASE_URL ? `${ADMIN_APP_BASE_URL}${pathPart}` : pathPart;
 }
 
 function getConfiguredAdminPins() {
@@ -290,6 +340,7 @@ function sanitizeLocalNextPath(value) {
 }
 
 function requireAdminPage(req, res, next) {
+  if (shouldRedirectAdminTrafficToApp(req)) return res.redirect(buildAdminAppUrl('/admin'));
   if (hasValidAdminSession(req)) return next();
   const nextPath = encodeURIComponent(sanitizeLocalNextPath(req.originalUrl || '/admin'));
   return res.redirect(`/admin-login?next=${nextPath}`);
