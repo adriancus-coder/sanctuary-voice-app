@@ -75,6 +75,7 @@ const state = {
 };
 
 let publicEvents = [];
+let pushSubscriptionEventId = '';
 
 if (state.previewMode) {
   document.body.classList.add('participant-preview-mode');
@@ -559,10 +560,53 @@ function acceptAiNotice() {
   if (modal) modal.hidden = true;
 }
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = `${base64String}${padding}`.replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+async function subscribeToPushNotifications() {
+  if (state.previewMode || !state.currentEvent?.id) return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+  if (pushSubscriptionEventId === state.currentEvent.id && Notification.permission === 'granted') return;
+
+  const keyRes = await fetch('/api/push/public-key');
+  const keyData = await keyRes.json();
+  if (!keyData.enabled || !keyData.publicKey) return;
+
+  if (Notification.permission === 'denied') return;
+  const permission = Notification.permission === 'granted'
+    ? 'granted'
+    : await Notification.requestPermission();
+  if (permission !== 'granted') return;
+
+  const registration = await navigator.serviceWorker.register('/push-sw.js');
+  const existing = await registration.pushManager.getSubscription();
+  const subscription = existing || await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(keyData.publicKey)
+  });
+
+  await fetch('/api/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      eventId: state.currentEvent.id,
+      participantId: state.participantId,
+      language: state.currentLanguage,
+      subscription
+    })
+  });
+  pushSubscriptionEventId = state.currentEvent.id;
+}
+
 function handleLanguageChange() {
   state.currentLanguage = $('languageSelect').value;
   if (state.currentEvent?.id) {
     socket.emit('participant_language', { eventId: state.currentEvent.id, language: state.currentLanguage });
+    subscribeToPushNotifications().catch(() => {});
   }
   renderLiveView({ announce: false });
   showAiNoticeIfNeeded();
@@ -617,6 +661,7 @@ socket.on('joined_event', ({ event, role }) => {
   } else {
     enableWakeLock();
     showAiNoticeIfNeeded();
+    subscribeToPushNotifications().catch(() => {});
   }
 });
 socket.on('transcript_entry', (entry) => {
