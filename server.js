@@ -12,7 +12,6 @@ require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024 }
@@ -22,6 +21,8 @@ const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
 const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
+const TRANSCRIBE_RATE_LIMIT_WINDOW_MS = Math.max(1000, Number(process.env.TRANSCRIBE_RATE_LIMIT_WINDOW_MS || 60000) || 60000);
+const TRANSCRIBE_RATE_LIMIT_MAX = Math.max(1, Number(process.env.TRANSCRIBE_RATE_LIMIT_MAX || 40) || 40);
 const SPEECH_PROVIDER = String(process.env.SPEECH_PROVIDER || 'openai').trim().toLowerCase();
 const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY || '';
 const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION || '';
@@ -49,10 +50,15 @@ const ADMIN_SESSION_SECRET = String(
   || MASTER_ADMIN_PIN
   || 'sanctuary-voice-dev-session'
 ).trim();
-
 console.log('API KEY:', OPENAI_API_KEY ? 'OK' : 'LIPSA');
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
-
+const transcribeRateLimits = new Map();
+const io = new Server(server, {
+  cors: {
+    origin: socketCorsOriginValidator,
+    methods: ['GET', 'POST']
+  }
+});
 app.use(express.json({ limit: '8mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.get('/admin-login', (req, res) => {
@@ -112,6 +118,8 @@ app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 're
 const DEFAULT_DATA_DIR = process.env.RENDER ? '/var/data' : path.join(__dirname, 'data');
 const DATA_DIR = process.env.DATA_DIR || DEFAULT_DATA_DIR;
 const DB_FILE = path.join(DATA_DIR, 'sessions.json');
+const DB_BACKUP_RETENTION = 7;
+const DB_BACKUP_PATTERN = /^sessions\.backup-\d{4}-\d{2}-\d{2}\.json$/;
 console.log('DATA DIR:', DATA_DIR);
 
 const LANGUAGES = {
@@ -212,6 +220,44 @@ function shouldRedirectAdminTrafficToApp(req) {
 function buildAdminAppUrl(pathname = '/admin') {
   const pathPart = String(pathname || '/admin').startsWith('/') ? String(pathname || '/admin') : `/${pathname}`;
   return ADMIN_APP_BASE_URL ? `${ADMIN_APP_BASE_URL}${pathPart}` : pathPart;
+}
+
+function normalizeSocketOrigin(value) {
+  const base = normalizePublicBaseUrl(value);
+  if (!base) return '';
+  try {
+    return new URL(base).origin;
+  } catch (err) {
+    return '';
+  }
+}
+
+function getSocketAllowedOrigins() {
+  const origins = new Set();
+  const origin = normalizeSocketOrigin(PUBLIC_BASE_URL);
+  if (origin) origins.add(origin);
+  return origins;
+}
+
+function isLocalOriginHost(hostname = '') {
+  const cleanHost = String(hostname || '').replace(/^\[|\]$/g, '').toLowerCase();
+  return cleanHost === 'localhost' || cleanHost === '127.0.0.1' || cleanHost === '::1';
+}
+
+function isAllowedSocketOrigin(origin = '') {
+  if (!origin) return true;
+  try {
+    const parsed = new URL(origin);
+    if (isLocalOriginHost(parsed.hostname)) return true;
+    return getSocketAllowedOrigins().has(parsed.origin);
+  } catch (err) {
+    return false;
+  }
+}
+
+function socketCorsOriginValidator(origin, callback) {
+  if (isAllowedSocketOrigin(origin)) return callback(null, true);
+  return callback(new Error('Socket origin not allowed'), false);
 }
 
 function getConfiguredAdminPins() {
@@ -665,6 +711,9 @@ function rememberDisplayState(event) {
 }
 
 function ensureEventUiState(event) {
+  if (typeof event.transcriptionPaused !== 'boolean') {
+    event.transcriptionPaused = false;
+  }
   if (typeof event.audioMuted !== 'boolean') {
     event.audioMuted = true;
   }
@@ -851,6 +900,42 @@ function normalizeRemoteOperators(items = []) {
     });
 }
 
+function getDbBackupStamp(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function pruneDbBackups() {
+  ensureDataDir();
+  const backups = fs.readdirSync(DATA_DIR)
+    .filter((name) => DB_BACKUP_PATTERN.test(name))
+    .sort()
+    .reverse();
+  backups.slice(DB_BACKUP_RETENTION).forEach((name) => {
+    try {
+      fs.unlinkSync(path.join(DATA_DIR, name));
+    } catch (err) {
+      console.error('backup cleanup error:', err?.message || err);
+    }
+  });
+}
+
+function backupDbOncePerDay() {
+  try {
+    ensureDataDir();
+    if (!fs.existsSync(DB_FILE)) {
+      pruneDbBackups();
+      return;
+    }
+    const backupFile = path.join(DATA_DIR, `sessions.backup-${getDbBackupStamp()}.json`);
+    if (!fs.existsSync(backupFile)) {
+      fs.copyFileSync(DB_FILE, backupFile);
+    }
+    pruneDbBackups();
+  } catch (err) {
+    console.error('backupDbOncePerDay error:', err?.message || err);
+  }
+}
+
 function loadDb() {
   try {
     ensureDataDir();
@@ -859,6 +944,7 @@ function loadDb() {
       fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf8');
       return initialDb;
     }
+    backupDbOncePerDay();
     return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
   } catch (err) {
     console.error('loadDb error:', err);
@@ -949,6 +1035,7 @@ syncLegacyGlobalsFromDefaultOrg();
 function saveDb() {
   try {
     ensureDataDir();
+    backupDbOncePerDay();
     syncLegacyGlobalsFromDefaultOrg();
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
   } catch (err) {
@@ -1299,6 +1386,7 @@ function normalizeEvent(event, options = {}) {
     scheduledAt: event.scheduledAt || null,
     isActive: isEventActive(event),
     mode: event.mode || 'live',
+    transcriptionPaused: !!event.transcriptionPaused,
     songState: event.songState || defaultSongState(),
     latestDisplayEntry: cloneDisplayEntry(event.latestDisplayEntry),
     displayState: event.displayState || defaultDisplayState(),
@@ -1676,6 +1764,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     createdAt: new Date().toISOString(),
     lastTranscriptNorm: '',
     mode: 'live',
+    transcriptionPaused: false,
     songState: defaultSongState(),
     latestDisplayEntry: null,
     displayState: { ...defaultDisplayState(), language: (targetLangs?.length ? targetLangs[0] : 'no') },
@@ -2404,6 +2493,25 @@ function emitTranslationMonitor(eventId) {
   io.to(`event:${eventId}:admins`).emit('translation_monitor', payload);
 }
 
+function buildTranscriptionState(event) {
+  return {
+    eventId: event?.id || '',
+    paused: !!event?.transcriptionPaused
+  };
+}
+
+function emitTranscriptionState(event) {
+  if (!event?.id) return;
+  io.to(`event:${event.id}`).emit('transcription_state', buildTranscriptionState(event));
+}
+
+function setTranscriptionPaused(event, paused, options = {}) {
+  if (!event) return;
+  event.transcriptionPaused = !!paused;
+  if (options.save !== false) saveDb();
+  if (options.emit !== false) emitTranscriptionState(event);
+}
+
 function recordParticipantJoin(event, participantId, language) {
   ensureEventUiState(event);
   event.usageStats.participantJoinCount += 1;
@@ -2814,6 +2922,7 @@ app.post('/api/events/:id/mode', (req, res) => {
   event.mode = mode;
   if (mode === 'live') {
     rememberDisplayState(event);
+    setTranscriptionPaused(event, false, { save: false, emit: false });
     event.displayState.mode = 'auto';
     event.displayState.blackScreen = false;
     event.displayState.sceneLabel = '';
@@ -2823,6 +2932,7 @@ app.post('/api/events/:id/mode', (req, res) => {
   io.to(`event:${event.id}`).emit('mode_changed', { mode });
   if (mode === 'live') {
     io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
+    emitTranscriptionState(event);
   }
   res.json({ ok: true, event: normalizeEventForAccess(req, event) });
 });
@@ -3579,7 +3689,68 @@ app.delete('/api/events/:id/global-song-library/:songId', (req, res) => {
   res.json({ ok: true, globalSongLibrary: org.globalSongLibrary });
 });
 
-app.post('/api/events/:id/transcribe', upload.single('audio'), async (req, res) => {
+function getClientIp(req) {
+  const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwardedFor || req.socket?.remoteAddress || req.ip || 'unknown';
+}
+
+function cleanupTranscribeRateLimits(now = Date.now()) {
+  if (transcribeRateLimits.size < 500) return;
+  for (const [key, entry] of transcribeRateLimits.entries()) {
+    if (now - entry.windowStart > TRANSCRIBE_RATE_LIMIT_WINDOW_MS * 2) {
+      transcribeRateLimits.delete(key);
+    }
+  }
+}
+
+function consumeTranscribeRateLimit(req, eventId) {
+  const now = Date.now();
+  const key = `${getClientIp(req)}:${eventId || 'unknown'}`;
+  const existing = transcribeRateLimits.get(key);
+  if (!existing || now - existing.windowStart >= TRANSCRIBE_RATE_LIMIT_WINDOW_MS) {
+    transcribeRateLimits.set(key, { windowStart: now, count: 1 });
+    cleanupTranscribeRateLimits(now);
+    return {
+      allowed: true,
+      remaining: Math.max(0, TRANSCRIBE_RATE_LIMIT_MAX - 1),
+      resetAt: now + TRANSCRIBE_RATE_LIMIT_WINDOW_MS
+    };
+  }
+
+  existing.count += 1;
+  const resetAt = existing.windowStart + TRANSCRIBE_RATE_LIMIT_WINDOW_MS;
+  if (existing.count > TRANSCRIBE_RATE_LIMIT_MAX) {
+    return {
+      allowed: false,
+      remaining: 0,
+      resetAt,
+      retryAfterSeconds: Math.max(1, Math.ceil((resetAt - now) / 1000))
+    };
+  }
+
+  return {
+    allowed: true,
+    remaining: Math.max(0, TRANSCRIBE_RATE_LIMIT_MAX - existing.count),
+    resetAt
+  };
+}
+
+function transcribeRateLimit(req, res, next) {
+  const result = consumeTranscribeRateLimit(req, req.params.id);
+  res.setHeader('X-RateLimit-Limit', String(TRANSCRIBE_RATE_LIMIT_MAX));
+  res.setHeader('X-RateLimit-Remaining', String(result.remaining));
+  res.setHeader('X-RateLimit-Reset', String(Math.ceil(result.resetAt / 1000)));
+  if (!result.allowed) {
+    res.setHeader('Retry-After', String(result.retryAfterSeconds));
+    return res.status(429).json({
+      ok: false,
+      error: 'Prea multe cereri de transcriere. Incearca din nou imediat.'
+    });
+  }
+  return next();
+}
+
+app.post('/api/events/:id/transcribe', transcribeRateLimit, upload.single('audio'), async (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
   const access = resolveEventAccessFromCode(event, String(req.body.code || '').trim());
@@ -3736,6 +3907,12 @@ io.on('connection', (socket) => {
     io.to(`event:${eventId}`).emit('audio_state', { audioMuted: event.audioMuted, audioVolume: event.audioVolume });
   });
 
+  socket.on('set_transcription_state', ({ eventId, paused }) => {
+    const event = db.events[eventId];
+    if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
+    setTranscriptionPaused(event, !!paused);
+  });
+
   socket.on('azure_audio_start', ({ eventId }) => {
     const event = db.events[eventId];
     if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) {
@@ -3746,6 +3923,7 @@ io.on('connection', (socket) => {
     }
     event.mode = 'live';
     ensureEventUiState(event);
+    setTranscriptionPaused(event, false, { save: false, emit: false });
     event.latestDisplayEntry = null;
     event.displayState.mode = 'auto';
     event.displayState.blackScreen = false;
@@ -3753,6 +3931,7 @@ io.on('connection', (socket) => {
     saveDb();
     io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
     io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
+    emitTranscriptionState(event);
     startAzureSpeechSession(socket, event);
   });
 
@@ -3777,6 +3956,10 @@ io.on('connection', (socket) => {
   socket.on('azure_audio_stop', ({ eventId }) => {
     const session = azureSpeechSessions.get(socket.id);
     if (session?.eventId === eventId) closeAzureSpeechSession(socket.id);
+    const event = db.events[eventId];
+    if (event && socketCanControlEvent(socket, eventId, 'main_screen')) {
+      setTranscriptionPaused(event, true);
+    }
   });
 
   socket.on('disconnect', () => {

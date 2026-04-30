@@ -49,6 +49,8 @@ npm start
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `OPENAI_TRANSCRIBE_MODEL`
+- `TRANSCRIBE_RATE_LIMIT_WINDOW_MS`
+- `TRANSCRIBE_RATE_LIMIT_MAX`
 - `PUBLIC_BASE_URL`
 - `ADMIN_APP_BASE_URL`
 - `ADMIN_APP_HOSTNAMES`
@@ -66,11 +68,15 @@ Valori implicite recomandate:
 
 - `OPENAI_MODEL=gpt-4.1-nano`
 - `OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe`
+- `TRANSCRIBE_RATE_LIMIT_WINDOW_MS=60000`
+- `TRANSCRIBE_RATE_LIMIT_MAX=40`
 - `PUBLIC_BASE_URL=https://sanctuaryvoice.com`
 - `ADMIN_APP_BASE_URL=https://app.sanctuaryvoice.com`
 - `ADMIN_APP_HOSTNAMES=app.sanctuaryvoice.com,control.sanctuaryvoice.com,kontrol.sanctuaryvoice.com`
 - `DEFAULT_ORG_ID=sanctuary-voice`
 - `DEFAULT_ORG_NAME=Sanctuary Voice`
+
+Endpoint-ul de transcriere este limitat implicit la 40 cereri pe minut pentru fiecare combinatie IP + eveniment. Socket.IO nu mai foloseste wildcard CORS; accepta doar `PUBLIC_BASE_URL` si `localhost` pentru test local.
 
 ## Commercial foundation
 
@@ -122,6 +128,10 @@ Start Command: npm start
 ```
 
 Fisierul `render.yaml` poate ramane in proiect, dar nu este obligatoriu daca deploy-ul este facut manual din `New Web Service`.
+
+## Backup sessions
+
+`sessions.json` este salvat in `DATA_DIR`. La pornire si inainte de salvare, aplicatia creeaza cel mult o copie pe zi cu numele `sessions.backup-YYYY-MM-DD.json` in acelasi folder. Sunt pastrate ultimele 7 backup-uri.
 
 ## Observatii
 
