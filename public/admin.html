@@ -116,6 +116,11 @@
             <select id="currentSourceLang"></select>
             <div class="muted">This is the spoken language used by live transcription for the opened event.</div>
 
+            <div class="info-card soft-card compact-control-card">
+              <label class="inline-check"><input type="checkbox" id="dualLanguageToggle"> Afișaj dual limbă</label>
+              <div class="muted">Arată două limbi simultan pe Main Screen când există cel puțin două limbi disponibile.</div>
+            </div>
+
             <label>Audio input</label>
             <select id="audioInput"></select>
 
@@ -195,7 +200,10 @@
         <div class="panel glass-panel section-stack transcript-shell">
           <div class="section-head">
             <h2>Transcript and live translations</h2>
-            <button id="jumpLiveBtn" class="btn btn-dark" type="button">Jump to latest</button>
+            <div class="button-row compact-row">
+              <button id="exportTranscriptBtn" class="btn btn-dark" type="button">Export transcript</button>
+              <button id="jumpLiveBtn" class="btn btn-dark" type="button">Jump to latest</button>
+            </div>
           </div>
           <div id="transcriptList" class="transcript-list"></div>
         </div>

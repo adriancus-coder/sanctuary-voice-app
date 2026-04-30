@@ -21,6 +21,7 @@ const state = {
   screenStyle: 'focus',
   displayResolution: 'auto',
   blackScreen: false,
+  transcriptionPaused: false,
   manualTranslations: {},
   manualSourceLang: 'ro',
   latestLiveEntry: null,
@@ -160,6 +161,12 @@ function updateClock() {
   if (!clock) return;
   const now = new Date();
   clock.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function updatePauseBanner() {
+  const banner = $('translatePauseBanner');
+  if (!banner) return;
+  banner.hidden = !(state.transcriptionPaused && state.currentDisplayMode === 'auto' && !state.blackScreen);
 }
 
 function getDisplayLanguages() {
@@ -304,6 +311,7 @@ function renderDisplay() {
   updateMeta();
   applyDisplayTheme(state.currentTheme);
   applyDisplaySettings();
+  updatePauseBanner();
   updateClock();
   requestAnimationFrame(autoFitText);
 }
@@ -372,6 +380,7 @@ socket.on('joined_event', ({ event, languageNames }) => {
   state.currentLanguage = event.displayState?.language || state.currentLanguage;
   state.secondaryLanguage = event.displayState?.secondaryLanguage || '';
   state.blackScreen = !!event.displayState?.blackScreen;
+  state.transcriptionPaused = !!event.transcriptionPaused;
   state.backgroundPreset = event.displayState?.backgroundPreset || 'none';
   state.customBackground = event.displayState?.customBackground || '';
   state.showClock = !!event.displayState?.showClock;
@@ -419,6 +428,12 @@ socket.on('display_live_entry', (entry) => {
   if (state.currentEvent) state.currentEvent.latestDisplayEntry = entry;
   state.latestLiveEntry = entry;
   scheduleDisplayRender(45);
+});
+
+socket.on('transcription_state', ({ paused }) => {
+  state.transcriptionPaused = !!paused;
+  if (state.currentEvent) state.currentEvent.transcriptionPaused = state.transcriptionPaused;
+  renderDisplay();
 });
 socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, secondaryLanguage, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, textScale, screenStyle, displayResolution, manualTranslations, manualSourceLang }) => {
   if (state.currentEvent) {

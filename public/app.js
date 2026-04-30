@@ -90,6 +90,12 @@ function setOnAirState(isOn) {
   }
 }
 
+function notifyTranscriptionPaused(paused) {
+  if (!currentEvent?.id) return;
+  currentEvent.transcriptionPaused = !!paused;
+  socket.emit('set_transcription_state', { eventId: currentEvent.id, paused: !!paused });
+}
+
 async function enableScreenWakeLock() {
   try {
     if (!('wakeLock' in navigator)) return;
@@ -430,6 +436,9 @@ function refreshDisplayControls() {
     const secondaryLanguage = currentEvent?.displayState?.secondaryLanguage || '';
     secondaryLanguageSelect.value = secondaryLanguage && secondaryLanguage !== primaryLanguage ? secondaryLanguage : '';
   }
+  if ($('dualLanguageToggle')) {
+    $('dualLanguageToggle').checked = !!currentEvent?.displayState?.secondaryLanguage;
+  }
   if ($('currentSourceLang')) {
     $('currentSourceLang').value = currentEvent?.sourceLang || 'ro';
   }
@@ -767,6 +776,67 @@ function downloadQr() {
 
 function downloadPermanentQr() {
   downloadQrFromImage('permanentQrImage', 'sanctuary-voice-permanent-participant-qr');
+}
+
+function sanitizeFilenamePart(value, fallback = 'transcript') {
+  const clean = String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, ' ')
+    .replace(/\s+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return clean || fallback;
+}
+
+function formatTranscriptExportDate(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildTranscriptExportText() {
+  if (!currentEvent) return '';
+  const entries = Array.isArray(currentEvent.transcripts) ? [...currentEvent.transcripts] : [];
+  entries.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+  const lines = [
+    'Sanctuary Voice transcript',
+    `Event: ${currentEvent.name || 'Untitled service'}`,
+    `Date: ${formatDateTime(currentEvent.scheduledAt || currentEvent.createdAt || new Date().toISOString())}`,
+    `Source language: ${langLabel(currentEvent.sourceLang || 'ro')}`,
+    `Target languages: ${(currentEvent.targetLangs || []).map(langLabel).join(', ') || '-'}`,
+    '',
+    '---',
+    ''
+  ];
+  entries.forEach((entry, index) => {
+    lines.push(`#${index + 1} - ${formatDateTime(entry.createdAt)}`);
+    lines.push(`${langLabel(entry.sourceLang || currentEvent.sourceLang || 'ro')}: ${entry.original || ''}`);
+    Object.entries(entry.translations || {}).forEach(([lang, text]) => {
+      lines.push(`${lang.toUpperCase()}: ${text || ''}`);
+    });
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+
+function exportTranscript() {
+  if (!currentEvent) return alert('Open or create an event first.');
+  const entries = Array.isArray(currentEvent.transcripts) ? currentEvent.transcripts : [];
+  if (!entries.length) return alert('No transcript to export yet.');
+  const datePart = formatTranscriptExportDate(currentEvent.scheduledAt || currentEvent.createdAt);
+  const namePart = sanitizeFilenamePart(currentEvent.name || 'predica');
+  const filename = `${namePart}-${datePart}.txt`;
+  const blob = new Blob([buildTranscriptExportText()], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  setStatus(`Transcript exported: ${filename}`);
 }
 
 function hydratePermanentParticipantAccess() {
@@ -1332,6 +1402,10 @@ async function setDisplayTheme(theme) {
   setStatus(theme === 'light' ? 'Display theme set to black on white.' : 'Display theme set to white on black.');
 }
 
+function getDefaultDualLanguage(primaryLanguage) {
+  return getDisplayLanguageChoicesClient().find((lang) => lang && lang !== primaryLanguage) || '';
+}
+
 async function setDisplayLanguage(language, secondaryLanguage = $('displaySecondaryLanguageSelect')?.value || '') {
   if (!currentEvent) return;
   const safeSecondaryLanguage = secondaryLanguage && secondaryLanguage !== language ? secondaryLanguage : '';
@@ -1342,6 +1416,23 @@ async function setDisplayLanguage(language, secondaryLanguage = $('displaySecond
   currentEvent.displayStatePrevious = data.previousState || currentEvent.displayStatePrevious || null;
   refreshDisplayControls();
   setStatus('Main screen language updated.');
+}
+
+async function toggleDualLanguageDisplay(enabled) {
+  if (!currentEvent) {
+    if ($('dualLanguageToggle')) $('dualLanguageToggle').checked = false;
+    return alert('Open or create an event first.');
+  }
+  const choices = getDisplayLanguageChoicesClient();
+  const primary = currentEvent.displayState?.language || choices[0] || currentEvent.targetLangs?.[0] || 'no';
+  const secondary = enabled
+    ? (currentEvent.displayState?.secondaryLanguage || getDefaultDualLanguage(primary))
+    : '';
+  if (enabled && !secondary) {
+    if ($('dualLanguageToggle')) $('dualLanguageToggle').checked = false;
+    return alert('Afișajul dual are nevoie de cel puțin două limbi disponibile.');
+  }
+  await setDisplayLanguage(primary, secondary);
 }
 
 async function saveDisplaySettings() {
@@ -2259,6 +2350,7 @@ async function startTranslation(options = {}) {
   audioState.running = true;
   window.isRecognitionRunning = true;
   setOnAirState(true);
+  notifyTranscriptionPaused(false);
   await enableScreenWakeLock();
   if (audioState.speechProvider === 'azure_sdk') {
     try {
@@ -2342,6 +2434,7 @@ async function stopTranslation() {
   stopBrowserAzureRecognition();
   stopAzureAudioStream();
   setOnAirState(false);
+  notifyTranscriptionPaused(true);
   await disableScreenWakeLock();
   if (audioState.recorder && audioState.recorder.state === 'recording') {
     audioState.recorder.stop();
@@ -2768,6 +2861,7 @@ $('jumpLiveBtn').addEventListener('click', () => {
   const first = document.querySelector('#transcriptList .entry');
   if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
+$('exportTranscriptBtn')?.addEventListener('click', exportTranscript);
 $('saveSongBtn').addEventListener('click', saveSongToLibrary);
 $('sendSongBtn').addEventListener('click', sendSongToLive);
 $('songPrevBtn')?.addEventListener('click', goToPrevSongBlock);
@@ -2781,6 +2875,7 @@ $('displayRestoreBtn').addEventListener('click', restoreLastDisplayState);
   $('displayThemeSelect').addEventListener('change', () => setDisplayTheme($('displayThemeSelect').value));
   $('displayLanguageSelect').addEventListener('change', () => setDisplayLanguage($('displayLanguageSelect').value));
   $('displaySecondaryLanguageSelect')?.addEventListener('change', () => setDisplayLanguage($('displayLanguageSelect').value, $('displaySecondaryLanguageSelect').value));
+  $('dualLanguageToggle')?.addEventListener('change', () => toggleDualLanguageDisplay($('dualLanguageToggle').checked));
   $('saveDisplaySettingsBtn').addEventListener('click', saveDisplaySettings);
 $('clockSizeMinusBtn')?.addEventListener('click', () => adjustClockScale(-0.1));
 $('clockSizePlusBtn')?.addEventListener('click', () => adjustClockScale(0.1));
