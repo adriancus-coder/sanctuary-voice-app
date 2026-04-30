@@ -4,12 +4,24 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const multer = require('multer');
+const helmet = require('helmet');
+const compression = require('compression');
+const webpush = require('web-push');
 const { createHmac, randomUUID, timingSafeEqual } = require('crypto');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const OpenAI = require('openai');
+const packageJson = require('./package.json');
+const { createLogger } = require('./lib/logger');
+const { createJsonDbStore } = require('./lib/db');
+const { createTranslationService } = require('./lib/translation');
+const { registerAdminRoutes } = require('./routes/admin');
+const { registerOrgRoutes } = require('./routes/org');
+const { registerEventRoutes } = require('./routes/events');
+const { registerSocketHandlers } = require('./socket/handlers');
 require('dotenv').config();
 
+const logger = createLogger({ logDir: process.env.LOG_DIR || path.join(__dirname, 'logs') });
 const app = express();
 const server = http.createServer(app);
 const upload = multer({
@@ -50,8 +62,18 @@ const ADMIN_SESSION_SECRET = String(
   || MASTER_ADMIN_PIN
   || 'sanctuary-voice-dev-session'
 ).trim();
-console.log('API KEY:', OPENAI_API_KEY ? 'OK' : 'LIPSA');
+logger.info('API KEY:', OPENAI_API_KEY ? 'OK' : 'LIPSA');
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+const translationService = createTranslationService({ client, logger });
+const WEB_PUSH_PUBLIC_KEY = String(process.env.WEB_PUSH_PUBLIC_KEY || '').trim();
+const WEB_PUSH_PRIVATE_KEY = String(process.env.WEB_PUSH_PRIVATE_KEY || '').trim();
+const WEB_PUSH_SUBJECT = String(process.env.WEB_PUSH_SUBJECT || 'mailto:admin@sanctuaryvoice.com').trim();
+const WEB_PUSH_ENABLED = !!(WEB_PUSH_PUBLIC_KEY && WEB_PUSH_PRIVATE_KEY);
+if (WEB_PUSH_ENABLED) {
+  webpush.setVapidDetails(WEB_PUSH_SUBJECT, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY);
+} else {
+  logger.warn('WEB PUSH: disabled, missing WEB_PUSH_PUBLIC_KEY or WEB_PUSH_PRIVATE_KEY.');
+}
 const transcribeRateLimits = new Map();
 const io = new Server(server, {
   cors: {
@@ -59,6 +81,23 @@ const io = new Server(server, {
     methods: ['GET', 'POST']
   }
 });
+app.use(compression());
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: buildHelmetConnectSources(),
+      mediaSrc: ["'self'", 'data:', 'blob:'],
+      workerSrc: ["'self'"],
+      fontSrc: ["'self'", 'data:']
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
 app.use(express.json({ limit: '8mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.get('/admin-login', (req, res) => {
@@ -72,27 +111,16 @@ app.get('/admin-login', (req, res) => {
     : '';
   res.send(renderAdminLoginPage({ error: setupError, nextPath }));
 });
-app.post('/api/admin-login', (req, res) => {
-  const pin = String(req.body.pin || req.body.code || '').trim();
-  const nextPath = sanitizeLocalNextPath(req.body.next || req.query.next || '/admin');
-  if (shouldRedirectAdminTrafficToApp(req)) {
-    return res.redirect(307, buildAdminAppUrl(`/api/admin-login?next=${encodeURIComponent(nextPath)}`));
-  }
-  if (!isAdminLoginConfigured()) {
-    return res.status(500).send(renderAdminLoginPage({
-      error: 'Admin PIN is not configured. Add MASTER_ADMIN_PIN in Render Environment first.',
-      nextPath
-    }));
-  }
-  if (!isAllowedAdminPin(pin)) {
-    return res.status(403).send(renderAdminLoginPage({ error: 'Invalid admin PIN.', nextPath }));
-  }
-  setAdminSessionCookie(req, res);
-  return res.redirect(nextPath);
-});
-app.post('/api/admin-logout', (req, res) => {
-  clearAdminSessionCookie(req, res);
-  res.json({ ok: true });
+registerAdminRoutes(app, {
+  COMMERCIAL_MODE,
+  buildAdminAppUrl,
+  clearAdminSessionCookie,
+  isAdminLoginConfigured,
+  isAllowedAdminPin,
+  renderAdminLoginPage,
+  sanitizeLocalNextPath,
+  setAdminSessionCookie,
+  shouldRedirectAdminTrafficToApp
 });
 app.use((req, res, next) => {
   if (req.path === '/admin.html') return requireAdminPage(req, res, next);
@@ -120,7 +148,7 @@ const DATA_DIR = process.env.DATA_DIR || DEFAULT_DATA_DIR;
 const DB_FILE = path.join(DATA_DIR, 'sessions.json');
 const DB_BACKUP_RETENTION = 7;
 const DB_BACKUP_PATTERN = /^sessions\.backup-\d{4}-\d{2}-\d{2}\.json$/;
-console.log('DATA DIR:', DATA_DIR);
+logger.info('DATA DIR:', DATA_DIR);
 
 const LANGUAGES = {
   ro: 'Romanian',
@@ -180,7 +208,7 @@ const LANGUAGE_NAMES_RO = {
 };
 
 function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  dbStore.ensureDataDir();
 }
 
 function sendAdminPage(req, res) {
@@ -258,6 +286,22 @@ function isAllowedSocketOrigin(origin = '') {
 function socketCorsOriginValidator(origin, callback) {
   if (isAllowedSocketOrigin(origin)) return callback(null, true);
   return callback(new Error('Socket origin not allowed'), false);
+}
+
+function buildHelmetConnectSources() {
+  return [
+    "'self'",
+    'ws:',
+    'wss:',
+    PUBLIC_BASE_URL,
+    ADMIN_APP_BASE_URL,
+    'http://localhost:*',
+    'https://localhost:*',
+    'ws://localhost:*',
+    'wss://localhost:*',
+    'http://127.0.0.1:*',
+    'ws://127.0.0.1:*'
+  ].filter(Boolean);
 }
 
 function getConfiguredAdminPins() {
@@ -714,6 +758,12 @@ function ensureEventUiState(event) {
   if (typeof event.transcriptionPaused !== 'boolean') {
     event.transcriptionPaused = false;
   }
+  if (typeof event.transcriptionOnAir !== 'boolean') {
+    event.transcriptionOnAir = false;
+  }
+  if (!Array.isArray(event.pushSubscriptions)) {
+    event.pushSubscriptions = [];
+  }
   if (typeof event.audioMuted !== 'boolean') {
     event.audioMuted = true;
   }
@@ -847,6 +897,14 @@ function defaultDb() {
   };
 }
 
+const dbStore = createJsonDbStore({
+  dataDir: DATA_DIR,
+  fileName: 'sessions.json',
+  backupRetention: DB_BACKUP_RETENTION,
+  defaultData: defaultDb,
+  logger
+});
+
 const REMOTE_OPERATOR_PROFILES = {
   main_screen: {
     label: 'Main Screen only',
@@ -905,51 +963,15 @@ function getDbBackupStamp(date = new Date()) {
 }
 
 function pruneDbBackups() {
-  ensureDataDir();
-  const backups = fs.readdirSync(DATA_DIR)
-    .filter((name) => DB_BACKUP_PATTERN.test(name))
-    .sort()
-    .reverse();
-  backups.slice(DB_BACKUP_RETENTION).forEach((name) => {
-    try {
-      fs.unlinkSync(path.join(DATA_DIR, name));
-    } catch (err) {
-      console.error('backup cleanup error:', err?.message || err);
-    }
-  });
+  dbStore.backupOncePerDay();
 }
 
 function backupDbOncePerDay() {
-  try {
-    ensureDataDir();
-    if (!fs.existsSync(DB_FILE)) {
-      pruneDbBackups();
-      return;
-    }
-    const backupFile = path.join(DATA_DIR, `sessions.backup-${getDbBackupStamp()}.json`);
-    if (!fs.existsSync(backupFile)) {
-      fs.copyFileSync(DB_FILE, backupFile);
-    }
-    pruneDbBackups();
-  } catch (err) {
-    console.error('backupDbOncePerDay error:', err?.message || err);
-  }
+  dbStore.backupOncePerDay();
 }
 
 function loadDb() {
-  try {
-    ensureDataDir();
-    if (!fs.existsSync(DB_FILE)) {
-      const initialDb = defaultDb();
-      fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf8');
-      return initialDb;
-    }
-    backupDbOncePerDay();
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-  } catch (err) {
-    console.error('loadDb error:', err);
-    return defaultDb();
-  }
+  return dbStore.load();
 }
 
 function ensureOrganization(orgId = DEFAULT_ORG_ID, seed = {}) {
@@ -1033,14 +1055,8 @@ if (!db.globalAccess || typeof db.globalAccess !== 'object') {
 syncLegacyGlobalsFromDefaultOrg();
 
 function saveDb() {
-  try {
-    ensureDataDir();
-    backupDbOncePerDay();
-    syncLegacyGlobalsFromDefaultOrg();
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
-  } catch (err) {
-    console.error('saveDb error:', err);
-  }
+  syncLegacyGlobalsFromDefaultOrg();
+  dbStore.save(db);
 }
 
 function getOrganizationForEvent(event) {
@@ -1387,6 +1403,7 @@ function normalizeEvent(event, options = {}) {
     isActive: isEventActive(event),
     mode: event.mode || 'live',
     transcriptionPaused: !!event.transcriptionPaused,
+    transcriptionOnAir: !!event.transcriptionOnAir,
     songState: event.songState || defaultSongState(),
     latestDisplayEntry: cloneDisplayEntry(event.latestDisplayEntry),
     displayState: event.displayState || defaultDisplayState(),
@@ -1765,6 +1782,8 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     lastTranscriptNorm: '',
     mode: 'live',
     transcriptionPaused: false,
+    transcriptionOnAir: false,
+    pushSubscriptions: [],
     songState: defaultSongState(),
     latestDisplayEntry: null,
     displayState: { ...defaultDisplayState(), language: (targetLangs?.length ? targetLangs[0] : 'no') },
@@ -1991,14 +2010,14 @@ async function translateText(text, langCode, event, sourceLangOverride = '') {
     lastBatchSourceLang: sourceLang
   });
   try {
-    const response = await client.responses.create({
+    const translatedText = await translationService.translateWithResponses({
       model: OPENAI_MODEL,
       input: [
         { role: 'system', content: buildPrompt(LANGUAGES[sourceLang] || sourceLang, LANGUAGES[langCode] || langCode, event.speed, glossary) },
         { role: 'user', content: cleanText }
       ]
     });
-    const translated = sanitizeStructuredText(response.output_text || '');
+    const translated = sanitizeStructuredText(translatedText);
     if (translated) {
       writeTranslationCache(cacheKey, translated);
       updateTranslationMonitor(event, {
@@ -2019,7 +2038,7 @@ async function translateText(text, langCode, event, sourceLangOverride = '') {
     });
     return fallback;
   } catch (err) {
-    console.error(`translate error ${langCode}:`, err?.message || err);
+    logger.error(`translate error ${langCode}:`, err?.message || err);
     recordServerError(event, `Translate ${langCode} failed.`);
     const fallback = `[${langCode}] ${applyGlossary(cleanText, glossary)}`;
     writeTranslationCache(cacheKey, fallback);
@@ -2060,7 +2079,7 @@ async function detectSourceLanguage(text, event) {
   ].filter((code) => LANGUAGES[code])));
 
   try {
-    const response = await client.responses.create({
+    const detectedCode = await translationService.translateWithResponses({
       model: OPENAI_MODEL,
       input: [
         {
@@ -2070,10 +2089,10 @@ async function detectSourceLanguage(text, event) {
         { role: 'user', content: sanitizeStructuredText(text).slice(0, 700) }
       ]
     });
-    const code = String(response.output_text || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+    const code = String(detectedCode || '').trim().toLowerCase().replace(/[^a-z]/g, '');
     return candidates.includes(code) ? code : fallback;
   } catch (err) {
-    console.error('source language detect error:', err?.message || err);
+    logger.error('source language detect error:', err?.message || err);
     return fallback;
   }
 }
@@ -2110,7 +2129,7 @@ function loadAzureSpeechSdk() {
   try {
     return require('microsoft-cognitiveservices-speech-sdk');
   } catch (err) {
-    console.error('azure speech sdk missing:', err?.message || err);
+    logger.error('azure speech sdk missing:', err?.message || err);
     return null;
   }
 }
@@ -2121,7 +2140,7 @@ async function transcribeAudioFile(filePath, event) {
   const shouldDetectLanguage = !configured || configured === 'auto';
   const effectiveSourceLang = shouldDetectLanguage ? (event.sourceLang || 'ro') : configured;
   const request = {
-    file: fs.createReadStream(filePath),
+    file: null,
     model: OPENAI_TRANSCRIBE_MODEL,
     response_format: 'json',
     prompt:
@@ -2130,8 +2149,12 @@ async function transcribeAudioFile(filePath, event) {
         : 'The audio is a live church service or sermon. Keep the transcript in the selected source language. Keep names and punctuation natural.'
   };
   if (!shouldDetectLanguage && LANGUAGES[effectiveSourceLang]) request.language = effectiveSourceLang;
-  const result = await client.audio.transcriptions.create(request);
-  const text = String(result?.text || '').trim();
+  const text = await translationService.transcribeAudioFile({
+    filePath,
+    model: request.model,
+    prompt: request.prompt,
+    language: request.language
+  });
   return {
     text,
     sourceLang: shouldDetectLanguage ? await detectSourceLanguage(text, event) : effectiveSourceLang
@@ -2273,12 +2296,12 @@ async function flushSpeechBuffer(eventId, force = false) {
 
   if (!force) {
     if (startsLikeContinuation(text) && words < targetWords) {
-      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), softWaitMs);
+    buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(logger.error), softWaitMs);
       speechBuffers.set(eventId, buffered);
       return null;
     }
     if (BUFFER_CONNECTORS.has(last) && words < targetWords) {
-      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), softWaitMs);
+    buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(logger.error), softWaitMs);
       speechBuffers.set(eventId, buffered);
       return null;
     }
@@ -2329,14 +2352,14 @@ function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpe
   const ageMs = Date.now() - next.startedAt;
   const words = countWords(merged);
   if (shouldFlushBufferedText(merged, flushOptions)) {
-    flushSpeechBuffer(eventId, false).catch(console.error);
+  flushSpeechBuffer(eventId, false).catch(logger.error);
     return;
   }
   if (ageMs > hardWaitMs || words >= maxWords) {
-    flushSpeechBuffer(eventId, true).catch(console.error);
+  flushSpeechBuffer(eventId, true).catch(logger.error);
     return;
   }
-  next.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(console.error), softWaitMs);
+  next.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(logger.error), softWaitMs);
 }
 
 function closeAzureSpeechSession(socketId) {
@@ -2391,7 +2414,7 @@ function startAzureSpeechSession(socket, event) {
   };
   recognizer.canceled = (_, result) => {
     const details = String(result?.errorDetails || result?.reason || 'unknown');
-    console.error('azure speech canceled:', details);
+    logger.error('azure speech canceled:', details);
     const isQuotaError = details.toLowerCase().includes('quota');
     socket.emit('server_error', {
       provider: 'azure_sdk',
@@ -2414,7 +2437,7 @@ function startAzureSpeechSession(socket, event) {
   recognizer.startContinuousRecognitionAsync(
     () => socket.emit('azure_audio_ready', { ok: true }),
     (err) => {
-      console.error('azure speech start error:', err);
+      logger.error('azure speech start error:', err);
       socket.emit('server_error', {
         provider: 'azure_sdk',
         code: 'azure_start_failed',
@@ -2496,7 +2519,8 @@ function emitTranslationMonitor(eventId) {
 function buildTranscriptionState(event) {
   return {
     eventId: event?.id || '',
-    paused: !!event?.transcriptionPaused
+    paused: !!event?.transcriptionPaused,
+    onAir: !!event?.transcriptionOnAir
   };
 }
 
@@ -2505,11 +2529,87 @@ function emitTranscriptionState(event) {
   io.to(`event:${event.id}`).emit('transcription_state', buildTranscriptionState(event));
 }
 
+function normalizePushSubscription(input = {}) {
+  const endpoint = String(input.endpoint || '').trim();
+  const keys = input.keys && typeof input.keys === 'object' ? input.keys : {};
+  const p256dh = String(keys.p256dh || '').trim();
+  const auth = String(keys.auth || '').trim();
+  if (!endpoint || !p256dh || !auth) return null;
+  return { endpoint, keys: { p256dh, auth } };
+}
+
+function storePushSubscription(event, subscription, meta = {}) {
+  const safeSubscription = normalizePushSubscription(subscription);
+  if (!event || !safeSubscription) return false;
+  ensureEventUiState(event);
+  const now = new Date().toISOString();
+  const entry = {
+    ...safeSubscription,
+    participantId: String(meta.participantId || '').trim(),
+    language: String(meta.language || '').trim(),
+    updatedAt: now
+  };
+  const index = event.pushSubscriptions.findIndex((item) => item.endpoint === entry.endpoint);
+  if (index >= 0) {
+    event.pushSubscriptions[index] = { ...event.pushSubscriptions[index], ...entry };
+  } else {
+    event.pushSubscriptions.push(entry);
+  }
+  if (event.pushSubscriptions.length > 1000) {
+    event.pushSubscriptions = event.pushSubscriptions.slice(-1000);
+  }
+  return true;
+}
+
+function removePushSubscription(event, endpoint) {
+  if (!event || !endpoint || !Array.isArray(event.pushSubscriptions)) return false;
+  const before = event.pushSubscriptions.length;
+  event.pushSubscriptions = event.pushSubscriptions.filter((item) => item.endpoint !== endpoint);
+  return event.pushSubscriptions.length !== before;
+}
+
+async function sendOnAirPushNotification(event) {
+  if (!WEB_PUSH_ENABLED || !event) return;
+  ensureEventUiState(event);
+  const subscriptions = [...event.pushSubscriptions];
+  if (!subscriptions.length) return;
+  const payload = JSON.stringify({
+    title: event.name || 'Sanctuary Voice',
+    body: 'Serviciul a început — traducerea este live',
+    url: event.participantLink || '/participant'
+  });
+  const staleEndpoints = [];
+  await Promise.allSettled(subscriptions.map(async (subscription) => {
+    try {
+      await webpush.sendNotification(normalizePushSubscription(subscription), payload);
+    } catch (err) {
+      if (err?.statusCode === 404 || err?.statusCode === 410) {
+        staleEndpoints.push(subscription.endpoint);
+        return;
+      }
+      logger.warn('web push failed:', err?.message || err);
+    }
+  }));
+  if (staleEndpoints.length) {
+    staleEndpoints.forEach((endpoint) => removePushSubscription(event, endpoint));
+    saveDb();
+  }
+}
+
 function setTranscriptionPaused(event, paused, options = {}) {
   if (!event) return;
+  const wasOnAir = !!event.transcriptionOnAir;
   event.transcriptionPaused = !!paused;
+  if (options.markOnAir === true) {
+    event.transcriptionOnAir = true;
+  } else if (options.markOnAir === false || paused) {
+    event.transcriptionOnAir = false;
+  }
   if (options.save !== false) saveDb();
   if (options.emit !== false) emitTranscriptionState(event);
+  if (options.notifyOnAir !== false && event.transcriptionOnAir && !wasOnAir) {
+    sendOnAirPushNotification(event).catch((err) => logger.error('web push on-air error:', err?.message || err));
+  }
 }
 
 function recordParticipantJoin(event, participantId, language) {
@@ -2717,1257 +2817,181 @@ function setSongIndex(event, index) {
   return true;
 }
 
-app.get('/api/health', (req, res) => {
-  const organization = getDefaultOrganization();
-  res.json({
-    ok: true,
-    openaiConfigured: !!OPENAI_API_KEY,
-    model: OPENAI_MODEL,
-    transcribeModel: OPENAI_TRANSCRIBE_MODEL,
-    speechProvider: getActiveSpeechProvider(),
-    azureSpeechConfigured: !!(AZURE_SPEECH_KEY && AZURE_SPEECH_REGION),
-    commercialMode: COMMERCIAL_MODE,
-    publicBaseUrl: buildBaseUrl(req),
-    organization: buildPublicOrganization(organization)
-  });
+registerOrgRoutes(app, {
+  AZURE_SPEECH_KEY,
+  AZURE_SPEECH_REGION,
+  COMMERCIAL_MODE,
+  DEFAULT_ORG_ID,
+  LANGUAGE_NAMES_RO,
+  OPENAI_API_KEY,
+  OPENAI_MODEL,
+  OPENAI_TRANSCRIBE_MODEL,
+  QRCode,
+  WEB_PUSH_ENABLED,
+  WEB_PUSH_PUBLIC_KEY,
+  buildBaseUrl,
+  buildOrganizationStatus,
+  buildPublicOrganization,
+  db,
+  dbStore,
+  getActiveSpeechProvider,
+  getDefaultOrganization,
+  isEventActive,
+  logger,
+  packageJson,
+  participantPresence,
+  removePushSubscription,
+  saveDb,
+  storePushSubscription
 });
 
-app.get('/api/events/:id/azure-token', async (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'main_screen')) return;
-  if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
-    return res.status(500).json({ ok: false, error: 'Azure Speech nu este configurat.' });
-  }
+registerEventRoutes(app, {
+  AZURE_SPEECH_KEY,
+  AZURE_SPEECH_REGION,
+  COMMERCIAL_MODE,
+  DEFAULT_ORG_ID,
+  LANGUAGES,
+  LANGUAGE_NAMES_RO,
+  TRANSCRIBE_RATE_LIMIT_MAX,
+  TRANSCRIBE_RATE_LIMIT_WINDOW_MS,
+  applyDisplaySnapshot,
+  applySourceCorrections,
+  buildBaseUrl,
+  buildDisplayPayload,
+  buildPublicOrganization,
+  buildSongTranslations,
+  buildTranslationsForAllTargets,
+  client,
+  cloneDisplaySnapshot,
+  createEvent,
+  db,
+  defaultDisplayState,
+  defaultSongState,
+  emitTranscriptionState,
+  emitUsageStats,
+  ensureEventAccessLinks,
+  ensureEventUiState,
+  getActiveEventIdForOrg,
+  getDisplayLanguageChoices,
+  getEventOrgId,
+  getOrganizationEvents,
+  getOrganizationForEvent,
+  getOrganizationMemory,
+  getOrganizationPinnedTextLibrary,
+  getOrganizationSongLibrary,
+  getRemoteOperatorPermissions,
+  getSourceCorrections,
+  getSuppliedEventCode,
+  hasValidAdminSession,
+  io,
+  isAdminLoginConfigured,
+  logger,
+  normalizeDisplayPreset,
+  normalizeDisplayTextScale,
+  normalizeEvent,
+  normalizeEventForAccess,
+  normalizeOrgId,
+  normalizeRemoteOperatorProfile,
+  normalizeRemoteOperators,
+  participantPresence,
+  processText,
+  pushSongHistory,
+  queueSpeechText,
+  recordScreenAction,
+  rememberDisplayState,
+  requireAdminApiSession,
+  requireEventAdmin,
+  requireEventManager,
+  requireEventPermission,
+  requireEventRole,
+  requireGlobalLibraryAdmin,
+  resolveEventAccessFromCode,
+  sanitizeStructuredText,
+  sanitizeTranscriptText,
+  saveDb,
+  setActiveEventIdForOrg,
+  setSongIndex,
+  setTranscriptionPaused,
+  speechBuffers,
+  splitSongBlocksWithLabels,
+  summarizeEvent,
+  transcribeAudioFile,
+  transcribeRateLimits,
+  upload,
+  upsertLibraryItem
+});
+
+registerSocketHandlers(io, {
+  LANGUAGE_NAMES_RO,
+  azureSpeechSessions,
+  buildDisplayPayload,
+  buildPublicOrganization,
+  cleanupSocketPresence,
+  closeAzureSpeechSession,
+  db,
+  emitParticipantStats,
+  emitTranscriptionState,
+  emitUsageStats,
+  ensureEventUiState,
+  getActiveSpeechProvider,
+  getOrganizationForEvent,
+  isEventActive,
+  logger,
+  normalizeEvent,
+  normalizeSocketOperator,
+  processText,
+  recordOperatorJoin,
+  recordParticipantJoin,
+  recordServerError,
+  recordTranscriptRefresh,
+  registerParticipantSocket,
+  resolveEventAccessFromCode,
+  retranslateEntry,
+  saveDb,
+  setTranscriptionPaused,
+  socketCanControlEvent,
+  startAzureSpeechSession
+});
+
+const httpServer = server.listen(PORT, () => {
+  logger.info(`Sanctuary Voice running on ${PORT}`);
+});
+
+let shutdownStarted = false;
+
+function gracefulShutdown(signal) {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+  logger.warn(`Graceful shutdown started: ${signal}`);
+  const forceTimer = setTimeout(() => {
+    logger.error('Graceful shutdown timed out.');
+    process.exit(1);
+  }, 10000);
+  forceTimer.unref?.();
+
   try {
-    const response = await fetch(`https://${AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken`, {
-      method: 'POST',
-      headers: {
-        'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
-        'Content-Length': '0'
-      }
-    });
-    if (!response.ok) {
-      return res.status(502).json({ ok: false, error: `Azure token failed: ${response.status}` });
+    for (const socketId of Array.from(azureSpeechSessions.keys())) {
+      closeAzureSpeechSession(socketId);
     }
-    res.json({ ok: true, token: await response.text(), region: AZURE_SPEECH_REGION });
-  } catch (err) {
-    console.error('azure token error:', err?.message || err);
-    res.status(500).json({ ok: false, error: 'Nu am putut cere token Azure.' });
-  }
-});
-
-app.get('/api/languages', (req, res) => {
-  res.json({ ok: true, languages: LANGUAGE_NAMES_RO });
-});
-
-app.get('/api/organization', (req, res) => {
-  res.json({ ok: true, ...buildOrganizationStatus(DEFAULT_ORG_ID) });
-});
-
-app.get('/api/participant-qr.png', async (req, res) => {
-  try {
-    const participantUrl = `${buildBaseUrl(req)}/participant`;
-    const buffer = await QRCode.toBuffer(participantUrl, { type: 'png', margin: 2, width: 720 });
-    res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 'no-store');
-    res.send(buffer);
-  } catch (err) {
-    console.error('participant qr error:', err);
-    res.status(500).send('QR error');
-  }
-});
-
-app.post('/api/events', async (req, res) => {
-  if (!requireEventManager(req, res)) return;
-  try {
-    const baseUrl = buildBaseUrl(req);
-    const organizationId = normalizeOrgId(req.body.organizationId || DEFAULT_ORG_ID);
-    const event = await createEvent({
-      name: req.body.name,
-      speed: req.body.speed,
-      sourceLang: req.body.sourceLang || 'ro',
-      targetLangs: req.body.targetLangs || ['no', 'en'],
-      baseUrl,
-      scheduledAt: req.body.scheduledAt || null,
-      organizationId
-    });
-    res.json({ ok: true, event: normalizeEvent(event, { includeSecrets: true }) });
-  } catch (err) {
-    console.error('create event error:', err);
-    res.status(500).json({ ok: false, error: 'Nu am putut crea evenimentul.' });
-  }
-});
-
-app.get('/api/events/active', (req, res) => {
-  const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
-  const event = activeEventId ? db.events[activeEventId] : null;
-  if (!event) return res.status(404).json({ ok: false, error: 'Nu există eveniment activ.' });
-  ensureEventAccessLinks(event, buildBaseUrl(req));
-  saveDb();
-  res.json({ ok: true, event: normalizeEvent(event), languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization(getOrganizationForEvent(event)) });
-});
-
-app.get('/api/events/public', (req, res) => {
-  const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
-  const events = getOrganizationEvents(DEFAULT_ORG_ID)
-    .sort((a, b) => {
-      const left = new Date(a.scheduledAt || a.createdAt || 0);
-      const right = new Date(b.scheduledAt || b.createdAt || 0);
-      return right - left;
-    })
-    .map((event) => ({
-      id: event.id,
-      name: event.name,
-      scheduledAt: event.scheduledAt || null,
-      createdAt: event.createdAt || null,
-      sourceLang: event.sourceLang || 'ro',
-      targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
-      isActive: activeEventId === event.id
-    }));
-  res.json({ ok: true, events, activeEventId: activeEventId || null, languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization() });
-});
-
-app.get('/api/events', (req, res) => {
-  if ((COMMERCIAL_MODE || isAdminLoginConfigured()) && !requireAdminApiSession(req, res)) return;
-  const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
-  const events = getOrganizationEvents(DEFAULT_ORG_ID)
-    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-    .map(summarizeEvent);
-  res.json({ ok: true, events, activeEventId: activeEventId || null, languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization() });
-});
-
-app.get('/api/events/:id', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  ensureEventAccessLinks(event, buildBaseUrl(req));
-  saveDb();
-  const access = hasValidAdminSession(req)
-    ? { role: 'admin', permissions: ['main_screen', 'song'], operator: null }
-    : resolveEventAccessFromCode(event, getSuppliedEventCode(req));
-  res.json({ ok: true, event: normalizeEvent(event, { includeSecrets: access.role === 'admin' }), languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization(getOrganizationForEvent(event)) });
-});
-
-app.post('/api/events/:id/remote-operators', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'song')) return;
-  ensureEventAccessLinks(event, buildBaseUrl(req));
-  const name = String(req.body.name || '').trim();
-  const profile = normalizeRemoteOperatorProfile(req.body.profile);
-  if (!name) return res.status(400).json({ ok: false, error: 'Numele operatorului lipseste.' });
-  const operator = {
-    id: randomUUID(),
-    name,
-    profile,
-    code: `SV-REMOTE-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
-    permissions: getRemoteOperatorPermissions(profile),
-    remoteLink: ''
-  };
-  event.remoteOperators.unshift(operator);
-  ensureEventAccessLinks(event, buildBaseUrl(req));
-  saveDb();
-  res.json({ ok: true, remoteOperators: event.remoteOperators });
-});
-
-app.delete('/api/events/:id/remote-operators/:operatorId', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-  event.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []).filter((item) => item.id !== req.params.operatorId);
-  saveDb();
-  res.json({ ok: true, remoteOperators: event.remoteOperators });
-});
-
-app.post('/api/events/:id/settings', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-  if (typeof req.body.speed === 'string' && req.body.speed.trim()) event.speed = req.body.speed.trim();
-  if (typeof req.body.sourceLang === 'string') {
-    const sourceLang = req.body.sourceLang.trim();
-    if (LANGUAGES[sourceLang]) {
-      event.sourceLang = sourceLang;
-      event.liveSourceLang = sourceLang;
-      event.songState = event.songState || defaultSongState();
-      event.displayState = event.displayState || defaultDisplayState();
-      if (!event.songState?.sourceLang) event.songState.sourceLang = sourceLang;
-      if (!event.displayState?.manualSourceLang) event.displayState.manualSourceLang = sourceLang;
-    }
-  }
-  if (typeof req.body.liveSourceLang === 'string') {
-    const liveSourceLang = req.body.liveSourceLang.trim();
-    event.liveSourceLang = liveSourceLang === 'auto' || LANGUAGES[liveSourceLang] ? liveSourceLang : (event.liveSourceLang || 'auto');
-  }
-  saveDb();
-  res.json({ ok: true, event: normalizeEventForAccess(req, event) });
-});
-
-app.post('/api/events/:id/mode', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  const mode = String(req.body.mode || 'live').trim();
-  if (!['live', 'song'].includes(mode)) return res.status(400).json({ ok: false, error: 'Mod invalid.' });
-  if (mode === 'song' && !requireEventPermission(req, res, 'song')) return;
-  if (mode === 'live' && req.eventRole !== 'admin') {
-    const permissions = req.eventAccess?.permissions || [];
-    if (!permissions.includes('song') && !permissions.includes('main_screen')) {
-      return res.status(403).json({ ok: false, error: 'Operatorul nu are permisiunea pentru aceasta actiune.' });
-    }
-  }
-  ensureEventUiState(event);
-  event.mode = mode;
-  if (mode === 'live') {
-    rememberDisplayState(event);
-    setTranscriptionPaused(event, false, { save: false, emit: false });
-    event.displayState.mode = 'auto';
-    event.displayState.blackScreen = false;
-    event.displayState.sceneLabel = '';
-    event.displayState.updatedAt = new Date().toISOString();
-  }
-  saveDb();
-  io.to(`event:${event.id}`).emit('mode_changed', { mode });
-  if (mode === 'live') {
-    io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-    emitTranscriptionState(event);
-  }
-  res.json({ ok: true, event: normalizeEventForAccess(req, event) });
-});
-
-app.post('/api/events/:id/activate', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-  setActiveEventIdForOrg(getEventOrgId(event), event.id);
-  saveDb();
-  io.emit('active_event_changed', { eventId: event.id });
-  res.json({ ok: true, event: normalizeEventForAccess(req, event) });
-});
-
-app.delete('/api/events/:id', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-  delete db.events[req.params.id];
-  speechBuffers.delete(req.params.id);
-  participantPresence.delete(req.params.id);
-  const orgId = getEventOrgId(event);
-  if (getActiveEventIdForOrg(orgId) === req.params.id) {
-    const remaining = getOrganizationEvents(orgId).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    setActiveEventIdForOrg(orgId, remaining[0]?.id || null);
-  }
-  saveDb();
-  io.emit('active_event_changed', { eventId: getActiveEventIdForOrg(orgId) || null });
-  res.json({ ok: true, activeEventId: getActiveEventIdForOrg(orgId) || null });
-});
-
-app.post('/api/events/:id/glossary', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-  const source = String(req.body.source || '').trim();
-  const target = String(req.body.target || '').trim();
-  const permanent = !!req.body.permanent;
-  const lang = String(req.body.lang || '').trim();
-  if (!source || !target) return res.status(400).json({ ok: false, error: 'Date lipsă.' });
-  if (!lang) return res.status(400).json({ ok: false, error: 'Limbă lipsă.' });
-  event.glossary[lang] = event.glossary[lang] || {};
-  event.glossary[lang][source] = target;
-  if (permanent) getOrganizationMemory(event)[`${lang.toUpperCase()}::${source}`] = target;
-  saveDb();
-  io.to(`event:${event.id}`).emit('glossary_updated', { source, target, permanent });
-  res.json({ ok: true });
-});
-
-app.post('/api/events/:id/source-corrections', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-  const heard = String(req.body.heard || '').trim();
-  const correct = String(req.body.correct || '').trim();
-  const permanent = !!req.body.permanent;
-  if (!heard || !correct) return res.status(400).json({ ok: false, error: 'Date lipsă.' });
-  event.sourceCorrections = event.sourceCorrections || {};
-  event.sourceCorrections[heard] = correct;
-  if (permanent) getOrganizationMemory(event)[`SRC::${heard}`] = correct;
-  saveDb();
-  io.to(`event:${event.id}`).emit('source_corrections_updated', { heard, correct, permanent });
-  res.json({ ok: true });
-});
-
-app.post('/api/events/:id/audio', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-  if (typeof req.body.audioMuted === 'boolean') event.audioMuted = req.body.audioMuted;
-  if (typeof req.body.audioVolume === 'number') event.audioVolume = Math.max(0, Math.min(100, req.body.audioVolume));
-  saveDb();
-  io.to(`event:${event.id}`).emit('audio_state', { audioMuted: event.audioMuted, audioVolume: event.audioVolume });
-  res.json({ ok: true, event: normalizeEventForAccess(req, event) });
-});
-
-app.post('/api/events/:id/song/load', async (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'song')) return;
-  const title = String(req.body.title || '').trim();
-  const text = sanitizeStructuredText(req.body.text || '');
-  const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
-  if (!text) return res.status(400).json({ ok: false, error: 'Text lipsă.' });
-  try {
-    const parsedSong = splitSongBlocksWithLabels(text, labels);
-    const blocks = parsedSong.blocks;
-    const songSourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
-    const allTranslations = await buildSongTranslations(event, blocks, songSourceLang);
-    event.songState = {
-      title,
-      sourceLang: songSourceLang,
-      blocks,
-      blockLabels: parsedSong.labels,
-      currentIndex: blocks.length ? 0 : -1,
-      activeBlock: blocks[0] || null,
-      translations: allTranslations[0] || {},
-      allTranslations,
-      updatedAt: new Date().toISOString()
-    };
-    event.mode = 'song';
-    rememberDisplayState(event);
-    ensureEventUiState(event);
-    event.displayState.mode = 'song';
-    event.displayState.blackScreen = false;
-    event.displayState.sceneLabel = '';
-    event.displayState.updatedAt = new Date().toISOString();
-    recordScreenAction(event, 'song');
     saveDb();
-    io.to(`event:${event.id}`).emit('mode_changed', { mode: 'song' });
-    io.to(`event:${event.id}`).emit('song_state', event.songState);
-    io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-    emitUsageStats(event.id);
-    res.json({ ok: true, songState: event.songState, event: normalizeEventForAccess(req, event) });
-  } catch (err) {
-    console.error('song load error:', err);
-    res.status(500).json({ ok: false, error: 'Nu am putut pregăti Song.' });
-  }
-});
-
-app.post('/api/events/:id/song/show/:index', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'song')) return;
-  const index = Number(req.params.index);
-  if (!setSongIndex(event, index)) return res.status(400).json({ ok: false, error: 'Index invalid.' });
-  recordScreenAction(event, 'song');
-  saveDb();
-  io.to(`event:${event.id}`).emit('song_state', event.songState);
-  emitUsageStats(event.id);
-  res.json({ ok: true, songState: event.songState });
-});
-
-app.post('/api/events/:id/song/labels', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'song')) return;
-  const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
-  const blocks = Array.isArray(event.songState?.blocks) ? event.songState.blocks : [];
-  event.songState = event.songState || defaultSongState();
-  event.songState.blockLabels = buildBlockLabels(blocks, labels);
-  saveDb();
-  io.to(`event:${event.id}`).emit('song_state', event.songState);
-  res.json({ ok: true, songState: event.songState });
-});
-
-app.post('/api/events/:id/song/next', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'song')) return;
-  const nextIndex = Number(event.songState?.currentIndex ?? -1) + 1;
-  if (!setSongIndex(event, nextIndex)) return res.status(400).json({ ok: false, error: 'Nu mai există bloc următor.' });
-  recordScreenAction(event, 'song');
-  saveDb();
-  io.to(`event:${event.id}`).emit('song_state', event.songState);
-  emitUsageStats(event.id);
-  res.json({ ok: true, songState: event.songState });
-});
-
-app.post('/api/events/:id/song/prev', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'song')) return;
-  const prevIndex = Number(event.songState?.currentIndex ?? 0) - 1;
-  if (!setSongIndex(event, prevIndex)) return res.status(400).json({ ok: false, error: 'Nu mai există bloc anterior.' });
-  saveDb();
-  io.to(`event:${event.id}`).emit('song_state', event.songState);
-  res.json({ ok: true, songState: event.songState });
-});
-
-app.post('/api/events/:id/song/clear', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'song')) return;
-  rememberDisplayState(event);
-  event.songState = defaultSongState();
-  event.mode = 'live';
-  ensureEventUiState(event);
-  event.latestDisplayEntry = null;
-  event.displayState.mode = 'auto';
-  event.displayState.blackScreen = false;
-  event.displayState.sceneLabel = '';
-  event.displayState.updatedAt = new Date().toISOString();
-  saveDb();
-  io.to(`event:${event.id}`).emit('song_clear');
-  io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
-  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-  res.json({ ok: true, event: normalizeEventForAccess(req, event) });
-});
-
-
-app.post('/api/events/:id/display/mode', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-
-  ensureEventUiState(event);
-
-  const mode = String(req.body.mode || '').trim().toLowerCase();
-  if (!['auto', 'manual', 'song'].includes(mode)) {
-    return res.status(400).json({ ok: false, error: 'Mod invalid.' });
-  }
-  if (mode === 'song') {
-    if (!requireEventPermission(req, res, 'song')) return;
-  } else if (!requireEventPermission(req, res, 'main_screen')) return;
-
-  if (mode === 'song' && !event.songState?.activeBlock && !event.songState?.translations) {
-    return res.status(400).json({ ok: false, error: 'Nu exista continut activ pentru Song.' });
-  }
-
-  rememberDisplayState(event);
-  event.displayState.mode = mode;
-  event.displayState.blackScreen = false;
-  event.displayState.sceneLabel = '';
-  event.displayState.updatedAt = new Date().toISOString();
-  recordScreenAction(event, 'display');
-  saveDb();
-
-  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-  emitUsageStats(event.id);
-
-  res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEventForAccess(req, event) });
-});
-
-app.post('/api/events/:id/display/theme', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'main_screen')) return;
-
-  ensureEventUiState(event);
-  const theme = String(req.body.theme || 'dark').trim();
-  if (!['dark', 'light'].includes(theme)) {
-    return res.status(400).json({ ok: false, error: 'Tema invalida.' });
-  }
-
-  rememberDisplayState(event);
-  event.displayState.theme = theme;
-  event.displayState.sceneLabel = '';
-  event.displayState.updatedAt = new Date().toISOString();
-  recordScreenAction(event, 'display');
-  saveDb();
-
-  io.to(`event:${event.id}`).emit('display_theme_changed', {
-    theme: event.displayState.theme,
-    updatedAt: event.displayState.updatedAt
-  });
-  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-  emitUsageStats(event.id);
-
-  res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null });
-});
-
-app.post('/api/events/:id/display/language', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'main_screen')) return;
-  ensureEventUiState(event);
-  const language = String(req.body.language || '').trim();
-  const hasSecondaryLanguage = Object.prototype.hasOwnProperty.call(req.body || {}, 'secondaryLanguage');
-  const secondaryLanguage = hasSecondaryLanguage ? String(req.body.secondaryLanguage || '').trim() : event.displayState.secondaryLanguage || '';
-  const allowedDisplayLanguages = getDisplayLanguageChoices(event);
-  if (!allowedDisplayLanguages.includes(language)) {
-    return res.status(400).json({ ok: false, error: 'Limba invalida pentru ecran.' });
-  }
-  if (secondaryLanguage && !allowedDisplayLanguages.includes(secondaryLanguage)) {
-    return res.status(400).json({ ok: false, error: 'A doua limba este invalida pentru ecran.' });
-  }
-  rememberDisplayState(event);
-  event.displayState.language = language;
-  event.displayState.secondaryLanguage = secondaryLanguage && secondaryLanguage !== language ? secondaryLanguage : '';
-  event.displayState.sceneLabel = '';
-  event.displayState.updatedAt = new Date().toISOString();
-  recordScreenAction(event, 'display');
-  saveDb();
-  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-  emitUsageStats(event.id);
-  res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null });
-});
-
-app.post('/api/events/:id/display/settings', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'main_screen')) return;
-  ensureEventUiState(event);
-  const backgroundPreset = typeof req.body.backgroundPreset === 'string' ? req.body.backgroundPreset.trim() : event.displayState.backgroundPreset;
-  const customBackground = typeof req.body.customBackground === 'string' ? req.body.customBackground.trim() : event.displayState.customBackground;
-  const showClock = typeof req.body.showClock === 'boolean' ? req.body.showClock : event.displayState.showClock;
-  const clockPosition = typeof req.body.clockPosition === 'string' ? req.body.clockPosition.trim() : event.displayState.clockPosition;
-  const clockScale = typeof req.body.clockScale === 'number' ? req.body.clockScale : event.displayState.clockScale;
-  const textSize = typeof req.body.textSize === 'string' ? req.body.textSize.trim() : event.displayState.textSize;
-  const textScale = typeof req.body.textScale === 'number' ? req.body.textScale : event.displayState.textScale;
-  const screenStyle = typeof req.body.screenStyle === 'string' ? req.body.screenStyle.trim() : event.displayState.screenStyle;
-  const displayResolution = typeof req.body.displayResolution === 'string' ? req.body.displayResolution.trim() : event.displayState.displayResolution;
-  const secondaryLanguage = typeof req.body.secondaryLanguage === 'string' ? req.body.secondaryLanguage.trim() : event.displayState.secondaryLanguage || '';
-  const allowedDisplayLanguages = getDisplayLanguageChoices(event);
-  if (!['none', 'warm', 'sanctuary', 'soft-light'].includes(backgroundPreset)) {
-    return res.status(400).json({ ok: false, error: 'Preset fundal invalid.' });
-  }
-  if (!['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(clockPosition)) {
-    return res.status(400).json({ ok: false, error: 'Pozitie ceas invalida.' });
-  }
-  if (typeof clockScale !== 'number' || Number.isNaN(clockScale) || clockScale < 0.7 || clockScale > 1.8) {
-    return res.status(400).json({ ok: false, error: 'Marime ceas invalida.' });
-  }
-  if (!['compact', 'large', 'xlarge'].includes(textSize)) {
-    return res.status(400).json({ ok: false, error: 'Marime text invalida.' });
-  }
-  if (typeof textScale !== 'number' || Number.isNaN(textScale) || textScale < 0.65 || textScale > 1.4) {
-    return res.status(400).json({ ok: false, error: 'Zoom text invalid.' });
-  }
-  if (!['focus', 'wide'].includes(screenStyle)) {
-    return res.status(400).json({ ok: false, error: 'Layout ecran invalid.' });
-  }
-  if (!['auto', '16-9', '16-10', '4-3'].includes(displayResolution)) {
-    return res.status(400).json({ ok: false, error: 'Rezolutie ecran invalida.' });
-  }
-  if (secondaryLanguage && !allowedDisplayLanguages.includes(secondaryLanguage)) {
-    return res.status(400).json({ ok: false, error: 'A doua limba este invalida pentru ecran.' });
-  }
-  rememberDisplayState(event);
-  event.displayState.backgroundPreset = backgroundPreset;
-  event.displayState.customBackground = customBackground;
-  event.displayState.showClock = !!showClock;
-  event.displayState.clockPosition = clockPosition;
-  event.displayState.clockScale = clockScale;
-  event.displayState.textSize = textSize;
-  event.displayState.textScale = normalizeDisplayTextScale(textScale, 1);
-  event.displayState.screenStyle = screenStyle;
-  event.displayState.displayResolution = displayResolution;
-  event.displayState.secondaryLanguage = secondaryLanguage && secondaryLanguage !== event.displayState.language ? secondaryLanguage : '';
-  event.displayState.sceneLabel = '';
-  event.displayState.updatedAt = new Date().toISOString();
-  recordScreenAction(event, 'display');
-  saveDb();
-  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-  emitUsageStats(event.id);
-  res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null });
-});
-
-app.post('/api/events/:id/display/restore-last', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'main_screen')) return;
-  ensureEventUiState(event);
-  if (!event.displayStatePrevious) {
-    return res.status(400).json({ ok: false, error: 'Nu exista o stare anterioara pentru restore.' });
-  }
-  const currentSnapshot = cloneDisplaySnapshot(event);
-  const previousSnapshot = event.displayStatePrevious;
-  applyDisplaySnapshot(event, previousSnapshot);
-  event.displayStatePrevious = currentSnapshot;
-  recordScreenAction(event, 'display');
-  saveDb();
-  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-  emitUsageStats(event.id);
-  res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEventForAccess(req, event) });
-});
-
-app.post('/api/events/:id/display/shortcut', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'main_screen')) return;
-  ensureEventUiState(event);
-
-  const shortcutKey = String(req.body.shortcut || '').trim().toLowerCase();
-  const shortcut = DISPLAY_SHORTCUTS[shortcutKey];
-  if (!shortcut) {
-    return res.status(400).json({ ok: false, error: 'Shortcut inexistent.' });
-  }
-
-  let mode = shortcut.mode;
-  if (mode === 'song' && !event.songState?.activeBlock && !event.songState?.translations) {
-    mode = 'auto';
-  }
-  if (mode === 'manual' && !event.displayState?.manualSource) {
-    mode = 'auto';
-  }
-
-  rememberDisplayState(event);
-  event.displayState.mode = mode;
-  event.displayState.blackScreen = false;
-  event.displayState.theme = shortcut.theme;
-  event.displayState.language = event.targetLangs.includes(String(req.body.language || '').trim())
-    ? String(req.body.language || '').trim()
-    : (event.displayState.language || event.targetLangs[0] || 'no');
-  if (event.displayState.secondaryLanguage === event.displayState.language) {
-    event.displayState.secondaryLanguage = '';
-  }
-  event.displayState.backgroundPreset = shortcut.backgroundPreset;
-  event.displayState.customBackground = shortcut.customBackground;
-  event.displayState.showClock = !!shortcut.showClock;
-  event.displayState.clockPosition = shortcut.clockPosition;
-  event.displayState.textSize = shortcut.textSize;
-  event.displayState.screenStyle = shortcut.screenStyle;
-  event.displayState.sceneLabel = shortcut.label;
-  event.displayState.updatedAt = new Date().toISOString();
-  recordScreenAction(event, 'display');
-  saveDb();
-
-  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-  emitUsageStats(event.id);
-  res.json({ ok: true, shortcut: shortcut.label, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEventForAccess(req, event) });
-});
-
-app.get('/api/events/:id/display-presets', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'main_screen')) return;
-  ensureEventUiState(event);
-  res.json({ ok: true, presets: event.displayPresets });
-});
-
-app.post('/api/events/:id/display-presets', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-  ensureEventUiState(event);
-
-  const preset = normalizeDisplayPreset(req.body || {});
-  if (!preset) {
-    return res.status(400).json({ ok: false, error: 'Numele presetului lipseste.' });
-  }
-  if (!event.targetLangs.includes(preset.language)) {
-    preset.language = event.targetLangs[0] || 'no';
-  }
-  if (preset.secondaryLanguage && (!event.targetLangs.includes(preset.secondaryLanguage) || preset.secondaryLanguage === preset.language)) {
-    preset.secondaryLanguage = '';
-  }
-
-  const existingIndex = event.displayPresets.findIndex((item) => String(item.name || '').toLowerCase() === preset.name.toLowerCase());
-  if (existingIndex >= 0) {
-    preset.id = event.displayPresets[existingIndex].id;
-    event.displayPresets[existingIndex] = preset;
-  } else {
-    event.displayPresets.unshift(preset);
-  }
-  if (event.displayPresets.length > 12) {
-    event.displayPresets = event.displayPresets.slice(0, 12);
-  }
-  saveDb();
-  io.to(`event:${event.id}:admins`).emit('display_presets_updated', { presets: event.displayPresets });
-  res.json({ ok: true, presets: event.displayPresets });
-});
-
-app.post('/api/events/:id/display-presets/:presetId/apply', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'main_screen')) return;
-  ensureEventUiState(event);
-
-  const preset = event.displayPresets.find((item) => item.id === req.params.presetId);
-  if (!preset) {
-    return res.status(404).json({ ok: false, error: 'Preset inexistent.' });
-  }
-  if (preset.mode === 'song' && !event.songState?.activeBlock && !event.songState?.translations) {
-    return res.status(400).json({ ok: false, error: 'Presetul Song are nevoie de continut activ in Song.' });
-  }
-
-  rememberDisplayState(event);
-  event.displayState.mode = preset.mode;
-  event.displayState.blackScreen = false;
-  event.displayState.theme = preset.theme;
-  {
-    const allowedDisplayLanguages = getDisplayLanguageChoices(event, preset.mode);
-    event.displayState.language = allowedDisplayLanguages.includes(preset.language) ? preset.language : (allowedDisplayLanguages[0] || event.targetLangs[0] || 'no');
-    event.displayState.secondaryLanguage = allowedDisplayLanguages.includes(preset.secondaryLanguage) && preset.secondaryLanguage !== event.displayState.language
-      ? preset.secondaryLanguage
-      : '';
-  }
-  event.displayState.backgroundPreset = preset.backgroundPreset;
-  event.displayState.customBackground = preset.customBackground;
-  event.displayState.showClock = !!preset.showClock;
-  event.displayState.clockPosition = preset.clockPosition;
-  event.displayState.textSize = preset.textSize;
-  event.displayState.textScale = normalizeDisplayTextScale(preset.textScale, 1);
-  event.displayState.screenStyle = preset.screenStyle;
-  event.displayState.sceneLabel = preset.name;
-  event.displayState.updatedAt = new Date().toISOString();
-  recordScreenAction(event, 'display');
-  saveDb();
-  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-  emitUsageStats(event.id);
-  res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null, presets: event.displayPresets });
-});
-
-app.delete('/api/events/:id/display-presets/:presetId', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-  ensureEventUiState(event);
-  event.displayPresets = event.displayPresets.filter((item) => item.id !== req.params.presetId);
-  saveDb();
-  io.to(`event:${event.id}:admins`).emit('display_presets_updated', { presets: event.displayPresets });
-  res.json({ ok: true, presets: event.displayPresets });
-});
-
-app.post('/api/events/:id/display/blank', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'main_screen')) return;
-  ensureEventUiState(event);
-  rememberDisplayState(event);
-  event.displayState.blackScreen = true;
-  event.displayState.sceneLabel = 'Black screen';
-  event.displayState.updatedAt = new Date().toISOString();
-  recordScreenAction(event, 'display');
-  saveDb();
-  io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-  emitUsageStats(event.id);
-  res.json({ ok: true, event: normalizeEventForAccess(req, event), previousState: event.displayStatePrevious || null });
-});
-
-app.post('/api/events/:id/display/manual', async (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'main_screen')) return;
-
-  ensureEventUiState(event);
-
-  const text = sanitizeStructuredText(req.body.text || '');
-  const title = String(req.body.title || '').trim();
-  const sourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
-
-  if (!text) {
-    return res.status(400).json({ ok: false, error: 'Text lipsă.' });
-  }
-
-  try {
-    const translations = await buildTranslationsForAllTargets(text, event, sourceLang);
-
-    const entry = {
-      id: randomUUID(),
-      sourceLang,
-      original: text,
-      translations,
-      createdAt: new Date().toISOString(),
-      edited: false,
-      manual: true,
-      title: title || ''
-    };
-
-    event.transcripts.push(entry);
-    if (event.transcripts.length > 300) {
-      event.transcripts = event.transcripts.slice(-300);
-    }
-
-    rememberDisplayState(event);
-    event.displayState = {
-      ...event.displayState,
-      mode: 'manual',
-      blackScreen: false,
-      sceneLabel: '',
-      manualSource: text,
-      manualSourceLang: sourceLang,
-      manualTranslations: translations,
-      updatedAt: new Date().toISOString()
-    };
-
-    event.mode = 'live';
-    pushSongHistory(event, { title: title || 'Pinned text', kind: 'manual', source: text, translations });
-
-    recordScreenAction(event, 'manual');
-    saveDb();
-
-    io.to(`event:${event.id}`).emit('transcript_entry', entry);
-    io.to(`event:${event.id}`).emit('display_manual_update', buildDisplayPayload(event));
-    io.to(`event:${event.id}`).emit('song_history_updated', {
-      songHistory: event.songHistory
-    });
-    emitUsageStats(event.id);
-
-    res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null, songHistory: event.songHistory });
-  } catch (err) {
-    console.error('display manual error:', err);
-    res.status(500).json({ ok: false, error: 'Nu am putut trimite textul pe ecran.' });
-  }
-});
-
-app.post('/api/events/:id/song-library', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-
-  ensureEventUiState(event);
-
-  const title = String(req.body.title || '').trim();
-  const text = sanitizeStructuredText(req.body.text || '');
-  const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
-  const sourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
-
-  if (!title || !text) {
-    return res.status(400).json({ ok: false, error: 'Titlu sau text lipsă.' });
-  }
-
-  upsertLibraryItem(event.songLibrary, { title, text, labels, sourceLang }, 100);
-
-  saveDb();
-  res.json({ ok: true, songLibrary: event.songLibrary });
-});
-
-app.get('/api/events/:id/song-library', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-
-  ensureEventUiState(event);
-  res.json({ ok: true, songLibrary: event.songLibrary });
-});
-
-app.delete('/api/events/:id/song-library/:songId', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-
-  ensureEventUiState(event);
-  event.songLibrary = event.songLibrary.filter((item) => item.id !== req.params.songId);
-  saveDb();
-
-  res.json({ ok: true, songLibrary: event.songLibrary });
-});
-
-app.get('/api/global-song-library', (req, res) => {
-  const library = getOrganizationSongLibrary(DEFAULT_ORG_ID);
-  res.json({ ok: true, globalSongLibrary: Array.isArray(library) ? library : [], organization: buildPublicOrganization() });
-});
-
-app.post('/api/global-song-library', (req, res) => {
-  if (!requireGlobalLibraryAdmin(req, res)) return;
-  const title = String(req.body.title || '').trim();
-  const text = sanitizeStructuredText(req.body.text || '');
-  const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
-  const sourceLang = String(req.body.sourceLang || 'ro').trim() || 'ro';
-  if (!title || !text) {
-    return res.status(400).json({ ok: false, error: 'Titlu sau text lipsa.' });
-  }
-  const library = getOrganizationSongLibrary(DEFAULT_ORG_ID);
-  upsertLibraryItem(library, { title, text, labels, sourceLang }, 500);
-  saveDb();
-  res.json({ ok: true, globalSongLibrary: library });
-});
-
-app.get('/api/pinned-text-library', (req, res) => {
-  const library = getOrganizationPinnedTextLibrary(DEFAULT_ORG_ID);
-  res.json({ ok: true, pinnedTextLibrary: Array.isArray(library) ? library : [], organization: buildPublicOrganization() });
-});
-
-app.post('/api/pinned-text-library', (req, res) => {
-  if (!requireGlobalLibraryAdmin(req, res)) return;
-  const title = String(req.body.title || '').trim();
-  const text = sanitizeStructuredText(req.body.text || '');
-  const sourceLang = String(req.body.sourceLang || 'ro').trim() || 'ro';
-  if (!title || !text) {
-    return res.status(400).json({ ok: false, error: 'Titlu sau text lipsa.' });
-  }
-  const library = getOrganizationPinnedTextLibrary(DEFAULT_ORG_ID);
-  upsertLibraryItem(library, { title, text, labels: [], sourceLang }, 300);
-  saveDb();
-  res.json({ ok: true, pinnedTextLibrary: library });
-});
-
-app.delete('/api/pinned-text-library/:itemId', (req, res) => {
-  if (!requireGlobalLibraryAdmin(req, res)) return;
-  const org = getDefaultOrganization();
-  org.pinnedTextLibrary = (org.pinnedTextLibrary || []).filter((item) => item.id !== req.params.itemId);
-  saveDb();
-  res.json({ ok: true, pinnedTextLibrary: org.pinnedTextLibrary });
-});
-
-app.delete('/api/global-song-library/:songId', (req, res) => {
-  if (!requireGlobalLibraryAdmin(req, res)) return;
-  const org = getDefaultOrganization();
-  org.globalSongLibrary = (org.globalSongLibrary || []).filter((item) => item.id !== req.params.songId);
-  saveDb();
-  res.json({ ok: true, globalSongLibrary: org.globalSongLibrary });
-});
-
-app.get('/api/events/:id/global-song-library', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-
-  const library = getOrganizationSongLibrary(getEventOrgId(event));
-  res.json({ ok: true, globalSongLibrary: Array.isArray(library) ? library : [] });
-});
-
-app.post('/api/events/:id/global-song-library', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
-  if (!requireEventPermission(req, res, 'song')) return;
-
-  const title = String(req.body.title || '').trim();
-  const text = sanitizeStructuredText(req.body.text || '');
-  const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
-  const sourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
-
-  if (!title || !text) {
-    return res.status(400).json({ ok: false, error: 'Titlu sau text lipsa.' });
-  }
-
-  const library = getOrganizationSongLibrary(getEventOrgId(event));
-  upsertLibraryItem(library, { title, text, labels, sourceLang }, 500);
-  saveDb();
-  res.json({ ok: true, globalSongLibrary: library });
-});
-
-app.post('/api/events/:id/global-song-library/:songId/add-to-event', (req, res) => {
-  const adminEvent = db.events[req.params.id];
-  if (!adminEvent) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, adminEvent)) return;
-
-  const targetEventId = String(req.body?.targetEventId || req.params.id || '').trim();
-  const event = db.events[targetEventId];
-  if (!event) {
-    return res.status(404).json({ ok: false, error: 'Evenimentul selectat nu exista.' });
-  }
-
-  ensureEventUiState(event);
-  if (getEventOrgId(adminEvent) !== getEventOrgId(event)) {
-    return res.status(403).json({ ok: false, error: 'Evenimentul selectat apartine altei organizatii.' });
-  }
-  const library = getOrganizationSongLibrary(getEventOrgId(adminEvent));
-  const item = (library || []).find((entry) => entry.id === req.params.songId);
-  if (!item) {
-    return res.status(404).json({ ok: false, error: 'Cantarea nu exista in biblioteca generala.' });
-  }
-
-  upsertLibraryItem(event.songLibrary, { title: item.title, text: item.text, labels: item.labels || [], sourceLang: item.sourceLang || event.sourceLang || 'ro' }, 100);
-  saveDb();
-  res.json({ ok: true, targetEvent: summarizeEvent(event), songLibrary: event.songLibrary, globalSongLibrary: library });
-});
-
-app.delete('/api/events/:id/global-song-library/:songId', (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  if (!requireEventAdmin(req, res, event)) return;
-
-  const org = getOrganizationForEvent(event);
-  org.globalSongLibrary = (org.globalSongLibrary || []).filter((item) => item.id !== req.params.songId);
-  saveDb();
-  res.json({ ok: true, globalSongLibrary: org.globalSongLibrary });
-});
-
-function getClientIp(req) {
-  const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return forwardedFor || req.socket?.remoteAddress || req.ip || 'unknown';
-}
-
-function cleanupTranscribeRateLimits(now = Date.now()) {
-  if (transcribeRateLimits.size < 500) return;
-  for (const [key, entry] of transcribeRateLimits.entries()) {
-    if (now - entry.windowStart > TRANSCRIBE_RATE_LIMIT_WINDOW_MS * 2) {
-      transcribeRateLimits.delete(key);
-    }
-  }
-}
-
-function consumeTranscribeRateLimit(req, eventId) {
-  const now = Date.now();
-  const key = `${getClientIp(req)}:${eventId || 'unknown'}`;
-  const existing = transcribeRateLimits.get(key);
-  if (!existing || now - existing.windowStart >= TRANSCRIBE_RATE_LIMIT_WINDOW_MS) {
-    transcribeRateLimits.set(key, { windowStart: now, count: 1 });
-    cleanupTranscribeRateLimits(now);
-    return {
-      allowed: true,
-      remaining: Math.max(0, TRANSCRIBE_RATE_LIMIT_MAX - 1),
-      resetAt: now + TRANSCRIBE_RATE_LIMIT_WINDOW_MS
-    };
-  }
-
-  existing.count += 1;
-  const resetAt = existing.windowStart + TRANSCRIBE_RATE_LIMIT_WINDOW_MS;
-  if (existing.count > TRANSCRIBE_RATE_LIMIT_MAX) {
-    return {
-      allowed: false,
-      remaining: 0,
-      resetAt,
-      retryAfterSeconds: Math.max(1, Math.ceil((resetAt - now) / 1000))
-    };
-  }
-
-  return {
-    allowed: true,
-    remaining: Math.max(0, TRANSCRIBE_RATE_LIMIT_MAX - existing.count),
-    resetAt
-  };
-}
-
-function transcribeRateLimit(req, res, next) {
-  const result = consumeTranscribeRateLimit(req, req.params.id);
-  res.setHeader('X-RateLimit-Limit', String(TRANSCRIBE_RATE_LIMIT_MAX));
-  res.setHeader('X-RateLimit-Remaining', String(result.remaining));
-  res.setHeader('X-RateLimit-Reset', String(Math.ceil(result.resetAt / 1000)));
-  if (!result.allowed) {
-    res.setHeader('Retry-After', String(result.retryAfterSeconds));
-    return res.status(429).json({
-      ok: false,
-      error: 'Prea multe cereri de transcriere. Incearca din nou imediat.'
-    });
-  }
-  return next();
-}
-
-app.post('/api/events/:id/transcribe', transcribeRateLimit, upload.single('audio'), async (req, res) => {
-  const event = db.events[req.params.id];
-  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-  const access = resolveEventAccessFromCode(event, String(req.body.code || '').trim());
-  if (access.role !== 'admin') return res.status(403).json({ ok: false, error: 'Cod Admin invalid.' });
-  if (!client) return res.status(400).json({ ok: false, error: 'OpenAI nu este configurat.' });
-  if (!req.file || !req.file.buffer?.length) return res.status(400).json({ ok: false, error: 'Audio lipsă.' });
-
-  const mimeType = String(req.file.mimetype || 'audio/webm');
-  const ext = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a' : 'webm';
-  const tempPath = path.join(os.tmpdir(), `sanctuary-voice-${randomUUID()}.${ext}`);
-
-  try {
-    fs.writeFileSync(tempPath, req.file.buffer);
-    const rawTranscript = await transcribeAudioFile(tempPath, event);
-    const transcriptText = typeof rawTranscript === 'string' ? rawTranscript : rawTranscript?.text;
-    const transcriptSourceLang = typeof rawTranscript === 'object' && rawTranscript?.sourceLang
-      ? rawTranscript.sourceLang
-      : (event.liveSourceLang || event.sourceLang || 'ro');
-    const transcript = applySourceCorrections(sanitizeTranscriptText(transcriptText), getSourceCorrections(event));
-    if (!transcript) return res.json({ ok: true, skipped: true });
-    queueSpeechText(event.id, transcript, transcriptSourceLang);
-    return res.json({ ok: true, text: transcript, sourceLang: transcriptSourceLang, buffered: true });
-  } catch (err) {
-    console.error('transcribe error:', err?.message || err);
-    return res.status(500).json({ ok: false, error: 'Nu am putut transcrie audio.' });
-  } finally {
-    try { fs.unlinkSync(tempPath); } catch (_) {}
-  }
-});
-
-io.on('connection', (socket) => {
-  socket.on('join_event', ({ eventId, role, code, language, participantId }) => {
-    const event = db.events[eventId];
-    if (!event) return socket.emit('join_error', { message: 'Evenimentul nu există.' });
-    const access = resolveEventAccessFromCode(event, code);
-    if (role === 'admin' && access.role !== 'admin') return socket.emit('join_error', { message: 'Cod Admin invalid.' });
-    if (role === 'screen' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
-    if (role === 'participant_preview' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
-    if ((role || 'participant') === 'participant' && !isEventActive(event)) {
-      return socket.emit('join_error', { message: 'Evenimentul nu este live inca.' });
-    }
-
-    cleanupSocketPresence(socket);
-    socket.data.eventId = eventId;
-    socket.data.role = role || 'participant';
-    socket.data.language = language || event.targetLangs[0] || 'no';
-    socket.data.participantId = participantId || '';
-    socket.data.permissions = socket.data.role === 'admin' ? ['main_screen', 'song', 'glossary'] : (access.permissions || []);
-
-    socket.join(`event:${eventId}`);
-    if (socket.data.role === 'admin') socket.join(`event:${eventId}:admins`);
-    if (socket.data.role === 'screen') socket.join(`event:${eventId}:screens`);
-    if (socket.data.role === 'participant' || socket.data.role === 'participant_preview') socket.join(`event:${eventId}:lang:${socket.data.language}`);
-
-    if (socket.data.role === 'participant' && socket.data.participantId) {
-      registerParticipantSocket(eventId, socket.data.participantId, socket.data.language, socket.id);
-      recordParticipantJoin(event, socket.data.participantId, socket.data.language);
-      saveDb();
-      emitParticipantStats(eventId);
-    }
-    if (socket.data.role === 'admin' || socket.data.role === 'screen') {
-      recordOperatorJoin(event, socket.data.role);
-      saveDb();
-      emitParticipantStats(eventId);
-    }
-
-    socket.emit('joined_event', {
-      ok: true,
-      role: socket.data.role,
-      event: normalizeEvent(event, {
-        includeSecrets: socket.data.role === 'admin',
-        includeControlData: ['admin', 'screen'].includes(socket.data.role)
-      }),
-      access: socket.data.role === 'screen'
-        ? { permissions: access.permissions || [], operator: normalizeSocketOperator(access.operator) }
-        : null,
-      languageNames: LANGUAGE_NAMES_RO,
-      organization: buildPublicOrganization(getOrganizationForEvent(event))
-    });
-  });
-
-  socket.on('participant_language', ({ eventId, language }) => {
-    const targetEventId = eventId || socket.data.eventId;
-    const oldLanguage = socket.data.language;
-    if (oldLanguage && targetEventId) socket.leave(`event:${targetEventId}:lang:${oldLanguage}`);
-    socket.data.language = language;
-    if (targetEventId) socket.join(`event:${targetEventId}:lang:${language}`);
-    if (socket.data.role === 'participant' && socket.data.participantId && targetEventId) {
-      registerParticipantSocket(targetEventId, socket.data.participantId, language, socket.id);
-      emitParticipantStats(targetEventId);
-    }
-  });
-
-  socket.on('submit_text', async ({ eventId, text }) => {
-    const event = db.events[eventId];
-    if (!event) return socket.emit('server_error', { message: 'Eveniment inexistent.' });
-    if (!socketCanControlEvent(socket, eventId, 'main_screen')) {
-      return socket.emit('server_error', { message: 'Nu ai permisiune pentru live text.' });
-    }
-    const cleanText = String(text || '').trim();
-    if (!cleanText) return;
-    try {
-      event.mode = 'live';
-      await processText(event, cleanText);
-    } catch (err) {
-      console.error('submit_text error:', err);
-      recordServerError(event, 'Live submit translation failed.');
-      saveDb();
-      emitUsageStats(eventId);
-      socket.emit('server_error', { message: 'Eroare la traducere.' });
-    }
-  });
-
-  socket.on('admin_update_source', async ({ eventId, entryId, sourceText }) => {
-    const event = db.events[eventId];
-    if (!event) return;
-    if (!socketCanControlEvent(socket, eventId, 'main_screen')) return;
-    const entry = event.transcripts.find((x) => x.id === entryId);
-    if (!entry) return;
-    const cleanSource = String(sourceText || '').trim();
-    if (!cleanSource) return;
-    entry.sourceLang = event.sourceLang || 'ro';
-    entry.original = cleanSource;
-    entry.edited = true;
-    io.to(`event:${eventId}`).emit('entry_refreshing', { entryId });
-    try {
-      await retranslateEntry(event, entry);
-      recordTranscriptRefresh(event);
-      saveDb();
-      io.to(`event:${eventId}`).emit('transcript_source_updated', {
-        entryId,
-        sourceLang: entry.sourceLang,
-        original: entry.original,
-        translations: entry.translations
+    io.disconnectSockets(true);
+    io.close(() => {
+      httpServer.close((err) => {
+        if (err && err.code !== 'ERR_SERVER_NOT_RUNNING') {
+          logger.warn('HTTP server close warning:', err?.message || err);
+        }
+        clearTimeout(forceTimer);
+        logger.info('Graceful shutdown completed.');
+        process.exit(0);
       });
+    });
+  } catch (err) {
+    logger.error('Graceful shutdown error:', err);
+    try { saveDb(); } catch (_) {}
+    clearTimeout(forceTimer);
+    process.exit(1);
+  }
+}
 
-      ensureEventUiState(event);
-      emitUsageStats(eventId);
-    } catch (err) {
-      console.error('admin_update_source error:', err);
-      recordServerError(event, 'Source retranslation failed.');
-      io.to(`event:${eventId}`).emit('entry_refresh_failed', { entryId });
-      saveDb();
-      emitUsageStats(eventId);
-    }
-  });
-
-  socket.on('set_audio_state', ({ eventId, audioMuted, audioVolume }) => {
-    const event = db.events[eventId];
-    if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
-    if (typeof audioMuted === 'boolean') event.audioMuted = audioMuted;
-    if (typeof audioVolume === 'number') event.audioVolume = Math.max(0, Math.min(100, audioVolume));
-    saveDb();
-    io.to(`event:${eventId}`).emit('audio_state', { audioMuted: event.audioMuted, audioVolume: event.audioVolume });
-  });
-
-  socket.on('set_transcription_state', ({ eventId, paused }) => {
-    const event = db.events[eventId];
-    if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
-    setTranscriptionPaused(event, !!paused);
-  });
-
-  socket.on('azure_audio_start', ({ eventId }) => {
-    const event = db.events[eventId];
-    if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) {
-      return socket.emit('server_error', { message: 'Nu ai permisiune pentru Azure Speech.' });
-    }
-    if (getActiveSpeechProvider() !== 'azure_sdk') {
-      return socket.emit('server_error', { message: 'Azure Speech nu este activ.' });
-    }
-    event.mode = 'live';
-    ensureEventUiState(event);
-    setTranscriptionPaused(event, false, { save: false, emit: false });
-    event.latestDisplayEntry = null;
-    event.displayState.mode = 'auto';
-    event.displayState.blackScreen = false;
-    event.displayState.sceneLabel = '';
-    saveDb();
-    io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
-    io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
-    emitTranscriptionState(event);
-    startAzureSpeechSession(socket, event);
-  });
-
-  socket.on('azure_audio_chunk', ({ eventId, audio }) => {
-    const session = azureSpeechSessions.get(socket.id);
-    if (!session || session.eventId !== eventId || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
-    const buffer = Buffer.from(audio || []);
-    if (!buffer.length) return;
-    try {
-      session.pushStream.write(buffer);
-    } catch (err) {
-      console.error('azure audio chunk error:', err?.message || err);
-      socket.emit('server_error', {
-        provider: 'azure_sdk',
-        code: 'azure_stream_failed',
-        message: 'Azure Speech audio stream failed.'
-      });
-      closeAzureSpeechSession(socket.id);
-    }
-  });
-
-  socket.on('azure_audio_stop', ({ eventId }) => {
-    const session = azureSpeechSessions.get(socket.id);
-    if (session?.eventId === eventId) closeAzureSpeechSession(socket.id);
-    const event = db.events[eventId];
-    if (event && socketCanControlEvent(socket, eventId, 'main_screen')) {
-      setTranscriptionPaused(event, true);
-    }
-  });
-
-  socket.on('disconnect', () => {
-    closeAzureSpeechSession(socket.id);
-    cleanupSocketPresence(socket);
-  });
-});
-
-server.listen(PORT, () => {
-  console.log(`Sanctuary Voice running on ${PORT}`);
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

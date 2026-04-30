@@ -51,6 +51,10 @@ npm start
 - `OPENAI_TRANSCRIBE_MODEL`
 - `TRANSCRIBE_RATE_LIMIT_WINDOW_MS`
 - `TRANSCRIBE_RATE_LIMIT_MAX`
+- `WEB_PUSH_PUBLIC_KEY`
+- `WEB_PUSH_PRIVATE_KEY`
+- `WEB_PUSH_SUBJECT`
+- `LOG_DIR`
 - `PUBLIC_BASE_URL`
 - `ADMIN_APP_BASE_URL`
 - `ADMIN_APP_HOSTNAMES`
@@ -77,6 +81,16 @@ Valori implicite recomandate:
 - `DEFAULT_ORG_NAME=Sanctuary Voice`
 
 Endpoint-ul de transcriere este limitat implicit la 40 cereri pe minut pentru fiecare combinatie IP + eveniment. Socket.IO nu mai foloseste wildcard CORS; accepta doar `PUBLIC_BASE_URL` si `localhost` pentru test local.
+
+Aplicatia foloseste `helmet` pentru HTTP security headers si `compression` pentru raspunsuri gzip. Logurile serverului sunt scrise in `logs/app.log`, cu rotire automata la 5MB si maximum 3 arhive vechi.
+
+Pentru Web Push Notifications, genereaza VAPID keys si adauga:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Seteaza apoi `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` si `WEB_PUSH_SUBJECT`. Cand operatorul porneste transcrierea, participantii abonati primesc notificarea ca serviciul este live.
 
 ## Commercial foundation
 

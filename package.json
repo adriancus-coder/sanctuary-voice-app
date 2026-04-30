@@ -7,12 +7,15 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "compression": "^1.8.1",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "helmet": "^8.1.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.49.0",
     "multer": "^2.0.0",
     "openai": "^4.104.0",
     "qrcode": "^1.5.4",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "web-push": "^3.6.7"
   }
 }
