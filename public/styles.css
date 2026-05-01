@@ -2800,6 +2800,21 @@ body.participant-preview-mode .participant-event-chooser {
     0 2px 0 rgba(0, 0, 0, 0.35),
     0 0 34px rgba(255, 236, 198, 0.16);
   animation: displayFadeIn 280ms ease;
+  font-size: calc(clamp(2.6rem, 5.6vw, 7rem) * var(--dual-text-scale, 1));
+}
+
+.unified-display-dual[data-text-size="compact"] .unified-display-language-text {
+  font-size: calc(clamp(1.9rem, 3.8vw, 4.6rem) * var(--dual-text-scale, 1));
+}
+
+.unified-display-dual[data-text-size="xlarge"] .unified-display-language-text {
+  font-size: calc(clamp(3.4rem, 7vw, 9rem) * var(--dual-text-scale, 1));
+  line-height: 1.06;
+}
+
+.unified-display-dual[data-text-size="huge"] .unified-display-language-text {
+  font-size: calc(clamp(4.2rem, 8.6vw, 11rem) * var(--dual-text-scale, 1));
+  line-height: 1.04;
 }
 
 .unified-display-text {
