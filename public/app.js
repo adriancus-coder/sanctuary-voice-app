@@ -3537,3 +3537,60 @@ function urlBase64ToUint8ArrayLocal(base64String) {
 try {
   socket.on('access_request_created', () => { refreshAccessRequests(); });
 } catch (_) {}
+
+// ---------- Self-test panel ----------
+
+async function runSelfTest() {
+  const btn = document.getElementById('runSelfTestBtn');
+  const results = document.getElementById('selfTestResults');
+  const summary = document.getElementById('selfTestSummary');
+  if (!btn || !results) return;
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  results.innerHTML = '<div class="muted">Running checks…</div>';
+  if (summary) summary.textContent = '';
+  try {
+    const res = await fetch('/api/admin/self-test');
+    if (res.status === 401) {
+      results.innerHTML = '<div class="muted">Admin session expired.</div>';
+      return;
+    }
+    const data = await res.json();
+    if (!data.ok) {
+      results.innerHTML = `<div class="muted">${escapeHtml(data.error || 'Self-test failed.')}</div>`;
+      return;
+    }
+    renderSelfTestResults(data);
+  } catch (err) {
+    console.error(err);
+    results.innerHTML = '<div class="muted">Connection error. Try again.</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Run self-test';
+  }
+}
+
+function renderSelfTestResults(data) {
+  const results = document.getElementById('selfTestResults');
+  const summary = document.getElementById('selfTestSummary');
+  if (!results) return;
+  const checks = Array.isArray(data.checks) ? data.checks : [];
+  if (!checks.length) {
+    results.innerHTML = '<div class="muted">No checks returned.</div>';
+    return;
+  }
+  results.innerHTML = checks.map((c) => `
+    <div class="self-test-row" data-status="${escapeHtml(c.status || 'warn')}">
+      <span class="self-test-dot"></span>
+      <strong class="self-test-name">${escapeHtml(c.name || 'Check')}</strong>
+      <span class="self-test-msg">${escapeHtml(c.message || '')}</span>
+    </div>
+  `).join('');
+  if (summary) {
+    const s = data.summary || {};
+    const ranAt = data.ranAt ? new Date(data.ranAt).toLocaleTimeString() : '';
+    summary.textContent = `${s.ok || 0} ok · ${s.warn || 0} warn · ${s.fail || 0} fail · ${ranAt}`;
+  }
+}
+
+document.getElementById('runSelfTestBtn')?.addEventListener('click', runSelfTest);

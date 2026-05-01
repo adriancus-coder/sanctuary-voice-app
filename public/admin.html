@@ -98,6 +98,20 @@
           </div>
         </div>
 
+        <div class="panel glass-panel section-stack" id="selfTestPanel">
+          <div class="section-head">
+            <div>
+              <h2>System self-test</h2>
+              <div class="muted">Quick check of database, sockets, OpenAI, Azure Speech, web push, backups, and disk.</div>
+            </div>
+            <div class="button-row compact">
+              <span id="selfTestSummary" class="muted"></span>
+              <button id="runSelfTestBtn" class="btn btn-primary" type="button">Run self-test</button>
+            </div>
+          </div>
+          <div id="selfTestResults" class="self-test-results"></div>
+        </div>
+
         <div class="cards-grid two dashboard-main-grid">
           <div class="panel glass-panel section-stack control-card">
             <div class="section-head">

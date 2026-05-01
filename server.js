@@ -3400,6 +3400,149 @@ app.delete('/api/admin/granted-operators/:code', (req, res) => {
   res.json({ ok: true });
 });
 
+async function runSelfTestChecks() {
+  const checks = [];
+  const orgId = DEFAULT_ORG_ID;
+
+  // 1. DB readable
+  try {
+    const eventsCount = Object.keys(db.events || {}).length;
+    checks.push({ name: 'Database', status: 'ok', message: `Loaded ${eventsCount} event(s).` });
+  } catch (err) {
+    checks.push({ name: 'Database', status: 'fail', message: err?.message || 'DB read failed.' });
+  }
+
+  // 2. Active event
+  const activeId = getActiveEventIdForOrg(orgId);
+  if (activeId && db.events[activeId]) {
+    const ev = db.events[activeId];
+    checks.push({ name: 'Active event', status: 'ok', message: `${ev.name || 'Event'} (${ev.shortId || ev.id})` });
+  } else {
+    checks.push({ name: 'Active event', status: 'warn', message: 'No event is currently set as live.' });
+  }
+
+  // 3. Connected sockets (rough: count of io clients)
+  try {
+    const socketsCount = io.sockets.sockets ? io.sockets.sockets.size : 0;
+    checks.push({ name: 'Socket.IO', status: 'ok', message: `${socketsCount} connected client(s).` });
+  } catch (err) {
+    checks.push({ name: 'Socket.IO', status: 'warn', message: 'Could not read socket count.' });
+  }
+
+  // 4. Disk space
+  try {
+    const disk = dbStore.getDiskInfo();
+    if (!disk || disk.freeBytes == null) {
+      checks.push({ name: 'Disk space', status: 'warn', message: 'Disk info unavailable on this platform.' });
+    } else {
+      const freeMb = Math.round(disk.freeBytes / (1024 * 1024));
+      const totalMb = Math.round(disk.totalBytes / (1024 * 1024));
+      const status = freeMb < 200 ? 'fail' : freeMb < 1000 ? 'warn' : 'ok';
+      checks.push({ name: 'Disk space', status, message: `${freeMb} MB free of ${totalMb} MB.` });
+    }
+  } catch (err) {
+    checks.push({ name: 'Disk space', status: 'warn', message: err?.message || 'Disk check failed.' });
+  }
+
+  // 5. Backup freshness
+  try {
+    const dataDir = dbStore.dataDir;
+    if (dataDir && fs.existsSync(dataDir)) {
+      const files = fs.readdirSync(dataDir).filter((f) => /^sessions\.backup-\d{4}-\d{2}-\d{2}\.json$/.test(f));
+      if (!files.length) {
+        checks.push({ name: 'Backup', status: 'warn', message: 'No daily backup found yet.' });
+      } else {
+        files.sort();
+        const latest = files[files.length - 1];
+        const stat = fs.statSync(path.join(dataDir, latest));
+        const ageHours = Math.round((Date.now() - stat.mtimeMs) / (1000 * 60 * 60));
+        const status = ageHours > 48 ? 'warn' : 'ok';
+        checks.push({ name: 'Backup', status, message: `Latest: ${latest} (${ageHours}h ago).` });
+      }
+    } else {
+      checks.push({ name: 'Backup', status: 'warn', message: 'Data directory not yet created.' });
+    }
+  } catch (err) {
+    checks.push({ name: 'Backup', status: 'warn', message: err?.message || 'Backup check failed.' });
+  }
+
+  // 6. OpenAI configured + reachable
+  if (!OPENAI_API_KEY) {
+    checks.push({ name: 'OpenAI', status: 'fail', message: 'OPENAI_API_KEY is not configured.' });
+  } else {
+    try {
+      const text = await Promise.race([
+        translationService.translateWithResponses({
+          model: OPENAI_MODEL,
+          input: [
+            { role: 'system', content: 'Translate from English to Romanian. Output only the translation, nothing else.' },
+            { role: 'user', content: 'Hello' }
+          ]
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out after 8s')), 8000))
+      ]);
+      const trimmed = String(text || '').trim();
+      if (trimmed) {
+        checks.push({ name: 'OpenAI translate', status: 'ok', message: `Replied: "${trimmed.slice(0, 60)}".` });
+      } else {
+        checks.push({ name: 'OpenAI translate', status: 'warn', message: 'API responded but with empty text.' });
+      }
+    } catch (err) {
+      checks.push({ name: 'OpenAI translate', status: 'fail', message: err?.message || 'API call failed.' });
+    }
+  }
+
+  // 7. Azure speech configured
+  if (SPEECH_PROVIDER === 'azure' || SPEECH_PROVIDER === 'azure_sdk') {
+    if (AZURE_SPEECH_KEY && AZURE_SPEECH_REGION) {
+      checks.push({ name: 'Azure Speech', status: 'ok', message: `Configured (region: ${AZURE_SPEECH_REGION}).` });
+    } else {
+      checks.push({ name: 'Azure Speech', status: 'fail', message: 'SPEECH_PROVIDER=azure but key or region missing.' });
+    }
+  } else {
+    checks.push({ name: 'Azure Speech', status: 'ok', message: 'Not selected (using OpenAI for STT).' });
+  }
+
+  // 8. Web Push
+  if (WEB_PUSH_ENABLED) {
+    checks.push({ name: 'Web Push', status: 'ok', message: 'VAPID keys configured.' });
+  } else {
+    checks.push({ name: 'Web Push', status: 'warn', message: 'WEB_PUSH_PUBLIC_KEY / PRIVATE_KEY not set.' });
+  }
+
+  // 9. Admin auth configured
+  if (isAdminLoginConfigured()) {
+    checks.push({ name: 'Admin login', status: 'ok', message: 'MASTER_ADMIN_PIN configured.' });
+  } else {
+    checks.push({ name: 'Admin login', status: COMMERCIAL_MODE ? 'fail' : 'warn', message: 'MASTER_ADMIN_PIN missing.' });
+  }
+
+  // 10. Operator login configured
+  if (MAIN_OPERATOR_PIN) {
+    checks.push({ name: 'Operator PIN', status: 'ok', message: 'MAIN_OPERATOR_PIN configured.' });
+  } else {
+    checks.push({ name: 'Operator PIN', status: 'warn', message: 'MAIN_OPERATOR_PIN not set; only granted codes work.' });
+  }
+
+  return checks;
+}
+
+app.get('/api/admin/self-test', async (req, res) => {
+  if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  try {
+    const checks = await runSelfTestChecks();
+    const summary = {
+      ok: checks.filter((c) => c.status === 'ok').length,
+      warn: checks.filter((c) => c.status === 'warn').length,
+      fail: checks.filter((c) => c.status === 'fail').length
+    };
+    res.json({ ok: true, checks, summary, ranAt: new Date().toISOString() });
+  } catch (err) {
+    logger.error('self-test error:', err?.message || err);
+    res.status(500).json({ ok: false, error: 'Self-test failed.' });
+  }
+});
+
 app.post('/api/admin/push-subscribe', (req, res) => {
   if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   if (!WEB_PUSH_ENABLED) return res.status(503).json({ ok: false, error: 'Push not configured.' });
