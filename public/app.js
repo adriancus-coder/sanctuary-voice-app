@@ -1054,6 +1054,11 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
     const langs = (event.targetLangs || []).map((lang) => langLabel(lang)).join(', ');
     card.innerHTML = `
       <div class="event-card-head"><div class="event-name">${escapeHtml(event.name || 'New event')}</div><div class="mini-badge">${event.mode || 'live'}</div></div>
+      <div class="event-id-row">
+        <span class="event-id-label">Event ID</span>
+        <code class="event-id-value">${escapeHtml(event.id)}</code>
+        <button class="btn btn-dark event-id-copy" type="button" data-action="copy-id" data-id="${event.id}" title="Copy Event ID">Copy</button>
+      </div>
       <div class="muted">Scheduled: ${escapeHtml(formatDateTime(event.scheduledAt || event.createdAt))}</div>
       <div class="muted">Languages: ${escapeHtml(langs || '-')}</div>
       <div class="muted">Texts: ${event.transcriptCount || 0}</div>
@@ -3177,6 +3182,10 @@ $('eventList').addEventListener('click', async (e) => {
   if (!btn) return;
   const id = btn.getAttribute('data-id');
   const action = btn.getAttribute('data-action');
+  if (action === 'copy-id') {
+    await copyTextQuick(id, btn);
+    return;
+  }
   if (action === 'open') return openEventById(id);
   if (action === 'activate') {
     const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event to activate it:') || '').trim();
