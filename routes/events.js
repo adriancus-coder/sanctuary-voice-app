@@ -144,6 +144,7 @@ function registerEventRoutes(app, ctx) {
     const baseUrl = buildBaseUrl(req);
     const now = Date.now();
     const events = getOrganizationEvents(DEFAULT_ORG_ID)
+      .filter((event) => !event.hidden)
       .filter((event) => typeof event.scheduledTimestamp === 'number' && event.scheduledTimestamp > now)
       .sort((a, b) => a.scheduledTimestamp - b.scheduledTimestamp)
       .map((event) => ({
@@ -162,6 +163,7 @@ function registerEventRoutes(app, ctx) {
   app.get('/api/events/public', (req, res) => {
     const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
     const events = getOrganizationEvents(DEFAULT_ORG_ID)
+      .filter((event) => !event.hidden)
       .sort((a, b) => {
         const left = new Date(a.scheduledAt || a.createdAt || 0);
         const right = new Date(b.scheduledAt || b.createdAt || 0);

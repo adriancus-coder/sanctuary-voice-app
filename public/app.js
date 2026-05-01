@@ -1053,8 +1053,9 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
     card.className = `event-card${event.id === activeEventId ? ' active' : ''}${event.id === openedEventId ? ' opened' : ''}`;
     const langs = (event.targetLangs || []).map((lang) => langLabel(lang)).join(', ');
     const displayId = event.shortId || event.id;
+    const hiddenBadge = event.hidden ? '<div class="mini-badge mini-badge-warn" title="Hidden from participants">Hidden</div>' : '';
     card.innerHTML = `
-      <div class="event-card-head"><div class="event-name">${escapeHtml(event.name || 'New event')}</div><div class="mini-badge">${event.mode || 'live'}</div></div>
+      <div class="event-card-head"><div class="event-name">${escapeHtml(event.name || 'New event')}</div><div class="mini-badge">${event.mode || 'live'}</div>${hiddenBadge}</div>
       <div class="event-id-row">
         <span class="event-id-label">Event ID</span>
         <code class="event-id-value">${escapeHtml(displayId)}</code>

@@ -1256,6 +1256,7 @@ function summarizeEvent(event) {
     shortId: event.shortId,
     organizationId: org.id,
     organizationName: org.name,
+    hidden: !!event.hidden,
     name: event.name,
     createdAt: event.createdAt || null,
     scheduledAt: event.scheduledAt || null,
@@ -1481,6 +1482,7 @@ function normalizeEvent(event, options = {}) {
     shortId: event.shortId,
     organizationId: org.id,
     organization: buildPublicOrganization(org),
+    hidden: !!event.hidden,
     name: event.name,
     sourceLang: event.sourceLang || 'ro',
     liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
@@ -1988,7 +1990,7 @@ function deriveScheduledFields({ scheduledDate, scheduledTime, timezone, schedul
   };
 }
 
-async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt, scheduledDate, scheduledTime, timezone, organizationId = DEFAULT_ORG_ID }) {
+async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt, scheduledDate, scheduledTime, timezone, hidden = false, organizationId = DEFAULT_ORG_ID }) {
   const organization = ensureOrganization(organizationId);
   const id = randomUUID();
   const adminCode = `SV-ADMIN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
@@ -2006,6 +2008,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     id,
     shortId: generateEventShortId(),
     organizationId: organization.id,
+    hidden: !!hidden,
     name: name || 'Eveniment nou',
     sourceLang: sourceLang || 'ro',
     liveSourceLang: sourceLang || 'ro',
@@ -3634,8 +3637,28 @@ registerSocketHandlers(io, {
   startAzureSpeechSession
 });
 
+async function ensureDefaultEvent() {
+  const orgEvents = getOrganizationEvents(DEFAULT_ORG_ID);
+  if (orgEvents.length > 0) return;
+  try {
+    const baseUrl = PUBLIC_BASE_URL || `http://localhost:${PORT}`;
+    const event = await createEvent({
+      name: 'Default test service',
+      sourceLang: 'ro',
+      targetLangs: ['no', 'en'],
+      baseUrl,
+      hidden: true,
+      organizationId: DEFAULT_ORG_ID
+    });
+    logger.info('Default test event auto-created (hidden from participants):', event.id, event.shortId);
+  } catch (err) {
+    logger.error('Could not auto-create default event:', err?.message || err);
+  }
+}
+
 const httpServer = server.listen(PORT, () => {
   logger.info(`Sanctuary Voice running on ${httpServer.address()?.port || PORT}`);
+  ensureDefaultEvent().catch((err) => logger.error('ensureDefaultEvent error:', err?.message || err));
 });
 
 let shutdownStarted = false;
