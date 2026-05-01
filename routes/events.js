@@ -59,6 +59,7 @@ function registerEventRoutes(app, ctx) {
     queueSpeechText,
     recordScreenAction,
     recordTranscribeLatency,
+    recordTranscribeUsage,
     rememberDisplayState,
     requireAdminApiSession,
     requireEventAdmin,
@@ -159,6 +160,123 @@ function registerEventRoutes(app, ctx) {
         participantLink: event.participantLink || `${baseUrl}/participant?event=${event.id}`
       }));
     res.json({ ok: true, events });
+  });
+
+  app.get('/api/stats/overview', (req, res) => {
+    if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    const events = Object.values(db.events || {})
+      .filter((event) => getEventOrgId(event) === DEFAULT_ORG_ID);
+    let totalAudioSeconds = 0;
+    let totalTokens = 0;
+    let totalCost = 0;
+    let totalTranscripts = 0;
+    let totalUniqueParticipants = 0;
+    const list = events.map((event) => {
+      const stats = event.usageStats || {};
+      const audioSeconds = Number(stats.audioSeconds) || 0;
+      const tokens = Number(stats.tokensTranslation) || 0;
+      const cost = Number(stats.estimatedCostUSD) || 0;
+      const transcripts = Array.isArray(event.transcripts) ? event.transcripts.length : (Number(stats.transcriptCount) || 0);
+      const uniqueParticipants = Number(stats.uniqueParticipantsEver) || 0;
+      totalAudioSeconds += audioSeconds;
+      totalTokens += tokens;
+      totalCost += cost;
+      totalTranscripts += transcripts;
+      totalUniqueParticipants += uniqueParticipants;
+      return {
+        id: event.id,
+        shortId: event.shortId || null,
+        name: event.name || 'Untitled event',
+        scheduledAt: event.scheduledAt || null,
+        scheduledTimestamp: typeof event.scheduledTimestamp === 'number' ? event.scheduledTimestamp : null,
+        createdAt: event.createdAt || null,
+        sourceLang: event.sourceLang || 'ro',
+        targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
+        hidden: !!event.hidden,
+        testMode: !!event.testMode,
+        audioSeconds,
+        tokensTranslation: tokens,
+        estimatedCostUSD: cost,
+        transcriptCount: transcripts,
+        uniqueParticipantsEver: uniqueParticipants
+      };
+    }).sort((a, b) => {
+      const at = a.scheduledTimestamp || new Date(a.scheduledAt || a.createdAt || 0).getTime();
+      const bt = b.scheduledTimestamp || new Date(b.scheduledAt || b.createdAt || 0).getTime();
+      return bt - at;
+    });
+    res.json({
+      ok: true,
+      totals: {
+        events: events.length,
+        uniqueParticipants: totalUniqueParticipants,
+        audioSeconds: totalAudioSeconds,
+        audioHours: Math.round((totalAudioSeconds / 3600) * 100) / 100,
+        tokensTranslation: totalTokens,
+        transcripts: totalTranscripts,
+        estimatedCostUSD: Math.round(totalCost * 1e4) / 1e4
+      },
+      events: list
+    });
+  });
+
+  app.get('/api/events/:id/stats', (req, res) => {
+    if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    const event = db.events[req.params.id];
+    if (!event || getEventOrgId(event) !== DEFAULT_ORG_ID) {
+      return res.status(404).json({ ok: false, error: 'Event not found.' });
+    }
+    const stats = event.usageStats || {};
+    const seenById = stats.seenParticipantIds && typeof stats.seenParticipantIds === 'object' ? stats.seenParticipantIds : {};
+    const participantsByLanguage = {};
+    Object.values(seenById).forEach((lang) => {
+      const key = String(lang || 'unknown').trim() || 'unknown';
+      participantsByLanguage[key] = (participantsByLanguage[key] || 0) + 1;
+    });
+    res.json({
+      ok: true,
+      event: {
+        id: event.id,
+        shortId: event.shortId || null,
+        name: event.name || 'Untitled event',
+        scheduledAt: event.scheduledAt || null,
+        scheduledTimestamp: typeof event.scheduledTimestamp === 'number' ? event.scheduledTimestamp : null,
+        createdAt: event.createdAt || null,
+        sourceLang: event.sourceLang || 'ro',
+        targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
+        transcriptCount: Array.isArray(event.transcripts) ? event.transcripts.length : (Number(stats.transcriptCount) || 0)
+      },
+      usageStats: {
+        ...stats,
+        seenParticipantIds: undefined
+      },
+      participantsByLanguage,
+      cost: {
+        audioCostUSD: Math.round((Number(stats.audioSeconds) || 0) * (0.003 / 60) * 1e6) / 1e6,
+        translationCostUSD: Math.round((Number(stats.tokensTranslation) || 0) * 0.0000004 * 1e6) / 1e6,
+        totalUSD: Number(stats.estimatedCostUSD) || 0
+      }
+    });
+  });
+
+  app.get('/api/events/:id/transcript-export', (req, res) => {
+    if (!hasValidAdminSession(req)) return res.status(401).send('Unauthorized');
+    const event = db.events[req.params.id];
+    if (!event || getEventOrgId(event) !== DEFAULT_ORG_ID) return res.status(404).send('Event not found.');
+    const lines = (Array.isArray(event.transcripts) ? event.transcripts : [])
+      .map((entry) => {
+        const time = entry?.createdAt ? new Date(entry.createdAt).toISOString() : '';
+        const head = `[${time}] (${entry?.sourceLang || event.sourceLang || 'ro'}) ${entry?.original || ''}`;
+        const tx = Object.entries(entry?.translations || {})
+          .map(([lang, text]) => `  ${lang.toUpperCase()}: ${text}`)
+          .join('\n');
+        return tx ? `${head}\n${tx}` : head;
+      })
+      .join('\n\n');
+    const filename = `transcript-${event.shortId || event.id}.txt`;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(`${event.name || 'Event'}\n\n${lines}\n`);
   });
 
   app.get('/api/events/resolve/:value', (req, res) => {
@@ -1229,6 +1347,10 @@ function registerEventRoutes(app, ctx) {
       const rawTranscript = await transcribeAudioFile(tempPath, event);
       if (typeof recordTranscribeLatency === 'function') {
         recordTranscribeLatency(Date.now() - startedAt);
+      }
+      if (typeof recordTranscribeUsage === 'function') {
+        const estimatedSeconds = Math.max(0.5, (req.file.buffer.length || 0) / 4000);
+        recordTranscribeUsage(event, estimatedSeconds);
       }
       const transcriptText = typeof rawTranscript === 'string' ? rawTranscript : rawTranscript?.text;
       const transcriptSourceLang = typeof rawTranscript === 'object' && rawTranscript?.sourceLang

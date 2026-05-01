@@ -29,6 +29,7 @@
         <button class="nav-btn" data-tab="song" type="button">Song</button>
         <button class="nav-btn" data-tab="glossary" type="button">Glossary</button>
         <button class="nav-btn" data-tab="manual" type="button">Quick Text</button>
+        <button class="nav-btn" data-tab="statistics" type="button">Statistics</button>
       </nav>
       <div class="sidebar-admin-actions">
         <button id="adminLogoutBtn" class="btn btn-dark full-width-btn" type="button">Logout admin</button>
@@ -725,6 +726,87 @@
               </select>
             </div>
             <div id="manualLibraryList" class="event-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-statistics" class="tab-panel">
+        <div class="cards-grid four metrics-grid" id="statsOverviewCards">
+          <div class="metric-card panel glass-panel">
+            <div class="metric-label">Total events</div>
+            <div id="statsOverviewEvents" class="metric-number">—</div>
+          </div>
+          <div class="metric-card panel glass-panel">
+            <div class="metric-label">Unique participants</div>
+            <div id="statsOverviewParticipants" class="metric-number">—</div>
+          </div>
+          <div class="metric-card panel glass-panel">
+            <div class="metric-label">Hours translated</div>
+            <div id="statsOverviewHours" class="metric-number">—</div>
+          </div>
+          <div class="metric-card panel glass-panel">
+            <div class="metric-label">Estimated API cost</div>
+            <div id="statsOverviewCost" class="metric-number">—</div>
+          </div>
+        </div>
+
+        <div class="panel glass-panel section-stack" id="statsEventsPanel">
+          <div class="section-head">
+            <h2>Events</h2>
+            <div class="button-row compact">
+              <button id="statsRefreshBtn" class="btn btn-dark" type="button">Refresh</button>
+            </div>
+          </div>
+          <div class="stats-events-table-wrap">
+            <table class="stats-events-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Date</th>
+                  <th>Duration</th>
+                  <th>Unique participants</th>
+                  <th>Sentences</th>
+                  <th>Cost (USD)</th>
+                </tr>
+              </thead>
+              <tbody id="statsEventsTableBody">
+                <tr><td colspan="6" class="muted">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel glass-panel section-stack" id="statsDetailPanel" hidden>
+          <div class="section-head">
+            <div>
+              <h2 id="statsDetailName">Event details</h2>
+              <div id="statsDetailMeta" class="muted"></div>
+            </div>
+            <div class="button-row compact">
+              <button id="statsDetailExportCsvBtn" class="btn btn-dark" type="button">Export CSV</button>
+              <button id="statsDetailExportTxtBtn" class="btn btn-dark" type="button">Export Transcript</button>
+              <button id="statsDetailCloseBtn" class="btn btn-dark" type="button">Close</button>
+            </div>
+          </div>
+
+          <div class="cards-grid three">
+            <div class="info-card soft-card">
+              <div class="label">Audio cost</div>
+              <div id="statsCostAudio" class="metric-text">—</div>
+            </div>
+            <div class="info-card soft-card">
+              <div class="label">Translation cost</div>
+              <div id="statsCostTranslation" class="metric-text">—</div>
+            </div>
+            <div class="info-card soft-card">
+              <div class="label">Total cost</div>
+              <div id="statsCostTotal" class="metric-text">—</div>
+            </div>
+          </div>
+
+          <div class="info-card soft-card">
+            <div class="label">Participants per language</div>
+            <div id="statsLangChart" class="stats-lang-chart"></div>
           </div>
         </div>
       </section>

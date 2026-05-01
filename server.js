@@ -731,6 +731,9 @@ function defaultUsageStats() {
     songControlCount: 0,
     adminJoinCount: 0,
     screenOperatorJoinCount: 0,
+    audioSeconds: 0,
+    tokensTranslation: 0,
+    estimatedCostUSD: 0,
     lastTranscriptAt: null,
     lastScreenActionAt: null,
     lastParticipantJoinAt: null,
@@ -739,6 +742,31 @@ function defaultUsageStats() {
     lastErrorAt: null,
     lastErrorMessage: ''
   };
+}
+
+const COST_PER_AUDIO_SECOND = 0.003 / 60;
+const COST_PER_TRANSLATION_TOKEN = 0.0000004;
+
+function recomputeEstimatedCost(stats) {
+  if (!stats) return 0;
+  const audioCost = (Number(stats.audioSeconds) || 0) * COST_PER_AUDIO_SECOND;
+  const translationCost = (Number(stats.tokensTranslation) || 0) * COST_PER_TRANSLATION_TOKEN;
+  stats.estimatedCostUSD = Math.round((audioCost + translationCost) * 1e6) / 1e6;
+  return stats.estimatedCostUSD;
+}
+
+function recordTranscribeUsage(event, audioSeconds) {
+  if (!event) return;
+  if (!event.usageStats) event.usageStats = defaultUsageStats();
+  event.usageStats.audioSeconds = (Number(event.usageStats.audioSeconds) || 0) + Math.max(0, Number(audioSeconds) || 0);
+  recomputeEstimatedCost(event.usageStats);
+}
+
+function recordTranslationUsage(event, tokens) {
+  if (!event) return;
+  if (!event.usageStats) event.usageStats = defaultUsageStats();
+  event.usageStats.tokensTranslation = (Number(event.usageStats.tokensTranslation) || 0) + Math.max(0, Number(tokens) || 0);
+  recomputeEstimatedCost(event.usageStats);
 }
 
 function normalizeDisplayTextScale(value, fallback = 1) {
@@ -2291,13 +2319,15 @@ async function translateText(text, langCode, event, sourceLangOverride = '') {
     lastBatchSourceLang: sourceLang
   });
   try {
-    const translatedText = await translationService.translateWithResponses({
+    const result = await translationService.translateWithResponsesDetailed({
       model: OPENAI_MODEL,
       input: [
         { role: 'system', content: buildPrompt(LANGUAGES[sourceLang] || sourceLang, LANGUAGES[langCode] || langCode, event.speed, glossary) },
         { role: 'user', content: cleanText }
       ]
     });
+    const translatedText = result.text;
+    if (result.tokens) recordTranslationUsage(event, result.tokens);
     const translated = sanitizeStructuredText(translatedText);
     if (translated) {
       writeTranslationCache(cacheKey, translated);
@@ -3768,6 +3798,8 @@ registerEventRoutes(app, {
   queueSpeechText,
   recordScreenAction,
   recordTranscribeLatency,
+  recordTranscribeUsage,
+  recordTranslationUsage,
   rememberDisplayState,
   requireAdminApiSession,
   requireEventAdmin,

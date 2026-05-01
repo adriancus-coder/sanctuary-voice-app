@@ -125,6 +125,9 @@ function switchTab(tabName) {
       document.querySelector('#transcriptList .entry')?.scrollIntoView({ block: 'start' });
     });
   }
+  if (tabName === 'statistics') {
+    renderStatisticsTab();
+  }
 }
 
 function relocateMainScreenControls() {
@@ -3771,3 +3774,213 @@ function renderSelfTestResults(data) {
 }
 
 document.getElementById('runSelfTestBtn')?.addEventListener('click', runSelfTest);
+
+// ---------- Statistics tab ----------
+
+let statsLoaded = false;
+let statsCurrentEvents = [];
+
+function formatHours(audioSeconds) {
+  const v = Number(audioSeconds) || 0;
+  if (v < 60) return `${v.toFixed(1)}s`;
+  if (v < 3600) return `${(v / 60).toFixed(1)} min`;
+  const hours = v / 3600;
+  return `${hours.toFixed(2)} h`;
+}
+
+function formatCostUSD(value) {
+  const v = Number(value) || 0;
+  if (v === 0) return '$0.00';
+  if (v < 0.01) return `$${v.toFixed(4)}`;
+  return `$${v.toFixed(2)}`;
+}
+
+function formatStatsDate(value) {
+  if (!value) return '—';
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch (_) {
+    return String(value);
+  }
+}
+
+async function renderStatisticsTab() {
+  try {
+    const res = await fetch('/api/stats/overview');
+    if (res.status === 401) return;
+    const data = await res.json();
+    if (!data.ok) return;
+    statsLoaded = true;
+    statsCurrentEvents = Array.isArray(data.events) ? data.events : [];
+    const totals = data.totals || {};
+    const evtEl = document.getElementById('statsOverviewEvents');
+    const partEl = document.getElementById('statsOverviewParticipants');
+    const hoursEl = document.getElementById('statsOverviewHours');
+    const costEl = document.getElementById('statsOverviewCost');
+    if (evtEl) evtEl.textContent = String(totals.events || 0);
+    if (partEl) partEl.textContent = String(totals.uniqueParticipants || 0);
+    if (hoursEl) hoursEl.textContent = `${(Number(totals.audioHours) || 0).toFixed(2)} h`;
+    if (costEl) costEl.textContent = formatCostUSD(totals.estimatedCostUSD);
+    renderStatsEventsTable(statsCurrentEvents);
+  } catch (err) {
+    console.error('stats overview load:', err);
+  }
+}
+
+function renderStatsEventsTable(events) {
+  const tbody = document.getElementById('statsEventsTableBody');
+  if (!tbody) return;
+  if (!events.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="muted">No events yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = events.map((event) => {
+    const date = formatStatsDate(event.scheduledAt || event.createdAt);
+    const duration = formatHours(event.audioSeconds);
+    return `
+      <tr data-stats-event-id="${escapeHtml(event.id)}" class="stats-events-row">
+        <td><strong>${escapeHtml(event.name)}</strong>${event.testMode ? ' <span class="mini-badge mini-badge-test" style="min-height:24px;padding:2px 8px;font-size:0.7rem;">Test</span>' : ''}</td>
+        <td>${escapeHtml(date)}</td>
+        <td>${escapeHtml(duration)}</td>
+        <td>${event.uniqueParticipantsEver || 0}</td>
+        <td>${event.transcriptCount || 0}</td>
+        <td>${formatCostUSD(event.estimatedCostUSD)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+document.getElementById('statsRefreshBtn')?.addEventListener('click', renderStatisticsTab);
+
+document.getElementById('statsEventsTableBody')?.addEventListener('click', (e) => {
+  const row = e.target.closest('tr[data-stats-event-id]');
+  if (!row) return;
+  const id = row.getAttribute('data-stats-event-id');
+  showEventStatsDetail(id);
+});
+
+document.getElementById('statsDetailCloseBtn')?.addEventListener('click', () => {
+  const panel = document.getElementById('statsDetailPanel');
+  if (panel) panel.hidden = true;
+});
+
+let statsDetailCurrentId = '';
+
+async function showEventStatsDetail(eventId) {
+  if (!eventId) return;
+  statsDetailCurrentId = eventId;
+  const panel = document.getElementById('statsDetailPanel');
+  if (!panel) return;
+  panel.hidden = false;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('statsDetailName').textContent = 'Loading…';
+  document.getElementById('statsDetailMeta').textContent = '';
+  document.getElementById('statsLangChart').innerHTML = '<div class="muted">Loading…</div>';
+  try {
+    const res = await fetch(`/api/events/${eventId}/stats`);
+    const data = await res.json();
+    if (!data.ok) {
+      document.getElementById('statsDetailName').textContent = data.error || 'Could not load event stats.';
+      return;
+    }
+    const ev = data.event || {};
+    document.getElementById('statsDetailName').textContent = ev.name || 'Event';
+    document.getElementById('statsDetailMeta').textContent = `${formatStatsDate(ev.scheduledAt || ev.createdAt)} · ${ev.transcriptCount || 0} sentences · ${(ev.targetLangs || []).join(', ') || 'no target languages'}`;
+    document.getElementById('statsCostAudio').textContent = formatCostUSD(data.cost?.audioCostUSD);
+    document.getElementById('statsCostTranslation').textContent = formatCostUSD(data.cost?.translationCostUSD);
+    document.getElementById('statsCostTotal').textContent = formatCostUSD(data.cost?.totalUSD);
+    renderLangBarChart(data.participantsByLanguage || {});
+  } catch (err) {
+    console.error('event stats load:', err);
+    document.getElementById('statsDetailName').textContent = 'Could not load event stats.';
+  }
+}
+
+function renderLangBarChart(participantsByLanguage) {
+  const box = document.getElementById('statsLangChart');
+  if (!box) return;
+  const entries = Object.entries(participantsByLanguage || {})
+    .filter(([, count]) => Number(count) > 0)
+    .sort((a, b) => b[1] - a[1]);
+  if (!entries.length) {
+    box.innerHTML = '<div class="muted">No participant data yet.</div>';
+    return;
+  }
+  const max = Math.max(...entries.map(([, count]) => Number(count) || 0), 1);
+  const rowHeight = 28;
+  const gap = 8;
+  const labelWidth = 110;
+  const barAreaWidth = 360;
+  const valueWidth = 50;
+  const totalWidth = labelWidth + barAreaWidth + valueWidth + 16;
+  const totalHeight = entries.length * (rowHeight + gap) - gap;
+  const rows = entries.map(([lang, count], i) => {
+    const y = i * (rowHeight + gap);
+    const w = Math.max(2, Math.round((Number(count) / max) * barAreaWidth));
+    const label = (availableLanguages && availableLanguages[lang]) || lang.toUpperCase();
+    return `
+      <text x="0" y="${y + rowHeight / 2 + 4}" fill="#888" font-family="-apple-system, sans-serif" font-size="13" font-weight="500">${escapeHtml(label)}</text>
+      <rect x="${labelWidth}" y="${y}" width="${barAreaWidth}" height="${rowHeight}" fill="rgba(212, 168, 83, 0.08)" rx="3"/>
+      <rect x="${labelWidth}" y="${y}" width="${w}" height="${rowHeight}" fill="#D4A853" rx="3"/>
+      <text x="${labelWidth + barAreaWidth + 8}" y="${y + rowHeight / 2 + 4}" fill="#F5F0E8" font-family="-apple-system, sans-serif" font-size="13" font-weight="600">${count}</text>
+    `;
+  }).join('');
+  box.innerHTML = `<svg viewBox="0 0 ${totalWidth} ${totalHeight}" width="100%" height="${totalHeight}" preserveAspectRatio="xMinYMin meet" style="max-width:680px;display:block;">${rows}</svg>`;
+}
+
+function downloadFile(filename, mime, content) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+document.getElementById('statsDetailExportCsvBtn')?.addEventListener('click', async () => {
+  if (!statsDetailCurrentId) return;
+  try {
+    const res = await fetch(`/api/events/${statsDetailCurrentId}/stats`);
+    const data = await res.json();
+    if (!data.ok) return alert(data.error || 'Could not load event stats.');
+    const stats = data.usageStats || {};
+    const cost = data.cost || {};
+    const ev = data.event || {};
+    const lines = [];
+    lines.push('Field,Value');
+    lines.push(`Event,"${(ev.name || '').replace(/"/g, '""')}"`);
+    lines.push(`Event ID,${ev.id || ''}`);
+    lines.push(`Short ID,${ev.shortId || ''}`);
+    lines.push(`Date,${formatStatsDate(ev.scheduledAt || ev.createdAt)}`);
+    lines.push(`Source language,${ev.sourceLang || ''}`);
+    lines.push(`Target languages,"${(ev.targetLangs || []).join(', ')}"`);
+    lines.push(`Sentences (transcripts),${ev.transcriptCount || 0}`);
+    lines.push(`Audio seconds,${stats.audioSeconds || 0}`);
+    lines.push(`Audio hours,${((stats.audioSeconds || 0) / 3600).toFixed(4)}`);
+    lines.push(`Translation tokens,${stats.tokensTranslation || 0}`);
+    lines.push(`Audio cost USD,${cost.audioCostUSD || 0}`);
+    lines.push(`Translation cost USD,${cost.translationCostUSD || 0}`);
+    lines.push(`Total cost USD,${cost.totalUSD || 0}`);
+    lines.push(`Unique participants,${stats.uniqueParticipantsEver || 0}`);
+    lines.push(`Participant joins,${stats.participantJoinCount || 0}`);
+    lines.push('');
+    lines.push('Language,Participants');
+    Object.entries(data.participantsByLanguage || {}).forEach(([lang, count]) => {
+      lines.push(`${lang},${count}`);
+    });
+    downloadFile(`stats-${ev.shortId || ev.id || 'event'}.csv`, 'text/csv;charset=utf-8', lines.join('\n'));
+  } catch (err) {
+    console.error(err);
+    alert('Could not export CSV.');
+  }
+});
+
+document.getElementById('statsDetailExportTxtBtn')?.addEventListener('click', () => {
+  if (!statsDetailCurrentId) return;
+  window.location.href = `/api/events/${statsDetailCurrentId}/transcript-export`;
+});

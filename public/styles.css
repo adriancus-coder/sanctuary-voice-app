@@ -1607,6 +1607,66 @@ progress::-moz-progress-bar {
   font-size: 0.92rem;
 }
 
+/* Statistics tab */
+.cards-grid.four {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.stats-events-table-wrap {
+  overflow-x: auto;
+}
+
+.stats-events-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.stats-events-table thead th {
+  text-align: left;
+  color: var(--gold-strong);
+  font-weight: 700;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.stats-events-table tbody td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 240, 214, 0.06);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.stats-events-table tbody tr.stats-events-row {
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.stats-events-table tbody tr.stats-events-row:hover {
+  background: rgba(212, 168, 83, 0.05);
+}
+
+.stats-lang-chart {
+  margin-top: 6px;
+  overflow-x: auto;
+}
+
+.stats-lang-chart svg text {
+  dominant-baseline: middle;
+}
+
+@media (max-width: 768px) {
+  .cards-grid.four { grid-template-columns: 1fr 1fr; }
+  .stats-events-table { font-size: 0.85rem; }
+  .stats-events-table thead th,
+  .stats-events-table tbody td { padding: 8px 6px; }
+}
+
 .song-grid .song-textarea {
   min-height: 220px;
   line-height: 1.68;
