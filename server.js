@@ -755,18 +755,30 @@ function recomputeEstimatedCost(stats) {
   return stats.estimatedCostUSD;
 }
 
+// Stats mutations are deferred via setImmediate so they always run AFTER
+// the current tick's Socket.IO emits and HTTP responses. They never call
+// saveDb() — the new in-memory values ride along on whatever saveDb() the
+// regular transcript / song / admin flows already trigger.
 function recordTranscribeUsage(event, audioSeconds) {
   if (!event) return;
-  if (!event.usageStats) event.usageStats = defaultUsageStats();
-  event.usageStats.audioSeconds = (Number(event.usageStats.audioSeconds) || 0) + Math.max(0, Number(audioSeconds) || 0);
-  recomputeEstimatedCost(event.usageStats);
+  const seconds = Math.max(0, Number(audioSeconds) || 0);
+  if (!seconds) return;
+  setImmediate(() => {
+    if (!event.usageStats) event.usageStats = defaultUsageStats();
+    event.usageStats.audioSeconds = (Number(event.usageStats.audioSeconds) || 0) + seconds;
+    recomputeEstimatedCost(event.usageStats);
+  });
 }
 
 function recordTranslationUsage(event, tokens) {
   if (!event) return;
-  if (!event.usageStats) event.usageStats = defaultUsageStats();
-  event.usageStats.tokensTranslation = (Number(event.usageStats.tokensTranslation) || 0) + Math.max(0, Number(tokens) || 0);
-  recomputeEstimatedCost(event.usageStats);
+  const amount = Math.max(0, Number(tokens) || 0);
+  if (!amount) return;
+  setImmediate(() => {
+    if (!event.usageStats) event.usageStats = defaultUsageStats();
+    event.usageStats.tokensTranslation = (Number(event.usageStats.tokensTranslation) || 0) + amount;
+    recomputeEstimatedCost(event.usageStats);
+  });
 }
 
 function normalizeDisplayTextScale(value, fallback = 1) {
