@@ -1532,6 +1532,14 @@ progress::-moz-progress-bar {
   word-break: break-word;
 }
 
+/* Prominent "Back to live text" button on song panels */
+.back-to-live-btn {
+  min-height: 52px;
+  font-size: 1.02rem;
+  letter-spacing: 0.02em;
+  font-weight: 800;
+}
+
 .access-request-role {
   display: flex;
   align-items: center;

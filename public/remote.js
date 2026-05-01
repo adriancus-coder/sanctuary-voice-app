@@ -755,14 +755,16 @@ $('remoteSongClearBtn').addEventListener('click', () => {
   setStatus('Song editor cleared.');
 });
 
-$('remoteBackToLiveTextBtn').addEventListener('click', async () => {
+async function remoteBackToLiveText() {
   try {
     await post(`/api/events/${state.eventId}/mode`, { mode: 'live', scope: 'participant' });
     setStatus('Participants are back on live text. Main screen unchanged.');
   } catch (err) {
     setStatus(err.message);
   }
-});
+}
+$('remoteBackToLiveTextBtn')?.addEventListener('click', remoteBackToLiveText);
+$('remoteBackToLiveTextNavBtn')?.addEventListener('click', remoteBackToLiveText);
 $('remoteSongSaveBtn').addEventListener('click', async () => {
   const title = $('remoteSongTitle')?.value.trim() || '';
   const text = $('remoteSongText')?.value.trim() || '';

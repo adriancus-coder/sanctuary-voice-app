@@ -890,9 +890,23 @@ $('participantEventList').addEventListener('click', async (event) => {
   if (!btn || btn.disabled) return;
   await joinParticipantEvent(btn.getAttribute('data-participant-event'));
 });
+function applyAudioButtonState() {
+  const playBtn = $('playAudioBtn');
+  const pauseBtn = $('pauseAudioBtn');
+  if (playBtn) {
+    playBtn.classList.toggle('btn-primary', !!state.localAudioEnabled);
+    playBtn.classList.toggle('btn-dark', !state.localAudioEnabled);
+  }
+  if (pauseBtn) {
+    pauseBtn.classList.toggle('btn-primary', !state.localAudioEnabled);
+    pauseBtn.classList.toggle('btn-dark', !!state.localAudioEnabled);
+  }
+}
+
 $('playAudioBtn').addEventListener('click', () => {
   state.localAudioEnabled = true;
   setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Audio active.');
+  applyAudioButtonState();
   const latestEntry = getLatestEntry();
   if (latestEntry) speakLatestEntry(latestEntry);
 });
@@ -901,6 +915,7 @@ $('pauseAudioBtn').addEventListener('click', () => {
   state.localAudioEnabled = false;
   stopSpeech();
   setStatus('Local audio paused.');
+  applyAudioButtonState();
 });
 
 $('participantCompactBtn').addEventListener('click', () => {
@@ -937,6 +952,7 @@ window.addEventListener('load', async () => {
 
   await enableWakeLock();
   applyParticipantViewMode();
+  applyAudioButtonState();
   await loadParticipantEvents({ joinFixedIfLive: !!state.fixedEventId });
 });
 
