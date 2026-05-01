@@ -52,6 +52,11 @@ const DEFAULT_ORG_ID = String(process.env.DEFAULT_ORG_ID || process.env.ORGANIZA
 const DEFAULT_ORG_NAME = String(process.env.DEFAULT_ORG_NAME || process.env.ORGANIZATION_NAME || 'Sanctuary Voice').trim() || 'Sanctuary Voice';
 const DEFAULT_ORG_PLAN = String(process.env.DEFAULT_ORG_PLAN || 'internal').trim() || 'internal';
 const COMMERCIAL_MODE = ['1', 'true', 'yes'].includes(String(process.env.COMMERCIAL_MODE || '').trim().toLowerCase());
+const SUMMARY_WEBHOOK_URL = String(process.env.SUMMARY_WEBHOOK_URL || '').trim();
+const SUMMARY_RECIPIENT = String(process.env.SUMMARY_RECIPIENT || '').trim();
+const AUDIO_ARCHIVE_ENABLED = ['1', 'true', 'yes'].includes(String(process.env.AUDIO_ARCHIVE_ENABLED || '').trim().toLowerCase());
+const AUDIO_ARCHIVE_DIR = process.env.AUDIO_ARCHIVE_DIR || path.join(process.env.DATA_DIR || path.join(__dirname, 'data'), 'audio');
+const AUDIO_ARCHIVE_MAX_BYTES_PER_EVENT = Math.max(1024 * 1024, Number(process.env.AUDIO_ARCHIVE_MAX_BYTES_PER_EVENT) || 500 * 1024 * 1024);
 const ADMIN_SESSION_COOKIE = 'sv_admin_session';
 const ADMIN_SESSION_PERSISTENT = ['1', 'true', 'yes'].includes(String(process.env.ADMIN_SESSION_PERSISTENT || '').trim().toLowerCase());
 const ADMIN_SESSION_MAX_AGE_MS = Math.max(1, Number(process.env.ADMIN_SESSION_MAX_AGE_HOURS || 12) || 12) * 60 * 60 * 1000;
@@ -77,6 +82,29 @@ if (WEB_PUSH_ENABLED) {
 const CORS_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 const CORS_ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With'];
 const ALLOWED_CORS_ORIGINS = buildAllowedCorsOrigins();
+function audioArchivePath(eventId) {
+  return path.join(AUDIO_ARCHIVE_DIR, `${String(eventId).replace(/[^a-zA-Z0-9-]/g, '')}.webm`);
+}
+
+function appendAudioArchiveChunk(event, buffer) {
+  if (!AUDIO_ARCHIVE_ENABLED || !event || !buffer || !buffer.length) return;
+  setImmediate(() => {
+    try {
+      if (!fs.existsSync(AUDIO_ARCHIVE_DIR)) fs.mkdirSync(AUDIO_ARCHIVE_DIR, { recursive: true });
+      const filePath = audioArchivePath(event.id);
+      const currentSize = fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
+      if (currentSize >= AUDIO_ARCHIVE_MAX_BYTES_PER_EVENT) return;
+      fs.appendFileSync(filePath, buffer);
+      if (!event.audioArchive || typeof event.audioArchive !== 'object') event.audioArchive = {};
+      event.audioArchive.bytes = currentSize + buffer.length;
+      event.audioArchive.chunks = (Number(event.audioArchive.chunks) || 0) + 1;
+      event.audioArchive.lastChunkAt = new Date().toISOString();
+    } catch (err) {
+      logger.warn('audio archive append failed:', err?.message || err);
+    }
+  });
+}
+
 const transcribeRateLimits = new Map();
 const transcribeLatencyBuffer = [];
 const TRANSCRIBE_LATENCY_BUFFER_SIZE = 30;
@@ -3730,6 +3758,56 @@ app.get('/api/admin/self-test', async (req, res) => {
   }
 });
 
+app.post('/api/events/:id/email-summary', async (req, res) => {
+  if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const event = db.events[req.params.id];
+  if (!event) return res.status(404).json({ ok: false, error: 'Event not found.' });
+  if (!SUMMARY_WEBHOOK_URL) return res.status(503).json({ ok: false, error: 'SUMMARY_WEBHOOK_URL is not configured.' });
+  const stats = event.usageStats || {};
+  const baseUrl = buildBaseUrl(req);
+  const transcriptUrl = `${baseUrl}/api/events/${event.id}/transcript-export`;
+  const payload = {
+    type: 'service_summary',
+    sentAt: new Date().toISOString(),
+    recipient: SUMMARY_RECIPIENT || null,
+    event: {
+      id: event.id,
+      shortId: event.shortId || null,
+      name: event.name || 'Event',
+      scheduledAt: event.scheduledAt || null,
+      sourceLang: event.sourceLang || 'ro',
+      targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : []
+    },
+    stats: {
+      transcripts: Array.isArray(event.transcripts) ? event.transcripts.length : 0,
+      uniqueParticipants: Number(stats.uniqueParticipantsEver) || 0,
+      audioSeconds: Number(stats.audioSeconds) || 0,
+      audioHours: Math.round(((Number(stats.audioSeconds) || 0) / 3600) * 100) / 100,
+      tokensTranslation: Number(stats.tokensTranslation) || 0,
+      estimatedCostUSD: Number(stats.estimatedCostUSD) || 0
+    },
+    transcriptUrl
+  };
+  try {
+    const response = await fetch(SUMMARY_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      logger.warn('email summary webhook returned non-2xx:', response.status, text.slice(0, 200));
+      return res.status(502).json({ ok: false, error: `Webhook responded ${response.status}.` });
+    }
+    recordAudit(getEventOrgId(event), 'summary_sent', { eventId: event.id, name: event.name, recipient: SUMMARY_RECIPIENT || null });
+    saveDb();
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error('email summary error:', err?.message || err);
+    res.status(500).json({ ok: false, error: 'Could not deliver summary.' });
+  }
+});
+
 app.get('/api/admin/audit-log', (req, res) => {
   if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   const org = ensureOrganization(DEFAULT_ORG_ID);
@@ -3871,6 +3949,9 @@ registerOrgRoutes(app, {
 });
 
 registerEventRoutes(app, {
+  AUDIO_ARCHIVE_ENABLED,
+  SUMMARY_WEBHOOK_URL,
+  SUMMARY_RECIPIENT,
   AZURE_SPEECH_KEY,
   AZURE_SPEECH_REGION,
   COMMERCIAL_MODE,
@@ -3879,6 +3960,8 @@ registerEventRoutes(app, {
   LANGUAGE_NAMES_RO,
   TRANSCRIBE_RATE_LIMIT_MAX,
   TRANSCRIBE_RATE_LIMIT_WINDOW_MS,
+  appendAudioArchiveChunk,
+  audioArchivePath,
   applyDisplaySnapshot,
   applySourceCorrections,
   buildBaseUrl,

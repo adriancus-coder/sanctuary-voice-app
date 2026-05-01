@@ -5,6 +5,9 @@ const { randomUUID } = require('crypto');
 
 function registerEventRoutes(app, ctx) {
   const {
+    AUDIO_ARCHIVE_ENABLED,
+    SUMMARY_WEBHOOK_URL,
+    SUMMARY_RECIPIENT,
     AZURE_SPEECH_KEY,
     AZURE_SPEECH_REGION,
     COMMERCIAL_MODE,
@@ -13,6 +16,8 @@ function registerEventRoutes(app, ctx) {
     LANGUAGE_NAMES_RO,
     TRANSCRIBE_RATE_LIMIT_MAX,
     TRANSCRIBE_RATE_LIMIT_WINDOW_MS,
+    appendAudioArchiveChunk,
+    audioArchivePath,
     applyDisplaySnapshot,
     applySourceCorrections,
     buildBaseUrl,
@@ -276,6 +281,17 @@ function registerEventRoutes(app, ctx) {
       const key = String(lang || 'unknown').trim() || 'unknown';
       participantsByLanguage[key] = (participantsByLanguage[key] || 0) + 1;
     });
+    let archiveBytes = 0;
+    let archiveExists = false;
+    if (AUDIO_ARCHIVE_ENABLED && typeof audioArchivePath === 'function') {
+      try {
+        const p = audioArchivePath(event.id);
+        if (fs.existsSync(p)) {
+          archiveExists = true;
+          archiveBytes = fs.statSync(p).size;
+        }
+      } catch (_) {}
+    }
     res.json({
       ok: true,
       event: {
@@ -294,12 +310,34 @@ function registerEventRoutes(app, ctx) {
         seenParticipantIds: undefined
       },
       participantsByLanguage,
+      audioArchive: {
+        enabled: !!AUDIO_ARCHIVE_ENABLED,
+        exists: archiveExists,
+        bytes: archiveBytes
+      },
+      summary: {
+        webhookConfigured: !!SUMMARY_WEBHOOK_URL,
+        recipient: SUMMARY_RECIPIENT || null
+      },
       cost: {
         audioCostUSD: Math.round((Number(stats.audioSeconds) || 0) * (0.003 / 60) * 1e6) / 1e6,
         translationCostUSD: Math.round((Number(stats.tokensTranslation) || 0) * 0.0000004 * 1e6) / 1e6,
         totalUSD: Number(stats.estimatedCostUSD) || 0
       }
     });
+  });
+
+  app.get('/api/events/:id/audio-archive', (req, res) => {
+    if (!hasValidAdminSession(req)) return res.status(401).send('Unauthorized');
+    if (!AUDIO_ARCHIVE_ENABLED) return res.status(404).send('Audio archive disabled.');
+    const event = db.events[req.params.id];
+    if (!event || getEventOrgId(event) !== DEFAULT_ORG_ID) return res.status(404).send('Event not found.');
+    const filePath = audioArchivePath(event.id);
+    if (!fs.existsSync(filePath)) return res.status(404).send('No archive recorded yet for this event.');
+    const filename = `recording-${event.shortId || event.id}.webm`;
+    res.setHeader('Content-Type', 'video/webm');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    fs.createReadStream(filePath).pipe(res);
   });
 
   app.get('/api/events/:id/transcript-export', (req, res) => {
@@ -1449,6 +1487,9 @@ function registerEventRoutes(app, ctx) {
       if (typeof recordTranscribeUsage === 'function') {
         const estimatedSeconds = Math.max(0.5, (req.file.buffer.length || 0) / 4000);
         recordTranscribeUsage(event, estimatedSeconds);
+      }
+      if (typeof appendAudioArchiveChunk === 'function') {
+        appendAudioArchiveChunk(event, req.file.buffer);
       }
       const transcriptText = typeof rawTranscript === 'string' ? rawTranscript : rawTranscript?.text;
       const transcriptSourceLang = typeof rawTranscript === 'object' && rawTranscript?.sourceLang

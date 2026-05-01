@@ -3923,6 +3923,21 @@ async function showEventStatsDetail(eventId) {
     document.getElementById('statsCostAudio').textContent = formatCostUSD(data.cost?.audioCostUSD);
     document.getElementById('statsCostTranslation').textContent = formatCostUSD(data.cost?.translationCostUSD);
     document.getElementById('statsCostTotal').textContent = formatCostUSD(data.cost?.totalUSD);
+    const dlBtn = document.getElementById('statsDetailDownloadAudioBtn');
+    if (dlBtn) {
+      const archive = data.audioArchive || {};
+      if (archive.enabled && archive.exists && archive.bytes > 0) {
+        const mb = (archive.bytes / (1024 * 1024)).toFixed(1);
+        dlBtn.hidden = false;
+        dlBtn.textContent = `Download recording (${mb} MB)`;
+      } else {
+        dlBtn.hidden = true;
+      }
+    }
+    const summaryBtn = document.getElementById('statsDetailSendSummaryBtn');
+    if (summaryBtn) {
+      summaryBtn.hidden = !(data.summary && data.summary.webhookConfigured);
+    }
     renderLangBarChart(data.participantsByLanguage || {});
   } catch (err) {
     console.error('event stats load:', err);
@@ -4015,6 +4030,31 @@ document.getElementById('statsDetailExportCsvBtn')?.addEventListener('click', as
 document.getElementById('statsDetailExportTxtBtn')?.addEventListener('click', () => {
   if (!statsDetailCurrentId) return;
   window.location.href = `/api/events/${statsDetailCurrentId}/transcript-export`;
+});
+
+document.getElementById('statsDetailDownloadAudioBtn')?.addEventListener('click', () => {
+  if (!statsDetailCurrentId) return;
+  window.location.href = `/api/events/${statsDetailCurrentId}/audio-archive`;
+});
+
+document.getElementById('statsDetailSendSummaryBtn')?.addEventListener('click', async () => {
+  if (!statsDetailCurrentId) return;
+  const btn = document.getElementById('statsDetailSendSummaryBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    const res = await fetch(`/api/events/${statsDetailCurrentId}/email-summary`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.ok) {
+      alert(data.error || 'Could not send summary.');
+    } else {
+      alert('Summary sent.');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Could not send summary.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Send summary'; }
+  }
 });
 
 const AUDIT_ACTION_LABELS = {
