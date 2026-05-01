@@ -1395,6 +1395,52 @@ progress::-moz-progress-bar {
   background: rgba(34, 197, 94, 0.1);
 }
 
+.op-waiting-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 8px 0 4px;
+}
+
+.op-waiting-spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 3px solid rgba(244, 221, 171, 0.2);
+  border-top-color: var(--gold-strong);
+  animation: opSpin 800ms linear infinite;
+}
+
+@keyframes opSpin {
+  to { transform: rotate(360deg); }
+}
+
+.op-waiting-title {
+  margin: 4px 0 0;
+  font-size: 1.15rem;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.op-denied-title {
+  color: #f87171;
+}
+
+.op-waiting-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  max-width: 320px;
+}
+
+.op-waiting-meta {
+  font-size: 0.84rem;
+  color: var(--gold-strong);
+}
+
 /* Access requests panel */
 .access-request-card {
   border: 1px solid var(--line);

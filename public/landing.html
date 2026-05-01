@@ -156,7 +156,7 @@
     </div>
 
     <div id="opRequestView" hidden>
-      <p class="op-modal-desc">Tell the admin who you are. They will send you an 8-character access code.</p>
+      <p class="op-modal-desc">Tell the admin who you are. When they approve, you'll be signed in automatically.</p>
       <form id="opRequestForm" novalidate>
         <div class="op-modal-field">
           <label for="opReqName">Your name</label>
@@ -167,12 +167,34 @@
           <input id="opReqContact" type="text" placeholder="+47 ... or you@church.org" autocomplete="off" maxlength="200">
         </div>
         <div id="opRequestError" class="op-modal-error" role="alert"></div>
-        <div id="opRequestSuccess" class="op-modal-success" role="status" hidden>Request sent. The admin will contact you with your access code.</div>
         <div class="op-modal-actions">
           <button type="button" class="op-modal-cancel" id="opRequestBackBtn">Back</button>
           <button type="submit" class="btn btn-primary" id="opRequestSubmitBtn">Send request</button>
         </div>
       </form>
+    </div>
+
+    <div id="opWaitingView" hidden>
+      <div class="op-waiting-stage">
+        <div class="op-waiting-spinner" aria-hidden="true"></div>
+        <h3 class="op-waiting-title">Waiting for admin approval…</h3>
+        <p class="op-waiting-desc">Stay on this page. You'll be signed in automatically as soon as the admin grants access.</p>
+        <div id="opWaitingMeta" class="op-waiting-meta"></div>
+        <div id="opWaitingError" class="op-modal-error" role="alert"></div>
+        <div class="op-modal-actions">
+          <button type="button" class="op-modal-cancel" id="opWaitingCancelBtn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="opDeniedView" hidden>
+      <div class="op-waiting-stage">
+        <h3 class="op-waiting-title op-denied-title">Access denied</h3>
+        <p class="op-waiting-desc">The admin denied your request. Reach out to them directly if you need access.</p>
+        <div class="op-modal-actions">
+          <button type="button" class="btn btn-primary" id="opDeniedCloseBtn">Close</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -185,9 +207,13 @@ function closeOperatorModal() {
   var pinInput = document.getElementById('opPin');
   var requestForm = document.getElementById('opRequestForm');
   var requestErr = document.getElementById('opRequestError');
-  var requestOk = document.getElementById('opRequestSuccess');
   var loginView = document.getElementById('opLoginView');
   var requestView = document.getElementById('opRequestView');
+  var waitingView = document.getElementById('opWaitingView');
+  var deniedView = document.getElementById('opDeniedView');
+  var waitingErr = document.getElementById('opWaitingError');
+
+  if (window.__opStopPolling) try { window.__opStopPolling(); } catch (e) {}
 
   if (modal) modal.hidden = true;
   if (pinInput) pinInput.value = '';
@@ -195,9 +221,11 @@ function closeOperatorModal() {
   if (form) form.reset();
   if (requestForm) requestForm.reset();
   if (requestErr) requestErr.textContent = '';
-  if (requestOk) requestOk.hidden = true;
+  if (waitingErr) waitingErr.textContent = '';
   if (loginView) loginView.hidden = false;
   if (requestView) requestView.hidden = true;
+  if (waitingView) waitingView.hidden = true;
+  if (deniedView) deniedView.hidden = true;
 
   document.body.style.overflow = '';
 
@@ -322,36 +350,98 @@ function closeOperatorModal() {
 
   var loginView = document.getElementById('opLoginView');
   var requestView = document.getElementById('opRequestView');
+  var waitingView = document.getElementById('opWaitingView');
+  var deniedView = document.getElementById('opDeniedView');
+  var waitingMeta = document.getElementById('opWaitingMeta');
+  var waitingErr = document.getElementById('opWaitingError');
   var showRequestBtn = document.getElementById('opShowRequestBtn');
   var requestBackBtn = document.getElementById('opRequestBackBtn');
+  var waitingCancelBtn = document.getElementById('opWaitingCancelBtn');
+  var deniedCloseBtn = document.getElementById('opDeniedCloseBtn');
   var requestForm = document.getElementById('opRequestForm');
   var reqName = document.getElementById('opReqName');
   var reqContact = document.getElementById('opReqContact');
   var reqError = document.getElementById('opRequestError');
-  var reqSuccess = document.getElementById('opRequestSuccess');
   var reqSubmit = document.getElementById('opRequestSubmitBtn');
+
+  var pollTimer = null;
+  var pollFailures = 0;
+
+  function showOnlyView(viewId) {
+    [loginView, requestView, waitingView, deniedView].forEach(function (v) {
+      if (v) v.hidden = (v.id !== viewId);
+    });
+  }
+
+  function stopPolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    pollFailures = 0;
+  }
+  window.__opStopPolling = stopPolling;
+
+  function startPolling(requestId) {
+    stopPolling();
+    if (waitingErr) waitingErr.textContent = '';
+    pollTimer = setInterval(function () { pollOnce(requestId); }, 4000);
+    pollOnce(requestId);
+  }
+
+  function pollOnce(requestId) {
+    fetch('/api/operator/request-status/' + encodeURIComponent(requestId))
+      .then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
+      .then(function (resp) {
+        var data = resp.data || {};
+        if (!resp.ok || !data.ok) {
+          pollFailures += 1;
+          if (pollFailures >= 5 && waitingErr) waitingErr.textContent = 'Lost connection. Still trying…';
+          return;
+        }
+        pollFailures = 0;
+        if (data.status === 'granted' && data.operatorCode) {
+          stopPolling();
+          try { sessionStorage.setItem('operatorCode', data.operatorCode); } catch (e) {}
+          window.location.href = '/operator-dashboard';
+          return;
+        }
+        if (data.status === 'denied') {
+          stopPolling();
+          showOnlyView('opDeniedView');
+        }
+      })
+      .catch(function () {
+        pollFailures += 1;
+        if (pollFailures >= 5 && waitingErr) waitingErr.textContent = 'Lost connection. Still trying…';
+      });
+  }
 
   if (showRequestBtn && loginView && requestView) {
     showRequestBtn.addEventListener('click', function () {
-      loginView.hidden = true;
-      requestView.hidden = false;
       reqError.textContent = '';
-      reqSuccess.hidden = true;
+      showOnlyView('opRequestView');
       if (reqName) reqName.focus();
     });
   }
-  if (requestBackBtn && loginView && requestView) {
+  if (requestBackBtn) {
     requestBackBtn.addEventListener('click', function () {
-      requestView.hidden = true;
-      loginView.hidden = false;
+      showOnlyView('opLoginView');
       pinInput.focus();
+    });
+  }
+  if (waitingCancelBtn) {
+    waitingCancelBtn.addEventListener('click', function () {
+      stopPolling();
+      closeOperatorModal();
+    });
+  }
+  if (deniedCloseBtn) {
+    deniedCloseBtn.addEventListener('click', function () {
+      closeOperatorModal();
     });
   }
   if (requestForm) {
     requestForm.addEventListener('submit', function (e) {
       e.preventDefault();
       reqError.textContent = '';
-      reqSuccess.hidden = true;
       var name = (reqName.value || '').trim();
       var contact = (reqContact.value || '').trim();
       if (!name) { reqError.textContent = 'Please enter your name.'; return; }
@@ -364,9 +454,11 @@ function closeOperatorModal() {
       })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data.ok) {
-            reqSuccess.hidden = false;
+          if (data.ok && data.requestId) {
             requestForm.reset();
+            if (waitingMeta) waitingMeta.textContent = 'Submitted as ' + name;
+            showOnlyView('opWaitingView');
+            startPolling(data.requestId);
           } else {
             reqError.textContent = data.error || 'Could not send request. Try again.';
           }

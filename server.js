@@ -3255,7 +3255,21 @@ app.post('/api/operator/request-access', (req, res) => {
   saveDb();
   sendAdminAccessRequestNotification(org, request).catch((err) => logger.error('admin push error:', err?.message || err));
   io.emit('access_request_created', { id: request.id });
-  res.json({ ok: true });
+  res.json({ ok: true, requestId: request.id });
+});
+
+app.get('/api/operator/request-status/:id', (req, res) => {
+  const id = String(req.params.id || '').trim();
+  if (!id) return res.status(400).json({ ok: false, status: 'unknown' });
+  const org = ensureOrganization(DEFAULT_ORG_ID);
+  const request = (org.accessRequests || []).find((r) => r.id === id);
+  if (!request) return res.status(404).json({ ok: false, status: 'unknown' });
+  const payload = { ok: true, status: request.status };
+  if (request.status === 'granted' && request.operatorCode) {
+    payload.operatorCode = request.operatorCode;
+    payload.profile = request.profile || null;
+  }
+  res.json(payload);
 });
 
 app.get('/api/admin/access-requests', (req, res) => {
