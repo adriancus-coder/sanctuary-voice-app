@@ -260,15 +260,36 @@ function fitDisplayTextElement(box, container, options = {}) {
   }
 }
 
+function getFitEffectiveSize(box) {
+  const fontPx = parseFloat(box.style.fontSize) || 0;
+  let scale = 1;
+  const transform = box.style.transform || '';
+  const match = transform.match(/scale\(([\d.]+)\)/);
+  if (match) scale = parseFloat(match[1]) || 1;
+  return fontPx * scale;
+}
+
 function autoFitText() {
   const dual = $('translateDualText');
   if (dual && !dual.hidden) {
-    document.querySelectorAll('.unified-display-language-card').forEach((card) => {
+    const cards = Array.from(document.querySelectorAll('.unified-display-language-card'));
+    const fits = cards.map((card) => {
       const languageLabel = card.querySelector('.unified-display-language-label');
       const languageText = card.querySelector('.unified-display-language-text');
       const reserveHeight = languageLabel ? languageLabel.getBoundingClientRect().height + 18 : 0;
       fitDisplayTextElement(languageText, card, { reserveHeight, dense: true, maxSize: 160 });
+      return { languageText, effective: getFitEffectiveSize(languageText) };
     });
+    if (fits.length >= 2) {
+      const minEffective = fits.reduce((min, f) => Math.min(min, f.effective || min), Number.POSITIVE_INFINITY);
+      if (Number.isFinite(minEffective) && minEffective > 0) {
+        fits.forEach((f) => {
+          f.languageText.style.fontSize = `${minEffective.toFixed(2)}px`;
+          f.languageText.style.transform = '';
+          f.languageText.style.lineHeight = minEffective <= 42 ? '1.04' : minEffective <= 64 ? '1.08' : '1.12';
+        });
+      }
+    }
     return;
   }
 
