@@ -74,13 +74,19 @@ if (WEB_PUSH_ENABLED) {
 } else {
   logger.warn('WEB PUSH: disabled, missing WEB_PUSH_PUBLIC_KEY or WEB_PUSH_PRIVATE_KEY.');
 }
+const CORS_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
+const CORS_ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With'];
+const ALLOWED_CORS_ORIGINS = buildAllowedCorsOrigins();
 const transcribeRateLimits = new Map();
 const io = new Server(server, {
   cors: {
     origin: socketCorsOriginValidator,
-    methods: ['GET', 'POST']
+    methods: CORS_METHODS,
+    allowedHeaders: CORS_ALLOWED_HEADERS,
+    credentials: true
   }
 });
+app.use(expressCorsMiddleware);
 app.use(compression());
 app.use(helmet({
   contentSecurityPolicy: {
@@ -250,7 +256,7 @@ function buildAdminAppUrl(pathname = '/admin') {
   return ADMIN_APP_BASE_URL ? `${ADMIN_APP_BASE_URL}${pathPart}` : pathPart;
 }
 
-function normalizeSocketOrigin(value) {
+function normalizeCorsOrigin(value) {
   const base = normalizePublicBaseUrl(value);
   if (!base) return '';
   try {
@@ -260,32 +266,68 @@ function normalizeSocketOrigin(value) {
   }
 }
 
-function getSocketAllowedOrigins() {
-  const origins = new Set();
-  const origin = normalizeSocketOrigin(PUBLIC_BASE_URL);
+function addCorsOrigin(origins, value) {
+  const origin = normalizeCorsOrigin(value);
   if (origin) origins.add(origin);
+}
+
+function buildAllowedCorsOrigins() {
+  const origins = new Set();
+  [
+    'https://sanctuaryvoice.com',
+    'https://app.sanctuaryvoice.com',
+    'https://control.sanctuaryvoice.com',
+    'https://kontrol.sanctuaryvoice.com',
+    'http://localhost:3000',
+    PUBLIC_BASE_URL,
+    ADMIN_APP_BASE_URL
+  ].forEach((origin) => addCorsOrigin(origins, origin));
   return origins;
 }
 
-function isLocalOriginHost(hostname = '') {
-  const cleanHost = String(hostname || '').replace(/^\[|\]$/g, '').toLowerCase();
-  return cleanHost === 'localhost' || cleanHost === '127.0.0.1' || cleanHost === '::1';
-}
-
-function isAllowedSocketOrigin(origin = '') {
+function isAllowedCorsOrigin(origin = '') {
   if (!origin) return true;
   try {
     const parsed = new URL(origin);
-    if (isLocalOriginHost(parsed.hostname)) return true;
-    return getSocketAllowedOrigins().has(parsed.origin);
+    return ALLOWED_CORS_ORIGINS.has(parsed.origin);
   } catch (err) {
     return false;
   }
 }
 
 function socketCorsOriginValidator(origin, callback) {
-  if (isAllowedSocketOrigin(origin)) return callback(null, true);
+  if (isAllowedCorsOrigin(origin)) return callback(null, true);
   return callback(new Error('Socket origin not allowed'), false);
+}
+
+function appendVaryOrigin(res) {
+  const current = String(res.getHeader('Vary') || '').trim();
+  if (!current) {
+    res.setHeader('Vary', 'Origin');
+    return;
+  }
+  const values = current.split(',').map((value) => value.trim().toLowerCase());
+  if (!values.includes('origin')) res.setHeader('Vary', `${current}, Origin`);
+}
+
+function expressCorsMiddleware(req, res, next) {
+  const origin = String(req.headers.origin || '').trim();
+  const allowed = isAllowedCorsOrigin(origin);
+  if (allowed && origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', CORS_METHODS.join(', '));
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      String(req.headers['access-control-request-headers'] || CORS_ALLOWED_HEADERS.join(', '))
+    );
+    appendVaryOrigin(res);
+  }
+  if (req.method === 'OPTIONS') {
+    if (!allowed) return res.status(403).end();
+    return res.status(204).end();
+  }
+  return next();
 }
 
 function buildHelmetConnectSources() {
@@ -2104,25 +2146,60 @@ function getActiveSpeechProvider() {
   return 'openai';
 }
 
+const AZURE_SPEECH_LOCALES = {
+  ro: 'ro-RO',
+  no: 'nb-NO',
+  ru: 'ru-RU',
+  uk: 'uk-UA',
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  it: 'it-IT',
+  pt: 'pt-PT',
+  pl: 'pl-PL',
+  tr: 'tr-TR',
+  ar: 'ar-SA',
+  fa: 'fa-IR',
+  hu: 'hu-HU',
+  el: 'el-GR'
+};
+
 function getSpeechLocale(code) {
-  return ({
-    ro: 'ro-RO',
-    no: 'nb-NO',
-    en: 'en-US',
-    ru: 'ru-RU',
-    uk: 'uk-UA',
-    es: 'es-ES',
-    fr: 'fr-FR',
-    de: 'de-DE',
-    it: 'it-IT',
-    pt: 'pt-PT',
-    pl: 'pl-PL',
-    tr: 'tr-TR',
-    ar: 'ar-SA',
-    fa: 'fa-IR',
-    hu: 'hu-HU',
-    el: 'el-GR'
-  })[code] || 'ro-RO';
+  return AZURE_SPEECH_LOCALES[code] || AZURE_SPEECH_LOCALES.ro;
+}
+
+function classifyAzureSpeechError(details = '') {
+  const text = String(details || '').toLowerCase();
+  if (
+    text.includes('401')
+    || text.includes('403')
+    || text.includes('auth')
+    || text.includes('authorization')
+    || text.includes('unauthorized')
+    || text.includes('forbidden')
+    || text.includes('invalid subscription')
+    || text.includes('subscription key')
+    || text.includes('credential')
+  ) {
+    return {
+      code: 'azure_auth_failed',
+      message: 'Azure Speech authentication failed. Switching to OpenAI backup.',
+      fallbackToOpenAI: true
+    };
+  }
+  if (text.includes('quota') || text.includes('too many requests') || text.includes('429')) {
+    return {
+      code: 'azure_quota_exceeded',
+      message: 'Azure Speech quota exceeded. Switching to OpenAI backup.',
+      fallbackToOpenAI: true
+    };
+  }
+  return {
+    code: 'azure_canceled',
+    message: 'Azure Speech s-a oprit. Verifica setarile Azure.',
+    fallbackToOpenAI: false
+  };
 }
 
 function loadAzureSpeechSdk() {
@@ -2398,6 +2475,7 @@ function startAzureSpeechSession(socket, event) {
   const effectiveSourceLang = sourceLang === 'auto' ? (event.sourceLang || 'ro') : sourceLang;
   const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION);
   speechConfig.speechRecognitionLanguage = getSpeechLocale(effectiveSourceLang);
+  speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, '750');
 
   const audioFormat = sdk.AudioStreamFormat.getWaveFormatPCM(16000, 16, 1);
   const pushStream = sdk.AudioInputStream.createPushStream(audioFormat);
@@ -2409,19 +2487,28 @@ function startAzureSpeechSession(socket, event) {
     if (text) io.to(`event:${event.id}:admins`).emit('partial_transcript', { text });
   };
   recognizer.recognized = (_, result) => {
+    if (result?.result?.reason !== sdk.ResultReason.RecognizedSpeech) return;
     const text = sanitizeTranscriptText(result?.result?.text || '');
     if (text) queueSpeechText(event.id, text, effectiveSourceLang, 'azure_sdk');
   };
   recognizer.canceled = (_, result) => {
     const details = String(result?.errorDetails || result?.reason || 'unknown');
-    logger.error('azure speech canceled:', details);
-    const isQuotaError = details.toLowerCase().includes('quota');
+    const classified = classifyAzureSpeechError(details);
+    if (classified.code === 'azure_auth_failed') {
+      logger.error('AZURE SPEECH AUTH ERROR:', {
+        eventId: event.id,
+        region: AZURE_SPEECH_REGION,
+        locale: getSpeechLocale(effectiveSourceLang),
+        details
+      });
+    } else {
+      logger.error('azure speech canceled:', details);
+    }
     socket.emit('server_error', {
       provider: 'azure_sdk',
-      code: isQuotaError ? 'azure_quota_exceeded' : 'azure_canceled',
-      message: isQuotaError
-        ? 'Azure Speech quota exceeded. Inchide alte taburi On-Air sau verifica quota/subscription in Azure.'
-        : 'Azure Speech s-a oprit. Verifica setarile Azure.'
+      code: classified.code,
+      message: classified.message,
+      fallbackToOpenAI: classified.fallbackToOpenAI
     });
     closeAzureSpeechSession(socket.id);
   };
@@ -2437,11 +2524,23 @@ function startAzureSpeechSession(socket, event) {
   recognizer.startContinuousRecognitionAsync(
     () => socket.emit('azure_audio_ready', { ok: true }),
     (err) => {
-      logger.error('azure speech start error:', err);
+      const details = err?.message || err;
+      const classified = classifyAzureSpeechError(details);
+      if (classified.code === 'azure_auth_failed') {
+        logger.error('AZURE SPEECH AUTH ERROR:', {
+          eventId: event.id,
+          region: AZURE_SPEECH_REGION,
+          locale: getSpeechLocale(effectiveSourceLang),
+          details
+        });
+      } else {
+        logger.error('azure speech start error:', details);
+      }
       socket.emit('server_error', {
         provider: 'azure_sdk',
-        code: 'azure_start_failed',
-        message: 'Nu am putut porni Azure Speech.'
+        code: classified.code === 'azure_canceled' ? 'azure_start_failed' : classified.code,
+        message: classified.code === 'azure_canceled' ? 'Nu am putut porni Azure Speech.' : classified.message,
+        fallbackToOpenAI: classified.code !== 'azure_canceled' || classified.fallbackToOpenAI
       });
       closeAzureSpeechSession(socket.id);
     }
@@ -2863,6 +2962,7 @@ registerEventRoutes(app, {
   buildTranslationsForAllTargets,
   client,
   cloneDisplaySnapshot,
+  closeAzureSpeechSessionsForEvent,
   createEvent,
   db,
   defaultDisplayState,
