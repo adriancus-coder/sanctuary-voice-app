@@ -495,7 +495,7 @@ socket.on('song_state', (songState) => {
   state.songState = songState;
   if (state.currentEvent) state.currentEvent.mode = 'song';
   syncLanguageOptions({ ...state.currentEvent, displayState: { ...(state.currentEvent?.displayState || {}), mode: 'song' }, songState });
-  scheduleDisplayRender(30);
+  renderDisplay();
 });
 
 socket.on('song_clear', () => {

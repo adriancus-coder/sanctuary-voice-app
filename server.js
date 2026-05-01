@@ -78,6 +78,15 @@ const CORS_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 const CORS_ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With'];
 const ALLOWED_CORS_ORIGINS = buildAllowedCorsOrigins();
 const transcribeRateLimits = new Map();
+const transcribeLatencyBuffer = [];
+const TRANSCRIBE_LATENCY_BUFFER_SIZE = 30;
+function recordTranscribeLatency(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return;
+  transcribeLatencyBuffer.push(ms);
+  if (transcribeLatencyBuffer.length > TRANSCRIBE_LATENCY_BUFFER_SIZE) {
+    transcribeLatencyBuffer.shift();
+  }
+}
 const io = new Server(server, {
   cors: {
     origin: socketCorsOriginValidator,
@@ -3524,6 +3533,22 @@ async function runSelfTestChecks() {
     checks.push({ name: 'Operator PIN', status: 'warn', message: 'MAIN_OPERATOR_PIN not set; only granted codes work.' });
   }
 
+  // 11. Transcribe latency (samples from real traffic)
+  if (transcribeLatencyBuffer.length === 0) {
+    checks.push({ name: 'Transcribe latency', status: 'warn', message: 'No samples yet — start a live recognition session to measure.' });
+  } else {
+    const sorted = [...transcribeLatencyBuffer].sort((a, b) => a - b);
+    const avg = Math.round(sorted.reduce((s, v) => s + v, 0) / sorted.length);
+    const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
+    const max = sorted[sorted.length - 1];
+    const status = avg > 4000 ? 'fail' : avg > 2000 ? 'warn' : 'ok';
+    checks.push({
+      name: 'Transcribe latency',
+      status,
+      message: `${sorted.length} samples · avg ${avg}ms · p95 ${p95}ms · max ${max}ms`
+    });
+  }
+
   return checks;
 }
 
@@ -3728,6 +3753,7 @@ registerEventRoutes(app, {
   pushSongHistory,
   queueSpeechText,
   recordScreenAction,
+  recordTranscribeLatency,
   rememberDisplayState,
   requireAdminApiSession,
   requireEventAdmin,

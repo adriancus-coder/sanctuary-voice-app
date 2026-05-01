@@ -58,6 +58,7 @@ function registerEventRoutes(app, ctx) {
     pushSongHistory,
     queueSpeechText,
     recordScreenAction,
+    recordTranscribeLatency,
     rememberDisplayState,
     requireAdminApiSession,
     requireEventAdmin,
@@ -394,7 +395,10 @@ function registerEventRoutes(app, ctx) {
       const parsedSong = splitSongBlocksWithLabels(text, labels);
       const blocks = parsedSong.blocks;
       const songSourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
-      const allTranslations = await buildSongTranslations(event, blocks, songSourceLang);
+      const firstBlockTranslations = blocks.length
+        ? await buildSongTranslations(event, blocks.slice(0, 1), songSourceLang)
+        : [];
+      const placeholderTranslations = blocks.map((_, i) => firstBlockTranslations[i] || {});
       event.songState = {
         title,
         sourceLang: songSourceLang,
@@ -402,8 +406,8 @@ function registerEventRoutes(app, ctx) {
         blockLabels: parsedSong.labels,
         currentIndex: blocks.length ? 0 : -1,
         activeBlock: blocks[0] || null,
-        translations: allTranslations[0] || {},
-        allTranslations,
+        translations: placeholderTranslations[0] || {},
+        allTranslations: placeholderTranslations,
         updatedAt: new Date().toISOString()
       };
       event.mode = 'song';
@@ -414,12 +418,26 @@ function registerEventRoutes(app, ctx) {
       event.displayState.sceneLabel = '';
       event.displayState.updatedAt = new Date().toISOString();
       recordScreenAction(event, 'song');
-      saveDb();
       io.to(`event:${event.id}`).emit('mode_changed', { mode: 'song' });
       io.to(`event:${event.id}`).emit('song_state', event.songState);
       io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
+      saveDb();
       emitUsageStats(event.id);
       res.json({ ok: true, songState: event.songState, event: normalizeEventForAccess(req, event) });
+      if (blocks.length > 1) {
+        buildSongTranslations(event, blocks.slice(1), songSourceLang)
+          .then((rest) => {
+            const merged = [placeholderTranslations[0] || {}, ...rest];
+            if (event.songState && event.songState.blocks === blocks) {
+              event.songState.allTranslations = merged;
+              event.songState.translations = merged[event.songState.currentIndex] || {};
+              event.songState.updatedAt = new Date().toISOString();
+              saveDb();
+              io.to(`event:${event.id}`).emit('song_state', event.songState);
+            }
+          })
+          .catch((err) => logger.error('song background translate:', err?.message || err));
+      }
     } catch (err) {
       logger.error('song load error:', err);
       res.status(500).json({ ok: false, error: 'Nu am putut pregăti Song.' });
@@ -434,10 +452,10 @@ function registerEventRoutes(app, ctx) {
     const index = Number(req.params.index);
     if (!setSongIndex(event, index)) return res.status(400).json({ ok: false, error: 'Index invalid.' });
     recordScreenAction(event, 'song');
-    saveDb();
     io.to(`event:${event.id}`).emit('song_state', event.songState);
-    emitUsageStats(event.id);
     res.json({ ok: true, songState: event.songState });
+    saveDb();
+    emitUsageStats(event.id);
   });
 
   app.post('/api/events/:id/song/labels', (req, res) => {
@@ -462,10 +480,10 @@ function registerEventRoutes(app, ctx) {
     const nextIndex = Number(event.songState?.currentIndex ?? -1) + 1;
     if (!setSongIndex(event, nextIndex)) return res.status(400).json({ ok: false, error: 'Nu mai există bloc următor.' });
     recordScreenAction(event, 'song');
-    saveDb();
     io.to(`event:${event.id}`).emit('song_state', event.songState);
-    emitUsageStats(event.id);
     res.json({ ok: true, songState: event.songState });
+    saveDb();
+    emitUsageStats(event.id);
   });
 
   app.post('/api/events/:id/song/prev', (req, res) => {
@@ -475,9 +493,9 @@ function registerEventRoutes(app, ctx) {
     if (!requireEventPermission(req, res, 'song')) return;
     const prevIndex = Number(event.songState?.currentIndex ?? 0) - 1;
     if (!setSongIndex(event, prevIndex)) return res.status(400).json({ ok: false, error: 'Nu mai există bloc anterior.' });
-    saveDb();
     io.to(`event:${event.id}`).emit('song_state', event.songState);
     res.json({ ok: true, songState: event.songState });
+    saveDb();
   });
 
   app.post('/api/events/:id/song/clear', (req, res) => {
@@ -1134,9 +1152,13 @@ function registerEventRoutes(app, ctx) {
     const ext = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a' : 'webm';
     const tempPath = path.join(os.tmpdir(), `sanctuary-voice-${randomUUID()}.${ext}`);
 
+    const startedAt = Date.now();
     try {
       fs.writeFileSync(tempPath, req.file.buffer);
       const rawTranscript = await transcribeAudioFile(tempPath, event);
+      if (typeof recordTranscribeLatency === 'function') {
+        recordTranscribeLatency(Date.now() - startedAt);
+      }
       const transcriptText = typeof rawTranscript === 'string' ? rawTranscript : rawTranscript?.text;
       const transcriptSourceLang = typeof rawTranscript === 'object' && rawTranscript?.sourceLang
         ? rawTranscript.sourceLang
