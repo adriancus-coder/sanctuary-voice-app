@@ -2925,6 +2925,10 @@ body.participant-preview-mode .participant-event-chooser {
   backdrop-filter: blur(4px);
 }
 
+.op-modal-overlay[hidden] {
+  display: none;
+}
+
 .op-modal {
   width: min(440px, 100%);
   background: linear-gradient(180deg, #131620 0%, #0c0e14 100%);

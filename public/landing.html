@@ -128,7 +128,7 @@
   <div class="op-modal">
     <div class="op-modal-header">
       <h2 id="opModalTitle">Operator Login</h2>
-      <button class="op-modal-close" type="button" id="opModalClose" aria-label="Close">&times;</button>
+      <button class="op-modal-close" type="button" id="opModalClose" aria-label="Close" onclick="closeOperatorModal()">&times;</button>
     </div>
     <p class="op-modal-desc">Enter your operator PIN to open the remote control panel. Leave Event ID blank to connect to the current live service.</p>
     <form id="opLoginForm" novalidate>
@@ -142,7 +142,7 @@
       </div>
       <div id="opLoginError" class="op-modal-error" role="alert"></div>
       <div class="op-modal-actions">
-        <button type="button" class="op-modal-cancel" id="opModalCancelBtn">Cancel</button>
+        <button type="button" class="op-modal-cancel" id="opModalCancelBtn" onclick="closeOperatorModal()">Cancel</button>
         <button type="submit" class="btn btn-primary">Connect</button>
       </div>
     </form>
@@ -150,11 +150,29 @@
 </div>
 
 <script>
+function closeOperatorModal() {
+  var modal = document.getElementById('opModal');
+  var form = document.getElementById('opLoginForm');
+  var errorEl = document.getElementById('opLoginError');
+  var eventIdInput = document.getElementById('opEventId');
+  var pinInput = document.getElementById('opPin');
+
+  if (modal) modal.hidden = true;
+  if (eventIdInput) eventIdInput.value = '';
+  if (pinInput) pinInput.value = '';
+  if (errorEl) errorEl.textContent = '';
+  if (form) form.reset();
+
+  document.body.style.overflow = '';
+
+  document.querySelectorAll('.op-modal-overlay').forEach(function (el) {
+    if (el.id !== 'opModal') el.remove();
+  });
+}
+
 (function () {
   var btn = document.getElementById('operatorLoginBtn');
   var modal = document.getElementById('opModal');
-  var closeBtn = document.getElementById('opModalClose');
-  var cancelBtn = document.getElementById('opModalCancelBtn');
   var form = document.getElementById('opLoginForm');
   var eventIdInput = document.getElementById('opEventId');
   var pinInput = document.getElementById('opPin');
@@ -162,23 +180,18 @@
 
   function openModal() {
     modal.hidden = false;
+    document.body.style.overflow = 'hidden';
     pinInput.focus();
   }
 
-  function closeModal() {
-    modal.hidden = true;
-    errorEl.textContent = '';
-    form.reset();
-  }
-
   btn.addEventListener('click', openModal);
-  closeBtn.addEventListener('click', closeModal);
-  cancelBtn.addEventListener('click', closeModal);
+
   modal.addEventListener('click', function (e) {
-    if (e.target === modal) closeModal();
+    if (e.target === modal) closeOperatorModal();
   });
+
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !modal.hidden) closeModal();
+    if (e.key === 'Escape' && !modal.hidden) closeOperatorModal();
   });
 
   form.addEventListener('submit', function (e) {
