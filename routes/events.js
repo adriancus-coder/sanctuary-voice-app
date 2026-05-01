@@ -164,6 +164,46 @@ function registerEventRoutes(app, ctx) {
     res.json({ ok: true, events });
   });
 
+  app.get('/api/stats/search', (req, res) => {
+    if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    const query = String(req.query?.q || '').trim();
+    if (query.length < 2) return res.json({ ok: true, query, results: [] });
+    const needle = query.toLowerCase();
+    const results = [];
+    const limitPerEvent = 20;
+    const totalLimit = 200;
+    const events = Object.values(db.events || {})
+      .filter((event) => getEventOrgId(event) === DEFAULT_ORG_ID)
+      .sort((a, b) => new Date(b.scheduledAt || b.createdAt || 0) - new Date(a.scheduledAt || a.createdAt || 0));
+    for (const event of events) {
+      if (results.length >= totalLimit) break;
+      const transcripts = Array.isArray(event.transcripts) ? event.transcripts : [];
+      let matchedInEvent = 0;
+      for (let i = transcripts.length - 1; i >= 0 && matchedInEvent < limitPerEvent; i -= 1) {
+        const entry = transcripts[i];
+        const haystacks = [String(entry?.original || '')];
+        const translations = entry?.translations || {};
+        for (const v of Object.values(translations)) haystacks.push(String(v || ''));
+        const hit = haystacks.find((h) => h.toLowerCase().includes(needle));
+        if (hit) {
+          results.push({
+            eventId: event.id,
+            eventShortId: event.shortId || null,
+            eventName: event.name || 'Untitled event',
+            eventDate: event.scheduledAt || event.createdAt || null,
+            entryId: entry.id,
+            createdAt: entry.createdAt || null,
+            sourceLang: entry.sourceLang || event.sourceLang || 'ro',
+            original: entry.original || '',
+            translations
+          });
+          matchedInEvent += 1;
+        }
+      }
+    }
+    res.json({ ok: true, query, results });
+  });
+
   app.get('/api/stats/overview', (req, res) => {
     if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
     const events = Object.values(db.events || {})

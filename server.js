@@ -2179,6 +2179,51 @@ function buildTranslationCacheKey({ text, langCode, sourceLang, speed, glossary,
 }
 
 const translationCacheStats = { hits: 0, misses: 0 };
+const TRANSLATION_CACHE_FILE = path.join(DATA_DIR, 'translation-cache.json');
+let translationCacheDirty = false;
+let translationCacheFlushTimer = null;
+
+function loadPersistentTranslationCache() {
+  try {
+    if (!fs.existsSync(TRANSLATION_CACHE_FILE)) return;
+    const raw = fs.readFileSync(TRANSLATION_CACHE_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      let loaded = 0;
+      for (const pair of parsed) {
+        if (Array.isArray(pair) && pair.length === 2 && pair[0] && pair[1]) {
+          translationCache.set(String(pair[0]), String(pair[1]));
+          loaded += 1;
+          if (translationCache.size >= TRANSLATION_CACHE_LIMIT) break;
+        }
+      }
+      logger.info(`translation cache: restored ${loaded} entries from disk`);
+    }
+  } catch (err) {
+    logger.warn('translation cache load failed:', err?.message || err);
+  }
+}
+
+function flushPersistentTranslationCache() {
+  if (!translationCacheDirty) return;
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const entries = Array.from(translationCache.entries()).slice(-TRANSLATION_CACHE_LIMIT);
+    fs.writeFileSync(TRANSLATION_CACHE_FILE, JSON.stringify(entries), 'utf8');
+    translationCacheDirty = false;
+  } catch (err) {
+    logger.warn('translation cache flush failed:', err?.message || err);
+  }
+}
+
+function scheduleTranslationCacheFlush() {
+  if (translationCacheFlushTimer) return;
+  translationCacheFlushTimer = setTimeout(() => {
+    translationCacheFlushTimer = null;
+    flushPersistentTranslationCache();
+  }, 60 * 1000);
+  if (translationCacheFlushTimer.unref) translationCacheFlushTimer.unref();
+}
 
 function readTranslationCache(key) {
   if (!translationCache.has(key)) {
@@ -2200,6 +2245,8 @@ function writeTranslationCache(key, value) {
     const firstKey = translationCache.keys().next().value;
     translationCache.delete(firstKey);
   }
+  translationCacheDirty = true;
+  scheduleTranslationCacheFlush();
 }
 
 function getTranslationCacheSnapshot() {
@@ -3957,6 +4004,8 @@ async function ensureDefaultEvent() {
   }
 }
 
+loadPersistentTranslationCache();
+
 const httpServer = server.listen(PORT, () => {
   logger.info(`Sanctuary Voice running on ${httpServer.address()?.port || PORT}`);
   ensureDefaultEvent().catch((err) => logger.error('ensureDefaultEvent error:', err?.message || err));
@@ -3978,6 +4027,7 @@ function gracefulShutdown(signal) {
     for (const socketId of Array.from(azureSpeechSessions.keys())) {
       closeAzureSpeechSession(socketId);
     }
+    flushPersistentTranslationCache();
     saveDb();
     io.disconnectSockets(true);
     io.close(() => {

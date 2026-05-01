@@ -4064,3 +4064,49 @@ async function loadAuditLog() {
 }
 
 document.getElementById('auditLogRefreshBtn')?.addEventListener('click', loadAuditLog);
+
+document.getElementById('statsSearchForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('statsSearchInput');
+  const box = document.getElementById('statsSearchResults');
+  if (!input || !box) return;
+  const query = (input.value || '').trim();
+  if (query.length < 2) {
+    box.innerHTML = '<div class="muted">Enter at least 2 characters.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="muted">Searching…</div>';
+  try {
+    const res = await fetch(`/api/stats/search?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+    if (!data.ok) { box.innerHTML = `<div class="muted">${escapeHtml(data.error || 'Search failed.')}</div>`; return; }
+    const results = Array.isArray(data.results) ? data.results : [];
+    if (!results.length) {
+      box.innerHTML = `<div class="muted">No matches for "${escapeHtml(query)}".</div>`;
+      return;
+    }
+    const lc = query.toLowerCase();
+    const highlight = (str) => {
+      const safe = escapeHtml(str || '');
+      const re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      return safe.replace(re, '<mark style="background:rgba(212,168,83,0.35);color:inherit;padding:0 2px;border-radius:2px">$&</mark>');
+    };
+    box.innerHTML = `<div class="muted">${results.length} result${results.length === 1 ? '' : 's'}</div>` + results.map((r) => {
+      const when = r.createdAt ? new Date(r.createdAt).toLocaleString() : '';
+      const allTexts = [{ lang: r.sourceLang, text: r.original }, ...Object.entries(r.translations || {}).map(([l, t]) => ({ lang: l, text: t }))];
+      const matched = allTexts.find((x) => String(x.text).toLowerCase().includes(lc)) || allTexts[0];
+      return `
+        <div class="history-item">
+          <div class="entry-head">
+            <strong>${escapeHtml(r.eventName)}</strong>
+            <span class="muted">${escapeHtml(when)}</span>
+          </div>
+          <div class="small"><b>${escapeHtml((matched.lang || '').toUpperCase())}:</b> ${highlight(matched.text)}</div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error(err);
+    box.innerHTML = '<div class="muted">Search failed. Try again.</div>';
+  }
+});

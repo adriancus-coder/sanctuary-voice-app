@@ -811,6 +811,20 @@
           </div>
         </div>
 
+        <div class="panel glass-panel section-stack" id="statsSearchPanel">
+          <div class="section-head">
+            <div>
+              <h2>Search transcripts</h2>
+              <div class="muted">Find any line spoken or translated across all events.</div>
+            </div>
+          </div>
+          <form id="statsSearchForm" class="button-row compact-row" novalidate>
+            <input id="statsSearchInput" type="text" placeholder="Type at least 2 characters and press Enter" autocomplete="off" style="flex:1 1 auto">
+            <button type="submit" class="btn btn-primary">Search</button>
+          </form>
+          <div id="statsSearchResults" class="history-list"></div>
+        </div>
+
         <div class="panel glass-panel section-stack" id="auditLogPanel">
           <div class="section-head">
             <div>
