@@ -1031,6 +1031,12 @@ document.addEventListener('visibilitychange', async () => {
   }
 });
 
+if ('serviceWorker' in navigator && !state.previewMode) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/push-sw.js').catch(() => {});
+  });
+}
+
 window.addEventListener('beforeunload', async () => {
   await disableWakeLock();
 });
