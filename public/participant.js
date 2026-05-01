@@ -599,16 +599,6 @@ function updateEntryInState(payload) {
   ));
 }
 
-function seedVisibleLiveEntryFromTranscript() {
-  const latest = state.currentEvent?.latestDisplayEntry || getLatestEntry();
-  state.visibleLiveEntry = latest ? cloneEntry(latest) : null;
-  state.allowTranscriptFallback = false;
-  state.awaitingFreshLiveEntry = false;
-  state.freshLiveStartedAt = 0;
-  state.freshLiveBlockedEntryIds = new Set();
-  state.liveEntryShownAt = Date.now();
-}
-
 function getAiNoticeCopy(language) {
   const copies = {
     ro: {
@@ -713,7 +703,7 @@ function handleLanguageChange() {
     subscribeToPushNotifications().catch(() => {});
   }
   renderLiveView({ announce: false });
-  showAiNoticeIfNeeded();
+  showAiNoticeIfNeeded({ force: true });
 }
 
 async function joinParticipantEvent(eventId) {
@@ -747,7 +737,7 @@ socket.on('joined_event', ({ event, role }) => {
   if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
   state.liveEntryTimer = null;
   if (state.currentMode === 'live') {
-    seedVisibleLiveEntryFromTranscript();
+    waitForFreshLiveEntry();
   } else {
     state.visibleLiveEntry = null;
     state.awaitingFreshLiveEntry = false;
