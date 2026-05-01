@@ -303,7 +303,7 @@ function renderParticipantEventList(events = []) {
   const box = $('participantEventList');
   if (!box) return;
   publicEvents = Array.isArray(events) ? events : [];
-  const liveEvents = publicEvents.filter((event) => event.isActive);
+  const liveEvents = publicEvents.filter((event) => event && event.isActive && !(typeof event.scheduledTimestamp === 'number' && event.scheduledTimestamp > Date.now()));
   if (!liveEvents.length) {
     box.innerHTML = '<div class="muted">No live service right now. The list will refresh automatically when one starts.</div>';
     return;
@@ -422,10 +422,18 @@ function showServiceEnded(event) {
   setStatus('This service has ended.');
 }
 
+function isScheduledInFuture(event) {
+  return event && typeof event.scheduledTimestamp === 'number' && event.scheduledTimestamp > Date.now();
+}
+
+function isReallyLive(event) {
+  return !!(event && event.isActive && !isScheduledInFuture(event));
+}
+
 function findNextUpcomingEvent(events) {
   const now = Date.now();
   const upcoming = (events || [])
-    .filter((event) => !event.isActive && typeof event.scheduledTimestamp === 'number' && event.scheduledTimestamp > now)
+    .filter((event) => typeof event.scheduledTimestamp === 'number' && event.scheduledTimestamp > now)
     .sort((a, b) => a.scheduledTimestamp - b.scheduledTimestamp);
   return upcoming[0] || null;
 }
@@ -444,16 +452,16 @@ async function loadParticipantEvents({ joinFixedIfLive = false } = {}) {
     }
     if (joinFixedIfLive && state.fixedEventId) {
       const fixedEvent = events.find((event) => event.id === state.fixedEventId);
-      if (fixedEvent?.isActive) {
+      if (isScheduledInFuture(fixedEvent)) {
+        startCountdownForEvent(fixedEvent);
+        return;
+      }
+      if (isReallyLive(fixedEvent)) {
         clearCountdown();
         await joinParticipantEvent(fixedEvent.id);
         return;
       }
       if (fixedEvent && typeof fixedEvent.scheduledTimestamp === 'number') {
-        if (fixedEvent.scheduledTimestamp > Date.now()) {
-          startCountdownForEvent(fixedEvent);
-          return;
-        }
         showServiceEnded(fixedEvent);
         return;
       }
@@ -462,7 +470,7 @@ async function loadParticipantEvents({ joinFixedIfLive = false } = {}) {
       return;
     }
     if (!state.currentEvent) {
-      const liveEvents = events.filter((event) => event.isActive);
+      const liveEvents = events.filter(isReallyLive);
       if (!liveEvents.length) {
         const next = findNextUpcomingEvent(events);
         if (next) {
