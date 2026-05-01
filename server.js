@@ -141,12 +141,12 @@ app.get('/', (req, res, next) => {
 app.get('/home', sendLandingPage);
 app.get('/admin', requireAdminPage, sendAdminPage);
 app.get('/admin.html', requireAdminPage, sendAdminPage);
-app.get('/participant', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
-app.get('/participant.html', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
-app.get('/live', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
-app.get('/main-screen', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
-app.get('/translate', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
-app.get('/song', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
+app.get('/participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
+app.get('/participant.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
+app.get('/live', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
+app.get('/main-screen', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
+app.get('/translate', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
+app.get('/song', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
 app.get('/demo-screen', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-screen.html')));
 app.get('/demo-participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-participant.html')));
@@ -826,7 +826,7 @@ function applyDisplaySnapshot(event, snapshot, updatedAt = new Date().toISOStrin
     showClock: !!safe.showClock,
     clockPosition: ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(safe.clockPosition) ? safe.clockPosition : 'top-right',
     clockScale: typeof safe.clockScale === 'number' ? Math.min(1.8, Math.max(0.7, safe.clockScale)) : 1,
-    textSize: ['compact', 'large', 'xlarge'].includes(safe.textSize) ? safe.textSize : 'large',
+    textSize: ['compact', 'large', 'xlarge', 'huge'].includes(safe.textSize) ? safe.textSize : 'large',
     textScale: normalizeDisplayTextScale(safe.textScale, 1),
     screenStyle: ['focus', 'wide'].includes(safe.screenStyle) ? safe.screenStyle : 'focus',
     displayResolution: ['auto', '16-9', '16-10', '4-3'].includes(safe.displayResolution) ? safe.displayResolution : 'auto',
@@ -899,7 +899,7 @@ function ensureEventUiState(event) {
     event.displayState.clockScale = 1;
   }
   event.displayState.clockScale = Math.min(1.8, Math.max(0.7, event.displayState.clockScale));
-  if (!['compact', 'large', 'xlarge'].includes(event.displayState.textSize)) {
+  if (!['compact', 'large', 'xlarge', 'huge'].includes(event.displayState.textSize)) {
     event.displayState.textSize = 'large';
   }
   event.displayState.textScale = normalizeDisplayTextScale(event.displayState.textScale, 1);
@@ -1561,7 +1561,7 @@ function normalizeDisplayPreset(input = {}) {
   const backgroundPreset = ['none', 'warm', 'sanctuary', 'soft-light'].includes(input.backgroundPreset) ? input.backgroundPreset : 'none';
   const clockPosition = ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(input.clockPosition) ? input.clockPosition : 'top-right';
   const clockScale = typeof input.clockScale === 'number' ? Math.min(1.8, Math.max(0.7, input.clockScale)) : 1;
-  const textSize = ['compact', 'large', 'xlarge'].includes(input.textSize) ? input.textSize : 'large';
+  const textSize = ['compact', 'large', 'xlarge', 'huge'].includes(input.textSize) ? input.textSize : 'large';
   const textScale = normalizeDisplayTextScale(input.textScale, 1);
   const screenStyle = ['focus', 'wide'].includes(input.screenStyle) ? input.screenStyle : 'focus';
   const displayResolution = ['auto', '16-9', '16-10', '4-3'].includes(input.displayResolution) ? input.displayResolution : 'auto';

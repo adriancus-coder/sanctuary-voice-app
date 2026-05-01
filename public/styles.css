@@ -2771,13 +2771,13 @@ body.participant-preview-mode .participant-event-chooser {
 }
 
 .unified-display-text {
-  width: min(100%, 1320px);
+  width: 100%;
   align-self: center;
   text-align: center;
   font-family: "Space Grotesk", sans-serif;
-  font-size: clamp(3rem, 6.5vw, 7.2rem);
+  font-size: clamp(3.4rem, 8vw, 10rem);
   font-weight: 700;
-  line-height: 1.14;
+  line-height: 1.12;
   white-space: pre-wrap;
   text-wrap: balance;
   letter-spacing: -0.035em;
@@ -2846,27 +2846,33 @@ body.participant-preview-mode .participant-event-chooser {
 
 .unified-display-live[data-text-size="compact"] .unified-display-text,
 .unified-display-text[data-text-size="compact"] {
-  font-size: clamp(2.2rem, 4.8vw, 5.2rem);
+  font-size: clamp(2.4rem, 5.5vw, 6rem);
 }
 
 .unified-display-live[data-text-size="large"] .unified-display-text,
 .unified-display-text[data-text-size="large"] {
-  font-size: clamp(3rem, 6.5vw, 7.2rem);
+  font-size: clamp(3.4rem, 8vw, 10rem);
 }
 
 .unified-display-live[data-text-size="xlarge"] .unified-display-text,
 .unified-display-text[data-text-size="xlarge"] {
-  font-size: clamp(3.4rem, 7.2vw, 8.2rem);
+  font-size: clamp(4.4rem, 10.5vw, 14rem);
+}
+
+.unified-display-live[data-text-size="huge"] .unified-display-text,
+.unified-display-text[data-text-size="huge"] {
+  font-size: clamp(5.6rem, 13vw, 18rem);
+  line-height: 1.05;
 }
 
 .unified-display-live[data-screen-style="focus"] .unified-display-text,
 .unified-display-text[data-screen-style="focus"] {
-  width: min(100%, 1160px);
+  width: min(100%, 1600px);
 }
 
 .unified-display-live[data-screen-style="wide"] .unified-display-text,
 .unified-display-text[data-screen-style="wide"] {
-  width: min(100%, 1460px);
+  width: 100%;
 }
 
 .display-clock {

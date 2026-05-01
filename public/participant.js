@@ -302,24 +302,24 @@ function renderParticipantEventList(events = []) {
   const box = $('participantEventList');
   if (!box) return;
   publicEvents = Array.isArray(events) ? events : [];
-  if (!publicEvents.length) {
-    box.innerHTML = '<div class="muted">No services are listed yet.</div>';
+  const liveEvents = publicEvents.filter((event) => event.isActive);
+  if (!liveEvents.length) {
+    box.innerHTML = '<div class="muted">No live service right now. The list will refresh automatically when one starts.</div>';
     return;
   }
-  box.innerHTML = publicEvents.map((event) => {
+  box.innerHTML = liveEvents.map((event) => {
     const langs = (event.targetLangs || []).map(langLabel).join(', ') || 'No target languages';
-    const live = !!event.isActive;
     return `
-      <div class="participant-event-card ${live ? 'is-live' : 'is-waiting'}">
+      <div class="participant-event-card is-live">
         <div>
           <div class="entry-head">
             <b>${escapeHtml(event.name || 'Service')}</b>
-            <span class="status-pill ${live ? 'active' : ''}">${live ? 'Live now' : 'Not live yet'}</span>
+            <span class="status-pill active">Live now</span>
           </div>
           <div class="small">${escapeHtml(formatEventDate(event.scheduledAt || event.createdAt))}</div>
           <div class="small">Languages: ${escapeHtml(langs)}</div>
         </div>
-        <button class="btn ${live ? 'btn-primary' : 'btn-dark'}" type="button" data-participant-event="${event.id}" ${live ? '' : 'disabled'}>${live ? 'Join' : 'Waiting'}</button>
+        <button class="btn btn-primary" type="button" data-participant-event="${event.id}">Join</button>
       </div>
     `;
   }).join('');
