@@ -161,6 +161,28 @@ function registerEventRoutes(app, ctx) {
     res.json({ ok: true, events });
   });
 
+  app.get('/api/events/resolve/:value', (req, res) => {
+    const raw = String(req.params.value || '').trim();
+    if (!raw) return res.status(400).json({ ok: false, error: 'Event ID required.' });
+    const normalized = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const activeId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
+    const found = Object.values(db.events || {}).find((event) => {
+      if (!event || event.hidden) return false;
+      if (event.id === raw) return true;
+      if (String(event.shortId || '').toUpperCase() === normalized) return true;
+      return false;
+    });
+    if (!found) return res.status(404).json({ ok: false, error: 'Event not found.' });
+    res.json({
+      ok: true,
+      eventId: found.id,
+      shortId: found.shortId || null,
+      name: found.name || 'Service',
+      isActive: activeId === found.id,
+      testMode: !!found.testMode
+    });
+  });
+
   app.get('/api/events/public', (req, res) => {
     const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
     const events = getOrganizationEvents(DEFAULT_ORG_ID)
@@ -170,8 +192,13 @@ function registerEventRoutes(app, ctx) {
         const right = new Date(b.scheduledAt || b.createdAt || 0);
         return right - left;
       })
+      .map((event) => {
+        ensureEventAccessLinks(event);
+        return event;
+      })
       .map((event) => ({
         id: event.id,
+        shortId: event.shortId || null,
         name: event.name,
         scheduledAt: event.scheduledAt || null,
         scheduledDate: event.scheduledDate || null,

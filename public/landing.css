@@ -409,19 +409,35 @@ html, body { background: #0A0A0A; }
   border-color: rgba(212, 168, 83, 0.4);
 }
 
-/* ---------------- Operator card ---------------- */
-.landing-body .landing-operator-card {
+/* ---------------- Operator + Listener role cards ---------------- */
+.landing-body .landing-roles {
   display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: clamp(24px, 4vw, 48px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  width: calc(100vw - 64px);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(56px, 7vw, 112px) 0;
+  border-top: 1px solid rgba(212, 168, 83, 0.1);
+}
+
+.landing-body .landing-operator-card,
+.landing-body .landing-listener-card {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 20px;
   background: #161410;
   border: 1px solid rgba(212, 168, 83, 0.3);
   border-radius: 4px;
-  padding: clamp(40px, 5vw, 64px);
-  margin-top: clamp(56px, 7vw, 112px);
-  margin-bottom: clamp(56px, 7vw, 112px);
+  padding: clamp(32px, 4vw, 56px);
+  margin: 0;
+  width: auto;
+  max-width: none;
   box-shadow: 0 1px 0 rgba(212, 168, 83, 0.04) inset;
+}
+
+.landing-body .landing-listener-card {
+  background: #141414;
 }
 
 .landing-body .landing-operator-eyebrow {
@@ -477,6 +493,53 @@ html, body { background: #0A0A0A; }
   background: #C49A47;
   transform: none;
   filter: none;
+}
+
+/* Listener card form */
+.landing-body .landing-listener-form {
+  display: grid;
+  gap: 12px;
+}
+
+.landing-body .landing-listener-label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  color: rgba(212, 168, 83, 0.7);
+  font-weight: 600;
+  margin: 0;
+}
+
+.landing-body .landing-listener-form input {
+  width: 100%;
+  height: 50px;
+  padding: 0 16px;
+  border: 1px solid #333;
+  background: #0A0A0A;
+  color: #F5F0E8;
+  border-radius: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  transition: border-color 160ms ease;
+}
+
+.landing-body .landing-listener-form input:focus {
+  outline: none;
+  border-color: #D4A853;
+  background: #0A0A0A;
+}
+
+.landing-body .landing-listener-form .landing-preview-cta {
+  width: 100%;
+  align-self: stretch;
+}
+
+.landing-body .landing-listener-error {
+  color: #f87171;
+  font-size: 0.86rem;
+  min-height: 1.1em;
+  margin: 0;
 }
 
 /* ---------------- Languages ---------------- */
@@ -671,7 +734,8 @@ html, body { background: #0A0A0A; }
   .landing-body .landing-proof,
   .landing-body .landing-note,
   .landing-body .landing-languages,
-  .landing-body .landing-operator-card { width: calc(100vw - 32px); }
+  .landing-body .landing-roles { width: calc(100vw - 32px); }
+  .landing-body .landing-roles { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
@@ -715,8 +779,9 @@ html, body { background: #0A0A0A; }
   .landing-body .landing-secondary { flex: 1 1 100%; height: 48px; }
   .landing-body .landing-steps { grid-template-columns: 1fr; }
   .landing-body .landing-proof-list { grid-template-columns: 1fr; }
-  .landing-body .landing-operator-card {
-    grid-template-columns: 1fr;
+  .landing-body .landing-roles { grid-template-columns: 1fr; }
+  .landing-body .landing-operator-card,
+  .landing-body .landing-listener-card {
     text-align: left;
     padding: 32px 24px;
   }

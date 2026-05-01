@@ -117,13 +117,29 @@
       </div>
     </section>
 
-    <section class="landing-operator-card" data-animate>
-      <div>
-        <div class="landing-operator-eyebrow">Operator desk</div>
-        <strong>On-Air</strong>
-        <p>Song, pinned text, live speech, and screen control — all from one panel that signs you in and drops you onto the live service.</p>
+    <section class="landing-roles" data-animate>
+      <div class="landing-operator-card">
+        <div>
+          <div class="landing-operator-eyebrow">Operator desk</div>
+          <strong>On-Air</strong>
+          <p>Song, pinned text, live speech, and screen control — all from one panel that signs you in and drops you onto the live service.</p>
+        </div>
+        <button class="landing-preview-cta" type="button" id="operatorLoginBtn">Operator Login</button>
       </div>
-      <button class="landing-preview-cta" type="button" id="operatorLoginBtn">Operator Login</button>
+
+      <div class="landing-listener-card">
+        <div>
+          <div class="landing-operator-eyebrow">Listener</div>
+          <strong>Join the service</strong>
+          <p>Already have the service ID? Type it here and follow the live translation in your language.</p>
+        </div>
+        <form class="landing-listener-form" id="listenerJoinForm" novalidate>
+          <label class="landing-listener-label" for="listenerEventId">Event ID</label>
+          <input id="listenerEventId" type="text" placeholder="e.g. K3PR9XJM" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text" maxlength="64">
+          <button type="submit" class="landing-preview-cta">Join &rarr;</button>
+          <div id="listenerJoinError" class="landing-listener-error" role="alert"></div>
+        </form>
+      </div>
     </section>
 
     <section class="landing-languages" data-animate>
@@ -493,6 +509,38 @@ function closeOperatorModal() {
         });
     });
   }
+})();
+
+(function () {
+  var form = document.getElementById('listenerJoinForm');
+  var input = document.getElementById('listenerEventId');
+  var err = document.getElementById('listenerJoinError');
+  if (!form || !input) return;
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    err.textContent = '';
+    var raw = (input.value || '').trim();
+    if (!raw) { err.textContent = 'Please enter the Event ID.'; return; }
+    var btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    var label = btn.textContent;
+    btn.textContent = 'Checking…';
+    fetch('/api/events/resolve/' + encodeURIComponent(raw))
+      .then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
+      .then(function (resp) {
+        var data = resp.data || {};
+        if (!resp.ok || !data.ok || !data.eventId) {
+          err.textContent = (data && data.error) || 'Event not found. Check the ID and try again.';
+          btn.disabled = false; btn.textContent = label;
+          return;
+        }
+        window.location.href = '/participant?event=' + encodeURIComponent(data.eventId);
+      })
+      .catch(function () {
+        err.textContent = 'Connection error. Try again.';
+        btn.disabled = false; btn.textContent = label;
+      });
+  });
 })();
 
 (function () {
