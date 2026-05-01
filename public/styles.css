@@ -3346,6 +3346,10 @@ body.participant-preview-mode .participant-event-chooser {
 }
 
 /* Participant countdown */
+[hidden] {
+  display: none !important;
+}
+
 .participant-countdown-stage {
   width: 100%;
   min-height: min(60vh, 540px);
