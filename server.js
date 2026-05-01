@@ -3091,7 +3091,7 @@ function isOperatorPinValid(pin) {
   const candidate = String(pin || '').trim();
   if (!candidate) return false;
   if (MAIN_OPERATOR_PIN && candidate === MAIN_OPERATOR_PIN) return true;
-  for (const event of getActiveEvents()) {
+  for (const event of Object.values(db.events || {})) {
     const operators = Array.isArray(event.remoteOperators) ? event.remoteOperators : [];
     if (operators.some((operator) => String(operator.code || '').trim() === candidate)) {
       return true;
@@ -3131,12 +3131,35 @@ app.get('/api/operator/events', (req, res) => {
   if (!operatorCode || !isOperatorPinValid(operatorCode)) {
     return res.status(401).json({ ok: false, error: 'Operator session expired. Please log in again.' });
   }
-  const events = getActiveEvents().map((event) => ({
-    id: event.id,
-    name: event.name || 'Untitled event',
-    date: event.scheduledAt || event.createdAt || null,
-    sourceLang: event.sourceLang || 'ro'
-  }));
+  const now = Date.now();
+  const events = Object.values(db.events || {})
+    .filter((event) => getEventOrgId(event) === DEFAULT_ORG_ID)
+    .map((event) => {
+      const isActive = isEventActive(event);
+      const ts = typeof event.scheduledTimestamp === 'number' ? event.scheduledTimestamp : null;
+      let status = 'past';
+      if (isActive) status = 'active';
+      else if (ts && ts > now) status = 'scheduled';
+      else if (!ts) status = 'unscheduled';
+      return {
+        id: event.id,
+        name: event.name || 'Untitled event',
+        date: event.scheduledAt || event.createdAt || null,
+        scheduledTimestamp: ts,
+        timezone: event.timezone || null,
+        sourceLang: event.sourceLang || 'ro',
+        isActive,
+        status
+      };
+    })
+    .sort((a, b) => {
+      const order = { active: 0, scheduled: 1, unscheduled: 2, past: 3 };
+      if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+      const aTs = a.scheduledTimestamp ?? new Date(a.date || 0).getTime();
+      const bTs = b.scheduledTimestamp ?? new Date(b.date || 0).getTime();
+      if (a.status === 'past') return bTs - aTs;
+      return aTs - bTs;
+    });
   return res.json({ ok: true, events });
 });
 

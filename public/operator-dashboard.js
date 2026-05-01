@@ -77,8 +77,15 @@
     return LANG_NAMES[key] || (code ? String(code).toUpperCase() : '—');
   }
 
+  var STATUS_LABEL = {
+    active: 'Live now',
+    scheduled: 'Scheduled',
+    unscheduled: 'Draft',
+    past: 'Ended'
+  };
+
   function loadEvents() {
-    setStatus('Loading active events…', false);
+    setStatus('Loading events…', false);
     fetch('/api/operator/events', {
       method: 'GET',
       headers: { 'X-Operator-Code': operatorCode }
@@ -93,7 +100,7 @@
       .then(function (data) {
         if (!data) return;
         if (!data.ok) {
-          setStatus(data.error || 'Could not load active events.', true);
+          setStatus(data.error || 'Could not load events.', true);
           return;
         }
         renderEvents(data.events || []);
@@ -106,7 +113,7 @@
   function renderEvents(events) {
     listEl.innerHTML = '';
     if (!events.length) {
-      setStatus('No active events right now.', false);
+      setStatus('No events yet. Ask the admin to create one.', false);
       return;
     }
     setStatus('', false);
@@ -115,14 +122,33 @@
 
   function buildCard(event) {
     var node = template.content.firstElementChild.cloneNode(true);
+    var status = event.status || (event.isActive ? 'active' : 'past');
+
+    node.classList.add('operator-event-card-' + status);
     node.querySelector('.operator-event-name').textContent = event.name || 'Untitled event';
     node.querySelector('.operator-event-date').textContent = formatDate(event.date);
     node.querySelector('.operator-event-lang').textContent = formatLang(event.sourceLang);
+
+    var statusEl = node.querySelector('.operator-event-status');
+    if (statusEl) {
+      statusEl.textContent = STATUS_LABEL[status] || 'Event';
+      statusEl.dataset.status = status;
+    }
 
     var form = node.querySelector('.operator-event-form');
     var input = node.querySelector('.operator-event-input');
     var errorEl = node.querySelector('.operator-event-error');
     var submitBtn = node.querySelector('.operator-event-join');
+
+    if (status !== 'active') {
+      var note = document.createElement('div');
+      note.className = 'operator-event-note';
+      if (status === 'scheduled') note.textContent = 'Available to join when the service goes live.';
+      else if (status === 'past') note.textContent = 'This service has ended.';
+      else note.textContent = 'Not scheduled yet.';
+      form.replaceWith(note);
+      return node;
+    }
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();

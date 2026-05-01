@@ -1058,8 +1058,8 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
       <div class="muted">Languages: ${escapeHtml(langs || '-')}</div>
       <div class="muted">Texts: ${event.transcriptCount || 0}</div>
       <div class="button-row compact">
-        <button class="btn btn-dark" data-action="open" data-id="${event.id}">Open</button>
-        <button class="btn btn-dark" data-action="activate" data-id="${event.id}">Set live</button>
+        <button class="btn btn-dark" data-action="open" data-id="${event.id}" title="Load this event in Live Control to edit transcript, glossary, songs, and main screen.">Open</button>
+        <button class="btn btn-primary" data-action="activate" data-id="${event.id}" title="Make this the active event for participants and the main screen. Only one event can be live at a time."${event.id === activeEventId ? ' disabled' : ''}>${event.id === activeEventId ? 'Live now' : 'Set live'}</button>
         <button class="btn btn-danger" data-action="delete" data-id="${event.id}">Delete</button>
       </div>`;
     box.appendChild(card);
@@ -1833,12 +1833,13 @@ async function openEventById(eventId) {
   setPartialTranscript();
   if (!currentEvent.adminCode) {
     setStatus('Event opened in read-only mode. Admin code is required for control.');
+    switchTab('dashboard');
     return;
   }
   socket.emit('join_event', { eventId: currentEvent.id, role: 'admin', code: currentEvent.adminCode });
   await refreshEventList();
-  setStatus(`Opened: ${currentEvent.name}.`);
-  switchTab('events');
+  setStatus(`Opened: ${currentEvent.name}. Editing in Live Control.`);
+  switchTab('dashboard');
 }
 
 async function createEvent() {
