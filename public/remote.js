@@ -757,8 +757,8 @@ $('remoteSongClearBtn').addEventListener('click', () => {
 
 $('remoteBackToLiveTextBtn').addEventListener('click', async () => {
   try {
-    await post(`/api/events/${state.eventId}/mode`, { mode: 'live' });
-    setStatus('Back to live text. Participants will receive the next transcript lines.');
+    await post(`/api/events/${state.eventId}/mode`, { mode: 'live', scope: 'participant' });
+    setStatus('Participants are back on live text. Main screen unchanged.');
   } catch (err) {
     setStatus(err.message);
   }

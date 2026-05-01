@@ -1907,8 +1907,19 @@ async function setEventMode(mode) {
 async function returnToLiveText() {
   if (!currentEvent) return alert('Open or create an event first.');
   await syncSpeedToEvent();
-  await setEventMode('live');
-  setStatus('Back to live text. Participants will receive the next transcript lines.');
+  try {
+    const res = await fetch(`/api/events/${currentEvent.id}/mode`, adminJsonOptions('POST', { mode: 'live', scope: 'participant' }));
+    const data = await res.json();
+    if (data.ok) {
+      currentEvent = data.event;
+      currentEvent.mode = 'live';
+      renderActiveEventBadge(currentEvent);
+      refreshDisplayControls();
+    }
+  } catch (err) {
+    console.error(err);
+  }
+  setStatus('Participants are back on live text. Main screen unchanged.');
 }
 
 async function setActiveEvent() {

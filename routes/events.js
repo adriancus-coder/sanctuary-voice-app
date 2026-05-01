@@ -272,9 +272,11 @@ function registerEventRoutes(app, ctx) {
         return res.status(403).json({ ok: false, error: 'Operatorul nu are permisiunea pentru aceasta actiune.' });
       }
     }
+    const scope = String(req.body.scope || 'all').trim();
+    const participantOnly = scope === 'participant';
     ensureEventUiState(event);
     event.mode = mode;
-    if (mode === 'live') {
+    if (mode === 'live' && !participantOnly) {
       rememberDisplayState(event);
       setTranscriptionPaused(event, false, { save: false, emit: false });
       event.displayState.mode = 'auto';
@@ -284,7 +286,7 @@ function registerEventRoutes(app, ctx) {
     }
     saveDb();
     io.to(`event:${event.id}`).emit('mode_changed', { mode });
-    if (mode === 'live') {
+    if (mode === 'live' && !participantOnly) {
       io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
       emitTranscriptionState(event);
     }
