@@ -2081,7 +2081,7 @@ async function loadSpeechRuntimeConfig() {
   try {
     const res = await fetch('/api/health');
     const data = await res.json();
-    audioState.speechProvider = data.speechProvider || 'openai';
+    audioState.speechProvider = normalizeSpeechProvider(data.speechProvider || 'openai');
     if (data.publicBaseUrl) {
       publicBaseUrl = String(data.publicBaseUrl).replace(/\/+$/, '');
       hydratePermanentParticipantAccess();
@@ -2090,6 +2090,14 @@ async function loadSpeechRuntimeConfig() {
     audioState.speechProvider = 'openai';
   }
   return audioState.speechProvider;
+}
+
+function normalizeSpeechProvider(provider) {
+  return provider === 'azure' ? 'azure_sdk' : (provider || 'openai');
+}
+
+function isAzureSpeechProvider(provider = audioState.speechProvider) {
+  return provider === 'azure' || provider === 'azure_sdk';
 }
 
 function sourceLangToAzureLocale(code) {
@@ -2177,7 +2185,7 @@ async function startBrowserAzureRecognition() {
   };
 
   recognizer.sessionStopped = () => {
-    if (audioState.running && audioState.speechProvider === 'azure_sdk') setStatus('Azure session stopped.');
+    if (audioState.running && isAzureSpeechProvider()) setStatus('Azure session stopped.');
     stopBrowserAzureRecognition();
   };
 
@@ -2247,7 +2255,7 @@ async function startAzureAudioStream() {
   audioState.azureSource = audioState.preampNode;
   audioState.azureProcessor = audioState.context.createScriptProcessor(4096, 1, 1);
   audioState.azureProcessor.onaudioprocess = (event) => {
-    if (!audioState.running || audioState.speechProvider !== 'azure_sdk') return;
+    if (!audioState.running || !isAzureSpeechProvider()) return;
     if (getInputGainPercent() <= 0) return;
     const pcm = downsampleTo16kPcm(event.inputBuffer.getChannelData(0), audioState.context.sampleRate);
     if (pcm.byteLength) socket.emit('azure_audio_chunk', { eventId: currentEvent.id, audio: pcm });
@@ -2352,7 +2360,7 @@ async function startTranslation(options = {}) {
   setOnAirState(true);
   notifyTranscriptionPaused(false);
   await enableScreenWakeLock();
-  if (audioState.speechProvider === 'azure_sdk') {
+  if (isAzureSpeechProvider()) {
     try {
       await createAudioPipeline({ preserveRunState: true });
     } catch (err) {
@@ -2594,7 +2602,7 @@ socket.on('audio_state', ({ audioMuted, audioVolume }) => {
 socket.on('partial_transcript', ({ text }) => { setPartialTranscript(text); });
 socket.on('azure_audio_ready', () => {
   audioState.azureReady = true;
-  if (audioState.running && audioState.speechProvider === 'azure_sdk') setStatus('On-Air. Azure Speech connected.');
+  if (audioState.running && isAzureSpeechProvider()) setStatus('On-Air. Azure Speech connected.');
 });
 socket.on('participant_stats', renderParticipantStats);
 socket.on('usage_stats', renderUsageStats);
@@ -2602,12 +2610,22 @@ async function fallbackToOpenAiFromAzure(payload = {}) {
   const message = payload.message || 'Azure Speech failed.';
   const code = String(payload.code || '').toLowerCase();
   const text = `${code} ${message}`.toLowerCase();
-  const isAzureSpeechError = payload.provider === 'azure_sdk' || text.includes('azure speech');
+  const isAzureSpeechError = payload.provider === 'azure_sdk' || payload.provider === 'azure' || text.includes('azure speech');
   const shouldFallback = isAzureSpeechError
     && audioState.running
-    && audioState.speechProvider === 'azure_sdk'
+    && isAzureSpeechProvider()
     && !audioState.openAiFallbackActive
-    && (text.includes('quota') || text.includes('failed') || text.includes('oprit') || text.includes('nu am putut porni'));
+    && (
+      payload.fallbackToOpenAI
+      || text.includes('auth')
+      || text.includes('unauthorized')
+      || text.includes('forbidden')
+      || text.includes('subscription')
+      || text.includes('quota')
+      || text.includes('failed')
+      || text.includes('oprit')
+      || text.includes('nu am putut porni')
+    );
   if (!shouldFallback) return false;
   audioState.openAiFallbackActive = true;
   setStatus(`${message} Switching to OpenAI backup...`);
