@@ -23,6 +23,12 @@
     <a class="landing-admin-link" href="/admin">Admin Login</a>
   </header>
 
+  <a id="landingNextService" class="landing-next-service" href="#" hidden>
+    <span class="landing-next-service-label">Next service:</span>
+    <span id="landingNextServiceText" class="landing-next-service-text"></span>
+    <span class="landing-next-service-cta">Join &rarr;</span>
+  </a>
+
   <main>
     <section class="landing-hero">
       <div class="landing-hero-copy">
@@ -164,6 +170,43 @@ function closeOperatorModal() {
     if (el.id !== 'opModal') el.remove();
   });
 }
+
+(function () {
+  var banner = document.getElementById('landingNextService');
+  var textEl = document.getElementById('landingNextServiceText');
+  if (!banner || !textEl) return;
+
+  function formatScheduled(event) {
+    if (!event || !event.scheduledTimestamp) return '';
+    try {
+      var fmt = new Intl.DateTimeFormat([], {
+        timeZone: event.timezone || undefined,
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      return fmt.format(new Date(event.scheduledTimestamp));
+    } catch (err) {
+      return new Date(event.scheduledTimestamp).toLocaleString();
+    }
+  }
+
+  fetch('/api/events/upcoming')
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      if (!data || !data.ok || !Array.isArray(data.events) || !data.events.length) return;
+      var next = data.events[0];
+      var label = formatScheduled(next);
+      if (!label) return;
+      textEl.textContent = (next.name ? next.name + ' · ' : '') + label;
+      banner.href = next.participantLink || ('/participant?event=' + encodeURIComponent(next.id));
+      banner.hidden = false;
+    })
+    .catch(function () {});
+})();
 
 (function () {
   var nav = document.getElementById('landingNav');

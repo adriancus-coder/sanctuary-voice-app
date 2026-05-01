@@ -119,6 +119,9 @@ function registerEventRoutes(app, ctx) {
         targetLangs: req.body.targetLangs || ['no', 'en'],
         baseUrl,
         scheduledAt: req.body.scheduledAt || null,
+        scheduledDate: req.body.scheduledDate || null,
+        scheduledTime: req.body.scheduledTime || null,
+        timezone: req.body.timezone || null,
         organizationId
       });
       res.json({ ok: true, event: normalizeEvent(event, { includeSecrets: true }) });
@@ -137,6 +140,25 @@ function registerEventRoutes(app, ctx) {
     res.json({ ok: true, event: normalizeEvent(event), languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization(getOrganizationForEvent(event)) });
   });
 
+  app.get('/api/events/upcoming', (req, res) => {
+    const baseUrl = buildBaseUrl(req);
+    const now = Date.now();
+    const events = getOrganizationEvents(DEFAULT_ORG_ID)
+      .filter((event) => typeof event.scheduledTimestamp === 'number' && event.scheduledTimestamp > now)
+      .sort((a, b) => a.scheduledTimestamp - b.scheduledTimestamp)
+      .map((event) => ({
+        id: event.id,
+        name: event.name || '',
+        scheduledTimestamp: event.scheduledTimestamp,
+        scheduledDate: event.scheduledDate || null,
+        scheduledTime: event.scheduledTime || null,
+        timezone: event.timezone || null,
+        translateLink: event.translateLink || `${baseUrl}/translate?event=${event.id}`,
+        participantLink: event.participantLink || `${baseUrl}/participant?event=${event.id}`
+      }));
+    res.json({ ok: true, events });
+  });
+
   app.get('/api/events/public', (req, res) => {
     const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
     const events = getOrganizationEvents(DEFAULT_ORG_ID)
@@ -149,6 +171,10 @@ function registerEventRoutes(app, ctx) {
         id: event.id,
         name: event.name,
         scheduledAt: event.scheduledAt || null,
+        scheduledDate: event.scheduledDate || null,
+        scheduledTime: event.scheduledTime || null,
+        timezone: event.timezone || null,
+        scheduledTimestamp: typeof event.scheduledTimestamp === 'number' ? event.scheduledTimestamp : null,
         createdAt: event.createdAt || null,
         sourceLang: event.sourceLang || 'ro',
         targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],

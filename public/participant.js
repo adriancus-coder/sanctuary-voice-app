@@ -325,6 +325,98 @@ function renderParticipantEventList(events = []) {
   }).join('');
 }
 
+let countdownTimer = null;
+let countdownEventId = '';
+
+function clearCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = null;
+  countdownEventId = '';
+  const stage = $('participantCountdownStage');
+  if (stage) stage.hidden = true;
+  const live = $('participantLiveStage');
+  const history = $('participantHistoryPanel');
+  if (live) live.hidden = false;
+  if (history) history.hidden = false;
+}
+
+function formatCountdownText(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+  if (days > 0) return `${days}d ${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function formatEventScheduledFull(event) {
+  if (!event?.scheduledTimestamp) return '';
+  try {
+    const fmt = new Intl.DateTimeFormat([], {
+      timeZone: event.timezone || undefined,
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const text = fmt.format(new Date(event.scheduledTimestamp));
+    return event.timezone ? `${text} (${event.timezone})` : text;
+  } catch (err) {
+    return new Date(event.scheduledTimestamp).toLocaleString();
+  }
+}
+
+function startCountdownForEvent(event) {
+  if (!event?.scheduledTimestamp) return clearCountdown();
+  countdownEventId = event.id;
+  const stage = $('participantCountdownStage');
+  const liveStage = $('participantLiveStage');
+  const historyPanel = $('participantHistoryPanel');
+  if (stage) stage.hidden = false;
+  if (liveStage) liveStage.hidden = true;
+  if (historyPanel) historyPanel.hidden = true;
+  $('participantCountdownEventName').textContent = event.name || 'Service';
+  $('participantCountdownDate').textContent = formatEventScheduledFull(event);
+  $('participantCountdownNote').textContent = '';
+  setStatus('Service has not started yet.');
+
+  if (countdownTimer) clearInterval(countdownTimer);
+  function tick() {
+    const remaining = (event.scheduledTimestamp || 0) - Date.now();
+    if (remaining <= 0) {
+      $('participantCountdown').textContent = '00:00:00';
+      $('participantCountdownNote').textContent = 'Connecting to live translation...';
+      if (countdownTimer) clearInterval(countdownTimer);
+      countdownTimer = null;
+      loadParticipantEvents({ joinFixedIfLive: true }).catch(() => {});
+      return;
+    }
+    $('participantCountdown').textContent = formatCountdownText(remaining);
+  }
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+function showServiceEnded(event) {
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = null;
+  countdownEventId = event?.id || '';
+  const stage = $('participantCountdownStage');
+  const liveStage = $('participantLiveStage');
+  const historyPanel = $('participantHistoryPanel');
+  if (stage) stage.hidden = false;
+  if (liveStage) liveStage.hidden = true;
+  if (historyPanel) historyPanel.hidden = true;
+  $('participantCountdownEventName').textContent = event?.name || 'Service';
+  $('participantCountdownDate').textContent = formatEventScheduledFull(event);
+  $('participantCountdown').textContent = '';
+  $('participantCountdownNote').textContent = 'This service has ended.';
+  setStatus('This service has ended.');
+}
+
 async function loadParticipantEvents({ joinFixedIfLive = false } = {}) {
   try {
     const res = await fetch('/api/events/public');
@@ -332,17 +424,29 @@ async function loadParticipantEvents({ joinFixedIfLive = false } = {}) {
     if (data.languageNames) availableLanguages = data.languageNames;
     renderParticipantEventList(data.events || []);
     if (state.previewMode && state.fixedEventId) {
+      clearCountdown();
       await joinParticipantEvent(state.fixedEventId);
       return;
     }
     if (joinFixedIfLive && state.fixedEventId) {
       const fixedEvent = (data.events || []).find((event) => event.id === state.fixedEventId);
       if (fixedEvent?.isActive) {
+        clearCountdown();
         await joinParticipantEvent(fixedEvent.id);
         return;
       }
+      if (fixedEvent && typeof fixedEvent.scheduledTimestamp === 'number') {
+        if (fixedEvent.scheduledTimestamp > Date.now()) {
+          startCountdownForEvent(fixedEvent);
+          return;
+        }
+        showServiceEnded(fixedEvent);
+        return;
+      }
+      clearCountdown();
       setStatus('This event is not live yet.');
     } else if (!state.currentEvent) {
+      clearCountdown();
       setStatus('Choose a live event.');
     }
   } catch (_) {
@@ -634,6 +738,7 @@ socket.on('join_error', ({ message }) => setStatus(message || 'Cannot join event
 
 socket.on('joined_event', ({ event, role }) => {
   if (role !== 'participant' && role !== 'participant_preview') return;
+  clearCountdown();
   state.currentEvent = event;
   state.currentMode = event.mode || 'live';
   state.currentSongState = event.songState || null;

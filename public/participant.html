@@ -55,12 +55,19 @@
     </div>
 
     <main class="participant-live participant-listener-live">
-      <div class="participant-live-stage">
+      <div id="participantCountdownStage" class="participant-countdown-stage" hidden>
+        <div class="label">Service starts in</div>
+        <div id="participantCountdownEventName" class="participant-countdown-event"></div>
+        <div id="participantCountdownDate" class="participant-countdown-date"></div>
+        <div id="participantCountdown" class="participant-countdown-timer">--:--:--</div>
+        <div id="participantCountdownNote" class="participant-countdown-note"></div>
+      </div>
+      <div class="participant-live-stage" id="participantLiveStage">
         <div id="participantUpdatingBadge" class="updating-badge" style="display:none">Updating...</div>
         <div class="label">Live text</div>
         <div id="lastText" class="participant-main-text">Waiting for translation...</div>
       </div>
-      <div class="participant-history-panel">
+      <div class="participant-history-panel" id="participantHistoryPanel">
         <div class="label history-label">Earlier lines</div>
         <div id="history" class="history-list"></div>
       </div>

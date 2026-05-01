@@ -3127,6 +3127,166 @@ body.participant-preview-mode .participant-event-chooser {
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* Scheduling: required mark + admin preview */
+.required-mark {
+  color: #f0a878;
+  margin-left: 4px;
+}
+
+.scheduled-preview {
+  font-size: 0.92rem;
+  margin-top: 4px;
+  padding: 10px 14px;
+  border: 1px dashed rgba(244, 221, 171, 0.24);
+  border-radius: 14px;
+  background: rgba(255, 248, 236, 0.04);
+}
+
+/* Landing: next service banner */
+.landing-next-service {
+  width: min(1160px, calc(100vw - 40px));
+  margin: 12px auto 0;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(244, 221, 171, 0.22);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(244, 221, 171, 0.12), rgba(31, 143, 133, 0.1));
+  color: var(--text);
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.landing-next-service:hover {
+  border-color: rgba(244, 221, 171, 0.45);
+  background: linear-gradient(135deg, rgba(244, 221, 171, 0.18), rgba(31, 143, 133, 0.15));
+  transform: translateY(-1px);
+}
+
+.landing-next-service-label {
+  color: var(--gold-strong);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.landing-next-service-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.landing-next-service-cta {
+  color: var(--gold-strong);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Participant countdown */
+.participant-countdown-stage {
+  width: 100%;
+  min-height: min(60vh, 540px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: clamp(20px, 4vw, 40px);
+  text-align: center;
+}
+
+.participant-countdown-stage .label {
+  color: rgba(244, 221, 171, 0.88);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.participant-countdown-event {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff7e8;
+}
+
+.participant-countdown-date {
+  color: rgba(244, 221, 171, 0.78);
+  font-size: clamp(0.95rem, 2vw, 1.15rem);
+}
+
+.participant-countdown-timer {
+  font-family: "Space Grotesk", sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(2.6rem, 9vw, 5.6rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff7e8;
+  text-shadow: 0 0 38px rgba(255, 241, 214, 0.22);
+}
+
+.participant-countdown-note {
+  color: rgba(244, 221, 171, 0.7);
+  font-size: 0.95rem;
+  min-height: 1.2em;
+}
+
+/* Translate (main screen) countdown overlay */
+.translate-countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: clamp(24px, 5vw, 64px);
+  text-align: center;
+  background: linear-gradient(180deg, rgba(5, 7, 10, 0.85), rgba(5, 7, 10, 0.7));
+  border-radius: inherit;
+  z-index: 4;
+}
+
+.translate-countdown-label {
+  color: rgba(244, 221, 171, 0.85);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: clamp(0.9rem, 1.4vw, 1.15rem);
+  font-weight: 800;
+}
+
+.translate-countdown-event {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2rem, 4.6vw, 4rem);
+  color: #fff7e8;
+  font-weight: 700;
+}
+
+.translate-countdown-date {
+  color: rgba(244, 221, 171, 0.82);
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+}
+
+.translate-countdown-timer {
+  font-family: "Space Grotesk", sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(4rem, 14vw, 12rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: #fff7e8;
+  text-shadow: 0 0 60px rgba(255, 241, 214, 0.25);
+  line-height: 1;
+}
+
+.translate-countdown-note {
+  color: rgba(244, 221, 171, 0.78);
+  font-size: clamp(1rem, 1.6vw, 1.2rem);
+  min-height: 1.2em;
+}
+
 /* Operator dashboard */
 .operator-dashboard-body {
   min-height: 100vh;

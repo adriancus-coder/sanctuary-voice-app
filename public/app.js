@@ -866,6 +866,73 @@ function buildScheduledAt() {
   return time ? `${date}T${time}:00` : `${date}T00:00:00`;
 }
 
+const COMMON_TIMEZONES = [
+  'Europe/Oslo','Europe/Bucharest','Europe/Berlin','Europe/Paris','Europe/Madrid','Europe/Rome','Europe/Amsterdam',
+  'Europe/Stockholm','Europe/Copenhagen','Europe/Helsinki','Europe/Warsaw','Europe/Vienna','Europe/Prague',
+  'Europe/Budapest','Europe/Athens','Europe/Istanbul','Europe/Moscow','Europe/Kyiv','Europe/London','Europe/Lisbon',
+  'Europe/Dublin','UTC','America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Toronto',
+  'America/Sao_Paulo','Asia/Dubai','Asia/Tehran','Asia/Jerusalem','Asia/Kolkata','Asia/Bangkok','Asia/Singapore',
+  'Asia/Hong_Kong','Asia/Tokyo','Asia/Seoul','Australia/Sydney','Pacific/Auckland'
+];
+
+function detectBrowserTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch (err) {
+    return 'UTC';
+  }
+}
+
+function populateTimezoneSelect() {
+  const select = $('eventTimezone');
+  if (!select) return;
+  const browserTz = detectBrowserTimezone();
+  const set = new Set(COMMON_TIMEZONES);
+  if (browserTz) set.add(browserTz);
+  const list = Array.from(set).sort();
+  select.innerHTML = list.map((tz) => `<option value="${tz}">${tz}</option>`).join('');
+  select.value = browserTz && set.has(browserTz) ? browserTz : 'UTC';
+}
+
+function formatScheduledPreview() {
+  const date = $('eventDate')?.value;
+  const time = $('eventTime')?.value;
+  const tz = $('eventTimezone')?.value || detectBrowserTimezone();
+  const previewEl = $('eventScheduledPreview');
+  if (!previewEl) return;
+  if (!date || !time) {
+    previewEl.textContent = 'Choose a date and time to schedule this service.';
+    return;
+  }
+  try {
+    const [y, m, d] = date.split('-').map(Number);
+    const [hh, mm] = time.split(':').map(Number);
+    const fmt = new Intl.DateTimeFormat([], {
+      timeZone: tz,
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const sample = new Date(Date.UTC(y, m - 1, d, hh, mm));
+    const parts = fmt.formatToParts(sample);
+    const text = parts.map((p) => p.value).join('');
+    previewEl.textContent = `Event scheduled for: ${text} (${tz})`;
+  } catch (err) {
+    previewEl.textContent = `Event scheduled for: ${date} ${time} (${tz})`;
+  }
+}
+
+function bindScheduledPreviewListeners() {
+  ['eventDate', 'eventTime', 'eventTimezone'].forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener('input', formatScheduledPreview);
+    if (el) el.addEventListener('change', formatScheduledPreview);
+  });
+}
+
 function openInlineEditor(entryId) {
   selectedEntryId = entryId;
   sourceEditLock = true;
@@ -1778,13 +1845,20 @@ async function createEvent() {
   const name = $('eventName').value.trim() || 'New event';
   const sourceLang = $('sourceLang').value;
   const targetLangs = selectedLangs();
+  const scheduledDate = $('eventDate')?.value || '';
+  const scheduledTime = $('eventTime')?.value || '';
+  const timezone = $('eventTimezone')?.value || detectBrowserTimezone();
+  if (!scheduledDate) return alert('Choose a date for the service.');
+  if (!scheduledTime) return alert('Choose a start time for the service.');
   if (!targetLangs.length) return alert('Choose at least one target language.');
   if (targetLangs.includes(sourceLang)) return alert('Remove source language from target languages.');
   const createCode = currentEvent?.adminCode || getStoredAdminCode(currentEvent?.id || '');
   const res = await fetch('/api/events', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       code: createCode,
-      name, speed: $('speed').value || 'balanced', sourceLang, targetLangs, scheduledAt: buildScheduledAt()
+      name, speed: $('speed').value || 'balanced', sourceLang, targetLangs,
+      scheduledAt: buildScheduledAt(),
+      scheduledDate, scheduledTime, timezone
     })
   });
   const data = await res.json();
@@ -3148,6 +3222,9 @@ window.addEventListener('load', async () => {
   const now = new Date();
   $('eventDate').value = now.toISOString().slice(0, 10);
   $('eventTime').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  populateTimezoneSelect();
+  bindScheduledPreviewListeners();
+  formatScheduledPreview();
   hydratePermanentParticipantAccess();
   hydrateAudioProcessingSettings();
   try { await navigator.mediaDevices.getUserMedia(getAudioConstraints()); } catch (_) {}

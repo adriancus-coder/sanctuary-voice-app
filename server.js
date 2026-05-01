@@ -1257,6 +1257,10 @@ function summarizeEvent(event) {
     name: event.name,
     createdAt: event.createdAt || null,
     scheduledAt: event.scheduledAt || null,
+    scheduledDate: event.scheduledDate || null,
+    scheduledTime: event.scheduledTime || null,
+    timezone: event.timezone || null,
+    scheduledTimestamp: typeof event.scheduledTimestamp === 'number' ? event.scheduledTimestamp : null,
     sourceLang: event.sourceLang || 'ro',
     liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
     targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
@@ -1489,6 +1493,10 @@ function normalizeEvent(event, options = {}) {
     audioVolume: typeof event.audioVolume === 'number' ? event.audioVolume : 70,
     createdAt: event.createdAt || new Date().toISOString(),
     scheduledAt: event.scheduledAt || null,
+    scheduledDate: event.scheduledDate || null,
+    scheduledTime: event.scheduledTime || null,
+    timezone: event.timezone || null,
+    scheduledTimestamp: typeof event.scheduledTimestamp === 'number' ? event.scheduledTimestamp : null,
     isActive: isEventActive(event),
     mode: event.mode || 'live',
     transcriptionPaused: !!event.transcriptionPaused,
@@ -1836,7 +1844,87 @@ function ensureEventAccessLinks(event, baseUrl) {
   }
 }
 
-async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt, organizationId = DEFAULT_ORG_ID }) {
+function isValidIanaTimezone(tz) {
+  if (!tz || typeof tz !== 'string') return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+function getTimezoneOffsetMinutes(timeZone, date) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric'
+  });
+  const parts = Object.fromEntries(dtf.formatToParts(date).map((p) => [p.type, p.value]));
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+  return (asUtc - date.getTime()) / 60000;
+}
+
+function zonedTimeToUtcMs(year, month, day, hour, minute, timeZone) {
+  let guess = Date.UTC(year, month - 1, day, hour, minute);
+  for (let i = 0; i < 2; i += 1) {
+    const offset = getTimezoneOffsetMinutes(timeZone, new Date(guess));
+    guess = Date.UTC(year, month - 1, day, hour, minute) - offset * 60000;
+  }
+  return guess;
+}
+
+function computeScheduledTimestamp(scheduledDate, scheduledTime, timezone) {
+  const dateMatch = String(scheduledDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!dateMatch) return null;
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  const timeStr = String(scheduledTime || '00:00').trim();
+  const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})/);
+  if (!timeMatch) return null;
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+  const tz = isValidIanaTimezone(timezone) ? timezone : 'UTC';
+  const ms = zonedTimeToUtcMs(year, month, day, hour, minute, tz);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function deriveScheduledFields({ scheduledDate, scheduledTime, timezone, scheduledAt }) {
+  let date = String(scheduledDate || '').trim() || '';
+  let time = String(scheduledTime || '').trim() || '';
+  let tz = isValidIanaTimezone(timezone) ? String(timezone).trim() : '';
+  if ((!date || !time) && scheduledAt) {
+    const match = String(scheduledAt).match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/);
+    if (match) {
+      if (!date) date = match[1];
+      if (!time) time = `${match[2]}:${match[3]}`;
+    }
+  }
+  const timestamp = date ? computeScheduledTimestamp(date, time || '00:00', tz || 'UTC') : null;
+  const isoAt = timestamp ? new Date(timestamp).toISOString() : (scheduledAt || null);
+  return {
+    scheduledDate: date || null,
+    scheduledTime: time || null,
+    timezone: tz || null,
+    scheduledTimestamp: timestamp,
+    scheduledAt: isoAt
+  };
+}
+
+async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt, scheduledDate, scheduledTime, timezone, organizationId = DEFAULT_ORG_ID }) {
   const organization = ensureOrganization(organizationId);
   const id = randomUUID();
   const adminCode = `SV-ADMIN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
@@ -1848,6 +1936,8 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
   const remoteControlLink = `${baseUrl}/remote?event=${id}&code=${encodeURIComponent(screenOperatorCode)}`;
   const qrCodeDataUrl = await QRCode.toDataURL(participantLink);
 
+  const scheduling = deriveScheduledFields({ scheduledDate, scheduledTime, timezone, scheduledAt });
+
   const event = {
     id,
     organizationId: organization.id,
@@ -1856,7 +1946,11 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     liveSourceLang: sourceLang || 'ro',
     targetLangs: targetLangs?.length ? targetLangs : ['no', 'en'],
     speed: speed || 'balanced',
-    scheduledAt: scheduledAt || null,
+    scheduledAt: scheduling.scheduledAt,
+    scheduledDate: scheduling.scheduledDate,
+    scheduledTime: scheduling.scheduledTime,
+    timezone: scheduling.timezone,
+    scheduledTimestamp: scheduling.scheduledTimestamp,
     adminCode,
     screenOperatorCode,
     remoteOperators: [],
