@@ -1041,9 +1041,9 @@ progress::-moz-progress-bar {
 .section-stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
-  padding: 18px;
+  padding: 14px;
 }
 
 .section-head,
@@ -1300,13 +1300,14 @@ progress::-moz-progress-bar {
 }
 
 .qr {
-  width: min(280px, 100%);
+  width: min(180px, 100%);
   aspect-ratio: 1;
   object-fit: contain;
   background: white;
-  padding: 14px;
-  border-radius: 24px;
+  padding: 10px;
+  border-radius: 18px;
   box-shadow: var(--shadow-lg);
+  align-self: center;
 }
 
 .event-card {
