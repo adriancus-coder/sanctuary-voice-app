@@ -163,12 +163,6 @@ function updateClock() {
   clock.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function updatePauseBanner() {
-  const banner = $('translatePauseBanner');
-  if (!banner) return;
-  banner.hidden = !(state.transcriptionPaused && state.currentDisplayMode === 'auto' && !state.blackScreen);
-}
-
 function getDisplayLanguages() {
   if (state.blackScreen) return [];
   const secondaryLanguage = state.secondaryLanguage && state.secondaryLanguage !== state.currentLanguage
@@ -312,7 +306,6 @@ function renderDisplay() {
   updateMeta();
   applyDisplayTheme(state.currentTheme);
   applyDisplaySettings();
-  updatePauseBanner();
   updateClock();
   requestAnimationFrame(autoFitText);
 }
