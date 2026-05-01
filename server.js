@@ -93,7 +93,7 @@ app.use(helmet({
     useDefaults: true,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://aka.ms'],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:'],
       connectSrc: buildHelmetConnectSources(),
@@ -342,7 +342,9 @@ function buildHelmetConnectSources() {
     'ws://localhost:*',
     'wss://localhost:*',
     'http://127.0.0.1:*',
-    'ws://127.0.0.1:*'
+    'ws://127.0.0.1:*',
+    'https://*.cognitive.microsoft.com',
+    'wss://*.stt.speech.microsoft.com'
   ].filter(Boolean);
 }
 
@@ -3054,7 +3056,7 @@ registerSocketHandlers(io, {
 });
 
 const httpServer = server.listen(PORT, () => {
-  logger.info(`Sanctuary Voice running on ${PORT}`);
+  logger.info(`Sanctuary Voice running on ${httpServer.address()?.port || PORT}`);
 });
 
 let shutdownStarted = false;
