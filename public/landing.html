@@ -18,8 +18,9 @@
       <a href="#for-churches">For churches</a>
       <a href="/demo-screen">Main screen view</a>
       <a href="/demo-participant">Listener view</a>
+      <a href="/admin" class="landing-admin-link">Admin Login</a>
     </nav>
-    <a class="landing-login-btn" href="/admin">Login</a>
+    <button class="landing-login-btn" type="button" id="operatorLoginBtn">Operator Login</button>
   </header>
 
   <main>
@@ -118,5 +119,98 @@
       </p>
     </section>
   </main>
+
+<div id="opModal" class="op-modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="opModalTitle">
+  <div class="op-modal">
+    <div class="op-modal-header">
+      <h2 id="opModalTitle">Operator Login</h2>
+      <button class="op-modal-close" type="button" id="opModalClose" aria-label="Close">&times;</button>
+    </div>
+    <p class="op-modal-desc">Enter your operator PIN to open the remote control panel. Leave Event ID blank to connect to the current live service.</p>
+    <form id="opLoginForm" novalidate>
+      <div class="op-modal-field">
+        <label for="opEventId">Event ID <span class="op-field-optional">(optional)</span></label>
+        <input id="opEventId" type="text" placeholder="Leave blank for the current live service" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="op-modal-field">
+        <label for="opPin">Operator PIN</label>
+        <input id="opPin" type="password" placeholder="Enter your PIN" autocomplete="current-password">
+      </div>
+      <div id="opLoginError" class="op-modal-error" role="alert"></div>
+      <div class="op-modal-actions">
+        <button type="button" class="op-modal-cancel" id="opModalCancelBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Connect</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('operatorLoginBtn');
+  var modal = document.getElementById('opModal');
+  var closeBtn = document.getElementById('opModalClose');
+  var cancelBtn = document.getElementById('opModalCancelBtn');
+  var form = document.getElementById('opLoginForm');
+  var eventIdInput = document.getElementById('opEventId');
+  var pinInput = document.getElementById('opPin');
+  var errorEl = document.getElementById('opLoginError');
+
+  function openModal() {
+    modal.hidden = false;
+    pinInput.focus();
+  }
+
+  function closeModal() {
+    modal.hidden = true;
+    errorEl.textContent = '';
+    form.reset();
+  }
+
+  btn.addEventListener('click', openModal);
+  closeBtn.addEventListener('click', closeModal);
+  cancelBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) closeModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.hidden) closeModal();
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var eventId = eventIdInput.value.trim();
+    var pin = pinInput.value.trim();
+    errorEl.textContent = '';
+    if (!pin) {
+      errorEl.textContent = 'Please enter your operator PIN.';
+      return;
+    }
+    var submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Connecting…';
+    fetch('/api/operator-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId: eventId, pin: pin })
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.ok && data.redirectUrl) {
+          window.location.href = data.redirectUrl;
+        } else {
+          errorEl.textContent = data.error || 'Login failed. Please check your PIN and try again.';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Connect';
+        }
+      })
+      .catch(function () {
+        errorEl.textContent = 'Connection error. Please try again.';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Connect';
+      });
+  });
+})();
+</script>
 </body>
 </html>

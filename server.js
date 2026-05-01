@@ -2965,6 +2965,64 @@ function setSongIndex(event, index) {
   return true;
 }
 
+const operatorLoginAttempts = new Map();
+const OPERATOR_LOGIN_RATE_WINDOW_MS = 10 * 60 * 1000;
+const OPERATOR_LOGIN_RATE_MAX = 10;
+
+function getOperatorClientIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
+}
+
+function checkOperatorLoginRateLimit(ip) {
+  const now = Date.now();
+  const entry = operatorLoginAttempts.get(ip);
+  if (!entry || now - entry.windowStart >= OPERATOR_LOGIN_RATE_WINDOW_MS) {
+    operatorLoginAttempts.set(ip, { windowStart: now, count: 1 });
+    return { allowed: true };
+  }
+  entry.count += 1;
+  if (entry.count > OPERATOR_LOGIN_RATE_MAX) {
+    return { allowed: false, retryAfter: Math.ceil((entry.windowStart + OPERATOR_LOGIN_RATE_WINDOW_MS - now) / 1000) };
+  }
+  return { allowed: true };
+}
+
+app.post('/api/operator-login', (req, res) => {
+  const ip = getOperatorClientIp(req);
+  const rateCheck = checkOperatorLoginRateLimit(ip);
+  if (!rateCheck.allowed) {
+    return res.status(429).json({ ok: false, error: `Too many attempts. Try again in ${rateCheck.retryAfter}s.` });
+  }
+  const rawEventId = String(req.body?.eventId || '').trim();
+  const pin = String(req.body?.pin || '').trim();
+  if (!pin) {
+    return res.status(400).json({ ok: false, error: 'Operator PIN is required.' });
+  }
+  let eventId = rawEventId;
+  if (!eventId) {
+    eventId = getActiveEventIdForOrg(DEFAULT_ORG_ID) || '';
+  }
+  if (!eventId) {
+    return res.status(404).json({ ok: false, error: 'No active event found. Ask your admin for the Event ID.' });
+  }
+  const event = db.events[eventId];
+  if (!event) {
+    return res.status(404).json({ ok: false, error: 'Event not found.' });
+  }
+  if (!isEventActive(event)) {
+    return res.status(403).json({ ok: false, error: 'Event is not currently active.' });
+  }
+  const access = resolveEventAccessFromCode(event, pin);
+  if (access.role !== 'screen') {
+    return res.status(403).json({ ok: false, error: 'Invalid PIN.' });
+  }
+  operatorLoginAttempts.delete(ip);
+  return res.json({
+    ok: true,
+    redirectUrl: `/remote?event=${encodeURIComponent(eventId)}&code=${encodeURIComponent(pin)}`
+  });
+});
+
 registerOrgRoutes(app, {
   AZURE_SPEECH_KEY,
   AZURE_SPEECH_REGION,
