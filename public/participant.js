@@ -3,9 +3,10 @@ const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
 let participantWakeLock = null;
 const participantParams = new URLSearchParams(window.location.search);
-const LIVE_ENTRY_MIN_DISPLAY_MS = 2600;
+const LIVE_ENTRY_MIN_DISPLAY_MS = 1800;
 const LIVE_ENTRY_MAX_DISPLAY_MS = 9000;
 const LIVE_ENTRY_MAX_QUEUE = 3;
+const LIVE_ENTRY_CATCHUP_MIN_MS = 800;
 
 const voiceLocales = {
   ro: 'ro-RO',
@@ -547,7 +548,13 @@ function scheduleNextLiveEntry() {
 
   const elapsed = Date.now() - (state.liveEntryShownAt || 0);
   const currentEntry = getVisibleLiveEntry();
-  const waitMs = Math.max(0, (currentEntry ? getLiveEntryDuration(currentEntry) : LIVE_ENTRY_MIN_DISPLAY_MS) - elapsed);
+  const baseDuration = currentEntry ? getLiveEntryDuration(currentEntry) : LIVE_ENTRY_MIN_DISPLAY_MS;
+  const queueLen = state.liveEntryQueue.length;
+  const catchupFactor = queueLen >= 2 ? 0.45 : queueLen === 1 ? 0.7 : 1;
+  const targetDuration = queueLen > 0
+    ? Math.max(LIVE_ENTRY_CATCHUP_MIN_MS, Math.round(baseDuration * catchupFactor))
+    : baseDuration;
+  const waitMs = Math.max(0, targetDuration - elapsed);
   state.liveEntryTimer = setTimeout(() => {
     state.liveEntryTimer = null;
     const nextEntry = state.liveEntryQueue.shift();

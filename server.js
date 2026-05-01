@@ -2516,11 +2516,11 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
     lastDeliveryTargetCount: Array.isArray(event.targetLangs) ? event.targetLangs.length : 0
   }, false);
   event.latestDisplayEntry = cloneDisplayEntry(entry);
-  saveDb();
   io.to(`event:${event.id}`).emit('transcript_entry', entry);
   if (event.displayState?.mode === 'auto') {
     io.to(`event:${event.id}`).emit('display_live_entry', cloneDisplayEntry(event.latestDisplayEntry));
   }
+  saveDb();
   emitUsageStats(event.id);
   emitTranslationMonitor(event.id);
   return entry;
