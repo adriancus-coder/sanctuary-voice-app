@@ -2146,7 +2146,10 @@ function startMeterLoop() {
     const gateRms = Math.sqrt(gateSumSquares / gateData.length);
     const displayDb = 20 * Math.log10(Math.max(displayRms, 0.00001));
     const gateDb = 20 * Math.log10(Math.max(gateRms, 0.00001));
-    const displayLevel = Math.max(0, Math.min(100, Math.round(((displayDb + 60) / 60) * 100)));
+    // Display: noise-floor at -45dB → 0%, full scale at -15dB → 100%, with a small dead-zone below 4%.
+    const displayRaw = ((displayDb + 45) / 30) * 100;
+    const displayLevel = displayRaw < 4 ? 0 : Math.max(0, Math.min(100, Math.round(displayRaw)));
+    // Gate keeps the wider window so quiet speech still triggers the audio gate as before.
     const gateLevel = Math.max(0, Math.min(100, Math.round(((gateDb + 60) / 60) * 100)));
     $('audioLevel').value = displayLevel;
     audioState.currentLevel = displayLevel;
