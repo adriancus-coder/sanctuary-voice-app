@@ -141,13 +141,15 @@ app.get('/', (req, res, next) => {
 app.get('/home', sendLandingPage);
 app.get('/admin', requireAdminPage, sendAdminPage);
 app.get('/admin.html', requireAdminPage, sendAdminPage);
-app.get('/participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
-app.get('/participant.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
-app.get('/live', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
-app.get('/main-screen', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
-app.get('/translate', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
-app.get('/song', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
+app.get('/participant', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
+app.get('/participant.html', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
+app.get('/live', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
+app.get('/main-screen', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
+app.get('/translate', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
+app.get('/song', requireEventParam, (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
+app.get('/demo-screen', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-screen.html')));
+app.get('/demo-participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-participant.html')));
 
 const DEFAULT_DATA_DIR = process.env.RENDER ? '/var/data' : path.join(__dirname, 'data');
 const DATA_DIR = process.env.DATA_DIR || DEFAULT_DATA_DIR;
@@ -494,6 +496,47 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function renderNoEventPage() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sanctuary Voice</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Georgia, "Times New Roman", serif;
+      color: #f8f0e0;
+      background: radial-gradient(circle at 50% 12%, rgba(232,196,119,0.12), transparent 28%), #070807;
+      text-align: center;
+      padding: 32px 16px;
+    }
+    .eyebrow { letter-spacing: .2em; text-transform: uppercase; color: #e8c477; font: 700 13px/1.4 Arial, sans-serif; margin-bottom: 16px; }
+    h1 { margin: 0 0 12px; font-size: clamp(2rem, 5vw, 3rem); }
+    p { margin: 0; color: #b9b0a3; font: 18px/1.5 Arial, sans-serif; }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="eyebrow">Sanctuary Voice</div>
+    <h1>No active event</h1>
+    <p>Ask the event host for a direct link or QR code to join.</p>
+  </div>
+</body>
+</html>`;
+}
+
+function requireEventParam(req, res, next) {
+  if (!req.query.event) return res.send(renderNoEventPage());
+  return next();
 }
 
 function renderAdminLoginPage({ error = '', nextPath = '/admin' } = {}) {
@@ -1775,7 +1818,11 @@ function ensureEventAccessLinks(event, baseUrl) {
   event.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []);
   if (baseUrl) {
     const globalAccess = ensureGlobalAccess(baseUrl, event);
-    event.participantLink = `${baseUrl}/participant`;
+    const newParticipantLink = `${baseUrl}/participant?event=${event.id}`;
+    if (event.participantLink !== newParticipantLink) {
+      event.participantLink = newParticipantLink;
+      QRCode.toDataURL(newParticipantLink).then((dataUrl) => { event.qrCodeDataUrl = dataUrl; }).catch(() => {});
+    }
     event.translateLink = `${baseUrl}/translate?event=${event.id}`;
     event.songLink = `${baseUrl}/song?event=${event.id}`;
     event.mainOperatorLink = globalAccess.mainOperatorLink;
@@ -1792,7 +1839,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
   const id = randomUUID();
   const adminCode = `SV-ADMIN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   const screenOperatorCode = `SV-SCREEN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-  const participantLink = `${baseUrl}/participant`;
+  const participantLink = `${baseUrl}/participant?event=${id}`;
   const translateLink = `${baseUrl}/translate?event=${id}`;
   const songLink = `${baseUrl}/song?event=${id}`;
   const mainOperatorLink = ensureGlobalAccess(baseUrl, organization.id).mainOperatorLink;
