@@ -3,6 +3,21 @@ const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
 let mainScreenWakeLock = null;
 
+function escapeTextForHtml(text) {
+  return String(text || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+const BIBLE_BOOK_NAMES = '(?:Geneza|Exod|Levitic|Numeri|Deuteronom|Iosua|Judec[ăa]tori|Rut|Samuel|[ÎI]mp[ăa]ra[țt]i|Cronici|Ezra|Neemia|Estera|Iov|Psalmi|Psalmul|Proverbe|Eclesiastul|C[âa]ntarea|Isaia|Ieremia|Pl[âa]ngeri|Ezechiel|Daniel|Osea|Ioel|Amos|Obadia|Iona|Mica|Naum|Habacuc|[ȚT]efania|Hagai|Zaharia|Maleahi|Matei|Marcu|Luca|Ioan|Faptele|Romani|Corinteni|Galateni|Efeseni|Filipeni|Coloseni|Tesaloniceni|Timotei|Tit|Filimon|Evrei|Iacov|Petru|Iuda|Apocalipsa|Genesis|Exodus|Leviticus|Numbers|Deuteronomy|Joshua|Judges|Ruth|Kings|Chronicles|Nehemiah|Esther|Job|Psalms|Psalm|Proverbs|Ecclesiastes|Song|Isaiah|Jeremiah|Lamentations|Ezekiel|Hosea|Joel|Amos|Obadiah|Jonah|Micah|Nahum|Habakkuk|Zephaniah|Haggai|Zechariah|Malachi|Matthew|Mark|Luke|John|Acts|Romans|Corinthians|Galatians|Ephesians|Philippians|Colossians|Thessalonians|Timothy|Titus|Philemon|Hebrews|James|Peter|Jude|Revelation)';
+const BIBLE_REF_REGEX = new RegExp(`((?:[12]\\s+)?${BIBLE_BOOK_NAMES}\\s+\\d{1,3}:\\d{1,3}(?:[-–]\\d{1,3})?)`, 'g');
+
+function highlightBibleRefs(text) {
+  return escapeTextForHtml(text || '').replace(BIBLE_REF_REGEX, '<span class="bible-ref">$1</span>');
+}
+
 const params = new URLSearchParams(window.location.search);
 const state = {
   fixedEventId: params.get('event') || '',
@@ -297,16 +312,16 @@ function renderDisplay() {
   const dualText = $('translateDualText');
   if (singleText) {
     singleText.hidden = useDual;
-    singleText.textContent = getTextToDisplay(languages[0] || state.currentLanguage);
+    singleText.innerHTML = highlightBibleRefs(getTextToDisplay(languages[0] || state.currentLanguage));
   }
   if (dualText) {
     dualText.hidden = !useDual;
     dualText.dataset.textSize = state.textSize || 'large';
     dualText.dataset.screenStyle = state.screenStyle || 'focus';
     if ($('translatePrimaryLanguageLabel')) $('translatePrimaryLanguageLabel').textContent = langLabel(languages[0] || state.currentLanguage);
-    if ($('translatePrimaryText')) $('translatePrimaryText').textContent = getTextToDisplay(languages[0] || state.currentLanguage);
+    if ($('translatePrimaryText')) $('translatePrimaryText').innerHTML = highlightBibleRefs(getTextToDisplay(languages[0] || state.currentLanguage));
     if ($('translateSecondaryLanguageLabel')) $('translateSecondaryLanguageLabel').textContent = langLabel(languages[1] || '');
-    if ($('translateSecondaryText')) $('translateSecondaryText').textContent = getTextToDisplay(languages[1] || state.currentLanguage);
+    if ($('translateSecondaryText')) $('translateSecondaryText').innerHTML = highlightBibleRefs(getTextToDisplay(languages[1] || state.currentLanguage));
   }
   if ($('translateText')) {
     $('translateText').dataset.textSize = state.textSize || 'large';

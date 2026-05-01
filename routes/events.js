@@ -496,6 +496,46 @@ function registerEventRoutes(app, ctx) {
     res.json({ ok: true, activeEventId: getActiveEventIdForOrg(orgId) || null });
   });
 
+  app.post('/api/events/:id/duplicate', async (req, res) => {
+    const source = db.events[req.params.id];
+    if (!source) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+    if (!requireEventAdmin(req, res, source)) return;
+    try {
+      const baseUrl = buildBaseUrl(req);
+      const namePrefix = String(req.body?.name || '').trim();
+      const duplicatedName = namePrefix || `${source.name || 'Service'} (copy)`;
+      const newEvent = await createEvent({
+        name: duplicatedName,
+        speed: source.speed || 'balanced',
+        sourceLang: source.sourceLang || 'ro',
+        targetLangs: Array.isArray(source.targetLangs) ? [...source.targetLangs] : ['no', 'en'],
+        baseUrl,
+        scheduledDate: req.body?.scheduledDate || null,
+        scheduledTime: req.body?.scheduledTime || null,
+        timezone: req.body?.timezone || source.timezone || null,
+        organizationId: getEventOrgId(source)
+      });
+      newEvent.glossary = JSON.parse(JSON.stringify(source.glossary || {}));
+      newEvent.sourceCorrections = JSON.parse(JSON.stringify(source.sourceCorrections || {}));
+      newEvent.songLibrary = Array.isArray(source.songLibrary)
+        ? source.songLibrary.map((item) => ({ ...item, id: randomUUID() }))
+        : [];
+      if (typeof recordAudit === 'function') {
+        recordAudit(getEventOrgId(newEvent), 'event_duplicated', {
+          fromEventId: source.id,
+          fromName: source.name,
+          eventId: newEvent.id,
+          name: newEvent.name
+        });
+      }
+      saveDb();
+      res.json({ ok: true, event: normalizeEvent(newEvent, { includeSecrets: true }) });
+    } catch (err) {
+      logger.error('duplicate event error:', err?.message || err);
+      res.status(500).json({ ok: false, error: 'Could not duplicate event.' });
+    }
+  });
+
   app.post('/api/events/:id/target-langs', (req, res) => {
     const event = db.events[req.params.id];
     if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });

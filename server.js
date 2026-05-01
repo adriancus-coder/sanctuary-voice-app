@@ -2167,12 +2167,13 @@ function getGlossaryCacheKey(glossary = {}) {
     .join('||');
 }
 
-function buildTranslationCacheKey({ text, langCode, sourceLang, speed, glossary }) {
+function buildTranslationCacheKey({ text, langCode, sourceLang, speed, glossary, context }) {
   return [
     String(sourceLang || ''),
     String(langCode || ''),
     String(speed || ''),
     getGlossaryCacheKey(glossary),
+    String(context || ''),
     sanitizeStructuredText(text || '')
   ].join('::');
 }
@@ -2330,18 +2331,24 @@ function pushSongHistory(event, item) {
   }
 }
 
-async function translateText(text, langCode, event, sourceLangOverride = '') {
+async function translateText(text, langCode, event, sourceLangOverride = '', options = {}) {
   const glossary = getGlossaryForLang(langCode, event);
   const cleanText = sanitizeStructuredText(text);
   const sourceLang = String(sourceLangOverride || event.sourceLang || 'ro').trim() || 'ro';
   if (!cleanText) return '';
   if (langCode === sourceLang) return cleanText;
+  const contextEntries = Array.isArray(options.contextEntries) ? options.contextEntries : [];
+  const usableContext = contextEntries
+    .filter((entry) => entry && entry.original && entry.translations && entry.translations[langCode])
+    .slice(-2);
+  const contextSignature = usableContext.map((entry) => entry.id || `${entry.original}|${entry.translations[langCode]}`).join('|');
   const cacheKey = buildTranslationCacheKey({
     text: cleanText,
     langCode,
     sourceLang,
     speed: event.speed,
-    glossary
+    glossary,
+    context: contextSignature
   });
   const cachedTranslation = readTranslationCache(cacheKey);
   if (cachedTranslation) {
@@ -2367,13 +2374,18 @@ async function translateText(text, langCode, event, sourceLangOverride = '') {
     lastBatchText: cleanText.slice(0, 220),
     lastBatchSourceLang: sourceLang
   });
+  const inputMessages = [
+    { role: 'system', content: buildPrompt(LANGUAGES[sourceLang] || sourceLang, LANGUAGES[langCode] || langCode, event.speed, glossary) }
+  ];
+  for (const entry of usableContext) {
+    inputMessages.push({ role: 'user', content: entry.original });
+    inputMessages.push({ role: 'assistant', content: entry.translations[langCode] });
+  }
+  inputMessages.push({ role: 'user', content: cleanText });
   try {
     const result = await translationService.translateWithResponsesDetailed({
       model: OPENAI_MODEL,
-      input: [
-        { role: 'system', content: buildPrompt(LANGUAGES[sourceLang] || sourceLang, LANGUAGES[langCode] || langCode, event.speed, glossary) },
-        { role: 'user', content: cleanText }
-      ]
+      input: inputMessages
     });
     const translatedText = result.text;
     if (result.tokens) recordTranslationUsage(event, result.tokens);
@@ -2585,8 +2597,11 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
   if (!chunkNormalized || chunkNormalized.length < 2) return null;
 
   const sourceLang = sourceLangOverride || event.sourceLang || 'ro';
+  const contextEntries = (Array.isArray(event.transcripts) ? event.transcripts : [])
+    .filter((entry) => entry && entry.original && entry.sourceLang === sourceLang)
+    .slice(-2);
   const translationPairs = await Promise.all(
-    event.targetLangs.map(async (lang) => [lang, await translateText(cleanChunk, lang, event, sourceLang)])
+    event.targetLangs.map(async (lang) => [lang, await translateText(cleanChunk, lang, event, sourceLang, { contextEntries })])
   );
 
   const entry = {

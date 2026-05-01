@@ -49,6 +49,14 @@ function escapeHtml(text) {
     .replaceAll('"', '&quot;');
 }
 
+const BIBLE_BOOK_NAMES = '(?:Geneza|Exod|Levitic|Numeri|Deuteronom|Iosua|Judec[ăa]tori|Rut|Samuel|[ÎI]mp[ăa]ra[țt]i|Cronici|Ezra|Neemia|Estera|Iov|Psalmi|Psalmul|Proverbe|Eclesiastul|C[âa]ntarea|Isaia|Ieremia|Pl[âa]ngeri|Ezechiel|Daniel|Osea|Ioel|Amos|Obadia|Iona|Mica|Naum|Habacuc|[ȚT]efania|Hagai|Zaharia|Maleahi|Matei|Marcu|Luca|Ioan|Faptele|Romani|Corinteni|Galateni|Efeseni|Filipeni|Coloseni|Tesaloniceni|Timotei|Tit|Filimon|Evrei|Iacov|Petru|Iuda|Apocalipsa|Genesis|Exodus|Leviticus|Numbers|Deuteronomy|Joshua|Judges|Ruth|Kings|Chronicles|Nehemiah|Esther|Job|Psalms|Psalm|Proverbs|Ecclesiastes|Song|Isaiah|Jeremiah|Lamentations|Ezekiel|Hosea|Joel|Amos|Obadiah|Jonah|Micah|Nahum|Habakkuk|Zephaniah|Haggai|Zechariah|Malachi|Matthew|Mark|Luke|John|Acts|Romans|Corinthians|Galatians|Ephesians|Philippians|Colossians|Thessalonians|Timothy|Titus|Philemon|Hebrews|James|Peter|Jude|Revelation)';
+const BIBLE_REF_REGEX = new RegExp(`((?:[12]\\s+)?${BIBLE_BOOK_NAMES}\\s+\\d{1,3}:\\d{1,3}(?:[-–]\\d{1,3})?)`, 'g');
+
+function highlightBibleRefs(text) {
+  const safe = escapeHtml(text || '');
+  return safe.replace(BIBLE_REF_REGEX, '<span class="bible-ref">$1</span>');
+}
+
 const state = {
   fixedEventId: participantParams.get('event') || '',
   previewMode: participantParams.get('preview') === '1',
@@ -537,7 +545,11 @@ function renderLiveView({ announce = false } = {}) {
   }
   const visibleEntry = getVisibleLiveEntry();
   state.lastLiveEntryId = visibleEntry?.id || null;
-  $('lastText').textContent = visibleEntry ? getTextForEntry(visibleEntry) : 'Waiting for translation...';
+  if (visibleEntry) {
+    $('lastText').innerHTML = highlightBibleRefs(getTextForEntry(visibleEntry));
+  } else {
+    $('lastText').textContent = 'Waiting for translation...';
+  }
   renderHistory();
   updateTopMeta();
   if (announce && visibleEntry && visibleEntry.id !== state.lastSpokenEntryId) {

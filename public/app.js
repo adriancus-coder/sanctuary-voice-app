@@ -1076,6 +1076,7 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
       <div class="button-row compact">
         <button class="btn btn-dark" data-action="open" data-id="${event.id}" title="Load this event in Live Control to edit transcript, glossary, songs, and main screen.">Open</button>
         <button class="btn btn-primary" data-action="activate" data-id="${event.id}" title="Make this the active event for participants and the main screen. Only one event can be live at a time."${event.id === activeEventId ? ' disabled' : ''}>${event.id === activeEventId ? 'Live now' : 'Set live'}</button>
+        <button class="btn btn-dark" data-action="duplicate" data-id="${event.id}" title="Create a new event with the same languages, glossary, and song library — clean transcript and stats.">Duplicate</button>
         <button class="btn btn-dark" data-action="visibility" data-id="${event.id}" title="${escapeHtml(visibilityTitle)}">${visibilityLabel}</button>
         <button class="btn btn-danger" data-action="delete" data-id="${event.id}">Delete</button>
       </div>`;
@@ -3329,6 +3330,29 @@ $('eventList').addEventListener('click', async (e) => {
     return;
   }
   if (action === 'open') return openEventById(id);
+  if (action === 'duplicate') {
+    btn.disabled = true;
+    try {
+      const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (getStoredAdminCode(id) || '');
+      const newName = window.prompt('Name for the duplicated event:', '');
+      const res = await fetch(`/api/events/${id}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: adminCode, name: newName || '' })
+      });
+      const data = await res.json();
+      if (!data.ok) { alert(data.error || 'Could not duplicate.'); return; }
+      rememberAdminCode(data.event);
+      await refreshEventList();
+      setStatus(`Duplicated: ${data.event.name}.`);
+    } catch (err) {
+      console.error(err);
+      alert('Could not duplicate event.');
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
   if (action === 'activate') {
     const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event to activate it:') || '').trim();
     if (!adminCode) return;

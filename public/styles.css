@@ -1607,6 +1607,29 @@ progress::-moz-progress-bar {
   font-size: 0.92rem;
 }
 
+/* Bible verse highlighting */
+.bible-ref {
+  font-style: italic;
+  color: #f0d49d;
+  background: rgba(212, 168, 83, 0.1);
+  border: 1px solid rgba(212, 168, 83, 0.22);
+  border-radius: 4px;
+  padding: 0.04em 0.32em;
+  white-space: nowrap;
+}
+
+.display-theme-light .bible-ref {
+  color: #8b6914;
+  background: rgba(139, 105, 20, 0.08);
+  border-color: rgba(139, 105, 20, 0.25);
+}
+
+.participant-shell:not(.remote-shell) .bible-ref {
+  color: #8b6914;
+  background: rgba(139, 105, 20, 0.08);
+  border-color: rgba(139, 105, 20, 0.25);
+}
+
 /* Statistics tab */
 .cards-grid.four {
   display: grid;
