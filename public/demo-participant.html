@@ -12,22 +12,34 @@
       <div class="participant-listener-title">
         <div class="eyebrow">Sanctuary Voice</div>
         <h1>Sunday Service — Preview</h1>
-        <div id="participantEventMeta" class="muted">This is a preview. Open the real event link to follow the live service.</div>
+        <div class="muted">This is a preview. Open the real event link to follow the live service.</div>
       </div>
       <div class="participant-badge-row participant-listener-badges">
         <div class="status-pill active" style="pointer-events:none;cursor:default">DEMO</div>
-        <div class="status-pill">Norwegian</div>
+        <div class="status-pill" id="demoLangBadge">Norwegian</div>
       </div>
     </header>
 
     <div class="participant-controls participant-listener-controls">
       <div class="participant-control-group">
         <label for="languageSelectDemo">Language</label>
-        <select id="languageSelectDemo" disabled>
-          <option>Norwegian</option>
-          <option>English</option>
-          <option>Romanian</option>
-          <option>Russian</option>
+        <select id="languageSelectDemo">
+          <option value="no">Norwegian</option>
+          <option value="en">English</option>
+          <option value="ro">Romanian</option>
+          <option value="ru">Russian</option>
+          <option value="uk">Ukrainian</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="it">Italian</option>
+          <option value="pt">Portuguese</option>
+          <option value="pl">Polish</option>
+          <option value="tr">Turkish</option>
+          <option value="ar">Arabic</option>
+          <option value="fa">Farsi</option>
+          <option value="hu">Hungarian</option>
+          <option value="el">Greek</option>
         </select>
       </div>
       <div class="button-row compact-row participant-audio-actions">
@@ -43,17 +55,31 @@
     <main class="participant-live participant-listener-live">
       <div class="participant-live-stage">
         <div class="label">Live text</div>
-        <div class="participant-main-text">For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.</div>
-      </div>
-      <div class="participant-history-panel">
-        <div class="label history-label">Earlier lines</div>
-        <div class="history-list">
-          <div class="history-item">Jesus said to him, "I am the way, and the truth, and the life. No one comes to the Father except through me."</div>
-          <div class="history-item">In the beginning was the Word, and the Word was with God, and the Word was God.</div>
-          <div class="history-item">The Lord is my shepherd; I shall not want.</div>
-        </div>
+        <div id="demoMainText" class="participant-main-text">For så høyt har Gud elsket verden at han ga sin Sønn, den enbårne, for at hver den som tror på ham, ikke skal gå fortapt, men ha evig liv.</div>
+        <div class="demo-verse-source">Ioan 3:16</div>
       </div>
     </main>
   </div>
+
+  <div class="demo-corner-banner">Demo mode — connect to a live event for real translation</div>
+
+  <script src="/demo-shared.js"></script>
+  <script>
+  (function () {
+    var select = document.getElementById('languageSelectDemo');
+    var textEl = document.getElementById('demoMainText');
+    var badgeEl = document.getElementById('demoLangBadge');
+
+    function update(lang) {
+      var verse = window.SV_DEMO.verses[lang] || window.SV_DEMO.verses.en;
+      textEl.textContent = verse;
+      textEl.dir = window.SV_DEMO.rtl[lang] ? 'rtl' : 'ltr';
+      badgeEl.textContent = window.SV_DEMO.names[lang] || lang;
+    }
+
+    select.addEventListener('change', function () { update(select.value); });
+    update(select.value);
+  })();
+  </script>
 </body>
 </html>

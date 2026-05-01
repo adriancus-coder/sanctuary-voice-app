@@ -10,9 +10,30 @@
   <main class="participant-shell participant-shell-v2 unified-display-shell">
     <section class="participant-header panel glass-panel participant-hero-v2 unified-display-top" id="displayChrome">
       <div class="participant-controls unified-display-controls unified-display-controls-single">
-        <div class="button-row compact-row participant-audio-actions">
+        <div class="demo-screen-controls">
           <span class="status-pill active" style="pointer-events:none;cursor:default">DEMO</span>
-          <button class="btn btn-primary" type="button" onclick="document.documentElement.requestFullscreen?.()">Full screen</button>
+          <div class="demo-screen-language">
+            <label for="demoScreenLang">Language</label>
+            <select id="demoScreenLang">
+              <option value="no">Norwegian</option>
+              <option value="en">English</option>
+              <option value="ro">Romanian</option>
+              <option value="ru">Russian</option>
+              <option value="uk">Ukrainian</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="it">Italian</option>
+              <option value="pt">Portuguese</option>
+              <option value="pl">Polish</option>
+              <option value="tr">Turkish</option>
+              <option value="ar">Arabic</option>
+              <option value="fa">Farsi</option>
+              <option value="hu">Hungarian</option>
+              <option value="el">Greek</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" type="button" id="demoFullscreenBtn">Full screen</button>
         </div>
       </div>
       <div class="eyebrow">Sanctuary Voice Main Screen</div>
@@ -21,10 +42,49 @@
     </section>
 
     <section class="participant-live panel glass-panel unified-display-live">
-      <div class="participant-main-text unified-display-text">
+      <div id="demoScreenText" class="participant-main-text unified-display-text">
         For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.
       </div>
+      <div class="demo-verse-source demo-verse-source-screen">Ioan 3:16</div>
     </section>
   </main>
+
+  <div class="demo-corner-banner">Demo mode — connect to a live event for real translation</div>
+
+  <script src="/demo-shared.js"></script>
+  <script>
+  (function () {
+    var select = document.getElementById('demoScreenLang');
+    var textEl = document.getElementById('demoScreenText');
+    var fsBtn = document.getElementById('demoFullscreenBtn');
+
+    select.value = 'en';
+
+    function updateText(lang) {
+      var verse = window.SV_DEMO.verses[lang] || window.SV_DEMO.verses.en;
+      textEl.textContent = verse;
+      textEl.dir = window.SV_DEMO.rtl[lang] ? 'rtl' : 'ltr';
+    }
+
+    select.addEventListener('change', function () { updateText(select.value); });
+    updateText(select.value);
+
+    function syncFullscreenBtn() {
+      fsBtn.textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
+    }
+
+    fsBtn.addEventListener('click', function () {
+      if (document.fullscreenElement) {
+        if (document.exitFullscreen) document.exitFullscreen();
+      } else if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      }
+    });
+
+    document.addEventListener('fullscreenchange', syncFullscreenBtn);
+    document.addEventListener('webkitfullscreenchange', syncFullscreenBtn);
+    syncFullscreenBtn();
+  })();
+  </script>
 </body>
 </html>
