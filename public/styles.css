@@ -1540,6 +1540,51 @@ progress::-moz-progress-bar {
   font-weight: 800;
 }
 
+/* Hideable codes — eye toggle */
+.hideable-code-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  word-break: break-all;
+}
+
+.hideable-code {
+  font-family: "Space Grotesk", monospace;
+  letter-spacing: 0.02em;
+}
+
+.code-toggle {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.code-toggle:hover,
+.code-toggle:focus-visible {
+  color: var(--text);
+  border-color: rgba(244, 221, 171, 0.45);
+  outline: none;
+}
+
+.code-toggle-input {
+  width: auto;
+  height: 38px;
+  min-width: 44px;
+  padding: 0 12px;
+}
+
 .access-request-role {
   display: flex;
   align-items: center;

@@ -1136,9 +1136,9 @@ function populateEventLinks() {
   if (!currentEvent) return;
   const mainOperatorCode = currentEvent.mainOperatorCode || currentEvent.screenOperatorCode || '';
   const mainOperatorLink = currentEvent.mainOperatorLink || currentEvent.remoteControlLink || '';
-  $('adminCode').textContent = currentEvent.adminCode || '-';
-  if ($('screenOperatorCode')) $('screenOperatorCode').textContent = mainOperatorCode || '-';
-  if ($('accessScreenOperatorCode')) $('accessScreenOperatorCode').textContent = mainOperatorCode || '-';
+  setHideableTextCode('adminCode', currentEvent.adminCode || '-');
+  setHideableTextCode('screenOperatorCode', mainOperatorCode || '-');
+  setHideableTextCode('accessScreenOperatorCode', mainOperatorCode || '-');
   if ($('participantLink')) $('participantLink').value = currentEvent.participantLink || '';
   $('translateLink').value = currentEvent.translateLink || '';
   if ($('remoteControlLink')) $('remoteControlLink').value = mainOperatorLink;
@@ -1169,8 +1169,17 @@ function renderRemoteOperators(items = []) {
           <button type="button" data-remote-operator-action="delete" data-remote-operator-id="${operator.id}">Delete</button>
         </div>
       </div>
-      <div class="meta-row access-code-row"><span>Code</span><strong>${escapeHtml(operator.code || '-')}</strong></div>
-      <div class="small">${escapeHtml(operator.remoteLink || '')}</div>
+      <div class="meta-row access-code-row">
+        <span>Code</span>
+        <span class="hideable-code-wrap">
+          <strong class="hideable-code is-code-hidden" data-code-value="${escapeHtml(operator.code || '-')}">${operator.code ? HIDDEN_PLACEHOLDER : '-'}</strong>
+          <button class="code-toggle code-toggle-inline" type="button" aria-label="Show or hide code">👁</button>
+        </span>
+      </div>
+      <div class="small hideable-code-wrap">
+        <span class="hideable-code is-code-hidden" data-code-value="${escapeHtml(operator.remoteLink || '')}">${operator.remoteLink ? HIDDEN_PLACEHOLDER : ''}</span>
+        ${operator.remoteLink ? '<button class="code-toggle code-toggle-inline" type="button" aria-label="Show or hide link">👁</button>' : ''}
+      </div>
     </div>
   `).join('');
 }
@@ -3252,11 +3261,11 @@ $('eventList').addEventListener('click', async (e) => {
     if (data.ok) {
       if (currentEvent?.id === id) {
         currentEvent = null;
-        $('adminCode').textContent = '-';
+        setHideableTextCode('adminCode', '-');
         if ($('participantLink')) $('participantLink').value = '';
         if ($('translateLink')) $('translateLink').value = '';
-        if ($('screenOperatorCode')) $('screenOperatorCode').textContent = '-';
-        if ($('accessScreenOperatorCode')) $('accessScreenOperatorCode').textContent = '-';
+        setHideableTextCode('screenOperatorCode', '-');
+        setHideableTextCode('accessScreenOperatorCode', '-');
         if ($('remoteControlLink')) $('remoteControlLink').value = '';
         if ($('accessRemoteControlLink')) $('accessRemoteControlLink').value = '';
         if ($('qrImage')) $('qrImage').src = '';
@@ -3295,6 +3304,7 @@ window.addEventListener('load', async () => {
   await loadGlobalSongLibrary();
   await refreshEventList();
   await refreshAccessRequests();
+  initCodeMasking();
   initAdminPush().catch(() => {});
   try {
     const res = await fetch('/api/events/active');
@@ -3405,7 +3415,7 @@ function renderAccessRequests(requests) {
         </div>
         ${r.status === 'granted' && r.profile ? `<div class="muted">Role: ${escHtml(profileLabel(r.profile))}</div>` : ''}
         ${r.status === 'granted' && r.eventName ? `<div class="muted">Event: ${escHtml(r.eventName)}</div>` : ''}
-        ${r.status === 'granted' && r.operatorCode ? `<div class="meta-row"><span>Code</span><code class="event-id-value">${escHtml(r.operatorCode)}</code><button class="btn btn-dark" data-access-action="copy-code" data-code="${escHtml(r.operatorCode)}" type="button">Copy</button></div>` : ''}
+        ${r.status === 'granted' && r.operatorCode ? `<div class="meta-row"><span>Code</span><span class="hideable-code-wrap"><code class="event-id-value hideable-code is-code-hidden" data-code-value="${escHtml(r.operatorCode)}">${HIDDEN_PLACEHOLDER}</code><button class="code-toggle code-toggle-inline" type="button" aria-label="Show or hide code">👁</button></span><button class="btn btn-dark" data-access-action="copy-code" data-code="${escHtml(r.operatorCode)}" type="button">Copy</button></div>` : ''}
         <div class="muted">${escHtml(formatAccessRequestTime(r.grantedAt || r.deniedAt || r.requestedAt))}</div>
         <button class="btn btn-danger" data-access-action="dismiss" data-request-id="${r.id}" type="button">Dismiss</button>
       </div>
@@ -3537,6 +3547,83 @@ function urlBase64ToUint8ArrayLocal(base64String) {
 try {
   socket.on('access_request_created', () => { refreshAccessRequests(); });
 } catch (_) {}
+
+// ---------- Code masking ----------
+
+const HIDDEN_PLACEHOLDER = '••••••••';
+
+function renderCodeText(el) {
+  if (!el) return;
+  const real = el.dataset.codeValue || '-';
+  el.textContent = el.classList.contains('is-code-hidden') ? (real === '-' ? '-' : HIDDEN_PLACEHOLDER) : real;
+}
+
+function setHideableTextCode(elementId, value) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.dataset.codeValue = String(value || '-');
+  if (!el.classList.contains('hideable-code')) el.classList.add('hideable-code', 'is-code-hidden');
+  renderCodeText(el);
+}
+
+function ensureCodeToggle(el) {
+  if (!el || el.dataset.codeToggleInit === '1') return;
+  el.dataset.codeToggleInit = '1';
+  if (!el.classList.contains('hideable-code')) el.classList.add('hideable-code', 'is-code-hidden');
+  if (!el.dataset.codeValue) el.dataset.codeValue = el.textContent || '-';
+  renderCodeText(el);
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'code-toggle';
+  toggle.title = 'Show / hide code';
+  toggle.setAttribute('aria-label', 'Show or hide code');
+  toggle.textContent = el.classList.contains('is-code-hidden') ? '👁' : '🙈';
+  el.insertAdjacentElement('afterend', toggle);
+  toggle.addEventListener('click', () => {
+    el.classList.toggle('is-code-hidden');
+    renderCodeText(el);
+    toggle.textContent = el.classList.contains('is-code-hidden') ? '👁' : '🙈';
+  });
+}
+
+function ensureInputCodeToggle(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input || input.dataset.codeToggleInit === '1') return;
+  input.dataset.codeToggleInit = '1';
+  input.type = 'password';
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'btn btn-dark code-toggle code-toggle-input';
+  toggle.title = 'Show / hide value';
+  toggle.setAttribute('aria-label', 'Show or hide value');
+  toggle.textContent = '👁';
+  input.insertAdjacentElement('afterend', toggle);
+  toggle.addEventListener('click', () => {
+    input.type = input.type === 'password' ? 'text' : 'password';
+    toggle.textContent = input.type === 'password' ? '👁' : '🙈';
+  });
+}
+
+function initCodeMasking() {
+  ['adminCode', 'screenOperatorCode', 'accessScreenOperatorCode'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) ensureCodeToggle(el);
+  });
+  ['accessRemoteControlLink', 'remoteControlLink'].forEach(ensureInputCodeToggle);
+}
+
+// Delegated handler for dynamically rendered toggles (.code-toggle-inline within history-item)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('button.code-toggle-inline');
+  if (!btn) return;
+  const wrap = btn.closest('.hideable-code-wrap');
+  if (!wrap) return;
+  const target = wrap.querySelector('.hideable-code');
+  if (!target) return;
+  target.classList.toggle('is-code-hidden');
+  renderCodeText(target);
+  btn.textContent = target.classList.contains('is-code-hidden') ? '👁' : '🙈';
+});
 
 // ---------- Self-test panel ----------
 
