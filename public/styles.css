@@ -1012,6 +1012,23 @@ progress::-moz-progress-bar {
   background: rgba(240, 168, 120, 0.08);
 }
 
+.mini-badge-test {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.1);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.participant-test-badge {
+  color: #fff7e8;
+  background: linear-gradient(135deg, #d95a16, #b03d10);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
 .status-pill.active {
   background: rgba(255, 246, 227, 0.1);
   color: var(--gold-strong);

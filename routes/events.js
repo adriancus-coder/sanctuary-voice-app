@@ -180,7 +180,8 @@ function registerEventRoutes(app, ctx) {
         createdAt: event.createdAt || null,
         sourceLang: event.sourceLang || 'ro',
         targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
-        isActive: activeEventId === event.id
+        isActive: activeEventId === event.id,
+        testMode: !!event.testMode
       }));
     res.json({ ok: true, events, activeEventId: activeEventId || null, languageNames: LANGUAGE_NAMES_RO, organization: buildPublicOrganization() });
   });
@@ -259,6 +260,18 @@ function registerEventRoutes(app, ctx) {
     }
     saveDb();
     res.json({ ok: true, event: normalizeEventForAccess(req, event) });
+  });
+
+  app.post('/api/events/:id/visibility', (req, res) => {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+    if (!requireEventRole(req, res, event, ['admin'])) return;
+    const desired = typeof req.body?.hidden === 'boolean'
+      ? !!req.body.hidden
+      : !event.hidden;
+    event.hidden = desired;
+    saveDb();
+    res.json({ ok: true, hidden: event.hidden, event: normalizeEventForAccess(req, event) });
   });
 
   app.post('/api/events/:id/mode', (req, res) => {

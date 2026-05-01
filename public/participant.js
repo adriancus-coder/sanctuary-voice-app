@@ -726,10 +726,25 @@ socket.on('connect', async () => {
 socket.on('disconnect', () => setStatus('Reconnecting...'));
 socket.on('join_error', ({ message }) => setStatus(message || 'Cannot join event.'));
 
+function applyTestModeIndicator(event) {
+  const badge = $('participantTestBadge');
+  if (badge) badge.hidden = !event?.testMode;
+  if (event?.testMode && !state.previewMode) {
+    const seenKey = `sanctuary_voice_test_notice_${event.id || 'event'}`;
+    if (!sessionStorage.getItem(seenKey)) {
+      try {
+        sessionStorage.setItem(seenKey, '1');
+        alert('TEST MODE\n\nThis service is a test, not a real live event. Translations may be incomplete.');
+      } catch (_) {}
+    }
+  }
+}
+
 socket.on('joined_event', ({ event, role }) => {
   if (role !== 'participant' && role !== 'participant_preview') return;
   clearCountdown();
   state.currentEvent = event;
+  applyTestModeIndicator(event);
   state.currentMode = event.mode || 'live';
   state.currentSongState = event.songState || null;
   state.serverAudioMuted = !!event.audioMuted;

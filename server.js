@@ -1257,6 +1257,7 @@ function summarizeEvent(event) {
     organizationId: org.id,
     organizationName: org.name,
     hidden: !!event.hidden,
+    testMode: !!event.testMode,
     name: event.name,
     createdAt: event.createdAt || null,
     scheduledAt: event.scheduledAt || null,
@@ -1483,6 +1484,7 @@ function normalizeEvent(event, options = {}) {
     organizationId: org.id,
     organization: buildPublicOrganization(org),
     hidden: !!event.hidden,
+    testMode: !!event.testMode,
     name: event.name,
     sourceLang: event.sourceLang || 'ro',
     liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
@@ -1990,7 +1992,7 @@ function deriveScheduledFields({ scheduledDate, scheduledTime, timezone, schedul
   };
 }
 
-async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt, scheduledDate, scheduledTime, timezone, hidden = false, organizationId = DEFAULT_ORG_ID }) {
+async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt, scheduledDate, scheduledTime, timezone, hidden = false, testMode = false, organizationId = DEFAULT_ORG_ID }) {
   const organization = ensureOrganization(organizationId);
   const id = randomUUID();
   const adminCode = `SV-ADMIN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
@@ -2009,6 +2011,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     shortId: generateEventShortId(),
     organizationId: organization.id,
     hidden: !!hidden,
+    testMode: !!testMode,
     name: name || 'Eveniment nou',
     sourceLang: sourceLang || 'ro',
     liveSourceLang: sourceLang || 'ro',
@@ -3648,6 +3651,7 @@ async function ensureDefaultEvent() {
       targetLangs: ['no', 'en'],
       baseUrl,
       hidden: true,
+      testMode: true,
       organizationId: DEFAULT_ORG_ID
     });
     logger.info('Default test event auto-created (hidden from participants):', event.id, event.shortId);

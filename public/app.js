@@ -1053,9 +1053,15 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
     card.className = `event-card${event.id === activeEventId ? ' active' : ''}${event.id === openedEventId ? ' opened' : ''}`;
     const langs = (event.targetLangs || []).map((lang) => langLabel(lang)).join(', ');
     const displayId = event.shortId || event.id;
-    const hiddenBadge = event.hidden ? '<div class="mini-badge mini-badge-warn" title="Hidden from participants">Hidden</div>' : '';
+    const badges = [`<div class="mini-badge">${event.mode || 'live'}</div>`];
+    if (event.hidden) badges.push('<div class="mini-badge mini-badge-warn" title="Hidden from participants">Hidden</div>');
+    if (event.testMode) badges.push('<div class="mini-badge mini-badge-test" title="Test mode — participants see a TEST banner">Test</div>');
+    const visibilityLabel = event.hidden ? 'Show to participants' : 'Hide from participants';
+    const visibilityTitle = event.hidden
+      ? 'Make this event visible in the participant chooser. Useful for live testing.'
+      : 'Hide this event from the participant chooser.';
     card.innerHTML = `
-      <div class="event-card-head"><div class="event-name">${escapeHtml(event.name || 'New event')}</div><div class="mini-badge">${event.mode || 'live'}</div>${hiddenBadge}</div>
+      <div class="event-card-head"><div class="event-name">${escapeHtml(event.name || 'New event')}</div>${badges.join('')}</div>
       <div class="event-id-row">
         <span class="event-id-label">Event ID</span>
         <code class="event-id-value">${escapeHtml(displayId)}</code>
@@ -1067,6 +1073,7 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
       <div class="button-row compact">
         <button class="btn btn-dark" data-action="open" data-id="${event.id}" title="Load this event in Live Control to edit transcript, glossary, songs, and main screen.">Open</button>
         <button class="btn btn-primary" data-action="activate" data-id="${event.id}" title="Make this the active event for participants and the main screen. Only one event can be live at a time."${event.id === activeEventId ? ' disabled' : ''}>${event.id === activeEventId ? 'Live now' : 'Set live'}</button>
+        <button class="btn btn-dark" data-action="visibility" data-id="${event.id}" title="${escapeHtml(visibilityTitle)}">${visibilityLabel}</button>
         <button class="btn btn-danger" data-action="delete" data-id="${event.id}">Delete</button>
       </div>`;
     box.appendChild(card);
@@ -3197,6 +3204,26 @@ $('eventList').addEventListener('click', async (e) => {
   const action = btn.getAttribute('data-action');
   if (action === 'copy-id') {
     await copyTextQuick(id, btn);
+    return;
+  }
+  if (action === 'visibility') {
+    btn.disabled = true;
+    try {
+      const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (getStoredAdminCode(id) || '');
+      const res = await fetch(`/api/events/${id}/visibility`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: adminCode })
+      });
+      const data = await res.json();
+      if (!data.ok) { alert(data.error || 'Could not change visibility.'); return; }
+      await refreshEventList();
+    } catch (err) {
+      console.error(err);
+      alert('Could not change visibility.');
+    } finally {
+      btn.disabled = false;
+    }
     return;
   }
   if (action === 'open') return openEventById(id);
