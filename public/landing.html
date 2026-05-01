@@ -42,39 +42,50 @@
       </div>
 
       <div class="landing-hero-art" aria-hidden="true">
-        <svg viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg">
-          <g class="landing-hero-rays" stroke="#D4A853" stroke-width="1" stroke-linecap="round" opacity="0.08">
-            <line x1="240" y1="240" x2="40"  y2="80"/>
-            <line x1="240" y1="240" x2="120" y2="40"/>
-            <line x1="240" y1="240" x2="240" y2="20"/>
-            <line x1="240" y1="240" x2="360" y2="40"/>
-            <line x1="240" y1="240" x2="440" y2="80"/>
-            <line x1="240" y1="240" x2="465" y2="180"/>
-            <line x1="240" y1="240" x2="465" y2="300"/>
-            <line x1="240" y1="240" x2="440" y2="400"/>
-            <line x1="240" y1="240" x2="360" y2="440"/>
-            <line x1="240" y1="240" x2="240" y2="460"/>
-            <line x1="240" y1="240" x2="120" y2="440"/>
-            <line x1="240" y1="240" x2="40"  y2="400"/>
-            <line x1="240" y1="240" x2="15"  y2="300"/>
-            <line x1="240" y1="240" x2="15"  y2="180"/>
+        <svg viewBox="0 0 600 520" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="heroGlow" cx="50%" cy="42%" r="55%">
+              <stop offset="0%" stop-color="#D4A853" stop-opacity="0.18"/>
+              <stop offset="60%" stop-color="#D4A853" stop-opacity="0.05"/>
+              <stop offset="100%" stop-color="#D4A853" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+
+          <circle cx="300" cy="220" r="240" fill="url(#heroGlow)"/>
+
+          <g class="landing-hero-rays" stroke="#D4A853" stroke-width="1.2" stroke-linecap="round" opacity="0.16">
+            <line x1="300" y1="220" x2="40"  y2="40"/>
+            <line x1="300" y1="220" x2="170" y2="10"/>
+            <line x1="300" y1="220" x2="300" y2="-10"/>
+            <line x1="300" y1="220" x2="430" y2="10"/>
+            <line x1="300" y1="220" x2="560" y2="40"/>
+            <line x1="300" y1="220" x2="595" y2="160"/>
+            <line x1="300" y1="220" x2="595" y2="280"/>
+            <line x1="300" y1="220" x2="560" y2="400"/>
+            <line x1="300" y1="220" x2="430" y2="500"/>
+            <line x1="300" y1="220" x2="300" y2="525"/>
+            <line x1="300" y1="220" x2="170" y2="500"/>
+            <line x1="300" y1="220" x2="40"  y2="400"/>
+            <line x1="300" y1="220" x2="5"   y2="280"/>
+            <line x1="300" y1="220" x2="5"   y2="160"/>
           </g>
 
           <g class="landing-hero-waves" fill="none" stroke="#D4A853">
-            <circle cx="240" cy="240" r="80"  stroke-width="1.5" opacity="0.32"/>
-            <circle cx="240" cy="240" r="118" stroke-width="1.2" opacity="0.2"/>
-            <circle cx="240" cy="240" r="158" stroke-width="1"   opacity="0.12"/>
-            <circle cx="240" cy="240" r="200" stroke-width="0.8" opacity="0.07"/>
+            <circle cx="300" cy="220" r="120" stroke-width="2"   opacity="0.42"/>
+            <circle cx="300" cy="220" r="170" stroke-width="1.6" opacity="0.28"/>
+            <circle cx="300" cy="220" r="220" stroke-width="1.2" opacity="0.16"/>
+            <circle cx="300" cy="220" r="270" stroke-width="0.9" opacity="0.08"/>
           </g>
 
-          <g class="landing-hero-dove" transform="translate(240 240)" fill="#D4A853">
-            <path d="M -50 6 Q -32 -14 0 -12 Q 32 -10 54 4 Q 64 18 48 26 Q 20 32 -12 30 Q -44 26 -50 6 Z"/>
-            <path d="M 48 8 L 78 0 L 78 14 L 54 20 Z"/>
-            <path d="M -8 -10 Q -38 -42 -62 -26 Q -50 -10 -22 -4 Q -12 -4 -8 -10 Z"/>
-            <path d="M 4 8 Q -12 28 10 32 Q 22 28 18 14 Z" opacity="0.7"/>
-            <circle cx="-46" cy="-3" r="10"/>
-            <path d="M -56 -3 L -66 -1 L -56 4 Z"/>
-            <circle cx="-48" cy="-4" r="1.6" fill="#0A0A0A"/>
+          <g class="landing-hero-dove" transform="translate(300 240)" fill="#D4A853">
+            <path d="M -16 -16 C -52 -90 -125 -108 -178 -68 C -168 -36 -116 -14 -75 -8 C -42 -3 -22 -8 -16 -16 Z"/>
+            <path d="M 12 -10 C 36 -82 110 -100 152 -64 C 138 -32 88 -14 48 -7 C 22 -3 12 -8 12 -10 Z"/>
+            <path d="M -68 8 C -52 -14 -8 -22 36 -16 C 84 -10 120 4 124 22 C 110 46 56 56 8 52 C -36 48 -68 36 -68 8 Z"/>
+            <path d="M 116 18 L 178 4 L 178 36 L 128 50 Z"/>
+            <path d="M -68 -2 C -82 -22 -100 -22 -106 -8 C -106 6 -90 12 -74 8 C -68 6 -64 2 -68 -2 Z"/>
+            <path d="M -106 -4 L -128 -1 L -106 8 Z"/>
+            <circle cx="-92" cy="-6" r="3" fill="#0A0A0A"/>
+            <path d="M -8 38 C -16 64 14 70 22 56 C 28 42 18 30 -8 38 Z" opacity="0.55"/>
           </g>
         </svg>
       </div>

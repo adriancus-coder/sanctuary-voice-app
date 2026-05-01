@@ -260,13 +260,14 @@ html, body { background: #0A0A0A; }
 .landing-body .landing-hero-art {
   display: grid;
   place-items: center;
-  min-height: 360px;
+  min-height: 420px;
 }
 
 .landing-body .landing-hero-art svg {
   width: 100%;
-  max-width: 480px;
+  max-width: 640px;
   height: auto;
+  filter: drop-shadow(0 18px 60px rgba(212, 168, 83, 0.22));
 }
 
 /* ---------------- Sections ---------------- */
