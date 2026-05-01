@@ -22,6 +22,7 @@ function registerEventRoutes(app, ctx) {
     buildTranslationsForAllTargets,
     client,
     cloneDisplaySnapshot,
+    closeAzureSpeechSessionsForEvent,
     createEvent,
     db,
     defaultDisplayState,
@@ -276,10 +277,11 @@ function registerEventRoutes(app, ctx) {
 
   app.delete('/api/events/:id', (req, res) => {
     const event = db.events[req.params.id];
-    if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-    if (!requireEventAdmin(req, res, event)) return;
-    delete db.events[req.params.id];
-    speechBuffers.delete(req.params.id);
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  if (!requireEventAdmin(req, res, event)) return;
+  closeAzureSpeechSessionsForEvent?.(req.params.id);
+  delete db.events[req.params.id];
+  speechBuffers.delete(req.params.id);
     participantPresence.delete(req.params.id);
     const orgId = getEventOrgId(event);
     if (getActiveEventIdForOrg(orgId) === req.params.id) {
