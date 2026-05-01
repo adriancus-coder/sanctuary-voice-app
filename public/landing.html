@@ -24,10 +24,10 @@
     <a class="landing-admin-link" href="/admin">Admin Login</a>
   </header>
 
-  <a id="landingNextService" class="landing-next-service" href="#" hidden>
+  <a id="landingNextService" class="landing-next-service" href="#join" hidden>
     <span class="landing-next-service-label">Next service</span>
     <span id="landingNextServiceText" class="landing-next-service-text"></span>
-    <span class="landing-next-service-cta">Join &rarr;</span>
+    <span class="landing-next-service-cta">Get Event ID &rarr;</span>
   </a>
 
   <main>
@@ -176,7 +176,7 @@
         <button class="landing-preview-cta" type="button" id="operatorLoginBtn">Operator Login</button>
       </div>
 
-      <div class="landing-listener-card">
+      <div class="landing-listener-card" id="join">
         <div>
           <div class="landing-operator-eyebrow">Listener</div>
           <strong>Join the service</strong>
@@ -353,8 +353,13 @@ function closeOperatorModal() {
       var label = formatScheduled(next);
       if (!label) return;
       textEl.textContent = (next.name ? next.name + ' · ' : '') + label;
-      banner.href = next.participantLink || ('/participant?event=' + encodeURIComponent(next.id));
       banner.hidden = false;
+      banner.addEventListener('click', function () {
+        setTimeout(function () {
+          var input = document.getElementById('listenerEventId');
+          if (input) input.focus();
+        }, 320);
+      });
     })
     .catch(function () {});
 })();
