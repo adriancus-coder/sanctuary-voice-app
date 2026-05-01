@@ -137,18 +137,43 @@
       <h2 id="opModalTitle">Operator Login</h2>
       <button class="op-modal-close" type="button" id="opModalClose" aria-label="Close" onclick="closeOperatorModal()">&times;</button>
     </div>
-    <p class="op-modal-desc">Enter your operator PIN to open the operator dashboard.</p>
-    <form id="opLoginForm" novalidate>
-      <div class="op-modal-field">
-        <label for="opPin">Operator PIN</label>
-        <input id="opPin" type="password" placeholder="Enter your PIN" autocomplete="current-password">
+    <div id="opLoginView">
+      <p class="op-modal-desc">Enter your operator PIN to open the operator dashboard.</p>
+      <form id="opLoginForm" novalidate>
+        <div class="op-modal-field">
+          <label for="opPin">Operator PIN</label>
+          <input id="opPin" type="password" placeholder="Enter your PIN" autocomplete="current-password">
+        </div>
+        <div id="opLoginError" class="op-modal-error" role="alert"></div>
+        <div class="op-modal-actions">
+          <button type="button" class="op-modal-cancel" id="opModalCancelBtn" onclick="closeOperatorModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Connect</button>
+        </div>
+      </form>
+      <div class="op-modal-footer">
+        <button type="button" class="op-modal-link" id="opShowRequestBtn">Don't have a PIN? Request access</button>
       </div>
-      <div id="opLoginError" class="op-modal-error" role="alert"></div>
-      <div class="op-modal-actions">
-        <button type="button" class="op-modal-cancel" id="opModalCancelBtn" onclick="closeOperatorModal()">Cancel</button>
-        <button type="submit" class="btn btn-primary">Connect</button>
-      </div>
-    </form>
+    </div>
+
+    <div id="opRequestView" hidden>
+      <p class="op-modal-desc">Tell the admin who you are. They will send you an 8-character access code.</p>
+      <form id="opRequestForm" novalidate>
+        <div class="op-modal-field">
+          <label for="opReqName">Your name</label>
+          <input id="opReqName" type="text" placeholder="John Doe" autocomplete="name" maxlength="80">
+        </div>
+        <div class="op-modal-field">
+          <label for="opReqContact">Phone or email <span class="op-field-optional">(optional)</span></label>
+          <input id="opReqContact" type="text" placeholder="+47 ... or you@church.org" autocomplete="off" maxlength="200">
+        </div>
+        <div id="opRequestError" class="op-modal-error" role="alert"></div>
+        <div id="opRequestSuccess" class="op-modal-success" role="status" hidden>Request sent. The admin will contact you with your access code.</div>
+        <div class="op-modal-actions">
+          <button type="button" class="op-modal-cancel" id="opRequestBackBtn">Back</button>
+          <button type="submit" class="btn btn-primary" id="opRequestSubmitBtn">Send request</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -158,11 +183,21 @@ function closeOperatorModal() {
   var form = document.getElementById('opLoginForm');
   var errorEl = document.getElementById('opLoginError');
   var pinInput = document.getElementById('opPin');
+  var requestForm = document.getElementById('opRequestForm');
+  var requestErr = document.getElementById('opRequestError');
+  var requestOk = document.getElementById('opRequestSuccess');
+  var loginView = document.getElementById('opLoginView');
+  var requestView = document.getElementById('opRequestView');
 
   if (modal) modal.hidden = true;
   if (pinInput) pinInput.value = '';
   if (errorEl) errorEl.textContent = '';
   if (form) form.reset();
+  if (requestForm) requestForm.reset();
+  if (requestErr) requestErr.textContent = '';
+  if (requestOk) requestOk.hidden = true;
+  if (loginView) loginView.hidden = false;
+  if (requestView) requestView.hidden = true;
 
   document.body.style.overflow = '';
 
@@ -284,6 +319,65 @@ function closeOperatorModal() {
         submitBtn.textContent = 'Connect';
       });
   });
+
+  var loginView = document.getElementById('opLoginView');
+  var requestView = document.getElementById('opRequestView');
+  var showRequestBtn = document.getElementById('opShowRequestBtn');
+  var requestBackBtn = document.getElementById('opRequestBackBtn');
+  var requestForm = document.getElementById('opRequestForm');
+  var reqName = document.getElementById('opReqName');
+  var reqContact = document.getElementById('opReqContact');
+  var reqError = document.getElementById('opRequestError');
+  var reqSuccess = document.getElementById('opRequestSuccess');
+  var reqSubmit = document.getElementById('opRequestSubmitBtn');
+
+  if (showRequestBtn && loginView && requestView) {
+    showRequestBtn.addEventListener('click', function () {
+      loginView.hidden = true;
+      requestView.hidden = false;
+      reqError.textContent = '';
+      reqSuccess.hidden = true;
+      if (reqName) reqName.focus();
+    });
+  }
+  if (requestBackBtn && loginView && requestView) {
+    requestBackBtn.addEventListener('click', function () {
+      requestView.hidden = true;
+      loginView.hidden = false;
+      pinInput.focus();
+    });
+  }
+  if (requestForm) {
+    requestForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      reqError.textContent = '';
+      reqSuccess.hidden = true;
+      var name = (reqName.value || '').trim();
+      var contact = (reqContact.value || '').trim();
+      if (!name) { reqError.textContent = 'Please enter your name.'; return; }
+      reqSubmit.disabled = true;
+      reqSubmit.textContent = 'Sending…';
+      fetch('/api/operator/request-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, contact: contact })
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data.ok) {
+            reqSuccess.hidden = false;
+            requestForm.reset();
+          } else {
+            reqError.textContent = data.error || 'Could not send request. Try again.';
+          }
+        })
+        .catch(function () { reqError.textContent = 'Connection error. Try again.'; })
+        .finally(function () {
+          reqSubmit.disabled = false;
+          reqSubmit.textContent = 'Send request';
+        });
+    });
+  }
 })();
 </script>
 </body>

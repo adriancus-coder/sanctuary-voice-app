@@ -3148,8 +3148,176 @@ function isOperatorPinValid(pin) {
       return true;
     }
   }
+  for (const org of Object.values(db.organizations || {})) {
+    const granted = Array.isArray(org?.grantedOperators) ? org.grantedOperators : [];
+    if (granted.some((entry) => String(entry?.code || '').trim() === candidate)) {
+      return true;
+    }
+  }
   return false;
 }
+
+function generateOperatorAccessCode() {
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    let code = '';
+    for (let i = 0; i < 8; i += 1) {
+      code += EVENT_SHORT_ID_ALPHABET[Math.floor(Math.random() * EVENT_SHORT_ID_ALPHABET.length)];
+    }
+    let taken = false;
+    for (const org of Object.values(db.organizations || {})) {
+      const granted = Array.isArray(org?.grantedOperators) ? org.grantedOperators : [];
+      if (granted.some((entry) => String(entry?.code || '').trim() === code)) {
+        taken = true;
+        break;
+      }
+    }
+    if (!taken) return code;
+  }
+  return `OP${Date.now().toString(36).toUpperCase().slice(-6)}`.slice(0, 8);
+}
+
+const accessRequestRateLimits = new Map();
+function checkAccessRequestRateLimit(ip) {
+  const now = Date.now();
+  const entry = accessRequestRateLimits.get(ip);
+  if (!entry || now - entry.windowStart >= 10 * 60 * 1000) {
+    accessRequestRateLimits.set(ip, { windowStart: now, count: 1 });
+    return { allowed: true };
+  }
+  entry.count += 1;
+  if (entry.count > 5) {
+    return { allowed: false, retryAfter: Math.ceil((entry.windowStart + 10 * 60 * 1000 - now) / 1000) };
+  }
+  return { allowed: true };
+}
+
+async function sendAdminAccessRequestNotification(org, request) {
+  if (!WEB_PUSH_ENABLED || !org) return;
+  const subs = Array.isArray(org.adminPushSubscriptions) ? [...org.adminPushSubscriptions] : [];
+  if (!subs.length) return;
+  const payload = JSON.stringify({
+    title: 'Sanctuary Voice — Access request',
+    body: `${request.name || 'Someone'} is requesting operator access.`,
+    url: '/admin#access-requests'
+  });
+  const stale = [];
+  await Promise.allSettled(subs.map(async (sub) => {
+    try {
+      await webpush.sendNotification(normalizePushSubscription(sub), payload);
+    } catch (err) {
+      if (err?.statusCode === 404 || err?.statusCode === 410) {
+        stale.push(sub.endpoint);
+        return;
+      }
+      logger.warn('admin push failed:', err?.message || err);
+    }
+  }));
+  if (stale.length) {
+    org.adminPushSubscriptions = (org.adminPushSubscriptions || []).filter((s) => !stale.includes(s.endpoint));
+    saveDb();
+  }
+}
+
+app.post('/api/operator/request-access', (req, res) => {
+  const ip = getOperatorClientIp(req);
+  const rate = checkAccessRequestRateLimit(ip);
+  if (!rate.allowed) {
+    return res.status(429).json({ ok: false, error: `Too many requests. Try again in ${rate.retryAfter}s.` });
+  }
+  const name = String(req.body?.name || '').trim().slice(0, 80);
+  const contact = String(req.body?.contact || '').trim().slice(0, 200);
+  if (!name) return res.status(400).json({ ok: false, error: 'Name is required.' });
+  const org = ensureOrganization(DEFAULT_ORG_ID);
+  if (!Array.isArray(org.accessRequests)) org.accessRequests = [];
+  const request = {
+    id: randomUUID(),
+    name,
+    contact,
+    requestedAt: new Date().toISOString(),
+    status: 'pending'
+  };
+  org.accessRequests.push(request);
+  if (org.accessRequests.length > 200) org.accessRequests = org.accessRequests.slice(-200);
+  saveDb();
+  sendAdminAccessRequestNotification(org, request).catch((err) => logger.error('admin push error:', err?.message || err));
+  io.emit('access_request_created', { id: request.id });
+  res.json({ ok: true });
+});
+
+app.get('/api/admin/access-requests', (req, res) => {
+  if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const org = ensureOrganization(DEFAULT_ORG_ID);
+  const requests = Array.isArray(org.accessRequests) ? [...org.accessRequests].reverse() : [];
+  res.json({ ok: true, requests });
+});
+
+app.post('/api/admin/access-requests/:id/grant', (req, res) => {
+  if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const org = ensureOrganization(DEFAULT_ORG_ID);
+  const request = (org.accessRequests || []).find((r) => r.id === req.params.id);
+  if (!request) return res.status(404).json({ ok: false, error: 'Request not found.' });
+  if (request.status !== 'pending') return res.status(400).json({ ok: false, error: `Request already ${request.status}.` });
+  const code = generateOperatorAccessCode();
+  request.status = 'granted';
+  request.operatorCode = code;
+  request.grantedAt = new Date().toISOString();
+  if (!Array.isArray(org.grantedOperators)) org.grantedOperators = [];
+  org.grantedOperators.push({
+    id: randomUUID(),
+    name: request.name,
+    contact: request.contact || '',
+    code,
+    grantedAt: request.grantedAt,
+    requestId: request.id
+  });
+  saveDb();
+  res.json({ ok: true, code, request });
+});
+
+app.post('/api/admin/access-requests/:id/deny', (req, res) => {
+  if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const org = ensureOrganization(DEFAULT_ORG_ID);
+  const request = (org.accessRequests || []).find((r) => r.id === req.params.id);
+  if (!request) return res.status(404).json({ ok: false, error: 'Request not found.' });
+  if (request.status !== 'pending') return res.status(400).json({ ok: false, error: `Request already ${request.status}.` });
+  request.status = 'denied';
+  request.deniedAt = new Date().toISOString();
+  saveDb();
+  res.json({ ok: true, request });
+});
+
+app.delete('/api/admin/access-requests/:id', (req, res) => {
+  if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const org = ensureOrganization(DEFAULT_ORG_ID);
+  const before = (org.accessRequests || []).length;
+  org.accessRequests = (org.accessRequests || []).filter((r) => r.id !== req.params.id);
+  if (org.accessRequests.length !== before) saveDb();
+  res.json({ ok: true });
+});
+
+app.delete('/api/admin/granted-operators/:code', (req, res) => {
+  if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const org = ensureOrganization(DEFAULT_ORG_ID);
+  const code = String(req.params.code || '').trim();
+  org.grantedOperators = (org.grantedOperators || []).filter((entry) => entry.code !== code);
+  saveDb();
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/push-subscribe', (req, res) => {
+  if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  if (!WEB_PUSH_ENABLED) return res.status(503).json({ ok: false, error: 'Push not configured.' });
+  const sub = normalizePushSubscription(req.body?.subscription);
+  if (!sub) return res.status(400).json({ ok: false, error: 'Invalid subscription.' });
+  const org = ensureOrganization(DEFAULT_ORG_ID);
+  if (!Array.isArray(org.adminPushSubscriptions)) org.adminPushSubscriptions = [];
+  const idx = org.adminPushSubscriptions.findIndex((s) => s.endpoint === sub.endpoint);
+  const entry = { ...sub, updatedAt: new Date().toISOString() };
+  if (idx >= 0) org.adminPushSubscriptions[idx] = entry;
+  else org.adminPushSubscriptions.push(entry);
+  saveDb();
+  res.json({ ok: true });
+});
 
 app.post('/api/operator-login', (req, res) => {
   const ip = getOperatorClientIp(req);

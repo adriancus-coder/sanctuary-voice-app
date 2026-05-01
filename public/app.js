@@ -3252,9 +3252,190 @@ window.addEventListener('load', async () => {
   await loadPinnedTextLibrary();
   await loadGlobalSongLibrary();
   await refreshEventList();
+  await refreshAccessRequests();
+  initAdminPush().catch(() => {});
   try {
     const res = await fetch('/api/events/active');
     const data = await res.json();
     if (data.ok && data.event) await openEventById(data.event.id);
   } catch (_) {}
 });
+
+// ---------- Operator access requests ----------
+
+function escHtml(s) { return escapeHtml(s); }
+
+function formatAccessRequestTime(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  return d.toLocaleString();
+}
+
+async function refreshAccessRequests() {
+  try {
+    const res = await fetch('/api/admin/access-requests');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.ok) return;
+    renderAccessRequests(Array.isArray(data.requests) ? data.requests : []);
+  } catch (err) {
+    console.error('access requests load:', err);
+  }
+}
+
+function renderAccessRequests(requests) {
+  const list = document.getElementById('accessRequestsList');
+  const granted = document.getElementById('accessGrantedList');
+  if (!list || !granted) return;
+  const pending = requests.filter((r) => r.status === 'pending');
+  const processed = requests.filter((r) => r.status !== 'pending').slice(0, 12);
+  if (!pending.length) {
+    list.innerHTML = '<div class="muted">No pending requests.</div>';
+  } else {
+    list.innerHTML = pending.map((r) => `
+      <div class="access-request-card" data-request-id="${r.id}">
+        <div class="access-request-head">
+          <strong>${escHtml(r.name || 'Unknown')}</strong>
+          <span class="muted">${escHtml(formatAccessRequestTime(r.requestedAt))}</span>
+        </div>
+        ${r.contact ? `<div class="muted">${escHtml(r.contact)}</div>` : ''}
+        <div class="button-row compact">
+          <button class="btn btn-primary" data-access-action="grant" data-request-id="${r.id}">Grant access</button>
+          <button class="btn btn-dark" data-access-action="deny" data-request-id="${r.id}">Deny</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  if (!processed.length) {
+    granted.innerHTML = '';
+  } else {
+    granted.innerHTML = `<div class="label">Recent decisions</div>` + processed.map((r) => `
+      <div class="access-request-card processed" data-request-id="${r.id}">
+        <div class="access-request-head">
+          <strong>${escHtml(r.name || 'Unknown')}</strong>
+          <span class="status-pill ${r.status === 'granted' ? 'active' : ''}">${r.status === 'granted' ? 'Granted' : 'Denied'}</span>
+        </div>
+        ${r.status === 'granted' && r.operatorCode ? `<div class="meta-row"><span>Code</span><code class="event-id-value">${escHtml(r.operatorCode)}</code><button class="btn btn-dark" data-access-action="copy-code" data-code="${escHtml(r.operatorCode)}" type="button">Copy</button></div>` : ''}
+        <div class="muted">${escHtml(formatAccessRequestTime(r.grantedAt || r.deniedAt || r.requestedAt))}</div>
+        <button class="btn btn-danger" data-access-action="dismiss" data-request-id="${r.id}" type="button">Dismiss</button>
+      </div>
+    `).join('');
+  }
+}
+
+document.getElementById('refreshAccessRequestsBtn')?.addEventListener('click', refreshAccessRequests);
+document.getElementById('accessRequestsPanel')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-access-action]');
+  if (!btn) return;
+  const action = btn.getAttribute('data-access-action');
+  const id = btn.getAttribute('data-request-id');
+  if (action === 'copy-code') {
+    await copyTextQuick(btn.getAttribute('data-code') || '', btn);
+    return;
+  }
+  if (action === 'grant') {
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/access-requests/${id}/grant`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) { alert(data.error || 'Could not grant access.'); return; }
+      const code = data.code || '';
+      if (code) {
+        prompt('Operator access code (send it to the operator):', code);
+      }
+      await refreshAccessRequests();
+    } catch (err) {
+      console.error(err);
+      alert('Could not grant access.');
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
+  if (action === 'deny') {
+    if (!confirm('Deny this request?')) return;
+    try {
+      const res = await fetch(`/api/admin/access-requests/${id}/deny`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) { alert(data.error || 'Could not deny.'); return; }
+      await refreshAccessRequests();
+    } catch (err) { console.error(err); }
+    return;
+  }
+  if (action === 'dismiss') {
+    try {
+      await fetch(`/api/admin/access-requests/${id}`, { method: 'DELETE' });
+      await refreshAccessRequests();
+    } catch (err) { console.error(err); }
+  }
+});
+
+// ---------- Admin push subscription ----------
+
+async function initAdminPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const btn = document.getElementById('enableAdminPushBtn');
+  try {
+    const keyRes = await fetch('/api/push/public-key');
+    const keyData = await keyRes.json();
+    if (!keyData.enabled || !keyData.publicKey) return;
+    const reg = await navigator.serviceWorker.register('/push-sw.js');
+    let sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await fetch('/api/admin/push-subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub })
+      });
+      if (btn) btn.hidden = true;
+      return;
+    }
+    if (Notification.permission === 'granted') {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8ArrayLocal(keyData.publicKey)
+      });
+      await fetch('/api/admin/push-subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub })
+      });
+      if (btn) btn.hidden = true;
+      return;
+    }
+    if (btn) {
+      btn.hidden = false;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') { btn.disabled = false; return; }
+        const newSub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8ArrayLocal(keyData.publicKey)
+        });
+        await fetch('/api/admin/push-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: newSub })
+        });
+        btn.hidden = true;
+      }, { once: true });
+    }
+  } catch (err) {
+    console.warn('admin push init failed:', err);
+  }
+}
+
+function urlBase64ToUint8ArrayLocal(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+try {
+  socket.on('access_request_created', () => { refreshAccessRequests(); });
+} catch (_) {}

@@ -360,6 +360,21 @@
           </div>
           <div id="eventList" class="event-list"></div>
         </div>
+
+        <div id="accessRequestsPanel" class="panel glass-panel section-stack" data-anchor="access-requests">
+          <div class="section-head">
+            <div>
+              <h2>Operator access requests</h2>
+              <div class="muted">Pending requests from operators who don't have a PIN yet.</div>
+            </div>
+            <div class="button-row compact">
+              <button id="enableAdminPushBtn" class="btn btn-dark" type="button" hidden>Enable push alerts</button>
+              <button id="refreshAccessRequestsBtn" class="btn btn-dark" type="button">Refresh</button>
+            </div>
+          </div>
+          <div id="accessRequestsList" class="history-list"><div class="muted">No requests yet.</div></div>
+          <div id="accessGrantedList" class="history-list" style="margin-top:12px"></div>
+        </div>
       </section>
 
       <section id="tab-mainscreen" class="tab-panel">
