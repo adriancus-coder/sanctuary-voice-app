@@ -337,8 +337,10 @@ function clearCountdown() {
   if (stage) stage.hidden = true;
   const live = $('participantLiveStage');
   const history = $('participantHistoryPanel');
+  const chooser = $('participantEventChooser');
   if (live) live.hidden = false;
   if (history) history.hidden = false;
+  if (chooser && !state.currentEvent) chooser.hidden = false;
 }
 
 function formatCountdownText(ms) {
@@ -376,9 +378,11 @@ function startCountdownForEvent(event) {
   const stage = $('participantCountdownStage');
   const liveStage = $('participantLiveStage');
   const historyPanel = $('participantHistoryPanel');
+  const chooser = $('participantEventChooser');
   if (stage) stage.hidden = false;
   if (liveStage) liveStage.hidden = true;
   if (historyPanel) historyPanel.hidden = true;
+  if (chooser) chooser.hidden = true;
   $('participantCountdownEventName').textContent = event.name || 'Service';
   $('participantCountdownDate').textContent = formatEventScheduledFull(event);
   $('participantCountdownNote').textContent = '';
@@ -418,19 +422,28 @@ function showServiceEnded(event) {
   setStatus('This service has ended.');
 }
 
+function findNextUpcomingEvent(events) {
+  const now = Date.now();
+  const upcoming = (events || [])
+    .filter((event) => !event.isActive && typeof event.scheduledTimestamp === 'number' && event.scheduledTimestamp > now)
+    .sort((a, b) => a.scheduledTimestamp - b.scheduledTimestamp);
+  return upcoming[0] || null;
+}
+
 async function loadParticipantEvents({ joinFixedIfLive = false } = {}) {
   try {
     const res = await fetch('/api/events/public');
     const data = await res.json();
     if (data.languageNames) availableLanguages = data.languageNames;
-    renderParticipantEventList(data.events || []);
+    const events = data.events || [];
+    renderParticipantEventList(events);
     if (state.previewMode && state.fixedEventId) {
       clearCountdown();
       await joinParticipantEvent(state.fixedEventId);
       return;
     }
     if (joinFixedIfLive && state.fixedEventId) {
-      const fixedEvent = (data.events || []).find((event) => event.id === state.fixedEventId);
+      const fixedEvent = events.find((event) => event.id === state.fixedEventId);
       if (fixedEvent?.isActive) {
         clearCountdown();
         await joinParticipantEvent(fixedEvent.id);
@@ -446,9 +459,19 @@ async function loadParticipantEvents({ joinFixedIfLive = false } = {}) {
       }
       clearCountdown();
       setStatus('This event is not live yet.');
-    } else if (!state.currentEvent) {
+      return;
+    }
+    if (!state.currentEvent) {
+      const liveEvents = events.filter((event) => event.isActive);
+      if (!liveEvents.length) {
+        const next = findNextUpcomingEvent(events);
+        if (next) {
+          startCountdownForEvent(next);
+          return;
+        }
+      }
       clearCountdown();
-      setStatus('Choose a live event.');
+      setStatus(liveEvents.length ? 'Choose a live event.' : 'No live service right now.');
     }
   } catch (_) {
     setStatus('Could not load events.');

@@ -348,95 +348,12 @@ async function resolveEventId() {
   return '';
 }
 
-let translateCountdownTimer = null;
-
-function clearTranslateCountdown() {
-  if (translateCountdownTimer) clearInterval(translateCountdownTimer);
-  translateCountdownTimer = null;
-  const overlay = $('translateCountdownOverlay');
-  if (overlay) overlay.hidden = true;
-}
-
-function formatTranslateCountdown(ms) {
-  const totalSec = Math.max(0, Math.floor(ms / 1000));
-  const days = Math.floor(totalSec / 86400);
-  const hours = Math.floor((totalSec % 86400) / 3600);
-  const minutes = Math.floor((totalSec % 3600) / 60);
-  const seconds = totalSec % 60;
-  if (days > 0) return `${days}d ${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-}
-
-function formatTranslateScheduled(event) {
-  if (!event?.scheduledTimestamp) return '';
-  try {
-    const fmt = new Intl.DateTimeFormat([], {
-      timeZone: event.timezone || undefined,
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    const text = fmt.format(new Date(event.scheduledTimestamp));
-    return event.timezone ? `${text} (${event.timezone})` : text;
-  } catch (err) {
-    return new Date(event.scheduledTimestamp).toLocaleString();
-  }
-}
-
-function showTranslateCountdown(event) {
-  if (!event?.scheduledTimestamp) return clearTranslateCountdown();
-  const overlay = $('translateCountdownOverlay');
-  if (!overlay) return;
-  overlay.hidden = false;
-  $('translateCountdownEvent').textContent = event.name || '';
-  $('translateCountdownDate').textContent = formatTranslateScheduled(event);
-  $('translateCountdownNote').textContent = '';
-
-  if (translateCountdownTimer) clearInterval(translateCountdownTimer);
-  function tick() {
-    const remaining = (event.scheduledTimestamp || 0) - Date.now();
-    if (remaining <= 0) {
-      $('translateCountdownTimer').textContent = '00:00:00';
-      clearInterval(translateCountdownTimer);
-      translateCountdownTimer = null;
-      clearTranslateCountdown();
-      joinEvent().catch(() => {});
-      return;
-    }
-    $('translateCountdownTimer').textContent = formatTranslateCountdown(remaining);
-  }
-  tick();
-  translateCountdownTimer = setInterval(tick, 1000);
-}
-
-async function fetchUpcomingForEvent(eventId) {
-  try {
-    const res = await fetch('/api/events/public');
-    const data = await res.json();
-    return (data.events || []).find((e) => e.id === eventId) || null;
-  } catch (err) {
-    return null;
-  }
-}
-
 async function joinEvent() {
   const eventId = await resolveEventId();
   if (!eventId) {
     setStatus('Nu exista eveniment activ.');
     return;
   }
-
-  const candidate = await fetchUpcomingForEvent(eventId);
-  if (candidate && !candidate.isActive && typeof candidate.scheduledTimestamp === 'number' && candidate.scheduledTimestamp > Date.now()) {
-    setStatus('Service has not started yet.');
-    showTranslateCountdown(candidate);
-    return;
-  }
-  clearTranslateCountdown();
-
   socket.emit('join_event', {
     eventId,
     role: 'participant',
@@ -458,7 +375,6 @@ socket.on('connect', async () => {
 socket.on('disconnect', () => setStatus('Reconnecting...'));
 
 socket.on('joined_event', ({ event, languageNames }) => {
-  clearTranslateCountdown();
   if (languageNames) availableLanguages = languageNames;
   state.currentEvent = event;
   state.currentDisplayMode = event.displayState?.mode || 'auto';

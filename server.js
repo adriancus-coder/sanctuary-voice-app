@@ -1857,6 +1857,20 @@ function ensureEventAccessLinks(event, baseUrl) {
     event.screenOperatorCode = `SV-SCREEN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   }
   ensureEventShortId(event);
+  if ((typeof event.scheduledTimestamp !== 'number') && event.scheduledAt) {
+    const scheduling = deriveScheduledFields({
+      scheduledAt: event.scheduledAt,
+      scheduledDate: event.scheduledDate,
+      scheduledTime: event.scheduledTime,
+      timezone: event.timezone
+    });
+    if (scheduling.scheduledTimestamp) {
+      event.scheduledTimestamp = scheduling.scheduledTimestamp;
+      event.scheduledDate = event.scheduledDate || scheduling.scheduledDate;
+      event.scheduledTime = event.scheduledTime || scheduling.scheduledTime;
+      event.timezone = event.timezone || scheduling.timezone || 'UTC';
+    }
+  }
   event.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []);
   if (baseUrl) {
     const globalAccess = ensureGlobalAccess(baseUrl, event);
