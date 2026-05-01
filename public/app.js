@@ -1145,6 +1145,7 @@ function populateEventLinks() {
   if ($('accessRemoteControlLink')) $('accessRemoteControlLink').value = mainOperatorLink;
   if ($('qrImage')) $('qrImage').src = `/api/participant-qr.png?ts=${Date.now()}`;
   renderRemoteOperators(currentEvent.remoteOperators || []);
+  if (typeof renderLiveLanguagesGrid === 'function') renderLiveLanguagesGrid();
 }
 
 function renderRemoteOperators(items = []) {
@@ -2989,6 +2990,92 @@ $('jumpLiveBtn').addEventListener('click', () => {
   if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 $('exportTranscriptBtn')?.addEventListener('click', exportTranscript);
+
+async function clearTranscript() {
+  if (!currentEvent) return alert('Open an event first.');
+  if (!confirm('Clear the entire transcript for this event? This cannot be undone.')) return;
+  try {
+    const res = await fetch(`/api/events/${currentEvent.id}/transcripts/clear`, adminJsonOptions('POST'));
+    const data = await res.json();
+    if (!data.ok) return alert(data.error || 'Could not clear transcript.');
+    if (currentEvent) {
+      currentEvent.transcripts = [];
+      currentEvent.latestDisplayEntry = null;
+    }
+    renderTranscriptList();
+    setStatus('Transcript cleared.');
+  } catch (err) {
+    console.error(err);
+    alert('Could not clear transcript.');
+  }
+}
+
+$('clearTranscriptBtn')?.addEventListener('click', clearTranscript);
+
+function renderLiveLanguagesGrid() {
+  const grid = document.getElementById('liveLanguagesGrid');
+  if (!grid) return;
+  if (!currentEvent) {
+    grid.innerHTML = '<div class="muted">Open an event to manage its languages.</div>';
+    return;
+  }
+  const sourceLang = String(currentEvent.sourceLang || 'ro').toLowerCase();
+  const selected = new Set((currentEvent.targetLangs || []).map((l) => String(l).toLowerCase()));
+  grid.innerHTML = Object.entries(availableLanguages || {}).map(([code, name]) => {
+    const isSource = code === sourceLang;
+    const checked = selected.has(code);
+    return `
+      <label class="checkbox-item${isSource ? ' is-source' : ''}">
+        <input type="checkbox" class="live-lang-checkbox" value="${escapeHtml(code)}" ${checked ? 'checked' : ''} ${isSource ? 'disabled' : ''}>
+        <span>${escapeHtml(name || code.toUpperCase())}${isSource ? ' (source)' : ''}</span>
+      </label>
+    `;
+  }).join('');
+}
+
+async function saveLiveLanguages() {
+  if (!currentEvent) return alert('Open an event first.');
+  const checkboxes = Array.from(document.querySelectorAll('#liveLanguagesGrid .live-lang-checkbox'));
+  const next = checkboxes.filter((cb) => cb.checked && !cb.disabled).map((cb) => cb.value);
+  if (!next.length) return alert('Pick at least one target language.');
+  const status = document.getElementById('liveLanguagesStatus');
+  if (status) status.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/events/${currentEvent.id}/target-langs`, adminJsonOptions('POST', { targetLangs: next }));
+    const data = await res.json();
+    if (!data.ok) {
+      if (status) status.textContent = data.error || 'Could not save.';
+      return;
+    }
+    currentEvent.targetLangs = data.targetLangs || next;
+    fillGlossaryLangs(currentEvent.targetLangs);
+    refreshDisplayControls();
+    renderLiveLanguagesGrid();
+    if (status) status.textContent = `Saved at ${new Date().toLocaleTimeString()}. Participants will see the new language list immediately.`;
+  } catch (err) {
+    console.error(err);
+    if (status) status.textContent = 'Could not save. Try again.';
+  }
+}
+
+document.getElementById('saveLiveLanguagesBtn')?.addEventListener('click', saveLiveLanguages);
+
+socket.on('event_target_langs_changed', ({ eventId, targetLangs }) => {
+  if (currentEvent && currentEvent.id === eventId && Array.isArray(targetLangs)) {
+    currentEvent.targetLangs = targetLangs;
+    fillGlossaryLangs(targetLangs);
+    refreshDisplayControls();
+    renderLiveLanguagesGrid();
+  }
+});
+
+socket.on('transcripts_cleared', ({ eventId }) => {
+  if (currentEvent && currentEvent.id === eventId) {
+    currentEvent.transcripts = [];
+    currentEvent.latestDisplayEntry = null;
+    renderTranscriptList();
+  }
+});
 $('saveSongBtn').addEventListener('click', saveSongToLibrary);
 $('sendSongBtn').addEventListener('click', sendSongToLive);
 $('songPrevBtn')?.addEventListener('click', goToPrevSongBlock);

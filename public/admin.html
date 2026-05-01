@@ -98,6 +98,18 @@
           </div>
         </div>
 
+        <div class="panel glass-panel section-stack" id="liveLanguagesPanel">
+          <div class="section-head">
+            <div>
+              <h2>Event languages</h2>
+              <div class="muted">Add or remove target languages mid-session. Existing participants stay connected; new translations apply on the next transcript line.</div>
+            </div>
+            <button id="saveLiveLanguagesBtn" class="btn btn-primary" type="button">Save languages</button>
+          </div>
+          <div id="liveLanguagesGrid" class="checkbox-grid"></div>
+          <div id="liveLanguagesStatus" class="muted"></div>
+        </div>
+
         <div class="panel glass-panel section-stack" id="selfTestPanel">
           <div class="section-head">
             <div>
@@ -216,6 +228,7 @@
             <h2>Transcript and live translations</h2>
             <div class="button-row compact-row">
               <button id="exportTranscriptBtn" class="btn btn-dark" type="button">Export transcript</button>
+              <button id="clearTranscriptBtn" class="btn btn-danger" type="button">Clear transcript</button>
               <button id="jumpLiveBtn" class="btn btn-dark" type="button">Jump to latest</button>
             </div>
           </div>

@@ -881,6 +881,25 @@ socket.on('song_state', (songState) => {
   renderLiveView({ announce: false });
 });
 
+socket.on('event_target_langs_changed', ({ eventId, targetLangs }) => {
+  if (!state.currentEvent || state.currentEvent.id !== eventId) return;
+  if (!Array.isArray(targetLangs)) return;
+  state.currentEvent.targetLangs = targetLangs;
+  syncLanguageOptions({ ...state.currentEvent, mode: state.currentMode, songState: state.currentSongState });
+});
+
+socket.on('transcripts_cleared', ({ eventId }) => {
+  if (!state.currentEvent || state.currentEvent.id !== eventId) return;
+  state.currentEvent.transcripts = [];
+  state.currentEvent.latestDisplayEntry = null;
+  state.visibleLiveEntry = null;
+  state.liveEntryQueue = [];
+  if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
+  state.liveEntryTimer = null;
+  renderLiveView({ announce: false });
+  renderHistory();
+});
+
 socket.on('song_clear', () => {
   state.currentMode = 'live';
   state.currentSongState = null;

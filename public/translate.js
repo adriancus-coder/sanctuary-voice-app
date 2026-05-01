@@ -604,6 +604,23 @@ socket.on('active_event_changed', async () => {
   if (!state.fixedEventId || !state.currentEvent) await joinEvent();
 });
 
+socket.on('event_target_langs_changed', ({ eventId, targetLangs, displayLanguage, secondaryLanguage }) => {
+  if (!state.currentEvent || state.currentEvent.id !== eventId) return;
+  if (Array.isArray(targetLangs)) state.currentEvent.targetLangs = targetLangs;
+  if (displayLanguage) state.currentLanguage = displayLanguage;
+  if (typeof secondaryLanguage === 'string') state.secondaryLanguage = secondaryLanguage;
+  syncLanguageOptions(state.currentEvent);
+  renderDisplay();
+});
+
+socket.on('transcripts_cleared', ({ eventId }) => {
+  if (!state.currentEvent || state.currentEvent.id !== eventId) return;
+  state.currentEvent.transcripts = [];
+  state.currentEvent.latestDisplayEntry = null;
+  state.latestLiveEntry = null;
+  renderDisplay();
+});
+
 $('translateLanguage')?.addEventListener('change', handleLanguageChange);
 $('fullscreenBtn')?.addEventListener('click', enterFullscreen);
 window.addEventListener('resize', autoFitText);

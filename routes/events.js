@@ -337,6 +337,50 @@ function registerEventRoutes(app, ctx) {
     res.json({ ok: true, activeEventId: getActiveEventIdForOrg(orgId) || null });
   });
 
+  app.post('/api/events/:id/target-langs', (req, res) => {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+    if (!requireEventAdmin(req, res, event)) return;
+    const requested = Array.isArray(req.body?.targetLangs) ? req.body.targetLangs : [];
+    const cleaned = Array.from(new Set(
+      requested
+        .map((l) => String(l || '').trim().toLowerCase())
+        .filter((l) => LANGUAGES[l])
+    ));
+    if (!cleaned.length) return res.status(400).json({ ok: false, error: 'At least one target language is required.' });
+    if (cleaned.includes(String(event.sourceLang || 'ro').toLowerCase())) {
+      return res.status(400).json({ ok: false, error: 'Source language cannot also be a target.' });
+    }
+    event.targetLangs = cleaned;
+    ensureEventUiState(event);
+    if (!cleaned.includes(event.displayState.language)) {
+      event.displayState.language = cleaned[0];
+    }
+    if (event.displayState.secondaryLanguage && !cleaned.includes(event.displayState.secondaryLanguage)) {
+      event.displayState.secondaryLanguage = '';
+    }
+    saveDb();
+    io.to(`event:${event.id}`).emit('event_target_langs_changed', {
+      eventId: event.id,
+      targetLangs: event.targetLangs,
+      displayLanguage: event.displayState.language,
+      secondaryLanguage: event.displayState.secondaryLanguage || ''
+    });
+    res.json({ ok: true, targetLangs: event.targetLangs, event: normalizeEventForAccess(req, event) });
+  });
+
+  app.post('/api/events/:id/transcripts/clear', (req, res) => {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+    if (!requireEventAdmin(req, res, event)) return;
+    event.transcripts = [];
+    event.lastTranscriptNorm = '';
+    event.latestDisplayEntry = null;
+    saveDb();
+    io.to(`event:${event.id}`).emit('transcripts_cleared', { eventId: event.id });
+    res.json({ ok: true });
+  });
+
   app.post('/api/events/:id/glossary', (req, res) => {
     const event = db.events[req.params.id];
     if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
