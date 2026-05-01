@@ -150,6 +150,8 @@ app.get('/song', requireEventParam, (req, res) => res.sendFile(path.join(__dirna
 app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
 app.get('/demo-screen', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-screen.html')));
 app.get('/demo-participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-participant.html')));
+app.get('/operator-dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'operator-dashboard.html')));
+app.get('/operator-dashboard.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'operator-dashboard.html')));
 
 const DEFAULT_DATA_DIR = process.env.RENDER ? '/var/data' : path.join(__dirname, 'data');
 const DATA_DIR = process.env.DATA_DIR || DEFAULT_DATA_DIR;
@@ -2987,39 +2989,83 @@ function checkOperatorLoginRateLimit(ip) {
   return { allowed: true };
 }
 
+function getActiveEvents() {
+  return Object.values(db.events || {}).filter((event) => isEventActive(event));
+}
+
+function isOperatorPinValid(pin) {
+  const candidate = String(pin || '').trim();
+  if (!candidate) return false;
+  if (MAIN_OPERATOR_PIN && candidate === MAIN_OPERATOR_PIN) return true;
+  for (const event of getActiveEvents()) {
+    const operators = Array.isArray(event.remoteOperators) ? event.remoteOperators : [];
+    if (operators.some((operator) => String(operator.code || '').trim() === candidate)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 app.post('/api/operator-login', (req, res) => {
   const ip = getOperatorClientIp(req);
   const rateCheck = checkOperatorLoginRateLimit(ip);
   if (!rateCheck.allowed) {
     return res.status(429).json({ ok: false, error: `Too many attempts. Try again in ${rateCheck.retryAfter}s.` });
   }
-  const rawEventId = String(req.body?.eventId || '').trim();
   const pin = String(req.body?.pin || '').trim();
   if (!pin) {
     return res.status(400).json({ ok: false, error: 'Operator PIN is required.' });
   }
-  let eventId = rawEventId;
-  if (!eventId) {
-    eventId = getActiveEventIdForOrg(DEFAULT_ORG_ID) || '';
-  }
-  if (!eventId) {
-    return res.status(404).json({ ok: false, error: 'No active event found. Ask your admin for the Event ID.' });
-  }
-  const event = db.events[eventId];
-  if (!event) {
-    return res.status(404).json({ ok: false, error: 'Event not found.' });
-  }
-  if (!isEventActive(event)) {
-    return res.status(403).json({ ok: false, error: 'Event is not currently active.' });
-  }
-  const access = resolveEventAccessFromCode(event, pin);
-  if (access.role !== 'screen') {
+  if (!isOperatorPinValid(pin)) {
     return res.status(403).json({ ok: false, error: 'Invalid PIN.' });
   }
   operatorLoginAttempts.delete(ip);
+  return res.json({ ok: true, operatorCode: pin });
+});
+
+function getOperatorCodeFromRequest(req) {
+  return String(
+    req.body?.operatorCode
+    || req.query?.operatorCode
+    || req.headers['x-operator-code']
+    || ''
+  ).trim();
+}
+
+app.get('/api/operator/events', (req, res) => {
+  const operatorCode = getOperatorCodeFromRequest(req);
+  if (!operatorCode || !isOperatorPinValid(operatorCode)) {
+    return res.status(401).json({ ok: false, error: 'Operator session expired. Please log in again.' });
+  }
+  const events = getActiveEvents().map((event) => ({
+    id: event.id,
+    name: event.name || 'Untitled event',
+    date: event.scheduledAt || event.createdAt || null,
+    sourceLang: event.sourceLang || 'ro'
+  }));
+  return res.json({ ok: true, events });
+});
+
+app.post('/api/operator/join', (req, res) => {
+  const eventId = String(req.body?.eventId || '').trim();
+  const operatorCode = String(req.body?.operatorCode || '').trim();
+  if (!operatorCode || !isOperatorPinValid(operatorCode)) {
+    return res.status(401).json({ ok: false, error: 'Operator session expired. Please log in again.' });
+  }
+  if (!eventId) {
+    return res.status(400).json({ ok: false, error: 'Invalid Event ID' });
+  }
+  const event = db.events[eventId];
+  if (!event || !isEventActive(event)) {
+    return res.status(404).json({ ok: false, error: 'Invalid Event ID' });
+  }
+  const access = resolveEventAccessFromCode(event, operatorCode);
+  if (access.role !== 'screen') {
+    return res.status(403).json({ ok: false, error: 'Invalid Event ID' });
+  }
   return res.json({
     ok: true,
-    redirectUrl: `/remote?event=${encodeURIComponent(eventId)}&code=${encodeURIComponent(pin)}`
+    redirectUrl: `/remote?event=${encodeURIComponent(eventId)}&code=${encodeURIComponent(operatorCode)}`
   });
 });
 

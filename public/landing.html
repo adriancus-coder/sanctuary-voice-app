@@ -130,12 +130,8 @@
       <h2 id="opModalTitle">Operator Login</h2>
       <button class="op-modal-close" type="button" id="opModalClose" aria-label="Close" onclick="closeOperatorModal()">&times;</button>
     </div>
-    <p class="op-modal-desc">Enter your operator PIN to open the remote control panel. Leave Event ID blank to connect to the current live service.</p>
+    <p class="op-modal-desc">Enter your operator PIN to open the operator dashboard.</p>
     <form id="opLoginForm" novalidate>
-      <div class="op-modal-field">
-        <label for="opEventId">Event ID <span class="op-field-optional">(optional)</span></label>
-        <input id="opEventId" type="text" placeholder="Leave blank for the current live service" autocomplete="off" spellcheck="false">
-      </div>
       <div class="op-modal-field">
         <label for="opPin">Operator PIN</label>
         <input id="opPin" type="password" placeholder="Enter your PIN" autocomplete="current-password">
@@ -154,11 +150,9 @@ function closeOperatorModal() {
   var modal = document.getElementById('opModal');
   var form = document.getElementById('opLoginForm');
   var errorEl = document.getElementById('opLoginError');
-  var eventIdInput = document.getElementById('opEventId');
   var pinInput = document.getElementById('opPin');
 
   if (modal) modal.hidden = true;
-  if (eventIdInput) eventIdInput.value = '';
   if (pinInput) pinInput.value = '';
   if (errorEl) errorEl.textContent = '';
   if (form) form.reset();
@@ -174,7 +168,6 @@ function closeOperatorModal() {
   var btn = document.getElementById('operatorLoginBtn');
   var modal = document.getElementById('opModal');
   var form = document.getElementById('opLoginForm');
-  var eventIdInput = document.getElementById('opEventId');
   var pinInput = document.getElementById('opPin');
   var errorEl = document.getElementById('opLoginError');
 
@@ -196,7 +189,6 @@ function closeOperatorModal() {
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
-    var eventId = eventIdInput.value.trim();
     var pin = pinInput.value.trim();
     errorEl.textContent = '';
     if (!pin) {
@@ -209,12 +201,15 @@ function closeOperatorModal() {
     fetch('/api/operator-login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventId: eventId, pin: pin })
+      body: JSON.stringify({ pin: pin })
     })
       .then(function (res) { return res.json(); })
       .then(function (data) {
-        if (data.ok && data.redirectUrl) {
-          window.location.href = data.redirectUrl;
+        if (data.ok && data.operatorCode) {
+          try {
+            sessionStorage.setItem('operatorCode', data.operatorCode);
+          } catch (err) {}
+          window.location.href = '/operator-dashboard';
         } else {
           errorEl.textContent = data.error || 'Login failed. Please check your PIN and try again.';
           submitBtn.disabled = false;

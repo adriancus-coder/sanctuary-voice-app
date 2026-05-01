@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operator Dashboard | Sanctuary Voice</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="landing-body operator-dashboard-body">
+  <header class="landing-nav">
+    <a class="landing-brand" href="/" aria-label="Sanctuary Voice home">
+      <span class="landing-brand-mark">SV</span>
+      <span>Sanctuary Voice</span>
+    </a>
+    <nav class="landing-nav-links" aria-label="Primary">
+      <a href="/">Home</a>
+    </nav>
+    <button class="landing-login-btn" type="button" id="opLogoutBtn">Log out</button>
+  </header>
+
+  <main class="operator-dashboard">
+    <section class="operator-dashboard-head">
+      <h1>Active events</h1>
+      <p class="operator-dashboard-desc">
+        Pick the event you want to operate. Enter its Event ID to confirm and continue to the remote panel.
+      </p>
+    </section>
+
+    <div id="opDashStatus" class="operator-dashboard-status" role="status"></div>
+
+    <section id="opEventsList" class="operator-events-grid" aria-live="polite"></section>
+
+    <template id="opEventCardTemplate">
+      <article class="operator-event-card">
+        <header class="operator-event-card-head">
+          <h2 class="operator-event-name"></h2>
+          <span class="operator-event-status">Active</span>
+        </header>
+        <dl class="operator-event-meta">
+          <div>
+            <dt>Date</dt>
+            <dd class="operator-event-date"></dd>
+          </div>
+          <div>
+            <dt>Source language</dt>
+            <dd class="operator-event-lang"></dd>
+          </div>
+        </dl>
+        <form class="operator-event-form" novalidate>
+          <label class="operator-event-label">
+            <span>Enter Event ID to join</span>
+            <input type="text" class="operator-event-input" placeholder="Event ID" autocomplete="off" spellcheck="false">
+          </label>
+          <button type="submit" class="btn btn-primary operator-event-join">Join</button>
+          <div class="operator-event-error" role="alert"></div>
+        </form>
+      </article>
+    </template>
+  </main>
+
+  <script src="/operator-dashboard.js"></script>
+</body>
+</html>
