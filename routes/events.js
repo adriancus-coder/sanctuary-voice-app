@@ -42,6 +42,7 @@ function registerEventRoutes(app, ctx) {
     getRemoteOperatorPermissions,
     getSourceCorrections,
     getSuppliedEventCode,
+    getTranslationCacheSnapshot,
     hasValidAdminSession,
     io,
     isAdminLoginConfigured,
@@ -57,6 +58,7 @@ function registerEventRoutes(app, ctx) {
     processText,
     pushSongHistory,
     queueSpeechText,
+    recordAudit,
     recordScreenAction,
     recordTranscribeLatency,
     recordTranscribeUsage,
@@ -216,6 +218,7 @@ function registerEventRoutes(app, ctx) {
         transcripts: totalTranscripts,
         estimatedCostUSD: Math.round(totalCost * 1e4) / 1e4
       },
+      cache: typeof getTranslationCacheSnapshot === 'function' ? getTranslationCacheSnapshot() : null,
       events: list
     });
   });
@@ -416,6 +419,9 @@ function registerEventRoutes(app, ctx) {
       ? !!req.body.hidden
       : !event.hidden;
     event.hidden = desired;
+    if (typeof recordAudit === 'function') {
+      recordAudit(getEventOrgId(event), desired ? 'event_hidden' : 'event_visible', { eventId: event.id, name: event.name });
+    }
     saveDb();
     res.json({ ok: true, hidden: event.hidden, event: normalizeEventForAccess(req, event) });
   });
@@ -459,6 +465,9 @@ function registerEventRoutes(app, ctx) {
     if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
     if (!requireEventAdmin(req, res, event)) return;
     setActiveEventIdForOrg(getEventOrgId(event), event.id);
+    if (typeof recordAudit === 'function') {
+      recordAudit(getEventOrgId(event), 'event_set_live', { eventId: event.id, name: event.name });
+    }
     saveDb();
     io.emit('active_event_changed', { eventId: event.id });
     res.json({ ok: true, event: normalizeEventForAccess(req, event) });
@@ -469,13 +478,18 @@ function registerEventRoutes(app, ctx) {
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
   if (!requireEventAdmin(req, res, event)) return;
   closeAzureSpeechSessionsForEvent?.(req.params.id);
+  const eventName = event.name;
+  const orgIdSnapshot = getEventOrgId(event);
   delete db.events[req.params.id];
   speechBuffers.delete(req.params.id);
     participantPresence.delete(req.params.id);
-    const orgId = getEventOrgId(event);
+    const orgId = orgIdSnapshot;
     if (getActiveEventIdForOrg(orgId) === req.params.id) {
       const remaining = getOrganizationEvents(orgId).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       setActiveEventIdForOrg(orgId, remaining[0]?.id || null);
+    }
+    if (typeof recordAudit === 'function') {
+      recordAudit(orgId, 'event_deleted', { eventId: req.params.id, name: eventName });
     }
     saveDb();
     io.emit('active_event_changed', { eventId: getActiveEventIdForOrg(orgId) || null });
@@ -518,9 +532,13 @@ function registerEventRoutes(app, ctx) {
     const event = db.events[req.params.id];
     if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
     if (!requireEventAdmin(req, res, event)) return;
+    const transcriptCount = Array.isArray(event.transcripts) ? event.transcripts.length : 0;
     event.transcripts = [];
     event.lastTranscriptNorm = '';
     event.latestDisplayEntry = null;
+    if (typeof recordAudit === 'function') {
+      recordAudit(getEventOrgId(event), 'transcript_cleared', { eventId: event.id, name: event.name, removed: transcriptCount });
+    }
     saveDb();
     io.to(`event:${event.id}`).emit('transcripts_cleared', { eventId: event.id });
     res.json({ ok: true });

@@ -1132,8 +1132,28 @@ function ensureOrganization(orgId = DEFAULT_ORG_ID, seed = {}) {
   org.globalMemory = org.globalMemory && typeof org.globalMemory === 'object' ? org.globalMemory : {};
   org.globalSongLibrary = Array.isArray(org.globalSongLibrary) ? org.globalSongLibrary : defaultGlobalSongLibrary();
   org.pinnedTextLibrary = Array.isArray(org.pinnedTextLibrary) ? org.pinnedTextLibrary : defaultPinnedTextLibrary();
+  org.auditLog = Array.isArray(org.auditLog) ? org.auditLog : [];
   org.activeEventId = org.activeEventId || null;
   return org;
+}
+
+const AUDIT_LOG_LIMIT = 500;
+function recordAudit(orgId, action, details = {}) {
+  try {
+    const org = ensureOrganization(orgId || DEFAULT_ORG_ID);
+    if (!Array.isArray(org.auditLog)) org.auditLog = [];
+    org.auditLog.push({
+      id: randomUUID(),
+      action: String(action || '').trim() || 'unknown',
+      at: new Date().toISOString(),
+      details: details && typeof details === 'object' ? details : {}
+    });
+    if (org.auditLog.length > AUDIT_LOG_LIMIT) {
+      org.auditLog = org.auditLog.slice(-AUDIT_LOG_LIMIT);
+    }
+  } catch (err) {
+    logger.warn('audit log error:', err?.message || err);
+  }
 }
 
 function getDefaultOrganization() {
@@ -2157,11 +2177,17 @@ function buildTranslationCacheKey({ text, langCode, sourceLang, speed, glossary 
   ].join('::');
 }
 
+const translationCacheStats = { hits: 0, misses: 0 };
+
 function readTranslationCache(key) {
-  if (!translationCache.has(key)) return null;
+  if (!translationCache.has(key)) {
+    translationCacheStats.misses += 1;
+    return null;
+  }
   const value = translationCache.get(key);
   translationCache.delete(key);
   translationCache.set(key, value);
+  translationCacheStats.hits += 1;
   return value;
 }
 
@@ -2173,6 +2199,17 @@ function writeTranslationCache(key, value) {
     const firstKey = translationCache.keys().next().value;
     translationCache.delete(firstKey);
   }
+}
+
+function getTranslationCacheSnapshot() {
+  const total = translationCacheStats.hits + translationCacheStats.misses;
+  return {
+    size: translationCache.size,
+    limit: TRANSLATION_CACHE_LIMIT,
+    hits: translationCacheStats.hits,
+    misses: translationCacheStats.misses,
+    hitRate: total ? Math.round((translationCacheStats.hits / total) * 1e4) / 100 : 0
+  };
 }
 
 function buildAccessCode(prefix) {
@@ -3424,6 +3461,12 @@ app.post('/api/admin/access-requests/:id/grant', (req, res) => {
     grantedAt: request.grantedAt,
     requestId: request.id
   });
+  recordAudit(DEFAULT_ORG_ID, 'access_granted', {
+    name: request.name,
+    profile,
+    eventId: request.eventId || null,
+    eventName: request.eventName || null
+  });
   saveDb();
   res.json({
     ok: true,
@@ -3443,6 +3486,7 @@ app.post('/api/admin/access-requests/:id/deny', (req, res) => {
   if (request.status !== 'pending') return res.status(400).json({ ok: false, error: `Request already ${request.status}.` });
   request.status = 'denied';
   request.deniedAt = new Date().toISOString();
+  recordAudit(DEFAULT_ORG_ID, 'access_denied', { name: request.name });
   saveDb();
   res.json({ ok: true, request });
 });
@@ -3624,6 +3668,15 @@ app.get('/api/admin/self-test', async (req, res) => {
   }
 });
 
+app.get('/api/admin/audit-log', (req, res) => {
+  if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const org = ensureOrganization(DEFAULT_ORG_ID);
+  const log = Array.isArray(org.auditLog) ? org.auditLog : [];
+  const limit = Math.max(1, Math.min(500, Number(req.query?.limit) || 100));
+  const entries = [...log].slice(-limit).reverse();
+  res.json({ ok: true, entries });
+});
+
 app.post('/api/admin/push-subscribe', (req, res) => {
   if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   if (!WEB_PUSH_ENABLED) return res.status(503).json({ ok: false, error: 'Push not configured.' });
@@ -3793,6 +3846,7 @@ registerEventRoutes(app, {
   getRemoteOperatorPermissions,
   getSourceCorrections,
   getSuppliedEventCode,
+  getTranslationCacheSnapshot,
   hasValidAdminSession,
   io,
   isAdminLoginConfigured,
@@ -3808,6 +3862,7 @@ registerEventRoutes(app, {
   processText,
   pushSongHistory,
   queueSpeechText,
+  recordAudit,
   recordScreenAction,
   recordTranscribeLatency,
   recordTranscribeUsage,

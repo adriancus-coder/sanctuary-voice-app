@@ -3823,7 +3823,15 @@ async function renderStatisticsTab() {
     if (partEl) partEl.textContent = String(totals.uniqueParticipants || 0);
     if (hoursEl) hoursEl.textContent = `${(Number(totals.audioHours) || 0).toFixed(2)} h`;
     if (costEl) costEl.textContent = formatCostUSD(totals.estimatedCostUSD);
+    const cacheLine = document.getElementById('statsCacheLine');
+    if (cacheLine && data.cache) {
+      const c = data.cache;
+      cacheLine.textContent = `Translation cache: ${c.hits} hits / ${c.misses} misses · hit rate ${c.hitRate}% · ${c.size}/${c.limit} entries`;
+    } else if (cacheLine) {
+      cacheLine.textContent = '';
+    }
     renderStatsEventsTable(statsCurrentEvents);
+    loadAuditLog();
   } catch (err) {
     console.error('stats overview load:', err);
   }
@@ -3984,3 +3992,51 @@ document.getElementById('statsDetailExportTxtBtn')?.addEventListener('click', ()
   if (!statsDetailCurrentId) return;
   window.location.href = `/api/events/${statsDetailCurrentId}/transcript-export`;
 });
+
+const AUDIT_ACTION_LABELS = {
+  event_set_live: 'Set live event',
+  event_deleted: 'Deleted event',
+  event_hidden: 'Hidden from participants',
+  event_visible: 'Shown to participants',
+  transcript_cleared: 'Cleared transcript',
+  access_granted: 'Granted operator access',
+  access_denied: 'Denied operator access'
+};
+
+async function loadAuditLog() {
+  const list = document.getElementById('auditLogList');
+  if (!list) return;
+  try {
+    const res = await fetch('/api/admin/audit-log');
+    if (res.status === 401) return;
+    const data = await res.json();
+    if (!data.ok || !Array.isArray(data.entries) || !data.entries.length) {
+      list.innerHTML = '<div class="muted">No admin actions logged yet.</div>';
+      return;
+    }
+    list.innerHTML = data.entries.map((entry) => {
+      const when = entry.at ? new Date(entry.at).toLocaleString() : '';
+      const label = AUDIT_ACTION_LABELS[entry.action] || entry.action;
+      const details = entry.details || {};
+      const summaryParts = [];
+      if (details.name) summaryParts.push(escapeHtml(details.name));
+      if (details.eventName) summaryParts.push(`event: ${escapeHtml(details.eventName)}`);
+      if (details.profile) summaryParts.push(`role: ${escapeHtml(details.profile)}`);
+      if (typeof details.removed === 'number') summaryParts.push(`${details.removed} entries removed`);
+      const summary = summaryParts.length ? `<div class="small">${summaryParts.join(' · ')}</div>` : '';
+      return `
+        <div class="history-item">
+          <div class="entry-head">
+            <strong>${escapeHtml(label)}</strong>
+            <span class="muted">${escapeHtml(when)}</span>
+          </div>
+          ${summary}
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('audit log load:', err);
+  }
+}
+
+document.getElementById('auditLogRefreshBtn')?.addEventListener('click', loadAuditLog);

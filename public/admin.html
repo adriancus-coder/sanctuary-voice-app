@@ -749,6 +749,7 @@
             <div id="statsOverviewCost" class="metric-number">—</div>
           </div>
         </div>
+        <div id="statsCacheLine" class="muted" style="margin-top:-8px"></div>
 
         <div class="panel glass-panel section-stack" id="statsEventsPanel">
           <div class="section-head">
@@ -807,6 +808,19 @@
           <div class="info-card soft-card">
             <div class="label">Participants per language</div>
             <div id="statsLangChart" class="stats-lang-chart"></div>
+          </div>
+        </div>
+
+        <div class="panel glass-panel section-stack" id="auditLogPanel">
+          <div class="section-head">
+            <div>
+              <h2>Audit log</h2>
+              <div class="muted">Recent admin actions across the org. Last 100 entries.</div>
+            </div>
+            <button id="auditLogRefreshBtn" class="btn btn-dark" type="button">Refresh</button>
+          </div>
+          <div id="auditLogList" class="history-list">
+            <div class="muted">Open the tab to load.</div>
           </div>
         </div>
       </section>
