@@ -1422,6 +1422,28 @@ progress::-moz-progress-bar {
   color: var(--text);
 }
 
+.access-request-role {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.access-request-role label {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-strong);
+  font-weight: 700;
+}
+
+.access-profile-select {
+  flex: 1 1 auto;
+  min-height: 38px;
+  padding: 6px 10px;
+  font-size: 0.92rem;
+}
+
 .song-grid .song-textarea {
   min-height: 220px;
   line-height: 1.68;

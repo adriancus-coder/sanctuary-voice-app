@@ -1732,6 +1732,20 @@ function resolveEventAccessFromCode(event, code) {
       operator
     };
   }
+  const granted = (getOrganizationForEvent(event)?.grantedOperators || [])
+    .find((entry) => String(entry?.code || '').trim() === suppliedCode);
+  if (granted) {
+    return {
+      role: 'screen',
+      permissions: getRemoteOperatorPermissions(granted.profile),
+      operator: {
+        id: granted.id || `granted-${suppliedCode}`,
+        name: granted.name || 'Operator',
+        profile: normalizeRemoteOperatorProfile(granted.profile),
+        code: suppliedCode
+      }
+    };
+  }
   return { role: '', permissions: [], operator: null };
 }
 
@@ -3248,7 +3262,13 @@ app.get('/api/admin/access-requests', (req, res) => {
   if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   const org = ensureOrganization(DEFAULT_ORG_ID);
   const requests = Array.isArray(org.accessRequests) ? [...org.accessRequests].reverse() : [];
-  res.json({ ok: true, requests });
+  const granted = Array.isArray(org.grantedOperators) ? [...org.grantedOperators].reverse() : [];
+  const profiles = Object.entries(REMOTE_OPERATOR_PROFILES).map(([key, def]) => ({
+    key,
+    label: def.label,
+    permissions: def.permissions
+  }));
+  res.json({ ok: true, requests, granted, profiles });
 });
 
 app.post('/api/admin/access-requests/:id/grant', (req, res) => {
@@ -3257,9 +3277,11 @@ app.post('/api/admin/access-requests/:id/grant', (req, res) => {
   const request = (org.accessRequests || []).find((r) => r.id === req.params.id);
   if (!request) return res.status(404).json({ ok: false, error: 'Request not found.' });
   if (request.status !== 'pending') return res.status(400).json({ ok: false, error: `Request already ${request.status}.` });
+  const profile = normalizeRemoteOperatorProfile(req.body?.profile);
   const code = generateOperatorAccessCode();
   request.status = 'granted';
   request.operatorCode = code;
+  request.profile = profile;
   request.grantedAt = new Date().toISOString();
   if (!Array.isArray(org.grantedOperators)) org.grantedOperators = [];
   org.grantedOperators.push({
@@ -3267,11 +3289,12 @@ app.post('/api/admin/access-requests/:id/grant', (req, res) => {
     name: request.name,
     contact: request.contact || '',
     code,
+    profile,
     grantedAt: request.grantedAt,
     requestId: request.id
   });
   saveDb();
-  res.json({ ok: true, code, request });
+  res.json({ ok: true, code, profile, request });
 });
 
 app.post('/api/admin/access-requests/:id/deny', (req, res) => {

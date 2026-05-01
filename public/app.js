@@ -3272,16 +3272,36 @@ function formatAccessRequestTime(value) {
   return d.toLocaleString();
 }
 
+let accessProfileOptions = [
+  { key: 'main_screen', label: 'Main Screen only' },
+  { key: 'song_only', label: 'Song only' },
+  { key: 'main_and_song', label: 'Main Screen + Song' },
+  { key: 'full', label: 'Full operator' }
+];
+
 async function refreshAccessRequests() {
   try {
     const res = await fetch('/api/admin/access-requests');
     if (!res.ok) return;
     const data = await res.json();
     if (!data.ok) return;
+    if (Array.isArray(data.profiles) && data.profiles.length) accessProfileOptions = data.profiles;
     renderAccessRequests(Array.isArray(data.requests) ? data.requests : []);
   } catch (err) {
     console.error('access requests load:', err);
   }
+}
+
+function profileLabel(key) {
+  const found = accessProfileOptions.find((p) => p.key === key);
+  return found ? found.label : key;
+}
+
+function profileOptionsHtml(selected) {
+  const sel = selected || 'full';
+  return accessProfileOptions
+    .map((p) => `<option value="${escHtml(p.key)}"${p.key === sel ? ' selected' : ''}>${escHtml(p.label)}</option>`)
+    .join('');
 }
 
 function renderAccessRequests(requests) {
@@ -3300,6 +3320,12 @@ function renderAccessRequests(requests) {
           <span class="muted">${escHtml(formatAccessRequestTime(r.requestedAt))}</span>
         </div>
         ${r.contact ? `<div class="muted">${escHtml(r.contact)}</div>` : ''}
+        <div class="access-request-role">
+          <label class="muted" for="accessProfile-${escHtml(r.id)}">Role</label>
+          <select id="accessProfile-${escHtml(r.id)}" class="access-profile-select" data-request-id="${r.id}">
+            ${profileOptionsHtml('full')}
+          </select>
+        </div>
         <div class="button-row compact">
           <button class="btn btn-primary" data-access-action="grant" data-request-id="${r.id}">Grant access</button>
           <button class="btn btn-dark" data-access-action="deny" data-request-id="${r.id}">Deny</button>
@@ -3316,6 +3342,7 @@ function renderAccessRequests(requests) {
           <strong>${escHtml(r.name || 'Unknown')}</strong>
           <span class="status-pill ${r.status === 'granted' ? 'active' : ''}">${r.status === 'granted' ? 'Granted' : 'Denied'}</span>
         </div>
+        ${r.status === 'granted' && r.profile ? `<div class="muted">Role: ${escHtml(profileLabel(r.profile))}</div>` : ''}
         ${r.status === 'granted' && r.operatorCode ? `<div class="meta-row"><span>Code</span><code class="event-id-value">${escHtml(r.operatorCode)}</code><button class="btn btn-dark" data-access-action="copy-code" data-code="${escHtml(r.operatorCode)}" type="button">Copy</button></div>` : ''}
         <div class="muted">${escHtml(formatAccessRequestTime(r.grantedAt || r.deniedAt || r.requestedAt))}</div>
         <button class="btn btn-danger" data-access-action="dismiss" data-request-id="${r.id}" type="button">Dismiss</button>
@@ -3336,13 +3363,19 @@ document.getElementById('accessRequestsPanel')?.addEventListener('click', async 
   }
   if (action === 'grant') {
     btn.disabled = true;
+    const profileSelect = document.getElementById(`accessProfile-${id}`);
+    const profile = profileSelect ? profileSelect.value : 'full';
     try {
-      const res = await fetch(`/api/admin/access-requests/${id}/grant`, { method: 'POST' });
+      const res = await fetch(`/api/admin/access-requests/${id}/grant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile })
+      });
       const data = await res.json();
       if (!data.ok) { alert(data.error || 'Could not grant access.'); return; }
       const code = data.code || '';
       if (code) {
-        prompt('Operator access code (send it to the operator):', code);
+        prompt(`Operator access code (role: ${profileLabel(data.profile || profile)}). Send it to the operator:`, code);
       }
       await refreshAccessRequests();
     } catch (err) {
