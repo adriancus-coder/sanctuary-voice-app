@@ -910,6 +910,12 @@ $('participantFocusBtn').addEventListener('click', () => {
   applyParticipantViewMode();
 });
 
+$('participantExitFocusBtn')?.addEventListener('click', () => {
+  state.focusMode = false;
+  localStorage.setItem('sanctuary_voice_participant_focus', '0');
+  applyParticipantViewMode();
+});
+
 $('participantAiNoticeOk')?.addEventListener('click', acceptAiNotice);
 
 window.addEventListener('load', async () => {
