@@ -400,7 +400,7 @@ function closeOperatorModal() {
         if (data.status === 'granted' && data.operatorCode) {
           stopPolling();
           try { sessionStorage.setItem('operatorCode', data.operatorCode); } catch (e) {}
-          window.location.href = '/operator-dashboard';
+          window.location.href = data.redirectUrl || '/operator-dashboard';
           return;
         }
         if (data.status === 'denied') {

@@ -3278,6 +3278,7 @@ let accessProfileOptions = [
   { key: 'main_and_song', label: 'Main Screen + Song' },
   { key: 'full', label: 'Full operator' }
 ];
+let accessEventOptions = [];
 
 async function refreshAccessRequests() {
   try {
@@ -3286,6 +3287,7 @@ async function refreshAccessRequests() {
     const data = await res.json();
     if (!data.ok) return;
     if (Array.isArray(data.profiles) && data.profiles.length) accessProfileOptions = data.profiles;
+    accessEventOptions = Array.isArray(data.events) ? data.events.filter((e) => e.status !== 'past') : [];
     renderAccessRequests(Array.isArray(data.requests) ? data.requests : []);
   } catch (err) {
     console.error('access requests load:', err);
@@ -3302,6 +3304,17 @@ function profileOptionsHtml(selected) {
   return accessProfileOptions
     .map((p) => `<option value="${escHtml(p.key)}"${p.key === sel ? ' selected' : ''}>${escHtml(p.label)}</option>`)
     .join('');
+}
+
+function eventOptionsHtml(selected) {
+  const fallback = '<option value="">No specific event (operator dashboard)</option>';
+  const items = accessEventOptions
+    .map((ev) => {
+      const tag = ev.status === 'active' ? ' · LIVE' : (ev.status === 'scheduled' ? ' · scheduled' : '');
+      return `<option value="${escHtml(ev.id)}"${ev.id === selected ? ' selected' : ''}>${escHtml(ev.name + tag)}</option>`;
+    })
+    .join('');
+  return fallback + items;
 }
 
 function renderAccessRequests(requests) {
@@ -3326,6 +3339,12 @@ function renderAccessRequests(requests) {
             ${profileOptionsHtml('full')}
           </select>
         </div>
+        <div class="access-request-role">
+          <label class="muted" for="accessEvent-${escHtml(r.id)}">Event</label>
+          <select id="accessEvent-${escHtml(r.id)}" class="access-profile-select" data-request-id="${r.id}">
+            ${eventOptionsHtml('')}
+          </select>
+        </div>
         <div class="button-row compact">
           <button class="btn btn-primary" data-access-action="grant" data-request-id="${r.id}">Grant access</button>
           <button class="btn btn-dark" data-access-action="deny" data-request-id="${r.id}">Deny</button>
@@ -3343,6 +3362,7 @@ function renderAccessRequests(requests) {
           <span class="status-pill ${r.status === 'granted' ? 'active' : ''}">${r.status === 'granted' ? 'Granted' : 'Denied'}</span>
         </div>
         ${r.status === 'granted' && r.profile ? `<div class="muted">Role: ${escHtml(profileLabel(r.profile))}</div>` : ''}
+        ${r.status === 'granted' && r.eventName ? `<div class="muted">Event: ${escHtml(r.eventName)}</div>` : ''}
         ${r.status === 'granted' && r.operatorCode ? `<div class="meta-row"><span>Code</span><code class="event-id-value">${escHtml(r.operatorCode)}</code><button class="btn btn-dark" data-access-action="copy-code" data-code="${escHtml(r.operatorCode)}" type="button">Copy</button></div>` : ''}
         <div class="muted">${escHtml(formatAccessRequestTime(r.grantedAt || r.deniedAt || r.requestedAt))}</div>
         <button class="btn btn-danger" data-access-action="dismiss" data-request-id="${r.id}" type="button">Dismiss</button>
@@ -3364,18 +3384,21 @@ document.getElementById('accessRequestsPanel')?.addEventListener('click', async 
   if (action === 'grant') {
     btn.disabled = true;
     const profileSelect = document.getElementById(`accessProfile-${id}`);
+    const eventSelect = document.getElementById(`accessEvent-${id}`);
     const profile = profileSelect ? profileSelect.value : 'full';
+    const eventId = eventSelect ? eventSelect.value : '';
     try {
       const res = await fetch(`/api/admin/access-requests/${id}/grant`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile })
+        body: JSON.stringify({ profile, eventId })
       });
       const data = await res.json();
       if (!data.ok) { alert(data.error || 'Could not grant access.'); return; }
       const code = data.code || '';
       if (code) {
-        prompt(`Operator access code (role: ${profileLabel(data.profile || profile)}). Send it to the operator:`, code);
+        const eventInfo = data.eventName ? ` for "${data.eventName}"` : '';
+        prompt(`Operator code (${profileLabel(data.profile || profile)})${eventInfo}. The operator is signed in automatically — share this only as a backup:`, code);
       }
       await refreshAccessRequests();
     } catch (err) {

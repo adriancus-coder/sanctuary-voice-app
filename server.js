@@ -3268,6 +3268,13 @@ app.get('/api/operator/request-status/:id', (req, res) => {
   if (request.status === 'granted' && request.operatorCode) {
     payload.operatorCode = request.operatorCode;
     payload.profile = request.profile || null;
+    payload.eventId = request.eventId || null;
+    payload.eventName = request.eventName || null;
+    if (request.eventId) {
+      payload.redirectUrl = `/remote?event=${encodeURIComponent(request.eventId)}&code=${encodeURIComponent(request.operatorCode)}`;
+    } else {
+      payload.redirectUrl = '/operator-dashboard';
+    }
   }
   res.json(payload);
 });
@@ -3282,7 +3289,34 @@ app.get('/api/admin/access-requests', (req, res) => {
     label: def.label,
     permissions: def.permissions
   }));
-  res.json({ ok: true, requests, granted, profiles });
+  const now = Date.now();
+  const events = Object.values(db.events || {})
+    .filter((event) => getEventOrgId(event) === DEFAULT_ORG_ID)
+    .map((event) => {
+      ensureEventShortId(event);
+      const isActive = isEventActive(event);
+      const ts = typeof event.scheduledTimestamp === 'number' ? event.scheduledTimestamp : null;
+      let status = 'past';
+      if (isActive) status = 'active';
+      else if (ts && ts > now) status = 'scheduled';
+      else if (!ts) status = 'unscheduled';
+      return {
+        id: event.id,
+        shortId: event.shortId,
+        name: event.name || 'Untitled event',
+        scheduledTimestamp: ts,
+        isActive,
+        status
+      };
+    })
+    .sort((a, b) => {
+      const order = { active: 0, scheduled: 1, unscheduled: 2, past: 3 };
+      if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+      const at = a.scheduledTimestamp || 0;
+      const bt = b.scheduledTimestamp || 0;
+      return at - bt;
+    });
+  res.json({ ok: true, requests, granted, profiles, events });
 });
 
 app.post('/api/admin/access-requests/:id/grant', (req, res) => {
@@ -3292,10 +3326,20 @@ app.post('/api/admin/access-requests/:id/grant', (req, res) => {
   if (!request) return res.status(404).json({ ok: false, error: 'Request not found.' });
   if (request.status !== 'pending') return res.status(400).json({ ok: false, error: `Request already ${request.status}.` });
   const profile = normalizeRemoteOperatorProfile(req.body?.profile);
+  const requestedEventId = String(req.body?.eventId || '').trim();
+  let assignedEvent = null;
+  if (requestedEventId) {
+    assignedEvent = findEventByIdOrShortId(requestedEventId);
+    if (!assignedEvent || getEventOrgId(assignedEvent) !== DEFAULT_ORG_ID) {
+      return res.status(400).json({ ok: false, error: 'Selected event not found.' });
+    }
+  }
   const code = generateOperatorAccessCode();
   request.status = 'granted';
   request.operatorCode = code;
   request.profile = profile;
+  request.eventId = assignedEvent ? assignedEvent.id : null;
+  request.eventName = assignedEvent ? assignedEvent.name : null;
   request.grantedAt = new Date().toISOString();
   if (!Array.isArray(org.grantedOperators)) org.grantedOperators = [];
   org.grantedOperators.push({
@@ -3304,11 +3348,20 @@ app.post('/api/admin/access-requests/:id/grant', (req, res) => {
     contact: request.contact || '',
     code,
     profile,
+    eventId: request.eventId,
+    eventName: request.eventName,
     grantedAt: request.grantedAt,
     requestId: request.id
   });
   saveDb();
-  res.json({ ok: true, code, profile, request });
+  res.json({
+    ok: true,
+    code,
+    profile,
+    eventId: request.eventId,
+    eventName: request.eventName,
+    request
+  });
 });
 
 app.post('/api/admin/access-requests/:id/deny', (req, res) => {
