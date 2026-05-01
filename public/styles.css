@@ -2481,8 +2481,7 @@ body.participant-preview-mode .participant-event-chooser {
   grid-template-columns: minmax(190px, 1fr) auto;
 }
 
-.participant-listener-stage.participant-compact .participant-status-group,
-.participant-listener-stage.participant-compact .participant-view-actions {
+.participant-listener-stage.participant-compact .participant-status-group {
   display: none;
 }
 
