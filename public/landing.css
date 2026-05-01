@@ -364,6 +364,64 @@ html, body { background: #0A0A0A; }
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* ---------------- Feature grid ---------------- */
+.landing-body .landing-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin: 0;
+}
+
+.landing-body .landing-feature-grid article {
+  display: grid;
+  gap: 10px;
+  padding: 26px 24px;
+  background: #141414;
+  border: 1px solid rgba(212, 168, 83, 0.15);
+  border-radius: 4px;
+  transition: border-color 200ms ease, transform 200ms ease;
+}
+
+.landing-body .landing-feature-grid article::before {
+  content: "";
+  display: block;
+  width: 28px;
+  height: 2px;
+  background: #D4A853;
+  margin-bottom: 4px;
+}
+
+.landing-body .landing-feature-grid article:hover {
+  border-color: rgba(212, 168, 83, 0.4);
+  transform: translateY(-2px);
+}
+
+.landing-body .landing-feature-grid h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+}
+
+.landing-body .landing-feature-grid p {
+  margin: 0;
+  color: #888;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.landing-body .landing-feature-grid code {
+  background: rgba(212, 168, 83, 0.1);
+  border: 1px solid rgba(212, 168, 83, 0.18);
+  color: #D4A853;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: "Space Grotesk", monospace;
+  font-size: 0.86em;
+}
+
 /* ---------------- For churches (proof) ---------------- */
 .landing-body .landing-proof {
   display: grid;
