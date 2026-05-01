@@ -6,6 +6,7 @@
   <title>Sanctuary Voice | Live AI translation for church services</title>
   <meta name="description" content="Sanctuary Voice helps churches deliver live AI translation to participant phones and main screens during services.">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/landing.css">
 </head>
 <body class="landing-body">
   <header class="landing-nav" id="landingNav">
@@ -24,66 +25,62 @@
   </header>
 
   <a id="landingNextService" class="landing-next-service" href="#" hidden>
-    <span class="landing-next-service-label">Next service:</span>
+    <span class="landing-next-service-label">Next service</span>
     <span id="landingNextServiceText" class="landing-next-service-text"></span>
     <span class="landing-next-service-cta">Join &rarr;</span>
   </a>
 
   <main>
-    <section class="landing-hero">
+    <section class="landing-hero" data-animate>
       <div class="landing-hero-copy">
         <h1>Live translation for the whole room, without losing the service.</h1>
-        <p>
-          Sanctuary Voice helps churches offer real-time AI translation on participant phones,
-          main screens, and operator controls from one simple service desk.
-        </p>
+        <p>Sanctuary Voice helps churches offer real-time AI translation on participant phones, main screens, and operator controls from one simple service desk.</p>
         <div class="landing-actions">
           <a class="landing-primary" href="/admin">Login to Admin</a>
           <a class="landing-secondary" href="/demo-screen">Open main screen view</a>
         </div>
       </div>
 
-      <div class="landing-product-card" aria-label="Sanctuary Voice product preview">
-        <div class="landing-product-top">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-        <div class="landing-product-grid">
-          <div class="landing-preview-main">
-            <div class="landing-preview-head">
-              <div>
-                <div class="landing-preview-label">Main Screen view</div>
-                <div class="landing-preview-meta">White on black · dual language ready</div>
-              </div>
-              <span>Full screen</span>
-            </div>
-            <div class="landing-preview-text">Waiting for live translation...</div>
-            <div class="landing-preview-translation">
-              <span>EN</span>
-              <p>Grace and peace to everyone gathered here today.</p>
-            </div>
-          </div>
-          <div class="landing-preview-side">
-            <div class="landing-preview-label">Listener phones</div>
-            <strong>12 languages</strong>
-            <span class="landing-preview-side-desc">Audio, live text, and recent lines stay readable.</span>
-            <div class="landing-preview-lang-list">Norwegian · English · Romanian · Russian · Ukrainian · Spanish · French · German · Italian · Portuguese · Polish · Turkish</div>
-            <a class="landing-preview-more-langs" href="mailto:contact@sanctuaryvoice.com?subject=Additional%20language%20request">
-              <span class="landing-preview-more-icon" aria-hidden="true">+</span> More languages available on request
-            </a>
-          </div>
-          <div class="landing-preview-side warm">
-            <div class="landing-preview-label">Operator</div>
-            <strong>On-Air</strong>
-            <span>Song, pinned text, live speech, and screen control.</span>
-            <button class="landing-preview-cta" type="button" id="operatorLoginBtn">Operator Login</button>
-          </div>
-        </div>
+      <div class="landing-hero-art" aria-hidden="true">
+        <svg viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg">
+          <g class="landing-hero-rays" stroke="#D4A853" stroke-width="1" stroke-linecap="round" opacity="0.08">
+            <line x1="240" y1="240" x2="40"  y2="80"/>
+            <line x1="240" y1="240" x2="120" y2="40"/>
+            <line x1="240" y1="240" x2="240" y2="20"/>
+            <line x1="240" y1="240" x2="360" y2="40"/>
+            <line x1="240" y1="240" x2="440" y2="80"/>
+            <line x1="240" y1="240" x2="465" y2="180"/>
+            <line x1="240" y1="240" x2="465" y2="300"/>
+            <line x1="240" y1="240" x2="440" y2="400"/>
+            <line x1="240" y1="240" x2="360" y2="440"/>
+            <line x1="240" y1="240" x2="240" y2="460"/>
+            <line x1="240" y1="240" x2="120" y2="440"/>
+            <line x1="240" y1="240" x2="40"  y2="400"/>
+            <line x1="240" y1="240" x2="15"  y2="300"/>
+            <line x1="240" y1="240" x2="15"  y2="180"/>
+          </g>
+
+          <g class="landing-hero-waves" fill="none" stroke="#D4A853">
+            <circle cx="240" cy="240" r="80"  stroke-width="1.5" opacity="0.32"/>
+            <circle cx="240" cy="240" r="118" stroke-width="1.2" opacity="0.2"/>
+            <circle cx="240" cy="240" r="158" stroke-width="1"   opacity="0.12"/>
+            <circle cx="240" cy="240" r="200" stroke-width="0.8" opacity="0.07"/>
+          </g>
+
+          <g class="landing-hero-dove" transform="translate(240 240)" fill="#D4A853">
+            <path d="M -50 6 Q -32 -14 0 -12 Q 32 -10 54 4 Q 64 18 48 26 Q 20 32 -12 30 Q -44 26 -50 6 Z"/>
+            <path d="M 48 8 L 78 0 L 78 14 L 54 20 Z"/>
+            <path d="M -8 -10 Q -38 -42 -62 -26 Q -50 -10 -22 -4 Q -12 -4 -8 -10 Z"/>
+            <path d="M 4 8 Q -12 28 10 32 Q 22 28 18 14 Z" opacity="0.7"/>
+            <circle cx="-46" cy="-3" r="10"/>
+            <path d="M -56 -3 L -66 -1 L -56 4 Z"/>
+            <circle cx="-48" cy="-4" r="1.6" fill="#0A0A0A"/>
+          </g>
+        </svg>
       </div>
     </section>
 
-    <section id="how-it-works" class="landing-section">
+    <section id="how-it-works" class="landing-section" data-animate>
       <div class="landing-section-head">
         <h2>Built for Sunday morning pressure.</h2>
         <p>One operator can start the live service, show translated text, send songs, and keep participants connected.</p>
@@ -107,13 +104,10 @@
       </div>
     </section>
 
-    <section id="for-churches" class="landing-proof">
+    <section id="for-churches" class="landing-proof" data-animate>
       <div>
         <h2>Designed for multilingual churches.</h2>
-        <p>
-          Sanctuary Voice is made for services where people need help following the message,
-          the songs, and the flow of the room in their own language.
-        </p>
+        <p>Sanctuary Voice is made for services where people need help following the message, the songs, and the flow of the room in their own language.</p>
       </div>
       <div class="landing-proof-list">
         <div>Permanent participant QR</div>
@@ -123,81 +117,114 @@
       </div>
     </section>
 
-    <section class="landing-note">
-      <p>
-        AI translation can contain mistakes or interpretation differences. Sanctuary Voice is a support tool,
-        not a replacement for careful teaching, Scripture, or human review.
-      </p>
+    <section class="landing-operator-card" data-animate>
+      <div>
+        <div class="landing-operator-eyebrow">Operator desk</div>
+        <strong>On-Air</strong>
+        <p>Song, pinned text, live speech, and screen control — all from one panel that signs you in and drops you onto the live service.</p>
+      </div>
+      <button class="landing-preview-cta" type="button" id="operatorLoginBtn">Operator Login</button>
+    </section>
+
+    <section class="landing-languages" data-animate>
+      <h3>Translate into the languages your church needs.</h3>
+      <div class="landing-language-pills">
+        <span class="landing-language-pill">Norwegian</span>
+        <span class="landing-language-pill">English</span>
+        <span class="landing-language-pill">Romanian</span>
+        <span class="landing-language-pill">Russian</span>
+        <span class="landing-language-pill">Ukrainian</span>
+        <span class="landing-language-pill">Spanish</span>
+        <span class="landing-language-pill">French</span>
+        <span class="landing-language-pill">German</span>
+        <span class="landing-language-pill">Italian</span>
+        <span class="landing-language-pill">Portuguese</span>
+        <span class="landing-language-pill">Polish</span>
+        <span class="landing-language-pill">Turkish</span>
+        <span class="landing-language-pill">Arabic</span>
+        <span class="landing-language-pill">Persian</span>
+        <span class="landing-language-pill">Hungarian</span>
+        <span class="landing-language-pill">Greek</span>
+      </div>
+      <a class="landing-more-langs" href="mailto:contact@sanctuaryvoice.com?subject=Additional%20language%20request">More languages available on request</a>
+    </section>
+
+    <section class="landing-note" data-animate>
+      <p>AI translation can contain mistakes or interpretation differences. Sanctuary Voice is a support tool, not a replacement for careful teaching, Scripture, or human review.</p>
     </section>
   </main>
 
-<div id="opModal" class="op-modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="opModalTitle">
-  <div class="op-modal">
-    <div class="op-modal-header">
-      <h2 id="opModalTitle">Operator Login</h2>
-      <button class="op-modal-close" type="button" id="opModalClose" aria-label="Close" onclick="closeOperatorModal()">&times;</button>
-    </div>
-    <div id="opLoginView">
-      <p class="op-modal-desc">Enter your operator PIN to open the operator dashboard.</p>
-      <form id="opLoginForm" novalidate>
-        <div class="op-modal-field">
-          <label for="opPin">Operator PIN</label>
-          <input id="opPin" type="password" placeholder="Enter your PIN" autocomplete="current-password">
-        </div>
-        <div id="opLoginError" class="op-modal-error" role="alert"></div>
-        <div class="op-modal-actions">
-          <button type="button" class="op-modal-cancel" id="opModalCancelBtn" onclick="closeOperatorModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Connect</button>
-        </div>
-      </form>
-      <div class="op-modal-footer">
-        <button type="button" class="op-modal-link" id="opShowRequestBtn">Don't have a PIN? Request access</button>
+  <footer class="landing-footer">
+    <div>Sanctuary Voice &middot; Live translation for church services</div>
+  </footer>
+
+  <div id="opModal" class="op-modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="opModalTitle">
+    <div class="op-modal">
+      <div class="op-modal-header">
+        <h2 id="opModalTitle">Operator Login</h2>
+        <button class="op-modal-close" type="button" id="opModalClose" aria-label="Close" onclick="closeOperatorModal()">&times;</button>
       </div>
-    </div>
-
-    <div id="opRequestView" hidden>
-      <p class="op-modal-desc">Tell the admin who you are. When they approve, you'll be signed in automatically.</p>
-      <form id="opRequestForm" novalidate>
-        <div class="op-modal-field">
-          <label for="opReqName">Your name</label>
-          <input id="opReqName" type="text" placeholder="John Doe" autocomplete="name" maxlength="80">
-        </div>
-        <div class="op-modal-field">
-          <label for="opReqContact">Phone or email <span class="op-field-optional">(optional)</span></label>
-          <input id="opReqContact" type="text" placeholder="+47 ... or you@church.org" autocomplete="off" maxlength="200">
-        </div>
-        <div id="opRequestError" class="op-modal-error" role="alert"></div>
-        <div class="op-modal-actions">
-          <button type="button" class="op-modal-cancel" id="opRequestBackBtn">Back</button>
-          <button type="submit" class="btn btn-primary" id="opRequestSubmitBtn">Send request</button>
-        </div>
-      </form>
-    </div>
-
-    <div id="opWaitingView" hidden>
-      <div class="op-waiting-stage">
-        <div class="op-waiting-spinner" aria-hidden="true"></div>
-        <h3 class="op-waiting-title">Waiting for admin approval…</h3>
-        <p class="op-waiting-desc">Stay on this page. You'll be signed in automatically as soon as the admin grants access.</p>
-        <div id="opWaitingMeta" class="op-waiting-meta"></div>
-        <div id="opWaitingError" class="op-modal-error" role="alert"></div>
-        <div class="op-modal-actions">
-          <button type="button" class="op-modal-cancel" id="opWaitingCancelBtn">Cancel</button>
+      <div id="opLoginView">
+        <p class="op-modal-desc">Enter your operator PIN to open the operator dashboard.</p>
+        <form id="opLoginForm" novalidate>
+          <div class="op-modal-field">
+            <label for="opPin">Operator PIN</label>
+            <input id="opPin" type="password" placeholder="Enter your PIN" autocomplete="current-password">
+          </div>
+          <div id="opLoginError" class="op-modal-error" role="alert"></div>
+          <div class="op-modal-actions">
+            <button type="button" class="op-modal-cancel" id="opModalCancelBtn" onclick="closeOperatorModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Connect</button>
+          </div>
+        </form>
+        <div class="op-modal-footer">
+          <button type="button" class="op-modal-link" id="opShowRequestBtn">Don't have a PIN? Request access</button>
         </div>
       </div>
-    </div>
 
-    <div id="opDeniedView" hidden>
-      <div class="op-waiting-stage">
-        <h3 class="op-waiting-title op-denied-title">Access denied</h3>
-        <p class="op-waiting-desc">The admin denied your request. Reach out to them directly if you need access.</p>
-        <div class="op-modal-actions">
-          <button type="button" class="btn btn-primary" id="opDeniedCloseBtn">Close</button>
+      <div id="opRequestView" hidden>
+        <p class="op-modal-desc">Tell the admin who you are. When they approve, you'll be signed in automatically.</p>
+        <form id="opRequestForm" novalidate>
+          <div class="op-modal-field">
+            <label for="opReqName">Your name</label>
+            <input id="opReqName" type="text" placeholder="John Doe" autocomplete="name" maxlength="80">
+          </div>
+          <div class="op-modal-field">
+            <label for="opReqContact">Phone or email <span class="op-field-optional">(optional)</span></label>
+            <input id="opReqContact" type="text" placeholder="+47 ... or you@church.org" autocomplete="off" maxlength="200">
+          </div>
+          <div id="opRequestError" class="op-modal-error" role="alert"></div>
+          <div class="op-modal-actions">
+            <button type="button" class="op-modal-cancel" id="opRequestBackBtn">Back</button>
+            <button type="submit" class="btn btn-primary" id="opRequestSubmitBtn">Send request</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="opWaitingView" hidden>
+        <div class="op-waiting-stage">
+          <div class="op-waiting-spinner" aria-hidden="true"></div>
+          <h3 class="op-waiting-title">Waiting for admin approval&hellip;</h3>
+          <p class="op-waiting-desc">Stay on this page. You'll be signed in automatically as soon as the admin grants access.</p>
+          <div id="opWaitingMeta" class="op-waiting-meta"></div>
+          <div id="opWaitingError" class="op-modal-error" role="alert"></div>
+          <div class="op-modal-actions">
+            <button type="button" class="op-modal-cancel" id="opWaitingCancelBtn">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="opDeniedView" hidden>
+        <div class="op-waiting-stage">
+          <h3 class="op-waiting-title op-denied-title">Access denied</h3>
+          <p class="op-waiting-desc">The admin denied your request. Reach out to them directly if you need access.</p>
+          <div class="op-modal-actions">
+            <button type="button" class="btn btn-primary" id="opDeniedCloseBtn">Close</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
 <script>
 function closeOperatorModal() {
@@ -244,12 +271,8 @@ function closeOperatorModal() {
     try {
       var fmt = new Intl.DateTimeFormat([], {
         timeZone: event.timezone || undefined,
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
       });
       return fmt.format(new Date(event.scheduledTimestamp));
     } catch (err) {
@@ -470,6 +493,22 @@ function closeOperatorModal() {
         });
     });
   }
+})();
+
+(function () {
+  if (!('IntersectionObserver' in window)) {
+    document.querySelectorAll('[data-animate]').forEach(function (el) { el.classList.add('is-visible'); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('[data-animate]').forEach(function (el) { io.observe(el); });
 })();
 </script>
 </body>
