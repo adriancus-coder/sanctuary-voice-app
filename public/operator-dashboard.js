@@ -153,12 +153,15 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       errorEl.textContent = '';
-      var enteredId = input.value.trim();
-      if (!enteredId) {
+      var rawEntry = input.value.trim();
+      if (!rawEntry) {
         errorEl.textContent = 'Invalid Event ID';
         return;
       }
-      if (enteredId !== event.id) {
+      var normalizedEntry = rawEntry.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      var normalizedShort = String(event.shortId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      var matches = normalizedShort && normalizedEntry === normalizedShort;
+      if (!matches && rawEntry !== event.id) {
         errorEl.textContent = 'Invalid Event ID';
         return;
       }
@@ -167,7 +170,7 @@
       fetch('/api/operator/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId: enteredId, operatorCode: operatorCode })
+        body: JSON.stringify({ eventId: matches ? normalizedShort : rawEntry, operatorCode: operatorCode })
       })
         .then(function (res) {
           if (res.status === 401) {

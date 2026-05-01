@@ -1052,12 +1052,13 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
     const card = document.createElement('div');
     card.className = `event-card${event.id === activeEventId ? ' active' : ''}${event.id === openedEventId ? ' opened' : ''}`;
     const langs = (event.targetLangs || []).map((lang) => langLabel(lang)).join(', ');
+    const displayId = event.shortId || event.id;
     card.innerHTML = `
       <div class="event-card-head"><div class="event-name">${escapeHtml(event.name || 'New event')}</div><div class="mini-badge">${event.mode || 'live'}</div></div>
       <div class="event-id-row">
         <span class="event-id-label">Event ID</span>
-        <code class="event-id-value">${escapeHtml(event.id)}</code>
-        <button class="btn btn-dark event-id-copy" type="button" data-action="copy-id" data-id="${event.id}" title="Copy Event ID">Copy</button>
+        <code class="event-id-value">${escapeHtml(displayId)}</code>
+        <button class="btn btn-dark event-id-copy" type="button" data-action="copy-id" data-id="${displayId}" title="Copy Event ID">Copy</button>
       </div>
       <div class="muted">Scheduled: ${escapeHtml(formatDateTime(event.scheduledAt || event.createdAt))}</div>
       <div class="muted">Languages: ${escapeHtml(langs || '-')}</div>

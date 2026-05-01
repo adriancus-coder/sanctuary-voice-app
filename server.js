@@ -1250,8 +1250,10 @@ const BUFFER_CONNECTORS = new Set([
 
 function summarizeEvent(event) {
   const org = getOrganizationForEvent(event);
+  ensureEventShortId(event);
   return {
     id: event.id,
+    shortId: event.shortId,
     organizationId: org.id,
     organizationName: org.name,
     name: event.name,
@@ -1473,8 +1475,10 @@ function normalizeEvent(event, options = {}) {
   const includeSecrets = !!options.includeSecrets;
   const includeControlData = !!options.includeControlData || includeSecrets;
   const org = getOrganizationForEvent(event);
+  ensureEventShortId(event);
   const payload = {
     id: event.id,
+    shortId: event.shortId,
     organizationId: org.id,
     organization: buildPublicOrganization(org),
     name: event.name,
@@ -1825,6 +1829,7 @@ function ensureEventAccessLinks(event, baseUrl) {
   if (!event.screenOperatorCode) {
     event.screenOperatorCode = `SV-SCREEN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   }
+  ensureEventShortId(event);
   event.remoteOperators = normalizeRemoteOperators(event.remoteOperators || []);
   if (baseUrl) {
     const globalAccess = ensureGlobalAccess(baseUrl, event);
@@ -1842,6 +1847,51 @@ function ensureEventAccessLinks(event, baseUrl) {
       remoteLink: buildRemoteOperatorLink(baseUrl, event.id, operator)
     }));
   }
+}
+
+const EVENT_SHORT_ID_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+const EVENT_SHORT_ID_LENGTH = 8;
+
+function generateEventShortId() {
+  const events = db.events || {};
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    let candidate = '';
+    for (let i = 0; i < EVENT_SHORT_ID_LENGTH; i += 1) {
+      candidate += EVENT_SHORT_ID_ALPHABET[Math.floor(Math.random() * EVENT_SHORT_ID_ALPHABET.length)];
+    }
+    const taken = Object.values(events).some((e) => String(e?.shortId || '').toUpperCase() === candidate);
+    if (!taken) return candidate;
+  }
+  return `${Date.now().toString(36).toUpperCase().slice(-8)}`.padStart(8, 'X').slice(-8);
+}
+
+function normalizeEventShortIdInput(value) {
+  return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function ensureEventShortId(event) {
+  if (!event) return null;
+  if (typeof event.shortId === 'string' && event.shortId.trim()) {
+    const normalized = normalizeEventShortIdInput(event.shortId);
+    if (normalized && normalized.length >= 4) {
+      if (event.shortId !== normalized) event.shortId = normalized;
+      return event.shortId;
+    }
+  }
+  event.shortId = generateEventShortId();
+  return event.shortId;
+}
+
+function findEventByIdOrShortId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (db.events[raw]) return db.events[raw];
+  const normalized = normalizeEventShortIdInput(raw);
+  if (!normalized) return null;
+  for (const event of Object.values(db.events || {})) {
+    if (event && normalizeEventShortIdInput(event.shortId) === normalized) return event;
+  }
+  return null;
 }
 
 function isValidIanaTimezone(tz) {
@@ -1940,6 +1990,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
 
   const event = {
     id,
+    shortId: generateEventShortId(),
     organizationId: organization.id,
     name: name || 'Eveniment nou',
     sourceLang: sourceLang || 'ro',
@@ -3135,6 +3186,7 @@ app.get('/api/operator/events', (req, res) => {
   const events = Object.values(db.events || {})
     .filter((event) => getEventOrgId(event) === DEFAULT_ORG_ID)
     .map((event) => {
+      ensureEventShortId(event);
       const isActive = isEventActive(event);
       const ts = typeof event.scheduledTimestamp === 'number' ? event.scheduledTimestamp : null;
       let status = 'past';
@@ -3143,6 +3195,7 @@ app.get('/api/operator/events', (req, res) => {
       else if (!ts) status = 'unscheduled';
       return {
         id: event.id,
+        shortId: event.shortId,
         name: event.name || 'Untitled event',
         date: event.scheduledAt || event.createdAt || null,
         scheduledTimestamp: ts,
@@ -3164,15 +3217,15 @@ app.get('/api/operator/events', (req, res) => {
 });
 
 app.post('/api/operator/join', (req, res) => {
-  const eventId = String(req.body?.eventId || '').trim();
+  const rawId = String(req.body?.eventId || '').trim();
   const operatorCode = String(req.body?.operatorCode || '').trim();
   if (!operatorCode || !isOperatorPinValid(operatorCode)) {
     return res.status(401).json({ ok: false, error: 'Operator session expired. Please log in again.' });
   }
-  if (!eventId) {
+  if (!rawId) {
     return res.status(400).json({ ok: false, error: 'Invalid Event ID' });
   }
-  const event = db.events[eventId];
+  const event = findEventByIdOrShortId(rawId);
   if (!event || !isEventActive(event)) {
     return res.status(404).json({ ok: false, error: 'Invalid Event ID' });
   }
@@ -3182,7 +3235,7 @@ app.post('/api/operator/join', (req, res) => {
   }
   return res.json({
     ok: true,
-    redirectUrl: `/remote?event=${encodeURIComponent(eventId)}&code=${encodeURIComponent(operatorCode)}`
+    redirectUrl: `/remote?event=${encodeURIComponent(event.id)}&code=${encodeURIComponent(operatorCode)}`
   });
 });
 
