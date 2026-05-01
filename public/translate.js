@@ -226,13 +226,13 @@ function fitDisplayTextElement(box, container, options = {}) {
   box.style.maxHeight = `${availableHeight}px`;
   box.style.transform = '';
   box.style.transformOrigin = 'center center';
-  let size = Math.min(Math.max(Math.floor(availableWidth / (options.dense ? 9.5 : 9)), 24), options.maxSize || 200);
+  let size = Math.min(Math.max(Math.floor(availableWidth / (options.dense ? 12 : 11)), 24), options.maxSize || 130);
   const sizeMode = state.textSize || 'large';
-  if (sizeMode === 'compact') size = Math.round(size * 0.82);
-  if (sizeMode === 'xlarge') size = Math.round(size * 1.2);
-  if (sizeMode === 'huge') size = Math.round(size * 1.45);
-  const manualScale = Math.min(1.6, Math.max(0.65, Number(state.textScale || 1)));
-  const maxSize = Math.round((options.maxSize || 200) * 1.6);
+  if (sizeMode === 'compact') size = Math.round(size * 0.78);
+  if (sizeMode === 'xlarge') size = Math.round(size * 1.18);
+  if (sizeMode === 'huge') size = Math.round(size * 1.4);
+  const manualScale = Math.min(1.3, Math.max(0.65, Number(state.textScale || 1)));
+  const maxSize = Math.round((options.maxSize || 130) * 1.3);
   size = Math.round(size * manualScale);
   size = Math.min(Math.max(size, 18), maxSize);
   box.style.fontSize = `${size}px`;
@@ -263,7 +263,7 @@ function fitDisplayTextElement(box, container, options = {}) {
 function applyDualTextScale() {
   const dual = $('translateDualText');
   if (!dual) return;
-  const scale = Math.min(1.6, Math.max(0.65, Number(state.textScale || 1)));
+  const scale = Math.min(1.3, Math.max(0.65, Number(state.textScale || 1)));
   dual.style.setProperty('--dual-text-scale', String(scale));
   document.querySelectorAll('.unified-display-language-text').forEach((el) => {
     el.style.fontSize = '';
@@ -287,7 +287,7 @@ function autoFitText() {
   const clock = $('displayClock');
   const labelHeight = label && !label.hidden ? label.getBoundingClientRect().height + 18 : 0;
   const clockReserve = clock && clock.style.display !== 'none' ? Math.max(clock.getBoundingClientRect().height + 20, 48) : 0;
-  fitDisplayTextElement(box, wrap, { reserveHeight: labelHeight + clockReserve, dense: false, maxSize: 200 });
+  fitDisplayTextElement(box, wrap, { reserveHeight: labelHeight + clockReserve, dense: false, maxSize: 130 });
 }
 
 function renderDisplay() {

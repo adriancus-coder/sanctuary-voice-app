@@ -1131,11 +1131,11 @@ function populateEventLinks() {
   $('adminCode').textContent = currentEvent.adminCode || '-';
   if ($('screenOperatorCode')) $('screenOperatorCode').textContent = mainOperatorCode || '-';
   if ($('accessScreenOperatorCode')) $('accessScreenOperatorCode').textContent = mainOperatorCode || '-';
-  $('participantLink').value = currentEvent.participantLink || '';
+  if ($('participantLink')) $('participantLink').value = currentEvent.participantLink || '';
   $('translateLink').value = currentEvent.translateLink || '';
   if ($('remoteControlLink')) $('remoteControlLink').value = mainOperatorLink;
   if ($('accessRemoteControlLink')) $('accessRemoteControlLink').value = mainOperatorLink;
-  $('qrImage').src = `/api/participant-qr.png?ts=${Date.now()}`;
+  if ($('qrImage')) $('qrImage').src = `/api/participant-qr.png?ts=${Date.now()}`;
   renderRemoteOperators(currentEvent.remoteOperators || []);
 }
 
@@ -2930,18 +2930,18 @@ $('audioInput').addEventListener('change', async () => {
 $('startRecognitionBtn').addEventListener('click', startTranslation);
 $('stopRecognitionBtn').addEventListener('click', stopTranslation);
 $('backToLiveTextBtn')?.addEventListener('click', returnToLiveText);
-$('copyParticipantBtn').addEventListener('click', () => copyField('participantLink', 'copyParticipantBtn'));
+$('copyParticipantBtn')?.addEventListener('click', () => copyField('participantLink', 'copyParticipantBtn'));
 $('copyTranslateBtn').addEventListener('click', () => copyField('translateLink', 'copyTranslateBtn'));
 $('copyRemoteControlBtn').addEventListener('click', () => copyField('remoteControlLink', 'copyRemoteControlBtn'));
 $('copyAccessRemoteBtn').addEventListener('click', () => copyField('accessRemoteControlLink', 'copyAccessRemoteBtn'));
-$('emailParticipantBtn').addEventListener('click', () => emailLinkFromField('participantLink', 'participant link'));
+$('emailParticipantBtn')?.addEventListener('click', () => emailLinkFromField('participantLink', 'participant link'));
 $('emailTranslateBtn').addEventListener('click', () => emailLinkFromField('translateLink', 'main screen link'));
 $('emailAccessRemoteBtn').addEventListener('click', () => emailLinkFromField('accessRemoteControlLink', 'remote control link'));
 $('copyPermanentParticipantBtn')?.addEventListener('click', () => copyField('permanentParticipantLink', 'copyPermanentParticipantBtn'));
 $('emailPermanentParticipantBtn')?.addEventListener('click', () => emailLinkFromField('permanentParticipantLink', 'permanent participant link'));
 $('downloadPermanentQrBtn')?.addEventListener('click', downloadPermanentQr);
-$('copyQrBtn').addEventListener('click', copyQrImage);
-$('downloadQrBtn').addEventListener('click', downloadQr);
+$('copyQrBtn')?.addEventListener('click', copyQrImage);
+$('downloadQrBtn')?.addEventListener('click', downloadQr);
 $('openRemoteControlBtn').addEventListener('click', () => {
   const url = $('remoteControlLink')?.value || '';
   if (url) window.open(url, '_blank');
@@ -3224,12 +3224,15 @@ $('eventList').addEventListener('click', async (e) => {
     if (data.ok) {
       if (currentEvent?.id === id) {
         currentEvent = null;
-        $('adminCode').textContent = '-'; $('participantLink').value = ''; $('translateLink').value = '';
+        $('adminCode').textContent = '-';
+        if ($('participantLink')) $('participantLink').value = '';
+        if ($('translateLink')) $('translateLink').value = '';
         if ($('screenOperatorCode')) $('screenOperatorCode').textContent = '-';
         if ($('accessScreenOperatorCode')) $('accessScreenOperatorCode').textContent = '-';
         if ($('remoteControlLink')) $('remoteControlLink').value = '';
         if ($('accessRemoteControlLink')) $('accessRemoteControlLink').value = '';
-        $('qrImage').src = ''; $('transcriptList').innerHTML = ''; renderActiveEventBadge(null); resetParticipantStats();
+        if ($('qrImage')) $('qrImage').src = '';
+        $('transcriptList').innerHTML = ''; renderActiveEventBadge(null); resetParticipantStats();
         renderSongState({});
         refreshDisplayControls();
       }

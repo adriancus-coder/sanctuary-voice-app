@@ -210,70 +210,47 @@
       </section>
 
       <section id="tab-events" class="tab-panel active">
-        <div class="cards-grid two">
-          <div class="panel glass-panel section-stack">
-            <div class="section-head">
-              <h2>Create Event</h2>
-              <div class="live-chip">New service</div>
-            </div>
-            <label>Event name</label>
-            <input id="eventName" type="text" placeholder="Sunday service 11:00">
-            <div class="split-2">
-              <div>
-                <label>Date <span class="required-mark">*</span></label>
-                <input id="eventDate" type="date" required>
-              </div>
-              <div>
-                <label>Time <span class="required-mark">*</span></label>
-                <input id="eventTime" type="time" required>
-              </div>
-            </div>
-            <div class="split-2">
-              <div>
-                <label>Timezone</label>
-                <select id="eventTimezone"></select>
-              </div>
-              <div>
-                <label>Start mode</label>
-                <select id="eventModePreset">
-                  <option value="live" selected>Live Translate</option>
-                  <option value="song">Song</option>
-                </select>
-              </div>
-            </div>
-            <div id="eventScheduledPreview" class="muted scheduled-preview">Choose a date and time to schedule this service.</div>
-            <div class="split-2">
-              <div>
-                <label>Source language</label>
-                <select id="sourceLang"></select>
-              </div>
-              <div></div>
-            </div>
-            <label>Target languages</label>
-            <div id="targetLangList" class="checkbox-grid"></div>
-            <button id="createEventBtn" class="btn btn-primary">Create event</button>
+        <div class="panel glass-panel section-stack">
+          <div class="section-head">
+            <h2>Create Event</h2>
+            <div class="live-chip">New service</div>
           </div>
-
-          <div class="panel glass-panel section-stack access-shell">
-            <div class="section-head">
-              <h2>Participant Phone View</h2>
-              <div class="live-chip">Permanent QR</div>
+          <label>Event name</label>
+          <input id="eventName" type="text" placeholder="Sunday service 11:00">
+          <div class="split-2">
+            <div>
+              <label>Date <span class="required-mark">*</span></label>
+              <input id="eventDate" type="date" required>
             </div>
-            <div class="link-stack">
-              <label>Participant link (permanent)</label>
-              <div class="link-row">
-                <input id="participantLink" type="text" readonly>
-                <button id="copyParticipantBtn" class="btn btn-dark">Copy</button>
-                <button id="emailParticipantBtn" class="btn btn-dark" type="button">Email</button>
-              </div>
-            </div>
-            <img id="qrImage" class="qr" alt="QR code">
-            <div class="muted">Same QR every time. Participants scan it and choose the live event.</div>
-            <div class="button-row compact-row">
-              <button id="copyQrBtn" class="btn btn-dark">Copy QR</button>
-              <button id="downloadQrBtn" class="btn btn-dark">Download QR</button>
+            <div>
+              <label>Time <span class="required-mark">*</span></label>
+              <input id="eventTime" type="time" required>
             </div>
           </div>
+          <div class="split-2">
+            <div>
+              <label>Timezone</label>
+              <select id="eventTimezone"></select>
+            </div>
+            <div>
+              <label>Start mode</label>
+              <select id="eventModePreset">
+                <option value="live" selected>Live Translate</option>
+                <option value="song">Song</option>
+              </select>
+            </div>
+          </div>
+          <div id="eventScheduledPreview" class="muted scheduled-preview">Choose a date and time to schedule this service.</div>
+          <div class="split-2">
+            <div>
+              <label>Source language</label>
+              <select id="sourceLang"></select>
+            </div>
+            <div></div>
+          </div>
+          <label>Target languages</label>
+          <div id="targetLangList" class="checkbox-grid"></div>
+          <button id="createEventBtn" class="btn btn-primary">Create event</button>
         </div>
 
         <div class="cards-grid two">

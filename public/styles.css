@@ -2792,7 +2792,7 @@ body.participant-preview-mode .participant-event-chooser {
   font-family: "Space Grotesk", sans-serif;
   font-weight: 850;
   letter-spacing: -0.055em;
-  line-height: 1.08;
+  line-height: 1.1;
   text-align: center;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -2801,21 +2801,21 @@ body.participant-preview-mode .participant-event-chooser {
     0 2px 0 rgba(0, 0, 0, 0.35),
     0 0 34px rgba(255, 236, 198, 0.16);
   animation: displayFadeIn 280ms ease;
-  font-size: calc(clamp(2.6rem, 5.6vw, 7rem) * var(--dual-text-scale, 1));
+  font-size: calc(clamp(1.8rem, 3.5vw, 4.4rem) * var(--dual-text-scale, 1));
 }
 
 .unified-display-dual[data-text-size="compact"] .unified-display-language-text {
-  font-size: calc(clamp(1.9rem, 3.8vw, 4.6rem) * var(--dual-text-scale, 1));
+  font-size: calc(clamp(1.4rem, 2.6vw, 3.2rem) * var(--dual-text-scale, 1));
 }
 
 .unified-display-dual[data-text-size="xlarge"] .unified-display-language-text {
-  font-size: calc(clamp(3.4rem, 7vw, 9rem) * var(--dual-text-scale, 1));
-  line-height: 1.06;
+  font-size: calc(clamp(2.2rem, 4.4vw, 5.6rem) * var(--dual-text-scale, 1));
+  line-height: 1.08;
 }
 
 .unified-display-dual[data-text-size="huge"] .unified-display-language-text {
-  font-size: calc(clamp(4.2rem, 8.6vw, 11rem) * var(--dual-text-scale, 1));
-  line-height: 1.04;
+  font-size: calc(clamp(2.8rem, 5.6vw, 7rem) * var(--dual-text-scale, 1));
+  line-height: 1.06;
 }
 
 .unified-display-text {
@@ -2823,9 +2823,9 @@ body.participant-preview-mode .participant-event-chooser {
   align-self: center;
   text-align: center;
   font-family: "Space Grotesk", sans-serif;
-  font-size: clamp(3.4rem, 8vw, 10rem);
+  font-size: clamp(2.4rem, 5vw, 6.4rem);
   font-weight: 700;
-  line-height: 1.12;
+  line-height: 1.14;
   white-space: pre-wrap;
   text-wrap: balance;
   letter-spacing: -0.035em;
@@ -2894,23 +2894,24 @@ body.participant-preview-mode .participant-event-chooser {
 
 .unified-display-live[data-text-size="compact"] .unified-display-text,
 .unified-display-text[data-text-size="compact"] {
-  font-size: clamp(2.4rem, 5.5vw, 6rem);
+  font-size: clamp(1.8rem, 3.6vw, 4.6rem);
 }
 
 .unified-display-live[data-text-size="large"] .unified-display-text,
 .unified-display-text[data-text-size="large"] {
-  font-size: clamp(3.4rem, 8vw, 10rem);
+  font-size: clamp(2.4rem, 5vw, 6.4rem);
 }
 
 .unified-display-live[data-text-size="xlarge"] .unified-display-text,
 .unified-display-text[data-text-size="xlarge"] {
-  font-size: clamp(4.4rem, 10.5vw, 14rem);
+  font-size: clamp(3rem, 6.4vw, 8.4rem);
+  line-height: 1.1;
 }
 
 .unified-display-live[data-text-size="huge"] .unified-display-text,
 .unified-display-text[data-text-size="huge"] {
-  font-size: clamp(5.6rem, 13vw, 18rem);
-  line-height: 1.05;
+  font-size: clamp(3.8rem, 8vw, 10.5rem);
+  line-height: 1.06;
 }
 
 .unified-display-live[data-screen-style="focus"] .unified-display-text,
