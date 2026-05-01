@@ -8,18 +8,19 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="landing-body">
-  <header class="landing-nav">
+  <header class="landing-nav" id="landingNav">
     <a class="landing-brand" href="/" aria-label="Sanctuary Voice home">
       <span class="landing-brand-mark">SV</span>
       <span>Sanctuary Voice</span>
     </a>
-    <nav class="landing-nav-links" aria-label="Primary">
+    <nav class="landing-nav-links" id="landingNavLinks" aria-label="Primary">
       <a href="#how-it-works">How it works</a>
       <a href="#for-churches">For churches</a>
       <a href="/demo-screen">Main screen view</a>
       <a href="/demo-participant">Listener view</a>
       <a href="/admin" class="landing-admin-link">Admin Login</a>
     </nav>
+    <button class="landing-nav-toggle" type="button" id="landingNavToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="landingNavLinks"><span></span></button>
     <button class="landing-login-btn" type="button" id="operatorLoginBtn">Operator Login</button>
   </header>
 
@@ -163,6 +164,24 @@ function closeOperatorModal() {
     if (el.id !== 'opModal') el.remove();
   });
 }
+
+(function () {
+  var nav = document.getElementById('landingNav');
+  var toggle = document.getElementById('landingNavToggle');
+  var navLinks = document.getElementById('landingNavLinks');
+  if (toggle && nav && navLinks) {
+    toggle.addEventListener('click', function () {
+      var open = nav.classList.toggle('is-open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    navLinks.addEventListener('click', function (e) {
+      if (e.target && e.target.tagName === 'A') {
+        nav.classList.remove('is-open');
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+})();
 
 (function () {
   var btn = document.getElementById('operatorLoginBtn');
