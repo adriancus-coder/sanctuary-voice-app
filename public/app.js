@@ -2,7 +2,7 @@ const socket = io();
 const $ = (id) => document.getElementById(id);
 
 let currentEvent = null;
-const partialTranscriptHistory = [];
+window.partialTranscriptHistory = [];
 let lastPartialCaptured = '';
 let currentGlobalSongLibrary = [];
 let currentPinnedTextLibrary = [];
@@ -72,13 +72,13 @@ function setStatus(text) {
 function setPartialTranscript(text = '') {
   const value = text || 'Waiting for full sentence...';
   if (text && text.trim() && text.trim() !== lastPartialCaptured) {
-    partialTranscriptHistory.push({
+    window.partialTranscriptHistory.push({
       timestamp: new Date().toISOString(),
       text: text.trim()
     });
     lastPartialCaptured = text.trim();
-    if (partialTranscriptHistory.length > 1000) {
-      partialTranscriptHistory.shift();
+    if (window.partialTranscriptHistory.length > 1000) {
+      window.partialTranscriptHistory.shift();
     }
   }
   const compact = $('partialTranscript');
@@ -4367,17 +4367,17 @@ document.getElementById('statsSearchForm')?.addEventListener('submit', async (e)
 });
 
 window.copyPartialHistory = function() {
-  if (!partialTranscriptHistory.length) {
+  if (!window.partialTranscriptHistory.length) {
     alert('No partial transcripts captured yet.');
     return;
   }
-  const formatted = partialTranscriptHistory.map((entry, idx) => {
+  const formatted = window.partialTranscriptHistory.map((entry, idx) => {
     const time = new Date(entry.timestamp).toLocaleTimeString('ro-RO', { hour12: false });
     return `#${idx + 1} [${time}] ${entry.text}`;
   }).join('\n');
-  const header = `Partial transcripts log\nTotal entries: ${partialTranscriptHistory.length}\nStarted: ${partialTranscriptHistory[0].timestamp}\nEnded: ${partialTranscriptHistory[partialTranscriptHistory.length - 1].timestamp}\n\n---\n\n`;
+  const header = `Partial transcripts log\nTotal entries: ${window.partialTranscriptHistory.length}\nStarted: ${window.partialTranscriptHistory[0].timestamp}\nEnded: ${window.partialTranscriptHistory[window.partialTranscriptHistory.length - 1].timestamp}\n\n---\n\n`;
   navigator.clipboard.writeText(header + formatted)
-    .then(() => alert(`Copied ${partialTranscriptHistory.length} partial transcripts to clipboard.`))
+    .then(() => alert(`Copied ${window.partialTranscriptHistory.length} partial transcripts to clipboard.`))
     .catch((err) => {
       console.error('Clipboard copy failed:', err);
       console.log('=== PARTIAL TRANSCRIPT HISTORY ===');
@@ -4387,7 +4387,14 @@ window.copyPartialHistory = function() {
 };
 
 window.clearPartialHistory = function() {
-  partialTranscriptHistory.length = 0;
+  window.partialTranscriptHistory.length = 0;
   lastPartialCaptured = '';
   alert('Partial transcript history cleared.');
 };
+
+document.getElementById('copyPartialsBtn')?.addEventListener('click', () => {
+  if (typeof window.copyPartialHistory === 'function') window.copyPartialHistory();
+});
+document.getElementById('clearPartialsBtn')?.addEventListener('click', () => {
+  if (typeof window.clearPartialHistory === 'function') window.clearPartialHistory();
+});
