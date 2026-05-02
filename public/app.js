@@ -2627,7 +2627,7 @@ async function startTranslation(options = {}) {
       }
     };
     recorder.start();
-    audioState.chunkTimer = setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 5200);
+    audioState.chunkTimer = setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 3000);
   };
   startRecorderCycle();
   setStatus('On-Air. Translating from selected source.');
