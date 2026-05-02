@@ -3129,6 +3129,16 @@ function startAzureSpeechSession(socket, event) {
   const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION);
   speechConfig.speechRecognitionLanguage = getSpeechLocale(effectiveSourceLang);
   speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, '750');
+  // Forțăm Azure să finalizeze propoziții la 1000ms tăcere mid-stream.
+  // Default-ul e prea conservator pentru predici cu vorbire continuă;
+  // partial-urile se acumulau 30+ secunde fără să fie finalizate ca
+  // recognized events și textul se pierdea înainte să ajungă la queueSpeechText.
+  try {
+    speechConfig.setProperty(
+      sdk.PropertyId.Speech_SegmentationSilenceTimeoutMs || 'Speech_SegmentationSilenceTimeoutMs',
+      '1000'
+    );
+  } catch (_) { /* property not supported in this SDK version */ }
 
   const audioFormat = sdk.AudioStreamFormat.getWaveFormatPCM(16000, 16, 1);
   const pushStream = sdk.AudioInputStream.createPushStream(audioFormat);
