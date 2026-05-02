@@ -4,7 +4,7 @@
 //    keeps rendering if the network drops mid-service. Live translation data
 //    still requires the open socket; cache only covers HTML / JS / CSS / icon.
 
-const CACHE_NAME = 'sv-shell-v1';
+const CACHE_NAME = 'sv-shell-v2';
 const SHELL = [
   '/participant',
   '/participant.js',

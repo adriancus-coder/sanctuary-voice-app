@@ -933,13 +933,19 @@ socket.on('joined_event', ({ event, role }) => {
   }
   if (state.currentMode === 'live') {
     const latest = event.latestDisplayEntry;
-    const latestAge = latest?.createdAt ? Date.now() - new Date(latest.createdAt).getTime() : Infinity;
-    if (latest && latestAge < 30000) {
+    if (latest) {
       state.visibleLiveEntry = cloneEntry(latest);
       state.awaitingFreshLiveEntry = false;
       state.allowTranscriptFallback = true;
+      state.freshLiveStartedAt = 0;
+      state.freshLiveBlockedEntryIds = new Set();
+      state.liveEntryShownAt = Date.now();
     } else {
-      waitForFreshLiveEntry();
+      state.visibleLiveEntry = null;
+      state.awaitingFreshLiveEntry = false;
+      state.allowTranscriptFallback = true;
+      state.freshLiveStartedAt = 0;
+      state.freshLiveBlockedEntryIds = new Set();
     }
   } else {
     state.visibleLiveEntry = null;
@@ -978,6 +984,29 @@ socket.on('display_live_entry', (entry) => {
   state.serviceEndedAcknowledged = false;
   state.currentEvent.latestDisplayEntry = cloneEntry(entry);
   showLiveEntry(entry, { announce: true });
+});
+
+socket.on('display_mode_changed', (payload) => {
+  if (!state.currentEvent) return;
+  state.currentEvent.displayState = {
+    ...(state.currentEvent.displayState || {}),
+    ...payload
+  };
+  if ((payload?.mode || '') === 'auto') {
+    state.awaitingFreshLiveEntry = false;
+    state.freshLiveStartedAt = 0;
+    state.freshLiveBlockedEntryIds = new Set();
+    state.allowTranscriptFallback = true;
+    renderLiveView({ announce: false });
+  }
+});
+
+socket.on('display_manual_update', (payload) => {
+  if (!state.currentEvent) return;
+  state.currentEvent.displayState = {
+    ...(state.currentEvent.displayState || {}),
+    ...payload
+  };
 });
 
 socket.on('transcript_source_updated', (payload) => {
@@ -1049,7 +1078,10 @@ socket.on('mode_changed', ({ mode }) => {
     state.liveEntryTimer = null;
     setStatus('Song active on public screen.');
   } else {
-    waitForFreshLiveEntry();
+    state.awaitingFreshLiveEntry = false;
+    state.allowTranscriptFallback = true;
+    state.freshLiveStartedAt = 0;
+    state.freshLiveBlockedEntryIds = new Set();
     setStatus(state.serverAudioMuted ? 'Audio is muted by the operator. You cannot enable it right now.' : 'Connected.');
   }
   renderLiveView({ announce: false });
