@@ -520,7 +520,12 @@ function registerEventRoutes(app, ctx) {
     const scope = String(req.body.scope || 'all').trim();
     const participantOnly = scope === 'participant';
     ensureEventUiState(event);
+    const previousMode = event.mode;
     event.mode = mode;
+    if (previousMode !== mode) {
+      speechBuffers.delete(event.id);
+      event.lastTranscriptNorm = '';
+    }
     if (mode === 'live' && !participantOnly) {
       rememberDisplayState(event);
       setTranscriptionPaused(event, false, { save: false, emit: false });
@@ -736,6 +741,9 @@ function registerEventRoutes(app, ctx) {
         updatedAt: new Date().toISOString()
       };
       event.mode = 'song';
+      speechBuffers.delete(event.id);
+      event.lastTranscriptNorm = '';
+      setTranscriptionPaused(event, true, { save: false, emit: false, markOnAir: false });
       rememberDisplayState(event);
       ensureEventUiState(event);
       event.displayState.mode = 'song';
@@ -831,6 +839,8 @@ function registerEventRoutes(app, ctx) {
     rememberDisplayState(event);
     event.songState = defaultSongState();
     event.mode = 'live';
+    speechBuffers.delete(event.id);
+    event.lastTranscriptNorm = '';
     ensureEventUiState(event);
     event.latestDisplayEntry = null;
     event.displayState.mode = 'auto';

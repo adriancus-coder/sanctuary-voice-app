@@ -3025,6 +3025,7 @@ function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpe
   const clean = sanitizeTranscriptText(text);
   if (!clean) return;
   const event = db.events[eventId];
+  if (event?.mode === 'song') return;
 
   const prev = speechBuffers.get(eventId) || { text: '', timer: null, startedAt: Date.now(), sourceLang, provider };
   const merged = mergeTranscriptText(prev.text, clean);
