@@ -39,7 +39,8 @@ function registerSocketHandlers(io, ctx) {
       if (role === 'admin' && access.role !== 'admin') return socket.emit('join_error', { message: 'Cod Admin invalid.' });
       if (role === 'screen' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
       if (role === 'participant_preview' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
-      if ((role || 'participant') === 'participant' && !isEventActive(event)) {
+      const supplyHasControl = ['admin', 'screen'].includes(access.role);
+      if ((role || 'participant') === 'participant' && !isEventActive(event) && !supplyHasControl) {
         return socket.emit('join_error', { message: 'Evenimentul nu este live inca.' });
       }
 

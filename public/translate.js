@@ -21,6 +21,7 @@ function highlightBibleRefs(text) {
 const params = new URLSearchParams(window.location.search);
 const state = {
   fixedEventId: params.get('event') || '',
+  accessCode: params.get('code') || '',
   currentEvent: null,
   currentLanguage: params.get('lang') || 'no',
   secondaryLanguage: '',
@@ -376,6 +377,7 @@ async function joinEvent() {
   socket.emit('join_event', {
     eventId,
     role: 'participant',
+    code: state.accessCode || undefined,
     language: state.currentLanguage,
     participantId: `display_${state.currentLanguage}`
   });

@@ -195,9 +195,12 @@ function renderRemoteSimplePreviews() {
 }
 
 function getRemoteMainScreenUrl() {
-  if (state.currentEvent?.translateLink) return state.currentEvent.translateLink;
-  if (state.eventId) return `/translate?event=${encodeURIComponent(state.eventId)}`;
-  return '';
+  const code = state.accessCode || '';
+  const eventId = state.currentEvent?.id || state.eventId || '';
+  if (!eventId) return '';
+  const params = new URLSearchParams({ event: eventId });
+  if (code) params.set('code', code);
+  return `/translate?${params.toString()}`;
 }
 
 function openRemoteMainScreen() {
