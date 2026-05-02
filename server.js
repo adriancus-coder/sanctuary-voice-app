@@ -1370,6 +1370,10 @@ function buildOrganizationStatus(orgId = DEFAULT_ORG_ID) {
 }
 
 const speechBuffers = new Map();
+// Lock per-eveniment ca să nu ruleze două processText în paralel.
+// Race-ul pe lastTranscriptNorm și transcripts[] producea pierdere de text
+// la predici lungi cu flush-uri concurente.
+const processingLocks = new Map();
 const participantPresence = new Map();
 const azureSpeechSessions = new Map();
 
@@ -2584,16 +2588,27 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
   inputMessages.push({ role: 'user', content: cleanText });
   try {
     const onDelta = typeof options.onDelta === 'function' ? options.onDelta : null;
-    const result = onDelta
-      ? await translationService.translateWithResponsesStreaming({
+    const TRANSLATE_TIMEOUT_MS = 8000;
+    let timeoutHandle;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error('translate_timeout')), TRANSLATE_TIMEOUT_MS);
+    });
+    const translatePromise = onDelta
+      ? translationService.translateWithResponsesStreaming({
           model: OPENAI_MODEL,
           input: inputMessages,
           onDelta
         })
-      : await translationService.translateWithResponsesDetailed({
+      : translationService.translateWithResponsesDetailed({
           model: OPENAI_MODEL,
           input: inputMessages
         });
+    let result;
+    try {
+      result = await Promise.race([translatePromise, timeoutPromise]);
+    } finally {
+      clearTimeout(timeoutHandle);
+    }
     const translatedText = result.text;
     if (result.tokens) recordTranslationUsage(event, result.tokens);
     const translated = sanitizeStructuredText(translatedText);
@@ -2920,58 +2935,69 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
 }
 
 async function processText(event, cleanText, { force = false, sourceLang = '' } = {}) {
-  const normalized = normalizeChunkText(cleanText);
-  if (!normalized || normalized.length < 2) return null;
-  if (!force && normalized === event.lastTranscriptNorm) return null;
-  const entrySourceLang = sourceLang || event.sourceLang || 'ro';
+  if (processingLocks.get(event.id)) {
+    // Un alt processText rulează pentru acest eveniment - re-introducem textul
+    // în buffer și ieșim. flushSpeechBuffer îl va relua după ce lock-ul scapă.
+    queueSpeechText(event.id, cleanText, sourceLang);
+    return null;
+  }
+  processingLocks.set(event.id, true);
+  try {
+    const normalized = normalizeChunkText(cleanText);
+    if (!normalized || normalized.length < 2) return null;
+    if (!force && normalized === event.lastTranscriptNorm) return null;
+    const entrySourceLang = sourceLang || event.sourceLang || 'ro';
 
-  const lastEntry = event.transcripts[event.transcripts.length - 1];
-  if (lastEntry?.sourceLang === entrySourceLang && shouldAppendToPreviousEntry(lastEntry, cleanText)) {
-    const combinedText = sanitizeTranscriptText(`${lastEntry.original} ${cleanText}`);
-    const chunks = splitIntoDisplayChunks(combinedText);
-    const firstChunk = chunks.shift() || combinedText;
-    lastEntry.sourceLang = entrySourceLang;
-    lastEntry.original = firstChunk;
-    await retranslateEntry(event, lastEntry);
-    event.lastTranscriptNorm = normalizeChunkText(firstChunk);
-    saveDb();
+    const lastEntry = event.transcripts[event.transcripts.length - 1];
+    if (lastEntry?.sourceLang === entrySourceLang && shouldAppendToPreviousEntry(lastEntry, cleanText)) {
+      const combinedText = sanitizeTranscriptText(`${lastEntry.original} ${cleanText}`);
+      const chunks = splitIntoDisplayChunks(combinedText);
+      const firstChunk = chunks.shift() || combinedText;
+      lastEntry.sourceLang = entrySourceLang;
+      lastEntry.original = firstChunk;
+      await retranslateEntry(event, lastEntry);
+      event.lastTranscriptNorm = normalizeChunkText(firstChunk);
+      saveDb();
 
-    io.to(`event:${event.id}`).emit('transcript_source_updated', {
-      entryId: lastEntry.id,
-      sourceLang: lastEntry.sourceLang,
-      original: lastEntry.original,
-      translations: lastEntry.translations
-    });
-    updateTranslationMonitor(event, {
-      lastDeliveredAt: new Date().toISOString(),
-      lastDeliveredPreview: firstChunk.slice(0, 220),
-      lastDeliveryTargetCount: Array.isArray(event.targetLangs) ? event.targetLangs.length : 0
-    }, false);
-    emitTranslationMonitor(event.id);
+      io.to(`event:${event.id}`).emit('transcript_source_updated', {
+        entryId: lastEntry.id,
+        sourceLang: lastEntry.sourceLang,
+        original: lastEntry.original,
+        translations: lastEntry.translations
+      });
+      updateTranslationMonitor(event, {
+        lastDeliveredAt: new Date().toISOString(),
+        lastDeliveredPreview: firstChunk.slice(0, 220),
+        lastDeliveryTargetCount: Array.isArray(event.targetLangs) ? event.targetLangs.length : 0
+      }, false);
+      emitTranslationMonitor(event.id);
 
-    const CHUNK_PUBLISH_DELAY_MS = 1200;
-    let lastCreatedEntry = lastEntry;
-    for (const extraChunk of chunks) {
-      await new Promise((r) => setTimeout(r, CHUNK_PUBLISH_DELAY_MS));
-      const created = await publishNewChunk(event, extraChunk, entrySourceLang);
+      const CHUNK_PUBLISH_DELAY_MS = 400;
+      let lastCreatedEntry = lastEntry;
+      for (const extraChunk of chunks) {
+        await new Promise((r) => setTimeout(r, CHUNK_PUBLISH_DELAY_MS));
+        const created = await publishNewChunk(event, extraChunk, entrySourceLang);
+        if (created) lastCreatedEntry = created;
+      }
+      return lastCreatedEntry;
+    }
+
+    const CHUNK_PUBLISH_DELAY_MS = 400;
+    const chunks = splitIntoDisplayChunks(cleanText);
+    let lastCreatedEntry = null;
+    let isFirstChunk = true;
+    for (const chunk of chunks) {
+      if (!isFirstChunk) {
+        await new Promise((r) => setTimeout(r, CHUNK_PUBLISH_DELAY_MS));
+      }
+      isFirstChunk = false;
+      const created = await publishNewChunk(event, chunk, entrySourceLang);
       if (created) lastCreatedEntry = created;
     }
     return lastCreatedEntry;
+  } finally {
+    processingLocks.delete(event.id);
   }
-
-  const CHUNK_PUBLISH_DELAY_MS = 1200;
-  const chunks = splitIntoDisplayChunks(cleanText);
-  let lastCreatedEntry = null;
-  let isFirstChunk = true;
-  for (const chunk of chunks) {
-    if (!isFirstChunk) {
-      await new Promise((r) => setTimeout(r, CHUNK_PUBLISH_DELAY_MS));
-    }
-    isFirstChunk = false;
-    const created = await publishNewChunk(event, chunk, entrySourceLang);
-    if (created) lastCreatedEntry = created;
-  }
-  return lastCreatedEntry;
 }
 
 async function flushSpeechBuffer(eventId, force = false) {
