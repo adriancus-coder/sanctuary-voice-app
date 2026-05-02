@@ -531,6 +531,13 @@ function refreshRemoteUi() {
   }
   if (quickLanguages) quickLanguages.hidden = !mainScreenAllowed;
   if (shortcuts) shortcuts.hidden = !mainScreenAllowed;
+  const dualToggle = $('remoteDualLanguageToggle');
+  if (dualToggle) {
+    dualToggle.checked = !!state.currentEvent?.displayState?.secondaryLanguage;
+    dualToggle.disabled = !mainScreenAllowed;
+    const wrapper = dualToggle.closest('.info-card');
+    if (wrapper) wrapper.hidden = !mainScreenAllowed;
+  }
   if (songPanel || fallbackSongPanel) (songPanel || fallbackSongPanel).hidden = !songAllowed;
   if (presetsPanel) presetsPanel.hidden = !mainScreenAllowed;
   if (churchLibraryPanel) churchLibraryPanel.hidden = !songAllowed;
@@ -705,6 +712,31 @@ $('remoteQuickLanguages').addEventListener('click', async (e) => {
     await post(`/api/events/${state.eventId}/display/language`, { language: btn.getAttribute('data-remote-language') });
     setStatus('Screen language updated.');
   } catch (err) {
+    setStatus(err.message);
+  }
+});
+
+$('remoteDualLanguageToggle')?.addEventListener('change', async (e) => {
+  if (!state.eventId) return;
+  const enabled = !!e.target.checked;
+  const langs = (state.currentEvent?.targetLangs || []).filter(Boolean);
+  const primary = state.currentEvent?.displayState?.language || langs[0] || 'no';
+  let secondary = '';
+  if (enabled) {
+    secondary = state.currentEvent?.displayState?.secondaryLanguage
+      || langs.find((l) => l !== primary)
+      || '';
+    if (!secondary) {
+      e.target.checked = false;
+      setStatus('Dual display needs at least two target languages.');
+      return;
+    }
+  }
+  try {
+    await post(`/api/events/${state.eventId}/display/language`, { language: primary, secondaryLanguage: secondary });
+    setStatus(enabled ? 'Dual language display enabled.' : 'Single language display.');
+  } catch (err) {
+    e.target.checked = !enabled;
     setStatus(err.message);
   }
 });
