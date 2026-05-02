@@ -2742,9 +2742,10 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
     .slice(-2);
 
   const entryId = randomUUID();
-  const partialEmitted = new Set();
+  const createdAt = new Date().toISOString();
+  const accumulatedTranslations = {};
   const lastEmitAt = new Map();
-  const PARTIAL_THROTTLE_MS = 180;
+  const PARTIAL_THROTTLE_MS = 120;
 
   const emitPartialForLang = (lang, partialText) => {
     if (event.displayState?.mode !== 'auto') return;
@@ -2752,26 +2753,36 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
     const last = lastEmitAt.get(lang) || 0;
     if (now - last < PARTIAL_THROTTLE_MS) return;
     lastEmitAt.set(lang, now);
-    if (!partialEmitted.has(lang)) {
-      partialEmitted.add(lang);
-    }
     io.to(`event:${event.id}`).emit('display_live_entry_partial', {
       entryId,
       sourceLang,
       original: cleanChunk,
-      createdAt: new Date().toISOString(),
+      createdAt,
       translations: { [lang]: partialText }
     });
   };
 
+  const emitLangComplete = (lang, finalText) => {
+    if (event.displayState?.mode !== 'auto') return;
+    accumulatedTranslations[lang] = finalText;
+    io.to(`event:${event.id}`).emit('display_live_entry_partial', {
+      entryId,
+      sourceLang,
+      original: cleanChunk,
+      createdAt,
+      translations: { ...accumulatedTranslations }
+    });
+  };
+
   const translationPairs = await Promise.all(
-    event.targetLangs.map(async (lang) => [
-      lang,
-      await translateText(cleanChunk, lang, event, sourceLang, {
+    event.targetLangs.map(async (lang) => {
+      const translated = await translateText(cleanChunk, lang, event, sourceLang, {
         contextEntries,
         onDelta: (text) => emitPartialForLang(lang, text)
-      })
-    ])
+      });
+      emitLangComplete(lang, translated);
+      return [lang, translated];
+    })
   );
 
   const entry = {
@@ -2779,7 +2790,7 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
     sourceLang,
     original: cleanChunk,
     translations: Object.fromEntries(translationPairs),
-    createdAt: new Date().toISOString(),
+    createdAt,
     edited: false
   };
 
