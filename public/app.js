@@ -2484,7 +2484,11 @@ async function postAudioChunk(blob) {
   form.append('audio', new File([blob], `chunk.${fileInfo.ext}`, { type: fileInfo.mimeType }));
   const res = await fetch(`/api/events/${currentEvent.id}/transcribe`, { method: 'POST', body: form });
   const data = await res.json();
-  if (!data.ok) throw new Error(data.error || 'Audio upload failed.');
+  if (!data.ok) {
+    const retryAfter = res.headers.get('Retry-After');
+    const suffix = retryAfter ? ` retry-after:${retryAfter}` : '';
+    throw new Error((data.error || 'Audio upload failed.') + suffix);
+  }
 }
 
 function resetAudioGateStats() {
@@ -2517,7 +2521,20 @@ async function drainAudioUploadQueue() {
   try {
     while (audioState.uploadQueue.length) {
       const blob = audioState.uploadQueue.shift();
-      try { await postAudioChunk(blob); } catch (err) { setStatus(err.message || 'Audio send failed.'); }
+      try {
+        await postAudioChunk(blob);
+      } catch (err) {
+        const msg = err?.message || '';
+        const retryAfterMatch = msg.match(/retry-after:(\d+)/i);
+        if (msg.includes('Prea multe cereri') || retryAfterMatch) {
+          const waitMs = retryAfterMatch ? Math.min(60000, Number(retryAfterMatch[1]) * 1000) : 1500;
+          audioState.uploadQueue.unshift(blob);
+          setStatus(`Audio rate-limited, retrying in ${Math.ceil(waitMs / 1000)}s.`);
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+        } else {
+          setStatus(msg || 'Audio send failed.');
+        }
+      }
     }
   } finally {
     audioState.busy = false;
