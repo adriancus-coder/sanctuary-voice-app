@@ -105,14 +105,12 @@
           </div>
         </div>
 
-        <div class="cards-grid two dashboard-support-grid">
-          <div class="panel glass-panel section-stack partial-transcript-large-panel">
-            <div class="section-head">
-              <h2>Partial transcript</h2>
-              <div class="muted">Live recognition draft</div>
-            </div>
-            <div id="partialTranscriptLarge" class="partial-transcript-large">Waiting for full sentence...</div>
+        <div class="panel glass-panel section-stack partial-transcript-large-panel">
+          <div class="section-head">
+            <h2>Partial transcript</h2>
+            <div class="muted">Live recognition draft</div>
           </div>
+          <div id="partialTranscriptLarge" class="partial-transcript-large">Waiting for full sentence...</div>
         </div>
 
         <div class="cards-grid two dashboard-main-grid">
@@ -153,6 +151,23 @@
               </div>
               <div id="audioProcessingHint" class="muted">Processing is off by default for the most natural speech input.</div>
             </details>
+          </div>
+
+          <div class="panel glass-panel section-stack control-card">
+            <div class="section-head">
+              <h2>Live Session</h2>
+              <div class="live-chip">Service tools</div>
+            </div>
+
+            <div class="info-card accent-card live-control-card">
+              <div class="label">Live recognition</div>
+              <div id="recognitionStatus" class="status-text">Idle</div>
+              <div class="button-row compact-row">
+                <button id="startRecognitionBtn" class="btn btn-primary">Start live</button>
+                <button id="stopRecognitionBtn" class="btn btn-dark">Stop</button>
+                <button id="endServiceBtn" class="btn btn-danger" type="button">End service</button>
+              </div>
+            </div>
 
             <div class="info-card accent-card">
               <div class="label">Signal monitor</div>
@@ -170,23 +185,6 @@
                 </div>
               </div>
               <label class="inline-check monitor-row"><input type="checkbox" id="monitorAudioBox"> Monitor PC audio</label>
-            </div>
-          </div>
-
-          <div class="panel glass-panel section-stack control-card">
-            <div class="section-head">
-              <h2>Live Session</h2>
-              <div class="live-chip">Service tools</div>
-            </div>
-
-            <div class="info-card accent-card live-control-card">
-              <div class="label">Live recognition</div>
-              <div id="recognitionStatus" class="status-text">Idle</div>
-              <div class="button-row compact-row">
-                <button id="startRecognitionBtn" class="btn btn-primary">Start live</button>
-                <button id="stopRecognitionBtn" class="btn btn-dark">Stop</button>
-                <button id="endServiceBtn" class="btn btn-danger" type="button">End service</button>
-              </div>
             </div>
 
             <div class="info-card accent-card">
