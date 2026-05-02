@@ -914,6 +914,49 @@ progress::-moz-progress-bar {
     linear-gradient(180deg, rgba(14, 16, 21, 0.96), rgba(9, 11, 16, 0.92));
 }
 
+.hero-topbar-compact {
+  padding: 8px 14px;
+  align-items: center;
+}
+
+.hero-topbar-compact .hero-copy-block .eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  margin-bottom: 0;
+}
+
+.hero-topbar-compact h1 {
+  font-size: clamp(1.05rem, 1.4vw, 1.4rem);
+  line-height: 1.1;
+}
+
+.hero-topbar-compact .hero-status-card {
+  padding: 6px 9px;
+  gap: 3px;
+}
+
+.hero-topbar-compact .hero-status-card .btn {
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  min-height: 32px;
+}
+
+.hero-topbar-compact .status-pill {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+}
+
+.hero-topbar-compact .hero-active-event-select {
+  margin-top: 2px;
+  padding: 4px 6px;
+  font-size: 0.85rem;
+}
+
+.hero-topbar-compact .hero-status-label {
+  font-size: 0.68rem;
+}
+
 .hero-copy-block {
   display: grid;
   gap: 3px;
