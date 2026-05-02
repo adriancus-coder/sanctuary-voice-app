@@ -2874,17 +2874,25 @@ async function processText(event, cleanText, { force = false, sourceLang = '' } 
     }, false);
     emitTranslationMonitor(event.id);
 
+    const CHUNK_PUBLISH_DELAY_MS = 1200;
     let lastCreatedEntry = lastEntry;
     for (const extraChunk of chunks) {
+      await new Promise((r) => setTimeout(r, CHUNK_PUBLISH_DELAY_MS));
       const created = await publishNewChunk(event, extraChunk, entrySourceLang);
       if (created) lastCreatedEntry = created;
     }
     return lastCreatedEntry;
   }
 
+  const CHUNK_PUBLISH_DELAY_MS = 1200;
   const chunks = splitIntoDisplayChunks(cleanText);
   let lastCreatedEntry = null;
+  let isFirstChunk = true;
   for (const chunk of chunks) {
+    if (!isFirstChunk) {
+      await new Promise((r) => setTimeout(r, CHUNK_PUBLISH_DELAY_MS));
+    }
+    isFirstChunk = false;
     const created = await publishNewChunk(event, chunk, entrySourceLang);
     if (created) lastCreatedEntry = created;
   }

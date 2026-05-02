@@ -3,10 +3,10 @@ const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
 let participantWakeLock = null;
 const participantParams = new URLSearchParams(window.location.search);
-const LIVE_ENTRY_MIN_DISPLAY_MS = 1800;
+const LIVE_ENTRY_MIN_DISPLAY_MS = 2200;
 const LIVE_ENTRY_MAX_DISPLAY_MS = 9000;
 const LIVE_ENTRY_MAX_QUEUE = 3;
-const LIVE_ENTRY_CATCHUP_MIN_MS = 800;
+const LIVE_ENTRY_CATCHUP_MIN_MS = 1100;
 
 const voiceLocales = {
   ro: 'ro-RO',
@@ -228,7 +228,7 @@ function getLiveEntryDuration(entry) {
   const text = String(getTextForEntry(entry) || '').trim();
   const words = countWords(text);
   const lineCount = Math.max(1, Math.ceil(text.length / 42));
-  const readingMs = 1400 + (words * 320) + (lineCount * 360);
+  const readingMs = 1400 + (words * 380) + (lineCount * 360);
   return Math.max(LIVE_ENTRY_MIN_DISPLAY_MS, Math.min(LIVE_ENTRY_MAX_DISPLAY_MS, readingMs));
 }
 
@@ -983,7 +983,7 @@ socket.on('display_live_entry', (entry) => {
   setParticipantUpdating(false);
   state.serviceEndedAcknowledged = false;
   state.currentEvent.latestDisplayEntry = cloneEntry(entry);
-  showLiveEntry(entry, { announce: true });
+  enqueueLiveEntry(entry);
 });
 
 socket.on('display_live_entry_partial', (payload) => {
