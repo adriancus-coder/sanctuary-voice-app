@@ -2479,10 +2479,17 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
   }
   inputMessages.push({ role: 'user', content: cleanText });
   try {
-    const result = await translationService.translateWithResponsesDetailed({
-      model: OPENAI_MODEL,
-      input: inputMessages
-    });
+    const onDelta = typeof options.onDelta === 'function' ? options.onDelta : null;
+    const result = onDelta
+      ? await translationService.translateWithResponsesStreaming({
+          model: OPENAI_MODEL,
+          input: inputMessages,
+          onDelta
+        })
+      : await translationService.translateWithResponsesDetailed({
+          model: OPENAI_MODEL,
+          input: inputMessages
+        });
     const translatedText = result.text;
     if (result.tokens) recordTranslationUsage(event, result.tokens);
     const translated = sanitizeStructuredText(translatedText);
@@ -2733,12 +2740,42 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
   const contextEntries = (Array.isArray(event.transcripts) ? event.transcripts : [])
     .filter((entry) => entry && entry.original && entry.sourceLang === sourceLang)
     .slice(-2);
+
+  const entryId = randomUUID();
+  const partialEmitted = new Set();
+  const lastEmitAt = new Map();
+  const PARTIAL_THROTTLE_MS = 180;
+
+  const emitPartialForLang = (lang, partialText) => {
+    if (event.displayState?.mode !== 'auto') return;
+    const now = Date.now();
+    const last = lastEmitAt.get(lang) || 0;
+    if (now - last < PARTIAL_THROTTLE_MS) return;
+    lastEmitAt.set(lang, now);
+    if (!partialEmitted.has(lang)) {
+      partialEmitted.add(lang);
+    }
+    io.to(`event:${event.id}`).emit('display_live_entry_partial', {
+      entryId,
+      sourceLang,
+      original: cleanChunk,
+      createdAt: new Date().toISOString(),
+      translations: { [lang]: partialText }
+    });
+  };
+
   const translationPairs = await Promise.all(
-    event.targetLangs.map(async (lang) => [lang, await translateText(cleanChunk, lang, event, sourceLang, { contextEntries })])
+    event.targetLangs.map(async (lang) => [
+      lang,
+      await translateText(cleanChunk, lang, event, sourceLang, {
+        contextEntries,
+        onDelta: (text) => emitPartialForLang(lang, text)
+      })
+    ])
   );
 
   const entry = {
-    id: randomUUID(),
+    id: entryId,
     sourceLang,
     original: cleanChunk,
     translations: Object.fromEntries(translationPairs),

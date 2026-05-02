@@ -986,6 +986,47 @@ socket.on('display_live_entry', (entry) => {
   showLiveEntry(entry, { announce: true });
 });
 
+socket.on('display_live_entry_partial', (payload) => {
+  if (!state.currentEvent) return;
+  if (!payload?.entryId) return;
+  const lang = state.currentLanguage;
+  const sourceLang = payload?.sourceLang || state.currentEvent?.sourceLang || 'ro';
+  const isSourceUser = lang === sourceLang;
+  const partialForLang = isSourceUser
+    ? (payload?.original || '')
+    : payload?.translations?.[lang];
+  if (typeof partialForLang !== 'string' || !partialForLang.trim()) return;
+  state.serviceEndedAcknowledged = false;
+  setParticipantUpdating(false);
+  const existing = state.visibleLiveEntry;
+  if (existing && existing.id === payload.entryId) {
+    existing.translations = { ...(existing.translations || {}), [lang]: partialForLang };
+    state.visibleLiveEntry = existing;
+    state.lastLiveEntryId = existing.id;
+    $('lastText').innerHTML = highlightBibleRefs(getTextForEntry(existing));
+    return;
+  }
+  if (existing && existing.id !== payload.entryId) {
+    rememberRecentEntry(existing);
+  }
+  const partialEntry = {
+    id: payload.entryId,
+    sourceLang: payload.sourceLang || state.currentEvent?.sourceLang || 'ro',
+    original: payload.original || '',
+    translations: { [lang]: partialForLang },
+    createdAt: payload.createdAt || new Date().toISOString(),
+    partial: true
+  };
+  state.visibleLiveEntry = partialEntry;
+  state.awaitingFreshLiveEntry = false;
+  state.allowTranscriptFallback = true;
+  state.freshLiveStartedAt = 0;
+  state.freshLiveBlockedEntryIds = new Set();
+  state.liveEntryShownAt = Date.now();
+  state.lastLiveEntryId = partialEntry.id;
+  renderLiveView({ announce: false });
+});
+
 socket.on('display_mode_changed', (payload) => {
   if (!state.currentEvent) return;
   state.currentEvent.displayState = {
