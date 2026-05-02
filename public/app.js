@@ -2885,7 +2885,7 @@ $('currentSourceLang')?.addEventListener('change', async () => {
   await syncSpeedToEvent();
   setStatus(`Input language set to ${langLabel(currentEvent?.sourceLang || 'ro')}.`);
 });
-$('openTranscriptTabBtn').addEventListener('click', () => switchTab('transcript'));
+$('openTranscriptTabBtn')?.addEventListener('click', () => switchTab('transcript'));
 $('manualText').addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' || e.shiftKey) return;
   const now = Date.now();
