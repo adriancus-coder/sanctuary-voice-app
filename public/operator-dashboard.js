@@ -129,6 +129,12 @@
     node.querySelector('.operator-event-date').textContent = formatDate(event.date);
     node.querySelector('.operator-event-lang').textContent = formatLang(event.sourceLang);
 
+    var idBadge = document.createElement('div');
+    idBadge.className = 'operator-event-id-badge';
+    var shortId = String(event.shortId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    idBadge.textContent = shortId ? 'Event ID: ' + shortId : 'Event ID: ' + (event.id || '');
+    node.insertBefore(idBadge, node.querySelector('.operator-event-form') || node.lastChild);
+
     var statusEl = node.querySelector('.operator-event-status');
     if (statusEl) {
       statusEl.textContent = STATUS_LABEL[status] || 'Event';

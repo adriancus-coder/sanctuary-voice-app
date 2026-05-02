@@ -837,7 +837,9 @@ function defaultTranslationMonitor() {
     lastDeliveredPreview: '',
     lastDeliveryTargetCount: 0,
     lastErrorAt: null,
-    lastErrorMessage: ''
+    lastErrorMessage: '',
+    whisperRetries: 0,
+    whisperEmptyDrops: 0
   };
 }
 
@@ -2665,6 +2667,9 @@ async function transcribeAudioFile(filePath, event) {
 
   if (!String(text || '').trim() && fileSize >= WHISPER_EMPTY_RETRY_MIN_BYTES) {
     logger.info(`whisper empty result on ${fileSize}B audio (event ${event.id}, lang ${effectiveSourceLang}) — retrying once`);
+    updateTranslationMonitor(event, {
+      whisperRetries: Number(event.translationMonitor?.whisperRetries || 0) + 1
+    });
     try {
       const retryText = await translationService.transcribeAudioFile({
         filePath,
@@ -2676,12 +2681,18 @@ async function transcribeAudioFile(filePath, event) {
         text = retryText;
       } else {
         logger.warn(`whisper empty after retry on ${fileSize}B audio (event ${event.id}, lang ${effectiveSourceLang}) — chunk dropped`);
+        updateTranslationMonitor(event, {
+          whisperEmptyDrops: Number(event.translationMonitor?.whisperEmptyDrops || 0) + 1
+        });
       }
     } catch (err) {
       logger.warn(`whisper retry failed (event ${event.id}):`, err?.message || err);
     }
   } else if (!String(text || '').trim()) {
     logger.info(`whisper empty result on ${fileSize}B audio (event ${event.id}) — below retry threshold, skipping retry`);
+    updateTranslationMonitor(event, {
+      whisperEmptyDrops: Number(event.translationMonitor?.whisperEmptyDrops || 0) + 1
+    });
   }
 
   return {

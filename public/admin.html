@@ -78,10 +78,16 @@
             <span class="hero-status-label">Recognition</span>
             <div id="onAirBadge" class="status-pill">Off-Air</div>
           </div>
+          <div class="hero-status-card hero-active-event-card">
+            <span class="hero-status-label">Active event</span>
+            <select id="heroActiveEventSelect" class="hero-active-event-select"></select>
+          </div>
           <div class="hero-status-card quick-links-card">
             <span class="hero-status-label">Quick screens</span>
             <div class="actions">
               <button id="openTranslateScreenBtn" class="btn btn-dark" type="button">Open main screen</button>
+              <button id="heroBlackScreenBtn" class="btn btn-dark" type="button">Black screen</button>
+              <button id="heroRestoreScreenBtn" class="btn btn-dark" type="button">Restore</button>
             </div>
           </div>
         </div>
@@ -113,7 +119,7 @@
           <div class="panel glass-panel section-stack control-card">
             <div class="section-head">
               <h2>Recognition Desk</h2>
-              <div id="recognitionStatus" class="status-text">Idle</div>
+              <div class="muted">Setup before live</div>
             </div>
 
             <label>Translation mode</label>
@@ -175,9 +181,11 @@
 
             <div class="info-card accent-card live-control-card">
               <div class="label">Live recognition</div>
+              <div id="recognitionStatus" class="status-text">Idle</div>
               <div class="button-row compact-row">
                 <button id="startRecognitionBtn" class="btn btn-primary">Start live</button>
                 <button id="stopRecognitionBtn" class="btn btn-dark">Stop</button>
+                <button id="endServiceBtn" class="btn btn-danger" type="button">End service</button>
               </div>
             </div>
 
@@ -194,6 +202,16 @@
             <div class="info-card soft-card">
               <div class="label">Participant languages</div>
               <div id="participantStatsList" class="history-list"><div class="muted">No connected participant.</div></div>
+            </div>
+
+            <div class="info-card soft-card translation-monitor-card">
+              <div class="label">Translation monitor</div>
+              <div class="monitor-grid">
+                <div><span class="muted">Latency</span><strong id="monitorLatency">-</strong></div>
+                <div><span class="muted">Pending</span><strong id="monitorPending">0</strong></div>
+                <div><span class="muted">Last delivered</span><strong id="monitorDelivered">-</strong></div>
+                <div><span class="muted">Whisper drops</span><strong id="monitorDrops">0</strong></div>
+              </div>
             </div>
           </div>
         </div>

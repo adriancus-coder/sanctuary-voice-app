@@ -931,9 +931,19 @@ progress::-moz-progress-bar {
 
 .hero-status-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(170px, 1fr));
+  grid-template-columns: repeat(2, minmax(170px, 1fr));
   gap: 8px;
-  width: min(620px, 100%);
+  width: min(720px, 100%);
+}
+
+.hero-active-event-select {
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
 }
 
 .hero-status-card,
@@ -1138,6 +1148,63 @@ progress::-moz-progress-bar {
 
 .partial-transcript-large-panel {
   min-height: 260px;
+}
+
+.bulk-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border: 1px dashed rgba(244, 221, 171, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  flex-wrap: wrap;
+}
+
+.event-card-head .bulk-select {
+  margin-right: 8px;
+}
+
+@media (max-width: 768px) {
+  .live-control-card {
+    position: sticky;
+    bottom: 8px;
+    z-index: 30;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  }
+  .live-control-card .button-row {
+    gap: 6px;
+  }
+  .live-control-card .btn {
+    flex: 1;
+    min-height: 44px;
+  }
+}
+
+.translation-monitor-card .monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin-top: 6px;
+}
+
+.translation-monitor-card .monitor-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.translation-monitor-card .monitor-grid strong {
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.translation-monitor-card .monitor-grid .muted {
+  font-size: 0.78rem;
 }
 
 .partial-transcript-large {
@@ -2862,6 +2929,23 @@ body.participant-preview-mode .participant-event-chooser {
   justify-content: center;
 }
 
+.participant-welcome-lang-row {
+  margin: 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.participant-welcome-lang-row select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(244, 221, 171, 0.32);
+  background: rgba(7, 9, 13, 0.6);
+  color: #fff8ec;
+  font-size: 1rem;
+}
+
 .updating-badge {
   margin-bottom: 6px;
   color: var(--gold-strong);
@@ -3848,6 +3932,18 @@ body.participant-preview-mode .participant-event-chooser {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.operator-event-id-badge {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(244, 221, 171, 0.32);
+  color: rgba(244, 221, 171, 0.9);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: rgba(244, 221, 171, 0.06);
 }
 
 .operator-event-card-head {

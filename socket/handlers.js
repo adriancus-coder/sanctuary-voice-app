@@ -161,13 +161,17 @@ function registerSocketHandlers(io, ctx) {
       const event = db.events[eventId];
       if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
       setTranscriptionPaused(event, !!paused, { markOnAir: !paused });
-      if (paused) {
-        io.to(`event:${eventId}`).emit('service_ended', {
-          eventId,
-          message: 'Acest serviciu a luat sfârșit. Vă mulțumim că ați fost cu noi!',
-          endedAt: new Date().toISOString()
-        });
-      }
+    });
+
+    socket.on('end_service', ({ eventId }) => {
+      const event = db.events[eventId];
+      if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
+      setTranscriptionPaused(event, true, { markOnAir: false });
+      io.to(`event:${eventId}`).emit('service_ended', {
+        eventId,
+        message: 'Acest serviciu a luat sfârșit. Vă mulțumim că ați fost cu noi!',
+        endedAt: new Date().toISOString()
+      });
     });
 
     socket.on('azure_audio_start', ({ eventId }) => {

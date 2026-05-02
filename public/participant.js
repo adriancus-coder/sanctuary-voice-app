@@ -62,7 +62,12 @@ const state = {
   previewMode: participantParams.get('preview') === '1',
   previewCode: participantParams.get('code') || '',
   currentEvent: null,
-  currentLanguage: participantParams.get('lang') || 'no',
+  currentLanguage: participantParams.get('lang') || (function() {
+    try {
+      const eventKey = participantParams.get('event') || 'default';
+      return localStorage.getItem(`sanctuary_voice_lang_${eventKey}`) || 'no';
+    } catch (_) { return 'no'; }
+  })(),
   currentMode: 'live',
   currentSongState: null,
   lastLiveEntryId: null,
@@ -749,8 +754,25 @@ function showAiNoticeIfNeeded({ force = false } = {}) {
   $('participantAiNoticeTitle').textContent = copy.title;
   $('participantAiNoticeText').textContent = copy.text;
   $('participantAiNoticeOk').textContent = copy.button;
+  syncWelcomeLanguageOptions();
   modal.hidden = false;
   $('participantAiNoticeOk')?.focus();
+}
+
+function syncWelcomeLanguageOptions() {
+  const select = $('participantWelcomeLang');
+  const main = $('languageSelect');
+  if (!select || !main) return;
+  select.innerHTML = main.innerHTML;
+  select.value = main.value;
+}
+
+function handleWelcomeLanguageChange() {
+  const select = $('participantWelcomeLang');
+  const main = $('languageSelect');
+  if (!select || !main) return;
+  main.value = select.value;
+  handleLanguageChange();
 }
 
 function formatServiceEndedTime(iso) {
@@ -838,6 +860,10 @@ async function subscribeToPushNotifications() {
 
 function handleLanguageChange() {
   state.currentLanguage = $('languageSelect').value;
+  try {
+    const eventKey = state.currentEvent?.id || state.fixedEventId || 'default';
+    localStorage.setItem(`sanctuary_voice_lang_${eventKey}`, state.currentLanguage);
+  } catch (_) {}
   if (state.currentEvent?.id) {
     socket.emit('participant_language', { eventId: state.currentEvent.id, language: state.currentLanguage });
     subscribeToPushNotifications().catch(() => {});
@@ -892,7 +918,15 @@ socket.on('joined_event', ({ event, role }) => {
   if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
   state.liveEntryTimer = null;
   if (state.currentMode === 'live') {
-    waitForFreshLiveEntry();
+    const latest = event.latestDisplayEntry;
+    const latestAge = latest?.createdAt ? Date.now() - new Date(latest.createdAt).getTime() : Infinity;
+    if (latest && latestAge < 30000) {
+      state.visibleLiveEntry = cloneEntry(latest);
+      state.awaitingFreshLiveEntry = false;
+      state.allowTranscriptFallback = true;
+    } else {
+      waitForFreshLiveEntry();
+    }
   } else {
     state.visibleLiveEntry = null;
     state.awaitingFreshLiveEntry = false;
@@ -904,7 +938,7 @@ socket.on('joined_event', ({ event, role }) => {
   applyParticipantViewMode();
   renderLiveView({ announce: false });
   setParticipantUpdating(false);
-  setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Connected.');
+  setStatus(state.serverAudioMuted ? 'Audio is muted by the operator. You cannot enable it right now.' : 'Connected.');
   if (state.previewMode) {
     document.body.classList.add('participant-preview-mode');
     setStatus('Moderator preview.');
@@ -955,9 +989,9 @@ socket.on('audio_state', ({ audioMuted }) => {
   state.serverAudioMuted = !!audioMuted;
   if (audioMuted) {
     stopSpeech();
-    setStatus('Audio stopped by admin.');
+    setStatus('Audio is muted by the operator. You cannot enable it right now.');
   } else {
-    setStatus(state.localAudioEnabled ? 'Audio active.' : 'Local audio paused.');
+    setStatus(state.localAudioEnabled ? 'Audio active.' : 'Audio paused by you. Tap "Audio on" to resume.');
   }
 });
 
@@ -1001,7 +1035,7 @@ socket.on('mode_changed', ({ mode }) => {
     setStatus('Song active on public screen.');
   } else {
     waitForFreshLiveEntry();
-    setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Connected.');
+    setStatus(state.serverAudioMuted ? 'Audio is muted by the operator. You cannot enable it right now.' : 'Connected.');
   }
   renderLiveView({ announce: false });
 });
@@ -1071,7 +1105,7 @@ function applyAudioButtonState() {
 
 $('playAudioBtn').addEventListener('click', () => {
   state.localAudioEnabled = true;
-  setStatus(state.serverAudioMuted ? 'Audio stopped by admin.' : 'Audio active.');
+  setStatus(state.serverAudioMuted ? 'Audio is muted by the operator. You cannot enable it right now.' : 'Audio active.');
   applyAudioButtonState();
   const latestEntry = getLatestEntry();
   if (latestEntry) speakLatestEntry(latestEntry);
@@ -1080,7 +1114,7 @@ $('playAudioBtn').addEventListener('click', () => {
 $('pauseAudioBtn').addEventListener('click', () => {
   state.localAudioEnabled = false;
   stopSpeech();
-  setStatus('Local audio paused.');
+  setStatus('Audio paused by you. Tap "Audio on" to resume.');
   applyAudioButtonState();
 });
 
@@ -1103,6 +1137,7 @@ $('participantExitFocusBtn')?.addEventListener('click', () => {
 });
 
 $('participantAiNoticeOk')?.addEventListener('click', acceptAiNotice);
+$('participantWelcomeLang')?.addEventListener('change', handleWelcomeLanguageChange);
 $('participantServiceEndedClose')?.addEventListener('click', hideServiceEndedOverlay);
 
 window.addEventListener('load', async () => {

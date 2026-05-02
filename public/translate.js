@@ -41,7 +41,6 @@ const state = {
   manualSourceLang: 'ro',
   latestLiveEntry: null,
   songState: null,
-  serviceEnded: false,
   renderTimer: null
 };
 
@@ -136,7 +135,11 @@ function applyDisplaySettings() {
       wrap.dataset.textSize = state.textSize || 'large';
       wrap.dataset.screenStyle = state.screenStyle || 'focus';
       wrap.dataset.resolution = state.displayResolution || 'auto';
-      if (clock) clock.style.display = 'none';
+      if (clock) {
+        clock.style.display = state.showClock ? 'block' : 'none';
+        clock.className = `display-clock clock-${state.clockPosition || 'top-right'}`;
+        clock.style.setProperty('--clock-scale', String(state.clockScale || 1));
+      }
       return;
     }
     if (state.currentTheme === 'dark') {
@@ -188,9 +191,6 @@ function getDisplayLanguages() {
 }
 
 function getTextToDisplay(language = state.currentLanguage) {
-  if (state.serviceEnded) {
-    return 'Serviciul a luat sfârșit';
-  }
   if (state.blackScreen) {
     return '';
   }
@@ -454,15 +454,9 @@ socket.on('display_live_entry', (entry) => {
 socket.on('transcription_state', ({ paused }) => {
   state.transcriptionPaused = !!paused;
   if (state.currentEvent) state.currentEvent.transcriptionPaused = state.transcriptionPaused;
-  if (!paused) state.serviceEnded = false;
   renderDisplay();
 });
 
-socket.on('service_ended', (payload) => {
-  if (state.currentEvent?.id && payload?.eventId && payload.eventId !== state.currentEvent.id) return;
-  state.serviceEnded = true;
-  renderDisplay();
-});
 socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, secondaryLanguage, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, textScale, screenStyle, displayResolution, manualTranslations, manualSourceLang }) => {
   if (state.currentEvent) {
     state.currentEvent.displayState = {

@@ -1051,6 +1051,14 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
     box.innerHTML = '<div class="muted">No events yet.</div>';
     return;
   }
+  const bulkBar = document.createElement('div');
+  bulkBar.className = 'bulk-actions-row';
+  bulkBar.innerHTML = `
+    <label class="inline-check"><input type="checkbox" id="bulkSelectAllPast"> Select past events</label>
+    <button class="btn btn-danger" id="bulkDeleteBtn" type="button" disabled>Delete selected</button>
+    <span id="bulkSelectedCount" class="muted">0 selected</span>
+  `;
+  box.appendChild(bulkBar);
   events.forEach((event) => {
     const card = document.createElement('div');
     card.className = `event-card${event.id === activeEventId ? ' active' : ''}${event.id === openedEventId ? ' opened' : ''}`;
@@ -1064,7 +1072,10 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
       ? 'Make this event visible in the participant chooser. Useful for live testing.'
       : 'Hide this event from the participant chooser.';
     card.innerHTML = `
-      <div class="event-card-head"><div class="event-name">${escapeHtml(event.name || 'New event')}</div>${badges.join('')}</div>
+      <div class="event-card-head">
+        <label class="bulk-select inline-check"><input type="checkbox" class="event-bulk-checkbox" data-id="${event.id}" data-scheduled="${event.scheduledTimestamp || 0}"></label>
+        <div class="event-name">${escapeHtml(event.name || 'New event')}</div>${badges.join('')}
+      </div>
       <div class="event-id-row">
         <span class="event-id-label">Event ID</span>
         <code class="event-id-value">${escapeHtml(displayId)}</code>
@@ -1091,6 +1102,61 @@ async function refreshEventList() {
   availableEventsList = data.events || [];
   renderEventList(availableEventsList, data.activeEventId || null, currentEvent?.id || null);
   renderGlobalSongLibrary(currentGlobalSongLibrary);
+  renderHeroActiveEventSelect(data.activeEventId || null);
+  scheduleAdminReminders();
+}
+
+const scheduledReminderTimers = { ten: new Map(), two: new Map() };
+function scheduleAdminReminders() {
+  for (const map of [scheduledReminderTimers.ten, scheduledReminderTimers.two]) {
+    for (const t of map.values()) clearTimeout(t);
+    map.clear();
+  }
+  const now = Date.now();
+  for (const event of availableEventsList) {
+    const ts = Number(event.scheduledTimestamp || 0);
+    if (!ts || ts <= now) continue;
+    const ms10 = ts - 10 * 60 * 1000 - now;
+    const ms2 = ts - 2 * 60 * 1000 - now;
+    if (ms10 > 0) {
+      scheduledReminderTimers.ten.set(event.id, setTimeout(() => fireScheduledReminder(event, 10), ms10));
+    }
+    if (ms2 > 0) {
+      scheduledReminderTimers.two.set(event.id, setTimeout(() => fireScheduledReminder(event, 2), ms2));
+    }
+  }
+}
+
+function fireScheduledReminder(event, minutes) {
+  const title = `Service in ${minutes} min`;
+  const body = `${event.name || 'Service'} is scheduled to start soon.`;
+  setStatus(`${title} — ${event.name || 'Service'}`);
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification(title, { body, tag: `sv-reminder-${event.id}-${minutes}` }); } catch (_) {}
+  } else if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then((perm) => {
+      if (perm === 'granted') {
+        try { new Notification(title, { body, tag: `sv-reminder-${event.id}-${minutes}` }); } catch (_) {}
+      }
+    });
+  }
+}
+
+function renderHeroActiveEventSelect(activeEventId) {
+  const select = $('heroActiveEventSelect');
+  if (!select) return;
+  select.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = '— No live event —';
+  select.appendChild(placeholder);
+  for (const event of availableEventsList) {
+    const opt = document.createElement('option');
+    opt.value = event.id;
+    opt.textContent = event.name || 'Service';
+    if (event.id === activeEventId) opt.selected = true;
+    select.appendChild(opt);
+  }
 }
 
 function getSongSourceLang() {
@@ -2723,6 +2789,30 @@ socket.on('azure_audio_ready', () => {
 });
 socket.on('participant_stats', renderParticipantStats);
 socket.on('usage_stats', renderUsageStats);
+socket.on('translation_monitor', renderTranslationMonitor);
+
+function renderTranslationMonitor(monitor) {
+  if (!monitor) return;
+  const latency = Number(monitor.lastTranslateDurationMs || 0);
+  const pending = Number(monitor.pendingTranslations || 0);
+  const drops = Number(monitor.whisperEmptyDrops || 0);
+  const retries = Number(monitor.whisperRetries || 0);
+  const latEl = $('monitorLatency');
+  const pendEl = $('monitorPending');
+  const delEl = $('monitorDelivered');
+  const dropEl = $('monitorDrops');
+  if (latEl) latEl.textContent = latency ? `${(latency / 1000).toFixed(2)}s` : '-';
+  if (pendEl) pendEl.textContent = String(pending);
+  if (delEl) {
+    if (monitor.lastDeliveredAt) {
+      const ageSec = Math.max(0, Math.round((Date.now() - new Date(monitor.lastDeliveredAt).getTime()) / 1000));
+      delEl.textContent = ageSec < 60 ? `${ageSec}s ago` : `${Math.floor(ageSec / 60)}m ago`;
+    } else {
+      delEl.textContent = '-';
+    }
+  }
+  if (dropEl) dropEl.textContent = retries ? `${drops} (${retries} retries)` : String(drops);
+}
 async function fallbackToOpenAiFromAzure(payload = {}) {
   const message = payload.message || 'Azure Speech failed.';
   const code = String(payload.code || '').toLowerCase();
@@ -2954,6 +3044,38 @@ $('audioInput').addEventListener('change', async () => {
 });
 $('startRecognitionBtn').addEventListener('click', startTranslation);
 $('stopRecognitionBtn').addEventListener('click', stopTranslation);
+
+document.addEventListener('keydown', (e) => {
+  const target = e.target;
+  const tag = (target?.tagName || '').toLowerCase();
+  const isEditable = tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable;
+  if (isEditable) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === ' ' || e.code === 'Space') {
+    e.preventDefault();
+    if (audioState.running) stopTranslation();
+    else startTranslation();
+  } else if (e.key === 'm' || e.key === 'M') {
+    e.preventDefault();
+    $('muteGlobalBtn')?.click();
+  } else if (e.key === 'b' || e.key === 'B') {
+    e.preventDefault();
+    $('heroBlackScreenBtn')?.click();
+  } else if (e.key === 'r' || e.key === 'R') {
+    e.preventDefault();
+    $('heroRestoreScreenBtn')?.click();
+  } else if (e.key === '?') {
+    e.preventDefault();
+    alert('Keyboard shortcuts:\n\nSpace — toggle Start / Stop live\nM — toggle Mute global\nB — black screen on\nR — restore last screen state\n? — this help');
+  }
+});
+$('endServiceBtn')?.addEventListener('click', () => {
+  if (!currentEvent?.id) return;
+  if (!confirm('End service now? Participants will see the "service ended" message and the main screen returns to standby.')) return;
+  if (audioState.running) stopTranslation();
+  socket.emit('end_service', { eventId: currentEvent.id });
+  setStatus('Service ended.');
+});
 $('backToLiveTextBtn')?.addEventListener('click', returnToLiveText);
 $('copyParticipantBtn')?.addEventListener('click', () => copyField('participantLink', 'copyParticipantBtn'));
 $('copyTranslateBtn').addEventListener('click', () => copyField('translateLink', 'copyTranslateBtn'));
@@ -2990,6 +3112,36 @@ $('createRemoteOperatorBtn')?.addEventListener('click', async () => {
   }
 });
 $('setActiveEventBtn').addEventListener('click', setActiveEvent);
+
+$('heroActiveEventSelect')?.addEventListener('change', async (e) => {
+  const eventId = e.target.value;
+  if (!eventId) return;
+  try {
+    await openEventById(eventId);
+    if (currentEvent?.id === eventId) {
+      const res = await fetch(`/api/events/${eventId}/activate`, adminJsonOptions('POST'));
+      const data = await res.json();
+      if (data.ok) {
+        currentEvent = data.event;
+        renderActiveEventBadge(currentEvent);
+        await refreshEventList();
+        setStatus('Active event switched.');
+      }
+    }
+  } catch (err) {
+    console.warn('hero active event change failed:', err);
+  }
+});
+
+$('heroBlackScreenBtn')?.addEventListener('click', async () => {
+  if (!currentEvent?.id) return alert('Open an event first.');
+  try { await fetch(`/api/events/${currentEvent.id}/display/blank`, adminJsonOptions('POST')); setStatus('Black screen on.'); } catch (err) { setStatus(err.message); }
+});
+
+$('heroRestoreScreenBtn')?.addEventListener('click', async () => {
+  if (!currentEvent?.id) return alert('Open an event first.');
+  try { await fetch(`/api/events/${currentEvent.id}/display/restore-last`, adminJsonOptions('POST')); setStatus('Screen restored.'); } catch (err) { setStatus(err.message); }
+});
 $('refreshEventsBtn').addEventListener('click', refreshEventList);
 $('jumpLiveBtn').addEventListener('click', () => {
   closeInlineEditors();
@@ -3300,7 +3452,38 @@ async function logoutAdminSession() {
 
 $('adminLogoutBtn')?.addEventListener('click', logoutAdminSession);
 $('openTranslateScreenBtn').addEventListener('click', () => { const url = $('translateLink').value || '/translate'; if (url) window.open(url, '_blank'); });
+$('eventList').addEventListener('change', (e) => {
+  if (e.target.id === 'bulkSelectAllPast') {
+    const now = Date.now();
+    document.querySelectorAll('.event-bulk-checkbox').forEach((cb) => {
+      const ts = Number(cb.getAttribute('data-scheduled') || 0);
+      if (ts > 0 && ts < now) cb.checked = e.target.checked;
+    });
+  }
+  if (e.target.classList?.contains('event-bulk-checkbox') || e.target.id === 'bulkSelectAllPast') {
+    const checked = document.querySelectorAll('.event-bulk-checkbox:checked');
+    const countEl = document.getElementById('bulkSelectedCount');
+    const btn = document.getElementById('bulkDeleteBtn');
+    if (countEl) countEl.textContent = `${checked.length} selected`;
+    if (btn) btn.disabled = checked.length === 0;
+  }
+});
+
 $('eventList').addEventListener('click', async (e) => {
+  if (e.target.id === 'bulkDeleteBtn') {
+    const ids = [...document.querySelectorAll('.event-bulk-checkbox:checked')].map((cb) => cb.getAttribute('data-id'));
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} event(s)? This cannot be undone.`)) return;
+    for (const id of ids) {
+      const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (getStoredAdminCode(id) || '');
+      try {
+        await fetch(`/api/events/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: adminCode }) });
+      } catch (err) { console.warn('bulk delete failed for', id, err); }
+    }
+    await refreshEventList();
+    setStatus(`${ids.length} events deleted.`);
+    return;
+  }
   const btn = e.target.closest('button[data-action]');
   if (!btn) return;
   const id = btn.getAttribute('data-id');
@@ -3426,7 +3609,10 @@ window.addEventListener('load', async () => {
   try {
     const res = await fetch('/api/events/active');
     const data = await res.json();
-    if (data.ok && data.event) await openEventById(data.event.id);
+    if (data.ok && data.event) {
+      await openEventById(data.event.id);
+      switchTab('dashboard');
+    }
   } catch (_) {}
 });
 
