@@ -1347,17 +1347,17 @@ const speechBuffers = new Map();
 const participantPresence = new Map();
 const azureSpeechSessions = new Map();
 
-const LIVE_TEXT_MIN_WORDS = 9;
-const LIVE_TEXT_TARGET_WORDS = 16;
-const LIVE_TEXT_MAX_WORDS = 22;
-const LIVE_TEXT_MAX_CHARS = 190;
-const LIVE_TEXT_SOFT_WAIT_MS = 1200;
-const LIVE_TEXT_HARD_WAIT_MS = 4200;
-const AZURE_LIVE_TEXT_MIN_WORDS = 6;
-const AZURE_LIVE_TEXT_TARGET_WORDS = 10;
-const AZURE_LIVE_TEXT_MAX_WORDS = 16;
-const AZURE_LIVE_TEXT_SOFT_WAIT_MS = 500;
-const AZURE_LIVE_TEXT_HARD_WAIT_MS = 2200;
+const LIVE_TEXT_MIN_WORDS = 4;
+const LIVE_TEXT_TARGET_WORDS = 9;
+const LIVE_TEXT_MAX_WORDS = 16;
+const LIVE_TEXT_MAX_CHARS = 160;
+const LIVE_TEXT_SOFT_WAIT_MS = 350;
+const LIVE_TEXT_HARD_WAIT_MS = 1500;
+const AZURE_LIVE_TEXT_MIN_WORDS = 3;
+const AZURE_LIVE_TEXT_TARGET_WORDS = 6;
+const AZURE_LIVE_TEXT_MAX_WORDS = 12;
+const AZURE_LIVE_TEXT_SOFT_WAIT_MS = 200;
+const AZURE_LIVE_TEXT_HARD_WAIT_MS = 900;
 
 const BUFFER_CONNECTORS = new Set([
   'și', 'si', 'să', 'sa', 'că', 'ca', 'dar', 'iar', 'ori', 'sau',
@@ -2834,17 +2834,17 @@ async function flushSpeechBuffer(eventId, force = false) {
   const words = countWords(text);
   const last = getLastWord(text);
   const provider = buffered.provider || getActiveSpeechProvider();
-  const targetWords = provider === 'azure_sdk' ? AZURE_LIVE_TEXT_TARGET_WORDS : LIVE_TEXT_TARGET_WORDS;
+  const minWords = provider === 'azure_sdk' ? AZURE_LIVE_TEXT_MIN_WORDS : LIVE_TEXT_MIN_WORDS;
   const softWaitMs = provider === 'azure_sdk' ? AZURE_LIVE_TEXT_SOFT_WAIT_MS : LIVE_TEXT_SOFT_WAIT_MS;
 
   if (!force) {
-    if (startsLikeContinuation(text) && words < targetWords) {
-    buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(logger.error), softWaitMs);
+    if (startsLikeContinuation(text) && words < minWords) {
+      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(logger.error), softWaitMs);
       speechBuffers.set(eventId, buffered);
       return null;
     }
-    if (BUFFER_CONNECTORS.has(last) && words < targetWords) {
-    buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(logger.error), softWaitMs);
+    if (BUFFER_CONNECTORS.has(last) && words < minWords) {
+      buffered.timer = setTimeout(() => flushSpeechBuffer(eventId, true).catch(logger.error), softWaitMs);
       speechBuffers.set(eventId, buffered);
       return null;
     }
