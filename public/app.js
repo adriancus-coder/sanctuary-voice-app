@@ -1204,6 +1204,7 @@ async function loadPinnedTextLibrary() {
 
 async function syncSpeedToEvent() {
   if (!currentEvent) return;
+  const previousSpeed = currentEvent.speed || 'balanced';
   const speed = $('speed').value || 'balanced';
   const sourceLang = $('currentSourceLang')?.value || currentEvent.sourceLang || 'ro';
   const res = await fetch(`/api/events/${currentEvent.id}/settings`, adminJsonOptions('POST', { speed, sourceLang }));
@@ -1211,10 +1212,24 @@ async function syncSpeedToEvent() {
   if (data.ok) {
     currentEvent = data.event;
     if ($('currentSourceLang')) $('currentSourceLang').value = currentEvent.sourceLang || sourceLang;
-    // Translation Mode afectează acum și Azure segmentation timeout (rapid/balanced/clear → 300/500/800ms).
-    // Pentru a aplica noua valoare, sesiunea Azure trebuie restart-ată.
-    if (audioState?.running || window.isRecognitionRunning) {
-      setStatus(`Translation mode set to ${speed}. Stop and Start Live to apply new segmentation timing.`);
+
+    // La schimbare de mode în timpul Live cu Azure, reluăm sesiunea automat ca să
+    // aplicăm noul Speech_SegmentationSilenceTimeoutMs. Audio capture local rămâne
+    // pornit; doar stream-ul Azure se reia (~1-2s pierdute, acceptabil).
+    const speedChanged = previousSpeed !== speed;
+    const isAzureLive = (audioState?.running || window.isRecognitionRunning) && isAzureSpeechProvider();
+
+    if (speedChanged && isAzureLive) {
+      setStatus(`Translation mode: ${speed}. Reapplying Azure session...`);
+      try {
+        stopAzureAudioStream();
+        await new Promise((r) => setTimeout(r, 300));
+        await startAzureAudioStream();
+        setStatus(`Translation mode: ${speed}. Live recognition resumed.`);
+      } catch (err) {
+        console.error('Azure session restart failed:', err);
+        setStatus(`Translation mode: ${speed}. Restart Azure failed - try Stop and Start manually.`);
+      }
     } else {
       setStatus(`Translation mode: ${speed}.`);
     }
