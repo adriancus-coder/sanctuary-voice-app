@@ -160,9 +160,8 @@ function registerSocketHandlers(io, ctx) {
     socket.on('set_transcription_state', ({ eventId, paused }) => {
       const event = db.events[eventId];
       if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
-      const wasOnAir = !!event.transcriptionOnAir;
       setTranscriptionPaused(event, !!paused, { markOnAir: !paused });
-      if (paused && wasOnAir) {
+      if (paused) {
         io.to(`event:${eventId}`).emit('service_ended', {
           eventId,
           message: 'Acest serviciu a luat sfârșit. Vă mulțumim că ați fost cu noi!',

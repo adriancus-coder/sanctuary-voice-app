@@ -550,7 +550,10 @@ function renderEarlierLines(currentId) {
     return;
   }
   const limit = (window.matchMedia && window.matchMedia('(max-width: 379px)').matches) ? 1 : 2;
-  const ids = state.recentEntryIds.filter((id) => id !== currentId).slice(-limit);
+  const ids = state.recentEntryIds
+    .filter((id) => id !== currentId)
+    .slice(-limit)
+    .reverse();
   if (!ids.length) {
     box.innerHTML = '';
     return;
@@ -561,7 +564,7 @@ function renderEarlierLines(currentId) {
     return;
   }
   box.innerHTML = lines.map((entry, i) => {
-    const opacity = (lines.length === 2 && i === 0) ? 0.4 : 0.65;
+    const opacity = (lines.length === 2 && i === 1) ? 0.4 : 0.65;
     const text = getTextForEntry(entry);
     if (!text) return '';
     return `<div class="participant-earlier-line" style="opacity:${opacity}">${highlightBibleRefs(text)}</div>`;

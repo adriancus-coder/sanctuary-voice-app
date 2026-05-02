@@ -2651,7 +2651,7 @@ body.participant-preview-mode .participant-event-chooser {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin: 0 0 14px 0;
+  margin: 14px 0 0 0;
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
@@ -2685,7 +2685,7 @@ body.participant-preview-mode .participant-event-chooser {
 }
 
 @media (max-width: 379px) {
-  .participant-listener-stage.participant-focus .participant-earlier-line:not(:last-child) {
+  .participant-listener-stage.participant-focus .participant-earlier-line:not(:first-child) {
     display: none;
   }
 }
