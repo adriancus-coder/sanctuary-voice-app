@@ -608,7 +608,22 @@ function renderLiveView({ announce = false } = {}) {
     updateTopMeta();
     return;
   }
-  const visibleEntry = getVisibleLiveEntry();
+  let visibleEntry = getVisibleLiveEntry();
+  if (!visibleEntry && state.recentEntryIds.length > 0) {
+    for (let i = state.recentEntryIds.length - 1; i >= 0; i -= 1) {
+      const candidate = getEntryById(state.recentEntryIds[i]);
+      if (candidate) {
+        visibleEntry = candidate;
+        state.visibleLiveEntry = cloneEntry(candidate);
+        state.awaitingFreshLiveEntry = false;
+        break;
+      }
+    }
+  }
+  if (!visibleEntry && state.allowTranscriptFallback) {
+    visibleEntry = getLatestEntry();
+    if (visibleEntry) state.visibleLiveEntry = cloneEntry(visibleEntry);
+  }
   state.lastLiveEntryId = visibleEntry?.id || null;
   if (visibleEntry) {
     $('lastText').innerHTML = highlightBibleRefs(getTextForEntry(visibleEntry));
