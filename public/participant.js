@@ -826,6 +826,7 @@ async function subscribeToPushNotifications() {
       eventId: state.currentEvent.id,
       participantId: state.participantId,
       language: state.currentLanguage,
+      role: 'participant',
       subscription
     })
   });

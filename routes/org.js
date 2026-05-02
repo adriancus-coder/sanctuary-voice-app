@@ -89,7 +89,8 @@ function registerOrgRoutes(app, ctx) {
     if (!WEB_PUSH_ENABLED) return res.status(503).json({ ok: false, error: 'Push notifications are not configured.' });
     const saved = storePushSubscription(event, req.body.subscription, {
       participantId: req.body.participantId,
-      language: req.body.language
+      language: req.body.language,
+      role: req.body.role
     });
     if (!saved) return res.status(400).json({ ok: false, error: 'Push subscription invalid.' });
     saveDb();

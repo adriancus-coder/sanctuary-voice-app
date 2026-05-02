@@ -1239,6 +1239,25 @@ if (!db.globalAccess || typeof db.globalAccess !== 'object') {
   db.globalAccess = {};
 }
 syncLegacyGlobalsFromDefaultOrg();
+backfillPushSubscriptionRoles();
+
+function backfillPushSubscriptionRoles() {
+  let changed = 0;
+  for (const event of Object.values(db.events || {})) {
+    if (!Array.isArray(event.pushSubscriptions)) continue;
+    for (const sub of event.pushSubscriptions) {
+      if (!sub || typeof sub !== 'object') continue;
+      if (!sub.role) {
+        sub.role = 'participant';
+        changed += 1;
+      }
+    }
+  }
+  if (changed > 0) {
+    logger.info?.(`Push subscriptions backfilled with role 'participant': ${changed}`);
+    try { dbStore.save(db); } catch (_) {}
+  }
+}
 
 function saveDb() {
   syncLegacyGlobalsFromDefaultOrg();
@@ -3045,6 +3064,12 @@ function normalizePushSubscription(input = {}) {
   return { endpoint, keys: { p256dh, auth } };
 }
 
+const PUSH_ALLOWED_ROLES = new Set(['participant', 'admin', 'operator', 'remote']);
+function normalizePushRole(role) {
+  const value = String(role || '').trim().toLowerCase();
+  return PUSH_ALLOWED_ROLES.has(value) ? value : 'participant';
+}
+
 function storePushSubscription(event, subscription, meta = {}) {
   const safeSubscription = normalizePushSubscription(subscription);
   if (!event || !safeSubscription) return false;
@@ -3052,6 +3077,7 @@ function storePushSubscription(event, subscription, meta = {}) {
   const now = new Date().toISOString();
   const entry = {
     ...safeSubscription,
+    role: normalizePushRole(meta.role),
     participantId: String(meta.participantId || '').trim(),
     language: String(meta.language || '').trim(),
     updatedAt: now
@@ -3078,7 +3104,9 @@ function removePushSubscription(event, endpoint) {
 async function sendOnAirPushNotification(event) {
   if (!WEB_PUSH_ENABLED || !event) return;
   ensureEventUiState(event);
-  const subscriptions = [...event.pushSubscriptions];
+  const subscriptions = (event.pushSubscriptions || []).filter(
+    (sub) => normalizePushRole(sub?.role) === 'participant'
+  );
   if (!subscriptions.length) return;
   const payload = JSON.stringify({
     title: event.name || 'Sanctuary Voice',
