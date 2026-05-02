@@ -7,7 +7,7 @@ const multer = require('multer');
 const helmet = require('helmet');
 const compression = require('compression');
 const webpush = require('web-push');
-const { createHmac, randomUUID, timingSafeEqual } = require('crypto');
+const { createHmac, randomBytes, randomUUID, timingSafeEqual } = require('crypto');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const OpenAI = require('openai');
@@ -20,6 +20,18 @@ const { registerOrgRoutes } = require('./routes/org');
 const { registerEventRoutes } = require('./routes/events');
 const { registerSocketHandlers } = require('./socket/handlers');
 require('dotenv').config();
+
+const SECURE_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+const SECURE_CODE_LENGTH = 12;
+
+function generateSecureCode(prefix) {
+  const bytes = randomBytes(SECURE_CODE_LENGTH);
+  let code = '';
+  for (let i = 0; i < SECURE_CODE_LENGTH; i += 1) {
+    code += SECURE_CODE_ALPHABET[bytes[i] % SECURE_CODE_ALPHABET.length];
+  }
+  return prefix ? `${prefix}-${code}` : code;
+}
 
 const logger = createLogger({ logDir: process.env.LOG_DIR || path.join(__dirname, 'logs') });
 const app = express();
@@ -60,13 +72,23 @@ const AUDIO_ARCHIVE_MAX_BYTES_PER_EVENT = Math.max(1024 * 1024, Number(process.e
 const ADMIN_SESSION_COOKIE = 'sv_admin_session';
 const ADMIN_SESSION_PERSISTENT = ['1', 'true', 'yes'].includes(String(process.env.ADMIN_SESSION_PERSISTENT || '').trim().toLowerCase());
 const ADMIN_SESSION_MAX_AGE_MS = Math.max(1, Number(process.env.ADMIN_SESSION_MAX_AGE_HOURS || 12) || 12) * 60 * 60 * 1000;
-const ADMIN_SESSION_SECRET = String(
+let ADMIN_SESSION_SECRET = String(
   process.env.ADMIN_SESSION_SECRET
   || process.env.SESSION_SECRET
-  || OPENAI_API_KEY
-  || MASTER_ADMIN_PIN
-  || 'sanctuary-voice-dev-session'
+  || ''
 ).trim();
+if (!ADMIN_SESSION_SECRET) {
+  if (COMMERCIAL_MODE) {
+    console.error('FATAL: ADMIN_SESSION_SECRET is not set. Refusing to start in COMMERCIAL_MODE without a configured session secret.');
+    console.error('Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"');
+    console.error('Then set ADMIN_SESSION_SECRET in your environment (e.g. Render Environment) and restart.');
+    process.exit(1);
+  }
+  ADMIN_SESSION_SECRET = randomBytes(32).toString('base64');
+  logger.warn('ADMIN_SESSION_SECRET not set — using an ephemeral random secret. All admin sessions will be invalidated on restart.');
+} else if (ADMIN_SESSION_SECRET.length < 32) {
+  logger.warn(`ADMIN_SESSION_SECRET is shorter than 32 characters (length=${ADMIN_SESSION_SECRET.length}). Use a stronger secret in production.`);
+}
 logger.info('API KEY:', OPENAI_API_KEY ? 'OK' : 'LIPSA');
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 const translationService = createTranslationService({ client, logger });
@@ -121,7 +143,11 @@ const io = new Server(server, {
     methods: CORS_METHODS,
     allowedHeaders: CORS_ALLOWED_HEADERS,
     credentials: true
-  }
+  },
+  maxHttpBufferSize: 256 * 1024,
+  pingInterval: 20 * 1000,
+  pingTimeout: 25 * 1000,
+  connectTimeout: 30 * 1000
 });
 app.use(expressCorsMiddleware);
 app.use(compression());
@@ -1119,7 +1145,7 @@ function normalizeRemoteOperators(items = []) {
         id: String(item?.id || randomUUID()),
         name: String(item?.name || '').trim() || 'Operator',
         profile,
-        code: String(item?.code || `SV-REMOTE-${Math.random().toString(36).slice(2, 7).toUpperCase()}`).trim(),
+        code: String(item?.code || generateSecureCode('SV-REMOTE')).trim(),
         permissions: getRemoteOperatorPermissions(profile),
         remoteLink: String(item?.remoteLink || '').trim()
       };
@@ -1805,6 +1831,8 @@ function requireEventAdmin(req, res, event) {
 }
 
 function getSuppliedEventCode(req) {
+  const cookieCode = getOperatorCodeFromCookie(req);
+  if (cookieCode) return cookieCode;
   return String(
     req.body?.code
     || req.query?.code
@@ -1963,7 +1991,7 @@ function buildBaseUrl(req) {
 
 function ensureEventAccessLinks(event, baseUrl) {
   if (!event.screenOperatorCode) {
-    event.screenOperatorCode = `SV-SCREEN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    event.screenOperatorCode = generateSecureCode('SV-SCREEN');
   }
   ensureEventShortId(event);
   if ((typeof event.scheduledTimestamp !== 'number') && event.scheduledAt) {
@@ -2005,9 +2033,10 @@ const EVENT_SHORT_ID_LENGTH = 8;
 function generateEventShortId() {
   const events = db.events || {};
   for (let attempt = 0; attempt < 12; attempt += 1) {
+    const bytes = randomBytes(EVENT_SHORT_ID_LENGTH);
     let candidate = '';
     for (let i = 0; i < EVENT_SHORT_ID_LENGTH; i += 1) {
-      candidate += EVENT_SHORT_ID_ALPHABET[Math.floor(Math.random() * EVENT_SHORT_ID_ALPHABET.length)];
+      candidate += EVENT_SHORT_ID_ALPHABET[bytes[i] % EVENT_SHORT_ID_ALPHABET.length];
     }
     const taken = Object.values(events).some((e) => String(e?.shortId || '').toUpperCase() === candidate);
     if (!taken) return candidate;
@@ -2127,8 +2156,8 @@ function deriveScheduledFields({ scheduledDate, scheduledTime, timezone, schedul
 async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt, scheduledDate, scheduledTime, timezone, hidden = false, testMode = false, organizationId = DEFAULT_ORG_ID }) {
   const organization = ensureOrganization(organizationId);
   const id = randomUUID();
-  const adminCode = `SV-ADMIN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-  const screenOperatorCode = `SV-SCREEN-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  const adminCode = generateSecureCode('SV-ADMIN');
+  const screenOperatorCode = generateSecureCode('SV-SCREEN');
   const participantLink = `${baseUrl}/participant?event=${id}`;
   const translateLink = `${baseUrl}/translate?event=${id}`;
   const songLink = `${baseUrl}/song?event=${id}`;
@@ -2310,7 +2339,7 @@ function getTranslationCacheSnapshot() {
 }
 
 function buildAccessCode(prefix) {
-  return `${prefix}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  return generateSecureCode(prefix);
 }
 
 function ensureGlobalAccess(baseUrl = '', eventOrOrgId = DEFAULT_ORG_ID) {
@@ -3499,10 +3528,12 @@ function isOperatorPinValid(pin) {
 }
 
 function generateOperatorAccessCode() {
+  const length = 12;
   for (let attempt = 0; attempt < 16; attempt += 1) {
+    const bytes = randomBytes(length);
     let code = '';
-    for (let i = 0; i < 8; i += 1) {
-      code += EVENT_SHORT_ID_ALPHABET[Math.floor(Math.random() * EVENT_SHORT_ID_ALPHABET.length)];
+    for (let i = 0; i < length; i += 1) {
+      code += EVENT_SHORT_ID_ALPHABET[bytes[i] % EVENT_SHORT_ID_ALPHABET.length];
     }
     let taken = false;
     for (const org of Object.values(db.organizations || {})) {
@@ -3514,7 +3545,7 @@ function generateOperatorAccessCode() {
     }
     if (!taken) return code;
   }
-  return `OP${Date.now().toString(36).toUpperCase().slice(-6)}`.slice(0, 8);
+  return `OP${Date.now().toString(36).toUpperCase().slice(-10)}`.padStart(length, 'X').slice(0, length);
 }
 
 const accessRequestRateLimits = new Map();
@@ -3961,6 +3992,70 @@ app.post('/api/admin/push-subscribe', (req, res) => {
   res.json({ ok: true });
 });
 
+const OPERATOR_SESSION_COOKIE = 'sv_operator_session';
+const OPERATOR_SESSION_MAX_AGE_MS = Math.max(1, Number(process.env.OPERATOR_SESSION_MAX_AGE_HOURS || 4) || 4) * 60 * 60 * 1000;
+
+function signOperatorSession(payload) {
+  const body = base64urlEncode(JSON.stringify(payload));
+  const signature = createHmac('sha256', ADMIN_SESSION_SECRET).update(`op:${body}`).digest('base64url');
+  return `${body}.${signature}`;
+}
+
+function verifyOperatorSession(token) {
+  const rawToken = String(token || '');
+  const [body, signature] = rawToken.split('.');
+  if (!body || !signature) return null;
+  const expectedSignature = createHmac('sha256', ADMIN_SESSION_SECRET).update(`op:${body}`).digest('base64url');
+  if (!safeStringEqual(signature, expectedSignature)) return null;
+  try {
+    const session = JSON.parse(base64urlDecode(body));
+    if (session.role !== 'operator') return null;
+    if (!session.code || typeof session.code !== 'string') return null;
+    if (session.exp && Number(session.exp) < Date.now()) return null;
+    return session;
+  } catch (err) {
+    return null;
+  }
+}
+
+function buildOperatorSessionCookie(req, value, maxAgeMs = null) {
+  const parts = [
+    `${OPERATOR_SESSION_COOKIE}=${encodeURIComponent(value)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax'
+  ];
+  if (typeof maxAgeMs === 'number') {
+    parts.push(`Max-Age=${Math.max(0, Math.floor(maxAgeMs / 1000))}`);
+  }
+  if (getCookieSecureFlag(req)) parts.push('Secure');
+  return parts.join('; ');
+}
+
+function setOperatorSessionCookie(req, res, operatorCode) {
+  const now = Date.now();
+  const token = signOperatorSession({
+    role: 'operator',
+    code: String(operatorCode || ''),
+    iat: now,
+    exp: now + OPERATOR_SESSION_MAX_AGE_MS
+  });
+  res.setHeader('Set-Cookie', buildOperatorSessionCookie(req, token, OPERATOR_SESSION_MAX_AGE_MS));
+}
+
+function clearOperatorSessionCookie(req, res) {
+  res.setHeader('Set-Cookie', buildOperatorSessionCookie(req, '', 0));
+}
+
+function getOperatorCodeFromCookie(req) {
+  const cookies = parseCookies(req);
+  const session = verifyOperatorSession(cookies[OPERATOR_SESSION_COOKIE]);
+  if (!session) return '';
+  const code = String(session.code || '').trim();
+  if (!code || !isOperatorPinValid(code)) return '';
+  return code;
+}
+
 app.post('/api/operator-login', (req, res) => {
   const ip = getOperatorClientIp(req);
   const rateCheck = checkOperatorLoginRateLimit(ip);
@@ -3975,10 +4070,18 @@ app.post('/api/operator-login', (req, res) => {
     return res.status(403).json({ ok: false, error: 'Invalid PIN.' });
   }
   operatorLoginAttempts.delete(ip);
+  setOperatorSessionCookie(req, res, pin);
   return res.json({ ok: true, operatorCode: pin });
 });
 
+app.post('/api/operator-logout', (req, res) => {
+  clearOperatorSessionCookie(req, res);
+  return res.json({ ok: true });
+});
+
 function getOperatorCodeFromRequest(req) {
+  const cookieCode = getOperatorCodeFromCookie(req);
+  if (cookieCode) return cookieCode;
   return String(
     req.body?.operatorCode
     || req.query?.operatorCode
@@ -4028,7 +4131,9 @@ app.get('/api/operator/events', (req, res) => {
 
 app.post('/api/operator/join', (req, res) => {
   const rawId = String(req.body?.eventId || '').trim();
-  const operatorCode = String(req.body?.operatorCode || '').trim();
+  const cookieCode = getOperatorCodeFromCookie(req);
+  const bodyCode = String(req.body?.operatorCode || '').trim();
+  const operatorCode = cookieCode || bodyCode;
   if (!operatorCode || !isOperatorPinValid(operatorCode)) {
     return res.status(401).json({ ok: false, error: 'Operator session expired. Please log in again.' });
   }
@@ -4043,9 +4148,12 @@ app.post('/api/operator/join', (req, res) => {
   if (access.role !== 'screen') {
     return res.status(403).json({ ok: false, error: 'Invalid Event ID' });
   }
+  if (!cookieCode) {
+    setOperatorSessionCookie(req, res, operatorCode);
+  }
   return res.json({
     ok: true,
-    redirectUrl: `/remote?event=${encodeURIComponent(event.id)}&code=${encodeURIComponent(operatorCode)}`
+    redirectUrl: `/remote?event=${encodeURIComponent(event.id)}`
   });
 });
 

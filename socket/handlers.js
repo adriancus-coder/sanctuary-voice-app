@@ -31,8 +31,103 @@ function registerSocketHandlers(io, ctx) {
     startAzureSpeechSession
   } = ctx;
 
+  const RATE_LIMITS = {
+    join_event:              { windowMs: 60 * 1000, max: 30 },
+    participant_language:    { windowMs: 60 * 1000, max: 60 },
+    submit_text:             { windowMs: 60 * 1000, max: 60 },
+    admin_update_source:     { windowMs: 60 * 1000, max: 60 },
+    set_audio_state:         { windowMs: 60 * 1000, max: 120 },
+    set_transcription_state: { windowMs: 60 * 1000, max: 60 },
+    end_service:             { windowMs: 60 * 1000, max: 5 },
+    azure_audio_start:       { windowMs: 60 * 1000, max: 10 },
+    azure_audio_chunk:       { windowMs: 1000,      max: 50 },
+    azure_audio_stop:        { windowMs: 60 * 1000, max: 20 }
+  };
+
+  function checkSocketRateLimit(socket, eventName) {
+    const limit = RATE_LIMITS[eventName];
+    if (!limit) return true;
+    if (!socket.data._rl) socket.data._rl = {};
+    const bucket = socket.data._rl[eventName] || (socket.data._rl[eventName] = []);
+    const now = Date.now();
+    const cutoff = now - limit.windowMs;
+    while (bucket.length && bucket[0] <= cutoff) bucket.shift();
+    if (bucket.length >= limit.max) return false;
+    bucket.push(now);
+    return true;
+  }
+
+  function asString(value, maxLength = 8192) {
+    if (typeof value !== 'string') return '';
+    return value.length > maxLength ? value.slice(0, maxLength) : value;
+  }
+
+  function asEventId(value) {
+    if (typeof value !== 'string') return '';
+    if (value.length === 0 || value.length > 128) return '';
+    return /^[A-Za-z0-9_-]+$/.test(value) ? value : '';
+  }
+
+  function asLanguageCode(value) {
+    if (typeof value !== 'string') return '';
+    return /^[a-z]{2,5}(?:-[a-z0-9]{2,8})?$/i.test(value) ? value : '';
+  }
+
+  function asBool(value) {
+    return value === true;
+  }
+
+  function asNumberInRange(value, min, max) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    if (n < min) return min;
+    if (n > max) return max;
+    return n;
+  }
+
+  function asAudioBuffer(value, maxBytes = 256 * 1024) {
+    if (value == null) return null;
+    let buffer = null;
+    if (Buffer.isBuffer(value)) {
+      buffer = value;
+    } else if (value instanceof ArrayBuffer) {
+      buffer = Buffer.from(value);
+    } else if (ArrayBuffer.isView(value)) {
+      buffer = Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+    } else if (Array.isArray(value)) {
+      if (!value.every((b) => Number.isInteger(b) && b >= 0 && b <= 255)) return null;
+      buffer = Buffer.from(value);
+    } else {
+      return null;
+    }
+    if (!buffer || buffer.length === 0) return null;
+    if (buffer.length > maxBytes) return null;
+    return buffer;
+  }
+
+  function on(socket, eventName, handler) {
+    socket.on(eventName, async (...args) => {
+      if (!checkSocketRateLimit(socket, eventName)) {
+        socket.emit('server_error', { code: 'rate_limited', event: eventName, message: 'Too many requests.' });
+        return;
+      }
+      try {
+        await handler(...args);
+      } catch (err) {
+        logger.error(`socket ${eventName} handler error:`, err?.message || err);
+        socket.emit('server_error', { code: 'handler_error', event: eventName, message: 'Internal error.' });
+      }
+    });
+  }
+
   io.on('connection', (socket) => {
-    socket.on('join_event', ({ eventId, role, code, language, participantId }) => {
+    on(socket, 'join_event', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      const role = asString(payload?.role, 32);
+      const code = asString(payload?.code, 256);
+      const language = asLanguageCode(payload?.language);
+      const participantId = asString(payload?.participantId, 128);
+      if (!eventId) return socket.emit('join_error', { message: 'Evenimentul nu există.' });
       const event = db.events[eventId];
       if (!event) return socket.emit('join_error', { message: 'Evenimentul nu există.' });
       const access = resolveEventAccessFromCode(event, code);
@@ -84,8 +179,10 @@ function registerSocketHandlers(io, ctx) {
       });
     });
 
-    socket.on('participant_language', ({ eventId, language }) => {
-      const targetEventId = eventId || socket.data.eventId;
+    on(socket, 'participant_language', (payload) => {
+      const targetEventId = asEventId(payload?.eventId) || socket.data.eventId;
+      const language = asLanguageCode(payload?.language);
+      if (!language) return;
       const oldLanguage = socket.data.language;
       if (oldLanguage && targetEventId) socket.leave(`event:${targetEventId}:lang:${oldLanguage}`);
       socket.data.language = language;
@@ -96,19 +193,21 @@ function registerSocketHandlers(io, ctx) {
       }
     });
 
-    socket.on('submit_text', async ({ eventId, text }) => {
+    on(socket, 'submit_text', async (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return socket.emit('server_error', { message: 'Eveniment inexistent.' });
       const event = db.events[eventId];
       if (!event) return socket.emit('server_error', { message: 'Eveniment inexistent.' });
       if (!socketCanControlEvent(socket, eventId, 'main_screen')) {
         return socket.emit('server_error', { message: 'Nu ai permisiune pentru live text.' });
       }
-      const cleanText = String(text || '').trim();
+      const cleanText = asString(payload?.text, 8192).trim();
       if (!cleanText) return;
       try {
         event.mode = 'live';
         await processText(event, cleanText);
       } catch (err) {
-      logger.error('submit_text error:', err);
+        logger.error('submit_text error:', err);
         recordServerError(event, 'Live submit translation failed.');
         saveDb();
         emitUsageStats(eventId);
@@ -116,13 +215,17 @@ function registerSocketHandlers(io, ctx) {
       }
     });
 
-    socket.on('admin_update_source', async ({ eventId, entryId, sourceText }) => {
+    on(socket, 'admin_update_source', async (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return;
       const event = db.events[eventId];
       if (!event) return;
       if (!socketCanControlEvent(socket, eventId, 'main_screen')) return;
+      const entryId = asString(payload?.entryId, 128);
+      if (!entryId) return;
       const entry = event.transcripts.find((x) => x.id === entryId);
       if (!entry) return;
-      const cleanSource = String(sourceText || '').trim();
+      const cleanSource = asString(payload?.sourceText, 8192).trim();
       if (!cleanSource) return;
       entry.sourceLang = event.sourceLang || 'ro';
       entry.original = cleanSource;
@@ -142,7 +245,7 @@ function registerSocketHandlers(io, ctx) {
         ensureEventUiState(event);
         emitUsageStats(eventId);
       } catch (err) {
-      logger.error('admin_update_source error:', err);
+        logger.error('admin_update_source error:', err);
         recordServerError(event, 'Source retranslation failed.');
         io.to(`event:${eventId}`).emit('entry_refresh_failed', { entryId });
         saveDb();
@@ -150,22 +253,31 @@ function registerSocketHandlers(io, ctx) {
       }
     });
 
-    socket.on('set_audio_state', ({ eventId, audioMuted, audioVolume }) => {
+    on(socket, 'set_audio_state', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return;
       const event = db.events[eventId];
       if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
-      if (typeof audioMuted === 'boolean') event.audioMuted = audioMuted;
-      if (typeof audioVolume === 'number') event.audioVolume = Math.max(0, Math.min(100, audioVolume));
+      if (typeof payload?.audioMuted === 'boolean') event.audioMuted = asBool(payload.audioMuted);
+      if (payload?.audioVolume !== undefined) {
+        const volume = asNumberInRange(payload.audioVolume, 0, 100);
+        if (volume !== null) event.audioVolume = volume;
+      }
       saveDb();
       io.to(`event:${eventId}`).emit('audio_state', { audioMuted: event.audioMuted, audioVolume: event.audioVolume });
     });
 
-    socket.on('set_transcription_state', ({ eventId, paused }) => {
+    on(socket, 'set_transcription_state', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return;
       const event = db.events[eventId];
       if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
-      setTranscriptionPaused(event, !!paused, { markOnAir: !paused });
+      setTranscriptionPaused(event, asBool(payload?.paused), { markOnAir: !asBool(payload?.paused) });
     });
 
-    socket.on('end_service', ({ eventId }) => {
+    on(socket, 'end_service', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return;
       const event = db.events[eventId];
       if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
       setTranscriptionPaused(event, true, { markOnAir: false });
@@ -176,7 +288,9 @@ function registerSocketHandlers(io, ctx) {
       });
     });
 
-    socket.on('azure_audio_start', ({ eventId }) => {
+    on(socket, 'azure_audio_start', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return socket.emit('server_error', { message: 'Eveniment inexistent.' });
       const event = db.events[eventId];
       if (!event || !socketCanControlEvent(socket, eventId, 'main_screen')) {
         return socket.emit('server_error', { message: 'Nu ai permisiune pentru Azure Speech.' });
@@ -198,11 +312,13 @@ function registerSocketHandlers(io, ctx) {
       startAzureSpeechSession(socket, event);
     });
 
-    socket.on('azure_audio_chunk', ({ eventId, audio }) => {
+    on(socket, 'azure_audio_chunk', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return;
       const session = azureSpeechSessions.get(socket.id);
       if (!session || session.eventId !== eventId || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
-      const buffer = Buffer.from(audio || []);
-      if (!buffer.length) return;
+      const buffer = asAudioBuffer(payload?.audio);
+      if (buffer === null) return;
       try {
         session.pushStream.write(buffer);
       } catch (err) {
@@ -216,7 +332,9 @@ function registerSocketHandlers(io, ctx) {
       }
     });
 
-    socket.on('azure_audio_stop', ({ eventId }) => {
+    on(socket, 'azure_audio_stop', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return;
       const session = azureSpeechSessions.get(socket.id);
       if (session?.eventId === eventId) closeAzureSpeechSession(socket.id);
       const event = db.events[eventId];
