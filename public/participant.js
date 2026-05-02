@@ -80,6 +80,7 @@ const state = {
   liveEntryQueue: [],
   liveEntryTimer: null,
   recentEntryIds: [],
+  serviceEndedAcknowledged: false,
   lastSpokenEntryId: null,
   localAudioEnabled: true,
   serverAudioMuted: false,
@@ -591,6 +592,14 @@ function scrollLiveStageIntoView() {
 
 function renderLiveView({ announce = false } = {}) {
   if (!state.currentEvent) return;
+  if (state.serviceEndedAcknowledged) {
+    $('lastText').textContent = 'Vă așteptăm la următorul serviciu divin.';
+    const earlierBox = $('participantEarlierLines');
+    if (earlierBox) earlierBox.innerHTML = '';
+    $('history').innerHTML = '';
+    updateTopMeta();
+    return;
+  }
   if (state.currentMode === 'song' && state.currentSongState) {
     const songText = getSongTextForCurrentLanguage(state.currentSongState) || 'Waiting for song translation...';
     $('lastText').textContent = songText;
@@ -807,6 +816,8 @@ function showServiceEndedOverlay(endedAt) {
 function hideServiceEndedOverlay() {
   const overlay = $('participantServiceEnded');
   if (overlay) overlay.hidden = true;
+  state.serviceEndedAcknowledged = true;
+  renderLiveView({ announce: false });
 }
 
 function acceptAiNotice() {
@@ -917,6 +928,9 @@ socket.on('joined_event', ({ event, role }) => {
   state.liveEntryQueue = [];
   if (state.liveEntryTimer) clearTimeout(state.liveEntryTimer);
   state.liveEntryTimer = null;
+  if (event?.transcriptionOnAir) {
+    state.serviceEndedAcknowledged = false;
+  }
   if (state.currentMode === 'live') {
     const latest = event.latestDisplayEntry;
     const latestAge = latest?.createdAt ? Date.now() - new Date(latest.createdAt).getTime() : Infinity;
@@ -961,6 +975,7 @@ socket.on('display_live_entry', (entry) => {
   if (!state.currentEvent) return;
   setParticipantUpdating(false);
   if (!isFreshLiveEntry(entry)) return;
+  state.serviceEndedAcknowledged = false;
   state.currentEvent.latestDisplayEntry = cloneEntry(entry);
   enqueueLiveEntry(entry);
 });
