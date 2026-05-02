@@ -129,12 +129,6 @@
     node.querySelector('.operator-event-date').textContent = formatDate(event.date);
     node.querySelector('.operator-event-lang').textContent = formatLang(event.sourceLang);
 
-    var idBadge = document.createElement('div');
-    idBadge.className = 'operator-event-id-badge';
-    var shortId = String(event.shortId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    idBadge.textContent = shortId ? 'Event ID: ' + shortId : 'Event ID: ' + (event.id || '');
-    node.insertBefore(idBadge, node.querySelector('.operator-event-form') || node.lastChild);
-
     var statusEl = node.querySelector('.operator-event-status');
     if (statusEl) {
       statusEl.textContent = STATUS_LABEL[status] || 'Event';
@@ -146,12 +140,10 @@
     var errorEl = node.querySelector('.operator-event-error');
     var submitBtn = node.querySelector('.operator-event-join');
 
-    if (status !== 'active') {
+    if (status === 'past') {
       var note = document.createElement('div');
       note.className = 'operator-event-note';
-      if (status === 'scheduled') note.textContent = 'Available to join when the service goes live.';
-      else if (status === 'past') note.textContent = 'This service has ended.';
-      else note.textContent = 'Not scheduled yet.';
+      note.textContent = 'This service has ended.';
       form.replaceWith(note);
       return node;
     }

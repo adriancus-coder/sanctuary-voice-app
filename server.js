@@ -3988,7 +3988,7 @@ app.post('/api/operator/join', (req, res) => {
     return res.status(400).json({ ok: false, error: 'Invalid Event ID' });
   }
   const event = findEventByIdOrShortId(rawId);
-  if (!event || !isEventActive(event)) {
+  if (!event) {
     return res.status(404).json({ ok: false, error: 'Invalid Event ID' });
   }
   const access = resolveEventAccessFromCode(event, operatorCode);
