@@ -2635,6 +2635,8 @@ function loadAzureSpeechSdk() {
   }
 }
 
+const WHISPER_EMPTY_RETRY_MIN_BYTES = 4000;
+
 async function transcribeAudioFile(filePath, event) {
   if (!client) return { text: '', sourceLang: event.sourceLang || 'ro' };
   const configured = String(event.liveSourceLang || event.sourceLang || 'ro').trim();
@@ -2647,15 +2649,41 @@ async function transcribeAudioFile(filePath, event) {
     prompt:
       effectiveSourceLang === 'no'
         ? 'The audio is a Christian sermon in Norwegian. Keep the transcript in Norwegian. Use natural punctuation. Common terms may include Jesus, Kristus, Herren, Den Hellige Ånd, menighet, evangeliet, apostel, nåde, kjærlighet, synd, frelse.'
-        : 'The audio is a live church service or sermon. Keep the transcript in the selected source language. Keep names and punctuation natural.'
+        : 'The audio is a live church service or sermon. The speaker may quote Scripture verbatim. Keep the transcript in the selected source language. Keep names and punctuation natural.'
   };
   if (!shouldDetectLanguage && LANGUAGES[effectiveSourceLang]) request.language = effectiveSourceLang;
-  const text = await translationService.transcribeAudioFile({
+
+  let fileSize = 0;
+  try { fileSize = fs.statSync(filePath).size; } catch (_) {}
+
+  let text = await translationService.transcribeAudioFile({
     filePath,
     model: request.model,
     prompt: request.prompt,
     language: request.language
   });
+
+  if (!String(text || '').trim() && fileSize >= WHISPER_EMPTY_RETRY_MIN_BYTES) {
+    logger.info(`whisper empty result on ${fileSize}B audio (event ${event.id}, lang ${effectiveSourceLang}) — retrying once`);
+    try {
+      const retryText = await translationService.transcribeAudioFile({
+        filePath,
+        model: request.model,
+        prompt: request.prompt,
+        language: request.language
+      });
+      if (String(retryText || '').trim()) {
+        text = retryText;
+      } else {
+        logger.warn(`whisper empty after retry on ${fileSize}B audio (event ${event.id}, lang ${effectiveSourceLang}) — chunk dropped`);
+      }
+    } catch (err) {
+      logger.warn(`whisper retry failed (event ${event.id}):`, err?.message || err);
+    }
+  } else if (!String(text || '').trim()) {
+    logger.info(`whisper empty result on ${fileSize}B audio (event ${event.id}) — below retry threshold, skipping retry`);
+  }
+
   return {
     text,
     sourceLang: shouldDetectLanguage ? await detectSourceLanguage(text, event) : effectiveSourceLang
