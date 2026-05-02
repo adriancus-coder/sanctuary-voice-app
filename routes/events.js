@@ -1483,6 +1483,13 @@ function registerEventRoutes(app, ctx) {
     if (!client) return res.status(400).json({ ok: false, error: 'OpenAI nu este configurat.' });
     if (!req.file || !req.file.buffer?.length) return res.status(400).json({ ok: false, error: 'Audio lipsă.' });
 
+    if (event.mode === 'song') {
+      // Skip Whisper API call - operatorul afișează un cântec, transcrierea
+      // audio-ului ar fi inutilă (textul rezultat ar fi oricum aruncat de
+      // queueSpeechText). Răspuns identic cu cel pentru transcript gol.
+      return res.json({ ok: true, skipped: 'song_mode' });
+    }
+
     const mimeType = String(req.file.mimetype || 'audio/webm');
     const ext = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a' : 'webm';
     const tempPath = path.join(os.tmpdir(), `sanctuary-voice-${randomUUID()}.${ext}`);

@@ -319,6 +319,11 @@ function registerSocketHandlers(io, ctx) {
       if (!session || session.eventId !== eventId || !socketCanControlEvent(socket, eventId, 'main_screen')) return;
       const buffer = asAudioBuffer(payload?.audio);
       if (buffer === null) return;
+      // Skip pushing to Azure cloud during Song mode - byte-urile ar produce
+      // recunoaștere care e oricum aruncată de queueSpeechText. Drop tăcut,
+      // clientul nu așteaptă răspuns la chunks.
+      const event = db.events[eventId];
+      if (event?.mode === 'song') return;
       try {
         session.pushStream.write(buffer);
       } catch (err) {
