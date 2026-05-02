@@ -2640,6 +2640,56 @@ body.participant-preview-mode .participant-event-chooser {
   min-height: calc(100vh - 24px);
 }
 
+.participant-earlier-lines {
+  display: none;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.participant-listener-stage.participant-focus .participant-earlier-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 14px 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.participant-earlier-line {
+  font-size: 60%;
+  line-height: 1.32;
+  color: rgba(244, 221, 171, 0.78);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  animation: earlierLineEnter 360ms ease both;
+  transition: opacity 320ms ease;
+  text-align: center;
+  padding: 0 8px;
+  word-break: break-word;
+}
+
+@keyframes earlierLineEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: var(--earlier-target-opacity, 0.65);
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 379px) {
+  .participant-listener-stage.participant-focus .participant-earlier-line:not(:last-child) {
+    display: none;
+  }
+}
+
 .participant-exit-focus-btn {
   display: none;
   position: fixed;

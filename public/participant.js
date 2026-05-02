@@ -74,6 +74,7 @@ const state = {
   liveEntryShownAt: 0,
   liveEntryQueue: [],
   liveEntryTimer: null,
+  recentEntryIds: [],
   lastSpokenEntryId: null,
   localAudioEnabled: true,
   serverAudioMuted: false,
@@ -534,11 +535,58 @@ function renderHistory() {
     : '<div class="muted">No previous text yet.</div>';
 }
 
+function rememberRecentEntry(entry) {
+  if (!entry?.id) return;
+  state.recentEntryIds = state.recentEntryIds.filter((id) => id !== entry.id);
+  state.recentEntryIds.push(entry.id);
+  if (state.recentEntryIds.length > 10) state.recentEntryIds = state.recentEntryIds.slice(-10);
+}
+
+function renderEarlierLines(currentId) {
+  const box = $('participantEarlierLines');
+  if (!box) return;
+  if (state.currentMode === 'song') {
+    box.innerHTML = '';
+    return;
+  }
+  const limit = (window.matchMedia && window.matchMedia('(max-width: 379px)').matches) ? 1 : 2;
+  const ids = state.recentEntryIds.filter((id) => id !== currentId).slice(-limit);
+  if (!ids.length) {
+    box.innerHTML = '';
+    return;
+  }
+  const lines = ids.map((id) => getEntryById(id)).filter(Boolean);
+  if (!lines.length) {
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = lines.map((entry, i) => {
+    const opacity = (lines.length === 2 && i === 0) ? 0.4 : 0.65;
+    const text = getTextForEntry(entry);
+    if (!text) return '';
+    return `<div class="participant-earlier-line" style="opacity:${opacity}">${highlightBibleRefs(text)}</div>`;
+  }).join('');
+}
+
+function scrollLiveStageIntoView() {
+  setTimeout(() => {
+    const stage = document.getElementById('participantLiveStage');
+    if (!stage) return;
+    try {
+      stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (_) {
+      const top = stage.getBoundingClientRect().top + window.pageYOffset;
+      window.scrollTo({ top, behavior: 'smooth' });
+    }
+  }, 120);
+}
+
 function renderLiveView({ announce = false } = {}) {
   if (!state.currentEvent) return;
   if (state.currentMode === 'song' && state.currentSongState) {
     const songText = getSongTextForCurrentLanguage(state.currentSongState) || 'Waiting for song translation...';
     $('lastText').textContent = songText;
+    renderEarlierLines(null);
     renderHistory();
     updateTopMeta();
     return;
@@ -550,6 +598,7 @@ function renderLiveView({ announce = false } = {}) {
   } else {
     $('lastText').textContent = 'Waiting for translation...';
   }
+  renderEarlierLines(visibleEntry?.id || null);
   renderHistory();
   updateTopMeta();
   if (announce && visibleEntry && visibleEntry.id !== state.lastSpokenEntryId) {
@@ -560,6 +609,9 @@ function renderLiveView({ announce = false } = {}) {
 
 function showLiveEntry(entry, { announce = false } = {}) {
   if (!entry) return;
+  if (state.visibleLiveEntry && state.visibleLiveEntry.id !== entry.id) {
+    rememberRecentEntry(state.visibleLiveEntry);
+  }
   state.awaitingFreshLiveEntry = false;
   state.allowTranscriptFallback = false;
   state.freshLiveStartedAt = 0;
@@ -822,6 +874,7 @@ socket.on('joined_event', ({ event, role }) => {
     enableWakeLock();
     showAiNoticeIfNeeded();
     subscribeToPushNotifications().catch(() => {});
+    scrollLiveStageIntoView();
   }
 });
 socket.on('transcript_entry', (entry) => {
