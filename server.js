@@ -3129,14 +3129,21 @@ function startAzureSpeechSession(socket, event) {
   const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION);
   speechConfig.speechRecognitionLanguage = getSpeechLocale(effectiveSourceLang);
   speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, '750');
-  // Forțăm Azure să finalizeze propoziții la 1000ms tăcere mid-stream.
-  // Default-ul e prea conservator pentru predici cu vorbire continuă;
-  // partial-urile se acumulau 30+ secunde fără să fie finalizate ca
-  // recognized events și textul se pierdea înainte să ajungă la queueSpeechText.
+  // Translation Mode controlează cât de agresiv segmentează Azure între propoziții:
+  //  - rapid: 300ms - latență minimă, propoziții scurte (Q&A, conversație rapidă)
+  //  - balanced: 500ms - echilibru între latență și context (default, validat empiric)
+  //  - clear: 800ms - mai mult context per propoziție, traducere de calitate
+  // Mode-ul se aplică la pornirea sesiunii. Pentru schimbare mid-Live: Stop + Start.
+  const segmentationByMode = {
+    rapid: '300',
+    balanced: '500',
+    clear: '800'
+  };
+  const segmentationTimeout = segmentationByMode[event.speed] || segmentationByMode.balanced;
   try {
     speechConfig.setProperty(
       sdk.PropertyId.Speech_SegmentationSilenceTimeoutMs || 'Speech_SegmentationSilenceTimeoutMs',
-      '500'
+      segmentationTimeout
     );
   } catch (_) { /* property not supported in this SDK version */ }
 

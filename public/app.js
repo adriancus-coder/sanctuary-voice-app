@@ -1211,6 +1211,13 @@ async function syncSpeedToEvent() {
   if (data.ok) {
     currentEvent = data.event;
     if ($('currentSourceLang')) $('currentSourceLang').value = currentEvent.sourceLang || sourceLang;
+    // Translation Mode afectează acum și Azure segmentation timeout (rapid/balanced/clear → 300/500/800ms).
+    // Pentru a aplica noua valoare, sesiunea Azure trebuie restart-ată.
+    if (audioState?.running || window.isRecognitionRunning) {
+      setStatus(`Translation mode set to ${speed}. Stop and Start Live to apply new segmentation timing.`);
+    } else {
+      setStatus(`Translation mode: ${speed}.`);
+    }
   }
 }
 
