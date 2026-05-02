@@ -2,6 +2,8 @@ const socket = io();
 const $ = (id) => document.getElementById(id);
 
 let currentEvent = null;
+const partialTranscriptHistory = [];
+let lastPartialCaptured = '';
 let currentGlobalSongLibrary = [];
 let currentPinnedTextLibrary = [];
 let availableEventsList = [];
@@ -69,6 +71,16 @@ function setStatus(text) {
 
 function setPartialTranscript(text = '') {
   const value = text || 'Waiting for full sentence...';
+  if (text && text.trim() && text.trim() !== lastPartialCaptured) {
+    partialTranscriptHistory.push({
+      timestamp: new Date().toISOString(),
+      text: text.trim()
+    });
+    lastPartialCaptured = text.trim();
+    if (partialTranscriptHistory.length > 1000) {
+      partialTranscriptHistory.shift();
+    }
+  }
   const compact = $('partialTranscript');
   const large = $('partialTranscriptLarge');
   if (compact) compact.textContent = value;
@@ -4353,3 +4365,29 @@ document.getElementById('statsSearchForm')?.addEventListener('submit', async (e)
     box.innerHTML = '<div class="muted">Search failed. Try again.</div>';
   }
 });
+
+window.copyPartialHistory = function() {
+  if (!partialTranscriptHistory.length) {
+    alert('No partial transcripts captured yet.');
+    return;
+  }
+  const formatted = partialTranscriptHistory.map((entry, idx) => {
+    const time = new Date(entry.timestamp).toLocaleTimeString('ro-RO', { hour12: false });
+    return `#${idx + 1} [${time}] ${entry.text}`;
+  }).join('\n');
+  const header = `Partial transcripts log\nTotal entries: ${partialTranscriptHistory.length}\nStarted: ${partialTranscriptHistory[0].timestamp}\nEnded: ${partialTranscriptHistory[partialTranscriptHistory.length - 1].timestamp}\n\n---\n\n`;
+  navigator.clipboard.writeText(header + formatted)
+    .then(() => alert(`Copied ${partialTranscriptHistory.length} partial transcripts to clipboard.`))
+    .catch((err) => {
+      console.error('Clipboard copy failed:', err);
+      console.log('=== PARTIAL TRANSCRIPT HISTORY ===');
+      console.log(header + formatted);
+      alert('Clipboard failed. Check browser console (F12).');
+    });
+};
+
+window.clearPartialHistory = function() {
+  partialTranscriptHistory.length = 0;
+  lastPartialCaptured = '';
+  alert('Partial transcript history cleared.');
+};
