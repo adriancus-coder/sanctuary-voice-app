@@ -3136,7 +3136,7 @@ function startAzureSpeechSession(socket, event) {
   try {
     speechConfig.setProperty(
       sdk.PropertyId.Speech_SegmentationSilenceTimeoutMs || 'Speech_SegmentationSilenceTimeoutMs',
-      '1000'
+      '500'
     );
   } catch (_) { /* property not supported in this SDK version */ }
 
