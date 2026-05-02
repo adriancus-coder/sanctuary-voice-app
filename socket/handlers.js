@@ -40,7 +40,8 @@ function registerSocketHandlers(io, ctx) {
       if (role === 'screen' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
       if (role === 'participant_preview' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
       const supplyHasControl = ['admin', 'screen'].includes(access.role);
-      if ((role || 'participant') === 'participant' && !isEventActive(event) && !supplyHasControl) {
+      const eventIsOnAir = !!event.transcriptionOnAir;
+      if ((role || 'participant') === 'participant' && !isEventActive(event) && !eventIsOnAir && !supplyHasControl) {
         return socket.emit('join_error', { message: 'Evenimentul nu este live inca.' });
       }
 
