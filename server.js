@@ -1495,6 +1495,65 @@ function mergeTranscriptText(prevText, nextText) {
   return `${prev} ${next}`.replace(/\s+/g, ' ').trim();
 }
 
+const BIBLE_REF_OR_TIME_RE = /\b\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?\b/g;
+
+function maskNumericColons(text) {
+  const placeholders = [];
+  const masked = String(text).replace(BIBLE_REF_OR_TIME_RE, (match) => {
+    placeholders.push(match);
+    return `__REF${placeholders.length - 1}__`;
+  });
+  return { masked, placeholders };
+}
+
+function unmaskNumericColons(text, placeholders) {
+  return String(text).replace(/__REF(\d+)__/g, (_, idx) => placeholders[Number(idx)] || _);
+}
+
+const SPLIT_STICKY_WORDS = new Set([
+  'și', 'si', 'sau', 'ori', 'dar', 'iar', 'de', 'la', 'pe', 'în', 'in', 'cu',
+  'să', 'sa', 'că', 'ca', 'sub', 'din', 'spre', 'prin', 'după', 'dupa',
+  'a', 'al', 'ale', 'ai', 'cel', 'cea', 'un', 'o',
+  'og', 'i', 'på', 'med', 'til', 'for', 'som', 'at', 'av', 'om'
+]);
+
+const SPLIT_PREFER_BEFORE = new Set([
+  'care', 'ce', 'cine', 'unde', 'când', 'cand', 'cum', 'pentru', 'dacă', 'daca'
+]);
+
+function splitWordsSmart(words) {
+  const out = [];
+  let i = 0;
+  while (i < words.length) {
+    const remaining = words.length - i;
+    if (remaining <= LIVE_TEXT_TARGET_WORDS + 2) {
+      out.push(words.slice(i).join(' ').trim());
+      break;
+    }
+    const idealCut = i + LIVE_TEXT_TARGET_WORDS;
+    const minCut = i + Math.max(LIVE_TEXT_MIN_WORDS, 4);
+    const maxCut = Math.min(words.length - 2, i + LIVE_TEXT_TARGET_WORDS + 3);
+    let bestIdx = idealCut;
+    let bestScore = -Infinity;
+    const lo = Math.max(minCut, idealCut - 3);
+    const hi = Math.min(maxCut, idealCut + 3);
+    for (let j = lo; j <= hi; j++) {
+      const prevRaw = words[j - 1] || '';
+      const prev = prevRaw.toLowerCase().replace(/[.,;:!?]+$/, '');
+      const next = (words[j] || '').toLowerCase();
+      let score = 0;
+      if (/[,;:]$/.test(prevRaw)) score += 5;
+      if (SPLIT_PREFER_BEFORE.has(next)) score += 3;
+      if (j === idealCut) score += 0.5;
+      if (SPLIT_STICKY_WORDS.has(prev)) score -= 6;
+      if (score > bestScore) { bestScore = score; bestIdx = j; }
+    }
+    out.push(words.slice(i, bestIdx).join(' ').trim());
+    i = bestIdx;
+  }
+  return out.filter(Boolean);
+}
+
 function splitLongPiece(piece) {
   const clean = sanitizeTranscriptText(piece);
   if (!clean) return [];
@@ -1506,39 +1565,56 @@ function splitLongPiece(piece) {
     .filter(Boolean);
 
   if (softerParts.length === 1) {
-    const words = clean.split(/\s+/).filter(Boolean);
-    const out = [];
-    let current = [];
-    for (const word of words) {
-      current.push(word);
-      if (current.length >= LIVE_TEXT_TARGET_WORDS) {
-        out.push(current.join(' ').trim());
-        current = [];
-      }
+    return splitWordsSmart(clean.split(/\s+/).filter(Boolean));
+  }
+
+  const expanded = [];
+  for (const part of softerParts) {
+    if (countWords(part) > LIVE_TEXT_TARGET_WORDS + 2) {
+      splitWordsSmart(part.split(/\s+/).filter(Boolean)).forEach((p) => expanded.push(p));
+    } else {
+      expanded.push(part);
     }
-    if (current.length) out.push(current.join(' ').trim());
-    return out.filter(Boolean);
   }
 
   const out = [];
   let current = '';
-  for (const part of softerParts) {
+  for (const part of expanded) {
     const candidate = current ? `${current} ${part}` : part;
     if (countWords(candidate) <= LIVE_TEXT_TARGET_WORDS && candidate.length <= LIVE_TEXT_MAX_CHARS) {
       current = candidate;
     } else {
+      if (current && countWords(current) < LIVE_TEXT_MIN_WORDS && countWords(candidate) <= LIVE_TEXT_MAX_WORDS) {
+        current = candidate;
+        continue;
+      }
       if (current) out.push(current.trim());
       current = part;
     }
   }
   if (current) out.push(current.trim());
+
+  if (out.length >= 2 && countWords(out[out.length - 1]) < LIVE_TEXT_MIN_WORDS) {
+    const last = out.pop();
+    const penult = out.pop();
+    const combined = `${penult} ${last}`;
+    if (countWords(combined) <= LIVE_TEXT_MAX_WORDS) {
+      out.push(combined.trim());
+    } else {
+      out.push(penult);
+      out.push(last);
+    }
+  }
   return out.filter(Boolean);
 }
 
 function splitIntoDisplayChunks(text) {
   const clean = sanitizeTranscriptText(text);
   if (!clean) return [];
-  const sentenceUnits = clean.match(/[^.!?]+[.!?]?/g)?.map((x) => x.trim()).filter(Boolean) || [clean];
+
+  const { masked, placeholders } = maskNumericColons(clean);
+
+  const sentenceUnits = masked.match(/[^.!?]+[.!?]?/g)?.map((x) => x.trim()).filter(Boolean) || [masked];
   const smallPieces = [];
 
   for (const sentence of sentenceUnits) {
@@ -1564,23 +1640,22 @@ function splitIntoDisplayChunks(text) {
     if (shortBuffer) splitLongPiece(shortBuffer).forEach((piece) => smallPieces.push(piece));
   }
 
-  const chunks = [];
-  let currentChunk = [];
-  let currentWords = 0;
+  const merged = [];
   for (const piece of smallPieces) {
-    const pieceWords = countWords(piece);
-    const nextWords = currentWords + pieceWords;
-    if (currentChunk.length >= 2 || nextWords > LIVE_TEXT_MAX_WORDS) {
-      if (currentChunk.length) chunks.push(currentChunk.join(' ').trim());
-      currentChunk = [piece];
-      currentWords = pieceWords;
-      continue;
+    const last = merged[merged.length - 1];
+    if (last) {
+      const lastWords = countWords(last);
+      const pieceWords = countWords(piece);
+      const tooSmall = lastWords < LIVE_TEXT_MIN_WORDS || pieceWords < LIVE_TEXT_MIN_WORDS;
+      if (tooSmall && lastWords + pieceWords <= LIVE_TEXT_MAX_WORDS) {
+        merged[merged.length - 1] = `${last} ${piece}`;
+        continue;
+      }
     }
-    currentChunk.push(piece);
-    currentWords = nextWords;
+    merged.push(piece);
   }
-  if (currentChunk.length) chunks.push(currentChunk.join(' ').trim());
-  return chunks.filter(Boolean);
+
+  return merged.map((c) => unmaskNumericColons(c, placeholders)).filter(Boolean);
 }
 
 function shouldFlushBufferedText(text, options = {}) {
