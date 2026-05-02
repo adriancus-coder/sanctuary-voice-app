@@ -3143,8 +3143,21 @@ function removePushSubscription(event, endpoint) {
 async function sendOnAirPushNotification(event) {
   if (!WEB_PUSH_ENABLED || !event) return;
   ensureEventUiState(event);
+
+  const now = Date.now();
+  const lastSent = Number(event.lastOnAirPushSentAt || 0);
+  if (lastSent && now - lastSent < 60 * 1000) {
+    logger.info?.(`on-air push debounced for event ${event.id} (last sent ${Math.round((now - lastSent) / 1000)}s ago)`);
+    return;
+  }
+  event.lastOnAirPushSentAt = now;
+
+  const org = getOrganizationForEvent(event);
+  const adminEndpoints = new Set(
+    (org?.adminPushSubscriptions || []).map((s) => s?.endpoint).filter(Boolean)
+  );
   const subscriptions = (event.pushSubscriptions || []).filter(
-    (sub) => normalizePushRole(sub?.role) === 'participant'
+    (sub) => normalizePushRole(sub?.role) === 'participant' && sub?.endpoint && !adminEndpoints.has(sub.endpoint)
   );
   if (!subscriptions.length) return;
   const payload = JSON.stringify({
@@ -3178,6 +3191,7 @@ function setTranscriptionPaused(event, paused, options = {}) {
     event.transcriptionOnAir = true;
   } else if (options.markOnAir === false || paused) {
     event.transcriptionOnAir = false;
+    if (wasOnAir) event.lastOnAirPushSentAt = 0;
   }
   if (options.save !== false) saveDb();
   if (options.emit !== false) emitTranscriptionState(event);
