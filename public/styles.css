@@ -2743,6 +2743,75 @@ body.participant-preview-mode .participant-event-chooser {
   font-size: clamp(1.9rem, 5.4vw, 5.7rem);
 }
 
+.participant-service-ended {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(244, 221, 171, 0.14), transparent 38%),
+    rgba(7, 9, 13, 0.62);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+  animation: serviceEndedFade 320ms ease both;
+}
+
+.participant-service-ended[hidden] {
+  display: none !important;
+}
+
+.participant-service-ended-card {
+  width: min(100%, 480px);
+  padding: clamp(22px, 4.6vw, 36px);
+  border: 1px solid rgba(244, 221, 171, 0.28);
+  border-radius: 26px;
+  background: linear-gradient(150deg, rgba(20, 22, 26, 0.96), rgba(7, 9, 13, 0.96));
+  color: #fff8ec;
+  text-align: center;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55), 0 0 36px rgba(244, 221, 171, 0.1);
+}
+
+.participant-service-ended-icon {
+  font-size: clamp(2.6rem, 8vw, 3.6rem);
+  color: var(--gold-strong, #d4a853);
+  line-height: 1;
+  margin-bottom: 10px;
+  text-shadow: 0 0 18px rgba(244, 221, 171, 0.35);
+}
+
+.participant-service-ended h2 {
+  margin: 4px 0 10px;
+  color: #fff7e8;
+  font-size: clamp(1.5rem, 4.4vw, 2.1rem);
+  line-height: 1.15;
+}
+
+.participant-service-ended-subtitle {
+  margin: 0 0 16px;
+  color: rgba(255, 248, 236, 0.82);
+  font-size: clamp(1rem, 3vw, 1.16rem);
+  line-height: 1.45;
+}
+
+.participant-service-ended-time {
+  margin: 0 0 22px;
+  color: rgba(244, 221, 171, 0.78);
+  font-size: clamp(0.88rem, 2.6vw, 1rem);
+  letter-spacing: 0.02em;
+}
+
+.participant-service-ended-card .btn {
+  min-width: 140px;
+  justify-content: center;
+}
+
+@keyframes serviceEndedFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .participant-ai-notice {
   position: fixed;
   inset: 0;

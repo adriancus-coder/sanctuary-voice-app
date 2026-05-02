@@ -750,6 +750,40 @@ function showAiNoticeIfNeeded({ force = false } = {}) {
   $('participantAiNoticeOk')?.focus();
 }
 
+function formatServiceEndedTime(iso) {
+  let date = null;
+  if (iso) {
+    const parsed = new Date(iso);
+    if (!Number.isNaN(parsed.getTime())) date = parsed;
+  }
+  if (!date) date = new Date();
+  try {
+    return date.toLocaleString(undefined, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (_) {
+    return date.toLocaleString();
+  }
+}
+
+function showServiceEndedOverlay(endedAt) {
+  const overlay = $('participantServiceEnded');
+  if (!overlay) return;
+  const timeEl = $('participantServiceEndedTime');
+  if (timeEl) timeEl.textContent = formatServiceEndedTime(endedAt);
+  overlay.hidden = false;
+  $('participantServiceEndedClose')?.focus();
+}
+
+function hideServiceEndedOverlay() {
+  const overlay = $('participantServiceEnded');
+  if (overlay) overlay.hidden = true;
+}
+
 function acceptAiNotice() {
   localStorage.setItem(getAiNoticeKey(), '1');
   const modal = $('participantAiNotice');
@@ -907,6 +941,12 @@ socket.on('entry_refresh_failed', ({ entryId }) => {
   if (entryId && entryId === state.lastLiveEntryId) setParticipantUpdating(false);
 });
 
+socket.on('service_ended', (payload) => {
+  if (state.previewMode) return;
+  if (state.currentEvent?.id && payload?.eventId && payload.eventId !== state.currentEvent.id) return;
+  showServiceEndedOverlay(payload?.endedAt);
+});
+
 socket.on('audio_state', ({ audioMuted }) => {
   state.serverAudioMuted = !!audioMuted;
   if (audioMuted) {
@@ -1059,6 +1099,7 @@ $('participantExitFocusBtn')?.addEventListener('click', () => {
 });
 
 $('participantAiNoticeOk')?.addEventListener('click', acceptAiNotice);
+$('participantServiceEndedClose')?.addEventListener('click', hideServiceEndedOverlay);
 
 window.addEventListener('load', async () => {
   try {

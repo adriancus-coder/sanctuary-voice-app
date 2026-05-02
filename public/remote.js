@@ -652,6 +652,10 @@ socket.on('display_presets_updated', ({ presets }) => {
   state.currentEvent.displayPresets = presets || [];
   refreshRemoteUi();
 });
+socket.on('service_ended', (payload) => {
+  if (state.currentEvent?.id && payload?.eventId && payload.eventId !== state.currentEvent.id) return;
+  setStatus('Serviciu încheiat — participanții au fost notificați.');
+});
 
 $('remoteLiveBtn').addEventListener('click', async () => {
   try { await post(`/api/events/${state.eventId}/display/mode`, { mode: 'auto' }); setStatus('Main screen set to live follow.'); } catch (err) { setStatus(err.message); }
