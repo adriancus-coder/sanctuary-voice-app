@@ -945,8 +945,8 @@ async function setRemoteDisplayLanguage(language, secondaryLanguage) {
 
 async function remoteBackToLiveText() {
   try {
-    await post(`/api/events/${state.eventId}/mode`, { mode: 'live', scope: 'participant' });
-    setStatus('Participants are back on live text. Main screen unchanged.');
+    await post(`/api/events/${state.eventId}/mode`, { mode: 'live' });
+    setStatus('Live text restored on participant view and main screen.');
   } catch (err) {
     setStatus(err.message);
   }
