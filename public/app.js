@@ -18,6 +18,7 @@ let screenWakeLock = null;
 window.isRecognitionRunning = false;
 let availableLanguages = {};
 let publicBaseUrl = 'https://sanctuaryvoice.com';
+const pendingTranscriptEntries = [];
 
 const AUDIO_GATE_MIN_PEAK = 14;
 const AUDIO_GATE_MIN_ACTIVE_FRAMES = 12;
@@ -972,6 +973,8 @@ function closeInlineEditors() {
   document.querySelectorAll('.inline-editor.open').forEach((el) => el.classList.remove('open'));
   selectedEntryId = null;
   sourceEditLock = false;
+  // Flush pending transcript entries acumulate în timp ce era editor activ
+  flushPendingTranscriptEntries();
 }
 
 function renderEntry(entry) {
@@ -1003,7 +1006,24 @@ function renderEntry(entry) {
   div.querySelector('.inline-save').addEventListener('click', (e) => { e.stopPropagation(); saveInlineSource(entry.id); });
   div.querySelector('.inline-close').addEventListener('click', (e) => { e.stopPropagation(); closeInlineEditors(); });
   div.querySelector('.inline-source').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveInlineSource(entry.id); } });
+  // Dacă există editor activ deschis, NU prepend-ăm acum - acumulăm în buffer.
+  // Asta evită ca textarea să "sară" în timp ce utilizatorul editează.
+  const activeEditor = list.querySelector('.entry .inline-editor.open')
+    || document.activeElement?.closest('#transcriptList .entry .inline-editor');
+  if (activeEditor) {
+    pendingTranscriptEntries.push(div);
+    return;
+  }
   list.prepend(div);
+}
+
+function flushPendingTranscriptEntries() {
+  const list = $('transcriptList');
+  if (!list || pendingTranscriptEntries.length === 0) return;
+  while (pendingTranscriptEntries.length > 0) {
+    const div = pendingTranscriptEntries.shift();
+    list.prepend(div);
+  }
 }
 
 function renderTranscriptList() {
