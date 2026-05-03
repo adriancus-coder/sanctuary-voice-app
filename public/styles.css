@@ -5108,3 +5108,154 @@ body.participant-preview-mode .participant-event-chooser {
   flex: 1;
   max-width: 180px;
 }
+
+/* TASK 35A: Topbar single row - titlu + carduri */
+.hero-topbar.hero-topbar-compact {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+}
+
+.hero-topbar.hero-topbar-compact .hero-copy-block {
+  flex-shrink: 0;
+  min-width: auto;
+}
+
+.hero-topbar.hero-topbar-compact h1 {
+  font-size: clamp(1rem, 1.4vw, 1.4rem);
+  line-height: 1.1;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.hero-topbar.hero-topbar-compact .hero-copy-block .eyebrow {
+  display: none;
+}
+
+.hero-topbar.hero-topbar-compact .hero-status-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  max-width: none;
+  flex-wrap: wrap;
+}
+
+.hero-topbar.hero-topbar-compact .hero-status-card {
+  padding: 4px 8px;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hero-topbar.hero-topbar-compact .hero-status-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+}
+
+.hero-topbar.hero-topbar-compact .status-pill {
+  min-height: 22px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+}
+
+.hero-topbar.hero-topbar-compact .hero-active-event-select {
+  padding: 2px 4px;
+  font-size: 0.78rem;
+  margin-top: 0;
+}
+
+.hero-topbar.hero-topbar-compact .quick-links-card .btn {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  min-height: 26px;
+}
+
+.hero-topbar.hero-topbar-compact .quick-links-card .actions {
+  gap: 4px;
+}
+
+/* TASK 35B: Participant card compact */
+.hero-topbar.hero-topbar-compact .hero-participant-card {
+  grid-column: auto !important;
+  flex: 0 0 auto;
+  max-width: 280px;
+}
+
+.hero-topbar.hero-topbar-compact .hero-participant-row {
+  gap: 4px;
+}
+
+.hero-topbar.hero-topbar-compact .hero-participant-row input {
+  padding: 3px 6px;
+  font-size: 0.72rem;
+  min-width: 0;
+  max-width: 140px;
+}
+
+.hero-topbar.hero-topbar-compact .hero-participant-row .btn {
+  padding: 3px 6px;
+  font-size: 0.75rem;
+  min-height: 26px;
+}
+
+.hero-topbar.hero-topbar-compact .hero-quick-actions {
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 6px;
+}
+
+/* TASK 35C: Recognition card devine ROȘU când e On-Air */
+.hero-status-card.recognition-on-air {
+  background: linear-gradient(180deg, rgba(180, 40, 40, 0.95), rgba(140, 25, 25, 0.95)) !important;
+  border-color: rgba(255, 80, 80, 0.6) !important;
+  animation: recognitionPulse 2s ease-in-out infinite;
+}
+
+.hero-status-card.recognition-on-air .hero-status-label,
+.hero-status-card.recognition-on-air .status-pill {
+  color: #fff !important;
+}
+
+.hero-status-card.recognition-on-air .status-pill {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+@keyframes recognitionPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 80, 80, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 12px 4px rgba(255, 80, 80, 0.4);
+  }
+}
+
+/* TASK 35D: Butoane Start / Stop active states */
+.btn.recognition-active {
+  background: linear-gradient(180deg, rgba(40, 160, 80, 0.95), rgba(25, 130, 60, 0.95)) !important;
+  border-color: rgba(80, 220, 120, 0.5) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 2px rgba(80, 220, 120, 0.25);
+}
+
+.btn.recognition-paused {
+  background: linear-gradient(180deg, rgba(120, 120, 120, 0.6), rgba(80, 80, 80, 0.6)) !important;
+  border-color: rgba(180, 180, 180, 0.4) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+@media (max-width: 1100px) {
+  .hero-topbar.hero-topbar-compact .hero-status-grid {
+    flex-wrap: wrap;
+  }
+  .hero-topbar.hero-topbar-compact .hero-participant-card {
+    max-width: none;
+    flex: 1 1 100%;
+  }
+}

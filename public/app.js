@@ -101,6 +101,35 @@ function setOnAirState(isOn) {
     startBtn.classList.toggle('btn-primary', !isOn);
     startBtn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
   }
+  // TASK 35C: Recognition card devine roșu cu pulse când e On-Air
+  const recognitionCard = badge?.closest('.hero-status-card');
+  if (recognitionCard) {
+    recognitionCard.classList.toggle('recognition-on-air', !!isOn);
+  }
+  // TASK 35D: butoanele Start/Stop (topbar + tab Dashboard) reflectă starea curentă
+  updateRecognitionButtonsState(!!isOn);
+}
+
+function updateRecognitionButtonsState(isActive) {
+  const startBtn = $('startRecognitionBtn');
+  const stopBtn = $('stopRecognitionBtn');
+  const heroStartBtn = $('heroStartRecognitionBtn');
+  const heroStopBtn = $('heroStopRecognitionBtn');
+  if (isActive) {
+    startBtn?.classList.add('recognition-active');
+    startBtn?.classList.remove('recognition-paused');
+    stopBtn?.classList.remove('recognition-active', 'recognition-paused');
+    heroStartBtn?.classList.add('recognition-active');
+    heroStartBtn?.classList.remove('recognition-paused');
+    heroStopBtn?.classList.remove('recognition-active', 'recognition-paused');
+  } else {
+    startBtn?.classList.remove('recognition-active', 'recognition-paused');
+    stopBtn?.classList.add('recognition-paused');
+    stopBtn?.classList.remove('recognition-active');
+    heroStartBtn?.classList.remove('recognition-active', 'recognition-paused');
+    heroStopBtn?.classList.add('recognition-paused');
+    heroStopBtn?.classList.remove('recognition-active');
+  }
 }
 
 function notifyTranscriptionPaused(paused) {
