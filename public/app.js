@@ -631,6 +631,12 @@ function renderParticipantStats(stats = {}) {
 function renderAudioStateLabel() {
   if ($('audioStateLabel')) $('audioStateLabel').textContent = currentMuted ? 'Global audio off.' : 'Global audio active.';
   if ($('muteGlobalBtn')) $('muteGlobalBtn').textContent = currentMuted ? 'Unmute global' : 'Mute global';
+  const heroMuteBtn = $('heroMuteGlobalBtn');
+  if (heroMuteBtn) {
+    heroMuteBtn.textContent = currentMuted ? '🔊 Unmute' : '🔇 Mute';
+    heroMuteBtn.classList.toggle('btn-primary', currentMuted);
+    heroMuteBtn.classList.toggle('btn-dark', !currentMuted);
+  }
 }
 
 function renderUsageStats(stats = {}) {
@@ -3219,6 +3225,15 @@ $('heroRestoreScreenBtn')?.addEventListener('click', async () => {
   if (!currentEvent?.id) return alert('Open an event first.');
   try { await fetch(`/api/events/${currentEvent.id}/display/restore-last`, adminJsonOptions('POST')); setStatus('Screen restored.'); } catch (err) { setStatus(err.message); }
 });
+
+// Hero topbar quick actions - proxy către butoanele din tab Dashboard.
+// Reutilizez handler-ele existente prin .click() ca să nu duplichez logica
+// (Start/Stop/End/Mute/Panic au validări + state management complex).
+$('heroStartRecognitionBtn')?.addEventListener('click', () => { $('startRecognitionBtn')?.click(); });
+$('heroStopRecognitionBtn')?.addEventListener('click', () => { $('stopRecognitionBtn')?.click(); });
+$('heroEndServiceBtn')?.addEventListener('click', () => { $('endServiceBtn')?.click(); });
+$('heroMuteGlobalBtn')?.addEventListener('click', () => { $('muteGlobalBtn')?.click(); });
+$('heroPanicBtn')?.addEventListener('click', () => { $('panicBtn')?.click(); });
 $('refreshEventsBtn').addEventListener('click', refreshEventList);
 $('jumpLiveBtn').addEventListener('click', () => {
   closeInlineEditors();

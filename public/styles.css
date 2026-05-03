@@ -917,6 +917,7 @@ progress::-moz-progress-bar {
 .hero-topbar-compact {
   padding: 8px 14px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .hero-topbar-compact .hero-copy-block .eyebrow {
@@ -4898,5 +4899,44 @@ body.participant-preview-mode .participant-event-chooser {
   .top-nav-btn {
     padding: 6px 12px;
     font-size: 0.85rem;
+  }
+}
+
+/* Hero topbar quick actions - TASK 32b */
+.hero-quick-actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(244, 221, 171, 0.08);
+  width: 100%;
+}
+
+.hero-quick-action-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.hero-quick-action-group .button-row {
+  gap: 6px;
+}
+
+.hero-quick-action-group .btn {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  min-height: 32px;
+  flex: 1;
+}
+
+@media (max-width: 720px) {
+  .hero-quick-actions {
+    flex-direction: column;
+  }
+  .hero-quick-action-group {
+    width: 100%;
   }
 }
