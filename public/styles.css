@@ -4823,3 +4823,80 @@ body.participant-preview-mode .participant-event-chooser {
   flex: 1;
   min-height: 44px;
 }
+
+/* TOP NAVIGATION TABS - TASK 32a */
+.top-nav-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  gap: 4px;
+  padding: 8px 14px;
+  background: rgba(11, 13, 18, 0.96);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.top-nav-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.top-nav-tabs::-webkit-scrollbar-thumb {
+  background: rgba(244, 221, 171, 0.3);
+  border-radius: 2px;
+}
+
+.top-nav-btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 180ms ease;
+  white-space: nowrap;
+}
+
+.top-nav-btn:hover {
+  background: rgba(244, 221, 171, 0.06);
+  color: var(--text);
+}
+
+.top-nav-btn.active {
+  background: rgba(244, 221, 171, 0.12);
+  color: var(--accent, #f4ddab);
+  border-color: rgba(244, 221, 171, 0.3);
+}
+
+/* Ascund sidebar-ul vechi - rămâne în HTML pentru JS legacy, dar nu se vede */
+.admin-shell-top-tabs .sidebar-hidden-temp {
+  display: none !important;
+}
+
+/* Layout shell fără sidebar - main content ocupă toată lățimea */
+.admin-shell-top-tabs {
+  grid-template-columns: 1fr !important;
+}
+
+.admin-shell-top-tabs .main-content {
+  width: 100%;
+  max-width: none;
+}
+
+/* Pe ecran mic (< 600px) tab nav scroll orizontal compact */
+@media (max-width: 600px) {
+  .top-nav-tabs {
+    padding: 6px 8px;
+    gap: 2px;
+  }
+
+  .top-nav-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+}

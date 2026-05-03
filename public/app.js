@@ -130,7 +130,7 @@ async function disableScreenWakeLock() {
 
 function switchTab(tabName) {
   activeTab = tabName;
-  document.querySelectorAll('.nav-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
+  document.querySelectorAll('.nav-btn, .top-nav-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
   document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `tab-${tabName}`));
   if (tabName === 'transcript') {
     renderTranscriptList();
@@ -3040,7 +3040,9 @@ socket.on('song_history_updated', ({ songHistory }) => {
 });
 
 relocateMainScreenControls();
-document.querySelectorAll('.nav-btn').forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+// Listener-e pentru AMBELE tab navigation: sidebar (.nav-btn legacy) + top horizontal (.top-nav-btn)
+// În TASK 32c sidebar-ul va fi eliminat complet.
+document.querySelectorAll('.nav-btn, .top-nav-btn').forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 $('createEventBtn').addEventListener('click', createEvent);
 $('sendManualLiveBtn').addEventListener('click', () => sendManualText('auto'));
 $('sendManualDisplayBtn').addEventListener('click', () => sendManualText('manual'));

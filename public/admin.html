@@ -7,8 +7,18 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="app-shell admin-redesign-shell">
-    <aside class="sidebar panel glass-panel">
+  <nav class="top-nav-tabs" role="tablist" aria-label="Main navigation">
+    <button class="top-nav-btn active" data-tab="events" type="button">Events</button>
+    <button class="top-nav-btn" data-tab="dashboard" type="button">Live Control</button>
+    <button class="top-nav-btn" data-tab="transcript" type="button">Transcript</button>
+    <button class="top-nav-btn" data-tab="mainscreen" type="button">Main Screen</button>
+    <button class="top-nav-btn" data-tab="song" type="button">Song</button>
+    <button class="top-nav-btn" data-tab="glossary" type="button">Glossary</button>
+    <button class="top-nav-btn" data-tab="manual" type="button">Quick Text</button>
+    <button class="top-nav-btn" data-tab="statistics" type="button">Statistics</button>
+  </nav>
+  <div class="app-shell admin-redesign-shell admin-shell-top-tabs">
+    <aside class="sidebar panel glass-panel sidebar-hidden-temp">
       <div class="brand-wrap">
         <div class="eyebrow">Sanctuary Voice Admin</div>
         <div class="brand">Sanctuary Voice</div>
