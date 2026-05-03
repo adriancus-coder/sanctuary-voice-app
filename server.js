@@ -156,13 +156,17 @@ app.use(helmet({
     useDefaults: true,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://aka.ms'],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      // aka.ms = Microsoft Speech SDK loader
+      // csspeechstorage.blob.core.windows.net = resurse auxiliare Microsoft Speech SDK (worker.js, etc.)
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://aka.ms', 'https://csspeechstorage.blob.core.windows.net'],
+      // fonts.googleapis.com = stylesheet-ul Google Fonts (Fraunces, Space Grotesk)
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       imgSrc: ["'self'", 'data:', 'blob:'],
       connectSrc: buildHelmetConnectSources(),
       mediaSrc: ["'self'", 'data:', 'blob:'],
-      workerSrc: ["'self'"],
-      fontSrc: ["'self'", 'data:']
+      workerSrc: ["'self'", 'blob:'],
+      // fonts.gstatic.com = fișierele .woff2 ale Google Fonts (servite separat de CSS)
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com']
     }
   },
   crossOriginEmbedderPolicy: false
