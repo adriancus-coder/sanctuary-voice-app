@@ -2014,7 +2014,7 @@ async function returnToLiveText() {
   if (!currentEvent) return alert('Open or create an event first.');
   await syncSpeedToEvent();
   try {
-    const res = await fetch(`/api/events/${currentEvent.id}/mode`, adminJsonOptions('POST', { mode: 'live' }));
+    const res = await fetch(`/api/events/${currentEvent.id}/mode`, adminJsonOptions('POST', { mode: 'live', scope: 'participant' }));
     const data = await res.json();
     if (data.ok) {
       currentEvent = data.event;
@@ -2025,7 +2025,7 @@ async function returnToLiveText() {
   } catch (err) {
     console.error(err);
   }
-  setStatus('Live text restored on participant view and main screen.');
+  setStatus('Participants are back on live text. Main screen unchanged.');
 }
 
 async function setActiveEvent() {
