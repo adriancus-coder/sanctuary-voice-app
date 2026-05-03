@@ -456,11 +456,6 @@
             </div>
             <div id="displayModeLabel" class="muted">Main screen: Live follow</div>
             <div id="songCurrentIndex" class="muted">Saved: 0 · History: 0</div>
-            <div class="song-workflow-strip">
-              <div><span>1</span><strong>Choose</strong><small>Load from library or paste lyrics.</small></div>
-              <div><span>2</span><strong>Send</strong><small>Send first verse to participants.</small></div>
-              <div><span>3</span><strong>Control</strong><small>Jump to verse, chorus, or back to live text.</small></div>
-            </div>
             <div class="info-card accent-card song-live-card">
               <div class="section-head admin-subsection-head">
                 <h2>Live Song Control</h2>
@@ -620,22 +615,27 @@
                 <div class="muted">Use these windows like live previews for projector and participant phone view.</div>
               </div>
             </div>
-            <div class="info-card soft-card song-editor-card">
-              <div class="section-head admin-subsection-head">
-                <h2>Prepare Song</h2>
-                <div class="muted">Paste lyrics or load a song from Church Library.</div>
+            <details class="info-card soft-card song-editor-card song-editor-details">
+              <summary class="song-editor-summary">
+                <div class="section-head admin-subsection-head">
+                  <h2>Prepare Song</h2>
+                  <div class="muted">Paste lyrics or load a song from Church Library</div>
+                </div>
+                <span class="song-editor-toggle">▾</span>
+              </summary>
+              <div class="song-editor-body">
+                <label>Title</label>
+                <input id="songTitle" type="text" placeholder="Amazing Grace">
+                <label>Song language</label>
+                <select id="songSourceLang"></select>
+                <label>Song text or lyrics</label>
+                <textarea id="songText" class="song-textarea" placeholder="Use markers like 1., 2., R., R2. or R: %repeat note% to create verses and choruses."></textarea>
+                <div class="button-row">
+                  <button id="saveSongBtn" class="btn btn-dark">Save to church library</button>
+                  <button id="sendSongBtn" class="btn btn-primary">Send first verse</button>
+                </div>
               </div>
-              <label>Title</label>
-              <input id="songTitle" type="text" placeholder="Amazing Grace">
-              <label>Song language</label>
-              <select id="songSourceLang"></select>
-              <label>Song text or lyrics</label>
-              <textarea id="songText" class="song-textarea" placeholder="Use markers like 1., 2., R., R2. or R: %repeat note% to create verses and choruses."></textarea>
-              <div class="button-row">
-                <button id="saveSongBtn" class="btn btn-dark">Save to church library</button>
-                <button id="sendSongBtn" class="btn btn-primary">Send first verse</button>
-              </div>
-            </div>
+            </details>
           </div>
 
           <div class="panel glass-panel section-stack">
