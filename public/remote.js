@@ -300,10 +300,10 @@ function populateRemoteLanguageSelects() {
     }
   });
 
-  // Display language selects (primary + secondary). Folosim DOAR limbile target ale event-ului,
-  // nu toate limbile disponibile - asta evită să trimitem pe Main Screen o limbă pentru care
-  // nu există traduceri active.
-  const displayLangChoices = state.currentEvent?.targetLangs || [];
+  // Display language selects (primary + secondary). Folosim getDisplayLanguageChoicesRemote
+  // care include automat sourceLang când mode-ul e 'song' sau 'manual' - util pentru
+  // afișarea cântecelor sau pinned text în limba originală.
+  const displayLangChoices = getDisplayLanguageChoicesRemote();
   const primarySelect = $('remoteDisplayLanguageSelect');
   const secondarySelect = $('remoteDisplaySecondaryLanguageSelect');
   if (primarySelect) {
