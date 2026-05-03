@@ -4766,3 +4766,60 @@ body.participant-preview-mode .participant-event-chooser {
   flex-direction: column;
   gap: 8px;
 }
+
+.song-section-item-wrap {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.song-section-item-wrap .song-section-item {
+  padding-right: 38px;
+}
+
+.song-section-item-wrap .song-block-preview {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+.song-section-item-wrap .song-block-extend {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  min-width: 28px;
+  min-height: 28px;
+  padding: 2px 6px;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  z-index: 2;
+}
+
+.song-section-item-wrap .song-block-full {
+  margin: 4px 8px 8px 8px;
+  padding: 8px 12px;
+  background: rgba(255, 248, 236, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.song-section-item-wrap.active .song-section-item {
+  background: rgba(244, 221, 171, 0.1);
+}
+
+.song-control-action-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.song-control-action-row .btn {
+  flex: 1;
+  min-height: 44px;
+}

@@ -1370,14 +1370,21 @@ function renderSongState(songState) {
   blocksEl.innerHTML = blocks.map((block, index) => {
     const activeClass = index === currentIndex ? ' active' : '';
     const label = escapeHtml(labels[index] || `Verse ${index + 1}`);
+    // Preview scurt: doar prima linie de text (max 80 caractere) pentru identificare rapidă
+    const firstLine = (block || '').split('\n')[0] || '';
+    const preview = firstLine.length > 80 ? firstLine.slice(0, 80) + '...' : firstLine;
     return `
-      <button class="history-item song-section-item${activeClass}" type="button" data-song-block-index="${index}">
-        <div class="entry-head">
-          <b>${label}</b>
-          <span class="small">${index === currentIndex ? 'Live now' : 'Click to send live'}</span>
-        </div>
-        <div class="small">${escapeHtmlWithBreaks(block)}</div>
-      </button>
+      <div class="song-section-item-wrap${activeClass}">
+        <button class="history-item song-section-item${activeClass}" type="button" data-song-block-index="${index}">
+          <div class="entry-head">
+            <b>${label}</b>
+            <span class="small">${index === currentIndex ? 'Live now' : 'Click to send live'}</span>
+          </div>
+          <div class="small song-block-preview">${escapeHtml(preview)}</div>
+        </button>
+        <button class="btn btn-dark song-block-extend" type="button" data-song-block-extend="${index}" aria-label="Show full verse">▾</button>
+        <div class="song-block-full" data-song-block-full="${index}" hidden>${escapeHtmlWithBreaks(block)}</div>
+      </div>
     `;
   }).join('');
 }
@@ -3296,6 +3303,7 @@ $('songPrevBtn')?.addEventListener('click', goToPrevSongBlock);
 $('songNextBtn')?.addEventListener('click', goToNextSongBlock);
 $('songJumpSelect')?.addEventListener('change', showSelectedSongSection);
 $('blankMainScreenBtn').addEventListener('click', blankMainScreen);
+$('songBlackScreenBtn')?.addEventListener('click', blankMainScreen);
 $('displayRestoreBtn').addEventListener('click', restoreLastDisplayState);
   $('displayAutoBtn').addEventListener('click', () => setDisplayMode('auto'));
   $('displayManualBtn').addEventListener('click', () => setDisplayMode('manual'));
@@ -3348,6 +3356,25 @@ $('displayShortcutButtons')?.addEventListener('click', async (e) => {
   await applyDisplayShortcut(btn.getAttribute('data-display-shortcut'));
 });
 $('songBlocksList')?.addEventListener('click', async (e) => {
+  // Buton Extend - expandă/contractă textul complet (NU trimite la live)
+  const extendBtn = e.target.closest('[data-song-block-extend]');
+  if (extendBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const idx = extendBtn.dataset.songBlockExtend;
+    const fullEl = document.querySelector(`[data-song-block-full="${idx}"]`);
+    if (fullEl) {
+      const isHidden = fullEl.hasAttribute('hidden');
+      if (isHidden) {
+        fullEl.removeAttribute('hidden');
+        extendBtn.textContent = '▴';
+      } else {
+        fullEl.setAttribute('hidden', '');
+        extendBtn.textContent = '▾';
+      }
+    }
+    return;
+  }
   const btn = e.target.closest('button[data-song-block-index]');
   if (!btn) return;
   const index = Number(btn.getAttribute('data-song-block-index'));
