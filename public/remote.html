@@ -47,6 +47,22 @@
         </div>
         <label class="inline-check"><input type="checkbox" id="remoteDualLanguageToggle"> Afișaj dual limbă</label>
         <div class="muted">Arată două limbi simultan pe Main Screen când există cel puțin două limbi disponibile.</div>
+        <div class="meta-row">
+          <label>Text fitting</label>
+          <div class="button-row compact-row">
+            <button id="remoteTextZoomMinusBtn" class="btn btn-dark" type="button">A−</button>
+            <span id="remoteTextScaleValue" class="status-pill">100%</span>
+            <button id="remoteTextZoomPlusBtn" class="btn btn-dark" type="button">A+</button>
+            <button id="remoteTextZoomResetBtn" class="btn btn-dark" type="button">Reset</button>
+            <button id="remoteTextSizeMoreBtn" class="btn btn-dark" type="button">More ▾</button>
+          </div>
+          <div id="remoteTextSizeMorePanel" class="button-row compact-row" hidden style="margin-top:8px;">
+            <button class="btn btn-dark remote-text-size-preset" data-text-size="compact" type="button">Compact</button>
+            <button class="btn btn-dark remote-text-size-preset" data-text-size="large" type="button">Large</button>
+            <button class="btn btn-dark remote-text-size-preset" data-text-size="xlarge" type="button">XL</button>
+            <button class="btn btn-dark remote-text-size-preset" data-text-size="huge" type="button">Huge</button>
+          </div>
+        </div>
       </div>
     </div>
 

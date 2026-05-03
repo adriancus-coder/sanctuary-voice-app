@@ -572,6 +572,7 @@ function refreshRemoteUi() {
   if (glossaryPanel) glossaryPanel.hidden = !glossaryAllowed;
   updateHeader();
   populateRemoteLanguageSelects();
+  updateRemoteTextScaleDisplay();
   updateRemoteGlossaryMode();
   syncGlossaryToggle();
   renderRemoteSimplePreviews();
@@ -707,6 +708,82 @@ $('remoteDisplaySecondaryLanguageSelect')?.addEventListener('change', () => {
   const secondary = $('remoteDisplaySecondaryLanguageSelect').value;
   if (primary) setRemoteDisplayLanguage(primary, secondary);
 });
+
+function updateRemoteTextScaleDisplay() {
+  const scale = Number(state.currentEvent?.displayState?.textScale || 1);
+  const display = $('remoteTextScaleValue');
+  if (display) display.textContent = `${Math.round(scale * 100)}%`;
+}
+
+async function setRemoteTextScale(newScale) {
+  if (!state.eventId) return;
+  const safeScale = Math.min(1.4, Math.max(0.65, Number(newScale) || 1));
+  try {
+    const data = await post(`/api/events/${state.eventId}/display/text`, { textScale: safeScale });
+    if (!data.ok) {
+      setStatus(data.error || 'Could not change text size.');
+      return;
+    }
+    if (state.currentEvent) state.currentEvent.displayState = data.displayState || state.currentEvent.displayState;
+    updateRemoteTextScaleDisplay();
+    setStatus(`Text scale: ${Math.round(safeScale * 100)}%`);
+  } catch (err) {
+    setStatus(err.message || 'Could not change text size.');
+  }
+}
+
+async function setRemoteTextSize(textSize) {
+  if (!state.eventId) return;
+  if (!['compact', 'large', 'xlarge', 'huge'].includes(textSize)) return;
+  try {
+    const data = await post(`/api/events/${state.eventId}/display/text`, { textSize });
+    if (!data.ok) {
+      setStatus(data.error || 'Could not change text size.');
+      return;
+    }
+    if (state.currentEvent) state.currentEvent.displayState = data.displayState || state.currentEvent.displayState;
+    setStatus(`Text size: ${textSize}`);
+  } catch (err) {
+    setStatus(err.message || 'Could not change text size.');
+  }
+}
+
+$('remoteTextZoomMinusBtn')?.addEventListener('click', () => {
+  const current = Number(state.currentEvent?.displayState?.textScale || 1);
+  setRemoteTextScale(Math.round((current - 0.1) * 20) / 20);
+});
+
+$('remoteTextZoomPlusBtn')?.addEventListener('click', () => {
+  const current = Number(state.currentEvent?.displayState?.textScale || 1);
+  setRemoteTextScale(Math.round((current + 0.1) * 20) / 20);
+});
+
+$('remoteTextZoomResetBtn')?.addEventListener('click', () => {
+  setRemoteTextScale(1);
+});
+
+$('remoteTextSizeMoreBtn')?.addEventListener('click', () => {
+  const panel = $('remoteTextSizeMorePanel');
+  const btn = $('remoteTextSizeMoreBtn');
+  if (panel && btn) {
+    const isHidden = panel.hasAttribute('hidden');
+    if (isHidden) {
+      panel.removeAttribute('hidden');
+      btn.textContent = 'More ▴';
+    } else {
+      panel.setAttribute('hidden', '');
+      btn.textContent = 'More ▾';
+    }
+  }
+});
+
+document.querySelectorAll('.remote-text-size-preset').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const size = btn.dataset.textSize;
+    if (size) setRemoteTextSize(size);
+  });
+});
+
 $('remoteStopLiveAudioBtn')?.addEventListener('click', () => stopRemoteLiveAudio().then(() => {
   setLiveAudioStatus('Stopped.');
   setStatus('Remote translation stopped.');

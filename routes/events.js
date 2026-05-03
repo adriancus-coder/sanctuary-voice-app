@@ -971,7 +971,7 @@ function registerEventRoutes(app, ctx) {
     if (typeof clockScale !== 'number' || Number.isNaN(clockScale) || clockScale < 0.7 || clockScale > 1.8) {
       return res.status(400).json({ ok: false, error: 'Marime ceas invalida.' });
     }
-    if (!['compact', 'large', 'xlarge'].includes(textSize)) {
+    if (!['compact', 'large', 'xlarge', 'huge'].includes(textSize)) {
       return res.status(400).json({ ok: false, error: 'Marime text invalida.' });
     }
     if (typeof textScale !== 'number' || Number.isNaN(textScale) || textScale < 0.65 || textScale > 1.4) {
@@ -1004,6 +1004,91 @@ function registerEventRoutes(app, ctx) {
     io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
     emitUsageStats(event.id);
     res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null });
+  });
+
+  // Endpoint minimalist pentru schimbări instant pe Main Screen.
+  // Folosit de operator (zoom +/- pe text) și de admin (instant apply pe orice setare).
+  // Acceptă oricare din câmpurile display, doar le validează pe cele primite.
+  app.post('/api/events/:id/display/text', (req, res) => {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+    if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+    if (!requireEventPermission(req, res, 'main_screen')) return;
+    ensureEventUiState(event);
+
+    let changed = false;
+
+    if (typeof req.body.textSize === 'string') {
+      const textSize = req.body.textSize.trim();
+      if (!['compact', 'large', 'xlarge', 'huge'].includes(textSize)) {
+        return res.status(400).json({ ok: false, error: 'Marime text invalida.' });
+      }
+      event.displayState.textSize = textSize;
+      changed = true;
+    }
+    if (typeof req.body.textScale === 'number') {
+      if (Number.isNaN(req.body.textScale) || req.body.textScale < 0.65 || req.body.textScale > 1.4) {
+        return res.status(400).json({ ok: false, error: 'Zoom text invalid.' });
+      }
+      event.displayState.textScale = normalizeDisplayTextScale(req.body.textScale, 1);
+      changed = true;
+    }
+    if (typeof req.body.backgroundPreset === 'string') {
+      const v = req.body.backgroundPreset.trim();
+      if (!['none', 'warm', 'sanctuary', 'soft-light'].includes(v)) {
+        return res.status(400).json({ ok: false, error: 'Preset fundal invalid.' });
+      }
+      event.displayState.backgroundPreset = v;
+      changed = true;
+    }
+    if (typeof req.body.customBackground === 'string') {
+      event.displayState.customBackground = req.body.customBackground.trim();
+      changed = true;
+    }
+    if (typeof req.body.showClock === 'boolean') {
+      event.displayState.showClock = req.body.showClock;
+      changed = true;
+    }
+    if (typeof req.body.clockPosition === 'string') {
+      const v = req.body.clockPosition.trim();
+      if (!['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(v)) {
+        return res.status(400).json({ ok: false, error: 'Pozitie ceas invalida.' });
+      }
+      event.displayState.clockPosition = v;
+      changed = true;
+    }
+    if (typeof req.body.clockScale === 'number') {
+      if (Number.isNaN(req.body.clockScale) || req.body.clockScale < 0.7 || req.body.clockScale > 1.8) {
+        return res.status(400).json({ ok: false, error: 'Marime ceas invalida.' });
+      }
+      event.displayState.clockScale = req.body.clockScale;
+      changed = true;
+    }
+    if (typeof req.body.screenStyle === 'string') {
+      const v = req.body.screenStyle.trim();
+      if (!['focus', 'wide'].includes(v)) {
+        return res.status(400).json({ ok: false, error: 'Layout ecran invalid.' });
+      }
+      event.displayState.screenStyle = v;
+      changed = true;
+    }
+    if (typeof req.body.displayResolution === 'string') {
+      const v = req.body.displayResolution.trim();
+      if (!['auto', '16-9', '16-10', '4-3'].includes(v)) {
+        return res.status(400).json({ ok: false, error: 'Rezolutie ecran invalida.' });
+      }
+      event.displayState.displayResolution = v;
+      changed = true;
+    }
+
+    if (!changed) {
+      return res.status(400).json({ ok: false, error: 'Nicio schimbare specificata.' });
+    }
+
+    event.displayState.updatedAt = new Date().toISOString();
+    saveDb();
+    io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
+    res.json({ ok: true, displayState: event.displayState });
   });
 
   app.post('/api/events/:id/display/restore-last', (req, res) => {

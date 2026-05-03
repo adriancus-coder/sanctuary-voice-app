@@ -1630,36 +1630,20 @@ async function toggleDualLanguageDisplay(enabled) {
   await setDisplayLanguage(primary, secondary);
 }
 
-async function saveDisplaySettings() {
-  if (!currentEvent) return alert('Open or create an event first.');
-  const backgroundPreset = $('displayBackgroundPresetSelect').value;
-  const customBackground = $('displayBackgroundInput').value.trim();
-  const showClock = !!$('displayShowClockBox').checked;
-  const clockPosition = $('displayClockPositionSelect').value;
-  const clockScale = Number($('displayClockScaleInput')?.value || 1);
-  const textSize = $('displayTextSizeSelect').value;
-  const textScale = Number($('displayTextScaleInput')?.value || 1);
-  const screenStyle = $('displayScreenStyleSelect').value;
-  const displayResolution = $('displayResolutionSelect')?.value || 'auto';
-  const secondaryLanguage = $('displaySecondaryLanguageSelect')?.value || '';
-  const res = await fetch(`/api/events/${currentEvent.id}/display/settings`, adminJsonOptions('POST', {
-    backgroundPreset,
-    customBackground,
-    showClock,
-    clockPosition,
-    clockScale,
-    textSize,
-    textScale,
-    screenStyle,
-    displayResolution,
-    secondaryLanguage
-  }));
-  const data = await res.json();
-  if (!data.ok) return alert(data.error || 'Could not save main screen settings.');
-  currentEvent.displayState = data.displayState || currentEvent.displayState;
-  currentEvent.displayStatePrevious = data.previousState || currentEvent.displayStatePrevious || null;
-  refreshDisplayControls();
-  setStatus('Main screen settings saved.');
+async function applyDisplayPartial(payload) {
+  if (!currentEvent?.id) return;
+  try {
+    const res = await fetch(`/api/events/${currentEvent.id}/display/text`, adminJsonOptions('POST', payload));
+    const data = await res.json();
+    if (!data.ok) {
+      alert(data.error || 'Could not update main screen.');
+      return;
+    }
+    currentEvent.displayState = data.displayState || currentEvent.displayState;
+    refreshDisplayControls();
+  } catch (err) {
+    console.error('display partial apply failed:', err);
+  }
 }
 
 async function adjustClockScale(delta) {
@@ -1669,7 +1653,7 @@ async function adjustClockScale(delta) {
   const next = Math.min(1.8, Math.max(0.7, Math.round((current + delta) * 10) / 10));
   input.value = String(next);
   if ($('displayClockScaleValue')) $('displayClockScaleValue').textContent = `${Math.round(next * 100)}%`;
-  await saveDisplaySettings();
+  await applyDisplayPartial({ clockScale: next });
 }
 
 async function adjustDisplayTextScale(delta) {
@@ -1679,7 +1663,7 @@ async function adjustDisplayTextScale(delta) {
   const next = Math.min(1.4, Math.max(0.65, Math.round((current + delta) * 20) / 20));
   input.value = String(next);
   if ($('displayTextScaleValue')) $('displayTextScaleValue').textContent = `${Math.round(next * 100)}%`;
-  await saveDisplaySettings();
+  await applyDisplayPartial({ textScale: next });
 }
 
 async function saveDisplayPreset() {
@@ -3300,7 +3284,27 @@ $('displayRestoreBtn').addEventListener('click', restoreLastDisplayState);
   $('displayLanguageSelect').addEventListener('change', () => setDisplayLanguage($('displayLanguageSelect').value));
   $('displaySecondaryLanguageSelect')?.addEventListener('change', () => setDisplayLanguage($('displayLanguageSelect').value, $('displaySecondaryLanguageSelect').value));
   $('dualLanguageToggle')?.addEventListener('change', () => toggleDualLanguageDisplay($('dualLanguageToggle').checked));
-  $('saveDisplaySettingsBtn').addEventListener('click', saveDisplaySettings);
+  $('displayBackgroundPresetSelect')?.addEventListener('change', () => {
+    applyDisplayPartial({ backgroundPreset: $('displayBackgroundPresetSelect').value });
+  });
+  $('displayBackgroundInput')?.addEventListener('change', () => {
+    applyDisplayPartial({ customBackground: $('displayBackgroundInput').value.trim() });
+  });
+  $('displayShowClockBox')?.addEventListener('change', () => {
+    applyDisplayPartial({ showClock: !!$('displayShowClockBox').checked });
+  });
+  $('displayClockPositionSelect')?.addEventListener('change', () => {
+    applyDisplayPartial({ clockPosition: $('displayClockPositionSelect').value });
+  });
+  $('displayTextSizeSelect')?.addEventListener('change', () => {
+    applyDisplayPartial({ textSize: $('displayTextSizeSelect').value });
+  });
+  $('displayScreenStyleSelect')?.addEventListener('change', () => {
+    applyDisplayPartial({ screenStyle: $('displayScreenStyleSelect').value });
+  });
+  $('displayResolutionSelect')?.addEventListener('change', () => {
+    applyDisplayPartial({ displayResolution: $('displayResolutionSelect').value });
+  });
 $('clockSizeMinusBtn')?.addEventListener('click', () => adjustClockScale(-0.1));
 $('clockSizePlusBtn')?.addEventListener('click', () => adjustClockScale(0.1));
 $('textZoomMinusBtn')?.addEventListener('click', () => adjustDisplayTextScale(-0.05));
