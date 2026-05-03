@@ -397,14 +397,14 @@ function renderActiveEventBadge(event) {
   if (!event) {
     badge.textContent = 'No live event';
     badge.className = 'status-pill';
-    opened.textContent = 'No event opened';
+    if (opened) opened.textContent = 'No event opened';
     $('songModeBadge').textContent = 'Live follow';
     return;
   }
   const extra = event.scheduledAt ? ` · ${formatDateTime(event.scheduledAt)}` : '';
   badge.textContent = event.isActive ? `Live: ${event.name}${extra}` : 'Another event is live';
   badge.className = event.isActive ? 'status-pill active' : 'status-pill';
-  opened.textContent = `Opened: ${event.name}${extra}`;
+  if (opened) opened.textContent = `Opened: ${event.name}${extra}`;
   const isSongMode = event.mode === 'song';
   $('songModeBadge').textContent = isSongMode ? 'Song live' : (event.displayState?.mode === 'manual' ? 'Pinned text live' : 'Live follow');
   $('songModeBadge').className = (isSongMode || event.displayState?.mode === 'manual') ? 'status-pill active' : 'status-pill';
@@ -881,6 +881,9 @@ function hydratePermanentParticipantAccess() {
   const link = `${origin.replace(/\/+$/, '')}/participant`;
   if ($('permanentParticipantLink')) $('permanentParticipantLink').value = link;
   if ($('permanentQrImage')) $('permanentQrImage').src = `/api/participant-qr.png?ts=${Date.now()}`;
+  if ($('heroParticipantLink')) $('heroParticipantLink').value = link;
+  if ($('qrModalLink')) $('qrModalLink').value = link;
+  if ($('qrModalImage')) $('qrModalImage').src = `/api/participant-qr.png?ts=${Date.now()}`;
 }
 
 function emailLinkFromField(fieldId, label) {
@@ -3170,6 +3173,31 @@ $('emailAccessRemoteBtn').addEventListener('click', () => emailLinkFromField('ac
 $('copyPermanentParticipantBtn')?.addEventListener('click', () => copyField('permanentParticipantLink', 'copyPermanentParticipantBtn'));
 $('emailPermanentParticipantBtn')?.addEventListener('click', () => emailLinkFromField('permanentParticipantLink', 'permanent participant link'));
 $('downloadPermanentQrBtn')?.addEventListener('click', downloadPermanentQr);
+
+// Hero topbar participant link copy
+$('heroCopyParticipantBtn')?.addEventListener('click', () => copyField('heroParticipantLink', 'heroCopyParticipantBtn'));
+
+// QR modal open/close + actions
+$('heroShowQrBtn')?.addEventListener('click', () => {
+  const modal = $('qrModal');
+  if (!modal) return;
+  modal.hidden = false;
+  const img = $('qrModalImage');
+  if (img) img.src = `/api/participant-qr.png?ts=${Date.now()}`;
+});
+document.querySelectorAll('[data-qr-modal-close]').forEach((el) => {
+  el.addEventListener('click', () => {
+    const modal = $('qrModal');
+    if (modal) modal.hidden = true;
+  });
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const modal = $('qrModal');
+  if (modal && !modal.hidden) modal.hidden = true;
+});
+$('qrModalCopyBtn')?.addEventListener('click', () => copyField('qrModalLink', 'qrModalCopyBtn'));
+$('qrModalDownloadBtn')?.addEventListener('click', () => downloadQrFromImage('qrModalImage', 'sanctuary-voice-participant-qr'));
 $('copyQrBtn')?.addEventListener('click', copyQrImage);
 $('downloadQrBtn')?.addEventListener('click', downloadQr);
 $('openRemoteControlBtn').addEventListener('click', () => {

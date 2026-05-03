@@ -4940,3 +4940,159 @@ body.participant-preview-mode .participant-event-chooser {
     width: 100%;
   }
 }
+
+/* Hero participant card - TASK 32c */
+.hero-participant-card {
+  grid-column: span 2;
+}
+
+.hero-participant-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.hero-participant-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.hero-participant-row .btn {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  min-height: 32px;
+  flex-shrink: 0;
+}
+
+/* Top nav spacer + logout - TASK 32c */
+.top-nav-spacer {
+  flex: 1;
+  min-width: 20px;
+}
+
+.top-nav-logout {
+  color: rgba(255, 100, 100, 0.85);
+}
+
+.top-nav-logout:hover {
+  background: rgba(255, 100, 100, 0.1);
+  color: rgb(255, 130, 130);
+}
+
+/* QR Modal - TASK 32c */
+.qr-modal[hidden] {
+  display: none;
+}
+
+.qr-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+
+.qr-modal-card {
+  position: relative;
+  background: linear-gradient(180deg, rgba(18, 21, 27, 0.98), rgba(11, 13, 18, 0.98));
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 32px;
+  max-width: 420px;
+  width: 92%;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  animation: qrModalEnter 240ms ease both;
+}
+
+@keyframes qrModalEnter {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.qr-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 180ms ease;
+}
+
+.qr-modal-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.qr-modal-card h2 {
+  margin: 0 0 6px 0;
+  font-size: 1.3rem;
+}
+
+.qr-modal-subtitle {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 24px 0;
+}
+
+.qr-modal-image {
+  width: 280px;
+  height: 280px;
+  max-width: 100%;
+  background: #fff;
+  padding: 12px;
+  border-radius: 12px;
+  margin: 0 auto 16px auto;
+  display: block;
+}
+
+.qr-modal-link-row {
+  margin-bottom: 16px;
+}
+
+.qr-modal-link-row input {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.qr-modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.qr-modal-actions .btn {
+  flex: 1;
+  max-width: 180px;
+}

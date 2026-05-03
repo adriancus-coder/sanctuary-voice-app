@@ -16,62 +16,10 @@
     <button class="top-nav-btn" data-tab="glossary" type="button">Glossary</button>
     <button class="top-nav-btn" data-tab="manual" type="button">Quick Text</button>
     <button class="top-nav-btn" data-tab="statistics" type="button">Statistics</button>
+    <div class="top-nav-spacer" aria-hidden="true"></div>
+    <button id="adminLogoutBtn" class="top-nav-btn top-nav-logout" type="button">Logout</button>
   </nav>
   <div class="app-shell admin-redesign-shell admin-shell-top-tabs">
-    <aside class="sidebar panel glass-panel sidebar-hidden-temp">
-      <div class="brand-wrap">
-        <div class="eyebrow">Sanctuary Voice Admin</div>
-        <div class="brand">Sanctuary Voice</div>
-        <div class="brand-sub">Live translation for church services, from one control center for Main Screen, participant view, and Song.</div>
-      </div>
-
-      <div class="info-card soft-card sidebar-meta-card">
-        <div class="label">Service snapshot</div>
-        <div id="openedEventBadge" class="metric-text">No event opened</div>
-        <div class="muted">Move quickly between live control, transcript, events, Main Screen, and Song.</div>
-      </div>
-
-      <nav class="sidebar-nav">
-        <button class="nav-btn active" data-tab="events" type="button">Events</button>
-        <button class="nav-btn" data-tab="dashboard" type="button">Live Control</button>
-        <button class="nav-btn" data-tab="transcript" type="button">Transcript</button>
-        <button class="nav-btn" data-tab="mainscreen" type="button">Main Screen</button>
-        <button class="nav-btn" data-tab="song" type="button">Song</button>
-        <button class="nav-btn" data-tab="glossary" type="button">Glossary</button>
-        <button class="nav-btn" data-tab="manual" type="button">Quick Text</button>
-        <button class="nav-btn" data-tab="statistics" type="button">Statistics</button>
-      </nav>
-      <div class="sidebar-admin-actions">
-        <button id="adminLogoutBtn" class="btn btn-dark full-width-btn" type="button">Logout admin</button>
-      </div>
-
-      <div class="sidebar-screen-links">
-        <a class="screen-link-card" href="/translate" target="_blank" rel="noreferrer">
-          <span class="screen-link-title">Main Screen</span>
-          <span class="screen-link-copy">Unified presentation screen for live translation and Song.</span>
-        </a>
-        <a class="screen-link-card" href="/participant" target="_blank" rel="noreferrer">
-          <span class="screen-link-title">Participant Phone View</span>
-          <span class="screen-link-copy">Mobile listening view with audio and recent history.</span>
-        </a>
-        <div class="info-card soft-card permanent-qr-card">
-          <div class="section-head compact-head">
-            <div>
-              <div class="label">Permanent participant QR</div>
-              <div class="muted">Print once. People scan this QR and choose the live event.</div>
-            </div>
-          </div>
-          <input id="permanentParticipantLink" type="text" readonly>
-          <img id="permanentQrImage" class="qr permanent-qr" alt="Permanent participant QR code">
-          <div class="button-row compact-row">
-            <button id="copyPermanentParticipantBtn" class="btn btn-dark" type="button">Copy link</button>
-            <button id="emailPermanentParticipantBtn" class="btn btn-dark" type="button">Email</button>
-            <button id="downloadPermanentQrBtn" class="btn btn-dark" type="button">Download QR</button>
-          </div>
-        </div>
-      </div>
-    </aside>
-
     <main class="main-content">
       <section class="topbar panel glass-panel hero-topbar hero-topbar-compact">
         <div class="hero-copy-block">
@@ -97,6 +45,14 @@
               <button id="openTranslateScreenBtn" class="btn btn-dark" type="button">Open main screen</button>
               <button id="heroBlackScreenBtn" class="btn btn-dark" type="button">Black screen</button>
               <button id="heroRestoreScreenBtn" class="btn btn-dark" type="button">Restore</button>
+            </div>
+          </div>
+          <div class="hero-status-card hero-participant-card">
+            <span class="hero-status-label">Participant access</span>
+            <div class="hero-participant-row">
+              <input id="heroParticipantLink" type="text" readonly placeholder="Participant link">
+              <button id="heroCopyParticipantBtn" class="btn btn-dark" type="button" title="Copy link">📋</button>
+              <button id="heroShowQrBtn" class="btn btn-dark" type="button">📱 Show QR</button>
             </div>
           </div>
         </div>
@@ -892,6 +848,23 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <div id="qrModal" class="qr-modal" hidden role="dialog" aria-labelledby="qrModalTitle" aria-modal="true">
+    <div class="qr-modal-backdrop" data-qr-modal-close></div>
+    <div class="qr-modal-card">
+      <button class="qr-modal-close" data-qr-modal-close type="button" aria-label="Close">×</button>
+      <h2 id="qrModalTitle">Participant QR Code</h2>
+      <p class="qr-modal-subtitle">People scan this QR and choose the live event.</p>
+      <img id="qrModalImage" class="qr-modal-image" alt="Participant QR">
+      <div class="qr-modal-link-row">
+        <input id="qrModalLink" type="text" readonly>
+      </div>
+      <div class="qr-modal-actions">
+        <button id="qrModalCopyBtn" class="btn btn-dark" type="button">📋 Copy link</button>
+        <button id="qrModalDownloadBtn" class="btn btn-primary" type="button">⬇ Download QR</button>
+      </div>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
