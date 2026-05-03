@@ -513,6 +513,19 @@ function refreshDisplayControls() {
     btn.classList.remove('btn-primary', 'btn-danger', 'btn-dark');
     btn.classList.add(active ? activeClass : 'btn-dark');
   });
+  // Toggle Black Screen button în Live Song Control: text + culoare se schimbă în funcție de state
+  const songBlackBtn = $('songBlackScreenBtn');
+  if (songBlackBtn) {
+    if (isBlackScreen) {
+      songBlackBtn.textContent = '↶ Restore';
+      songBlackBtn.classList.remove('btn-danger');
+      songBlackBtn.classList.add('btn-primary');
+    } else {
+      songBlackBtn.textContent = '⬛ Black screen';
+      songBlackBtn.classList.remove('btn-primary');
+      songBlackBtn.classList.add('btn-danger');
+    }
+  }
   renderQuickLanguageButtons();
   renderDisplayAuditSummary();
   renderDisplayPresets(currentEvent?.displayPresets || currentDisplayPresets || []);
@@ -3303,7 +3316,16 @@ $('songPrevBtn')?.addEventListener('click', goToPrevSongBlock);
 $('songNextBtn')?.addEventListener('click', goToNextSongBlock);
 $('songJumpSelect')?.addEventListener('change', showSelectedSongSection);
 $('blankMainScreenBtn').addEventListener('click', blankMainScreen);
-$('songBlackScreenBtn')?.addEventListener('click', blankMainScreen);
+$('songBlackScreenBtn')?.addEventListener('click', async () => {
+  if (!currentEvent) return;
+  const isBlack = !!(currentEvent.displayState?.blackScreen)
+               || currentEvent.displayState?.mode === 'blank';
+  if (isBlack) {
+    await restoreLastDisplayState();
+  } else {
+    await blankMainScreen();
+  }
+});
 $('displayRestoreBtn').addEventListener('click', restoreLastDisplayState);
   $('displayAutoBtn').addEventListener('click', () => setDisplayMode('auto'));
   $('displayManualBtn').addEventListener('click', () => setDisplayMode('manual'));
