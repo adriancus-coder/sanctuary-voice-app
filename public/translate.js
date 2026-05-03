@@ -283,8 +283,8 @@ function fitDisplayTextElement(box, container, options = {}) {
 function applyDualTextScale() {
   const dual = $('translateDualText');
   if (!dual) return;
-  const scale = Math.min(1.3, Math.max(0.65, Number(state.textScale || 1)));
-  dual.style.setProperty('--dual-text-scale', String(scale));
+
+  // Reset inline styles ca fitting-ul să pornească curat la fiecare update.
   document.querySelectorAll('.unified-display-language-text').forEach((el) => {
     el.style.fontSize = '';
     el.style.lineHeight = '';
@@ -292,6 +292,32 @@ function applyDualTextScale() {
     el.style.maxWidth = '';
     el.style.maxHeight = '';
   });
+
+  // Variabila CSS rămâne pentru stiluri externe care o pot citi; fitting-ul real
+  // se face mai jos prin fitDisplayTextElement, care folosește state.textScale intern.
+  const scale = Math.min(1.3, Math.max(0.65, Number(state.textScale || 1)));
+  dual.style.setProperty('--dual-text-scale', String(scale));
+
+  // Fitting auto independent pe fiecare card. Card-urile dual au ~50% lățime ecran,
+  // deci maxSize coboară de la 130 (single) la 100. reserveHeight=60 pentru label.
+  const primaryText = $('translatePrimaryText');
+  const secondaryText = $('translateSecondaryText');
+  const primaryCard = primaryText?.parentElement;
+  const secondaryCard = secondaryText?.parentElement;
+  if (primaryText && primaryCard) {
+    fitDisplayTextElement(primaryText, primaryCard, {
+      reserveHeight: 60,
+      maxSize: 100,
+      dense: true
+    });
+  }
+  if (secondaryText && secondaryCard) {
+    fitDisplayTextElement(secondaryText, secondaryCard, {
+      reserveHeight: 60,
+      maxSize: 100,
+      dense: true
+    });
+  }
 }
 
 function autoFitText() {
