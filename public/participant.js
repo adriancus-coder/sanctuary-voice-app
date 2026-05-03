@@ -104,6 +104,86 @@ if (participantParams.has('code') && window.history && window.history.replaceSta
 let publicEvents = [];
 let pushSubscriptionEventId = '';
 
+const SERVICE_ENDED_MESSAGES = {
+  ro: {
+    title: 'Serviciul a luat sfârșit',
+    subtitle: 'Vă mulțumim că ați fost cu noi!',
+    close: 'Închide',
+    farewell: 'Vă așteptăm la următorul serviciu divin.'
+  },
+  no: {
+    title: 'Gudstjenesten er avsluttet',
+    subtitle: 'Takk for at du var med oss!',
+    close: 'Lukk',
+    farewell: 'Vi venter på deg ved neste gudstjeneste.'
+  },
+  en: {
+    title: 'The service has ended',
+    subtitle: 'Thank you for being with us!',
+    close: 'Close',
+    farewell: 'We look forward to seeing you at the next service.'
+  },
+  ru: {
+    title: 'Богослужение завершено',
+    subtitle: 'Спасибо, что были с нами!',
+    close: 'Закрыть',
+    farewell: 'Ждём вас на следующем богослужении.'
+  },
+  uk: {
+    title: 'Богослужіння завершено',
+    subtitle: 'Дякуємо, що були з нами!',
+    close: 'Закрити',
+    farewell: 'Чекаємо на вас на наступному богослужінні.'
+  },
+  es: {
+    title: 'El servicio ha terminado',
+    subtitle: '¡Gracias por estar con nosotros!',
+    close: 'Cerrar',
+    farewell: 'Los esperamos en el próximo servicio.'
+  },
+  de: {
+    title: 'Der Gottesdienst ist beendet',
+    subtitle: 'Danke, dass Sie bei uns waren!',
+    close: 'Schließen',
+    farewell: 'Wir freuen uns auf Sie beim nächsten Gottesdienst.'
+  },
+  fr: {
+    title: 'Le service est terminé',
+    subtitle: 'Merci d\'avoir été avec nous !',
+    close: 'Fermer',
+    farewell: 'Nous vous attendons au prochain service.'
+  },
+  it: {
+    title: 'Il servizio è terminato',
+    subtitle: 'Grazie per essere stati con noi!',
+    close: 'Chiudi',
+    farewell: 'Vi aspettiamo al prossimo servizio.'
+  },
+  hu: {
+    title: 'Az istentisztelet véget ért',
+    subtitle: 'Köszönjük, hogy velünk voltál!',
+    close: 'Bezár',
+    farewell: 'Várunk a következő istentiszteleten.'
+  },
+  pl: {
+    title: 'Nabożeństwo zakończone',
+    subtitle: 'Dziękujemy, że byliście z nami!',
+    close: 'Zamknij',
+    farewell: 'Zapraszamy na kolejne nabożeństwo.'
+  },
+  pt: {
+    title: 'O culto terminou',
+    subtitle: 'Obrigado por estar conosco!',
+    close: 'Fechar',
+    farewell: 'Esperamos vê-los no próximo culto.'
+  }
+};
+
+function getServiceEndedMessages() {
+  const lang = state.currentLanguage || 'en';
+  return SERVICE_ENDED_MESSAGES[lang] || SERVICE_ENDED_MESSAGES.en;
+}
+
 if (state.previewMode) {
   document.body.classList.add('participant-preview-mode');
 }
@@ -614,7 +694,7 @@ function scrollLiveStageIntoView() {
 function renderLiveView({ announce = false } = {}) {
   if (!state.currentEvent) return;
   if (state.serviceEndedAcknowledged) {
-    $('lastText').textContent = 'Vă așteptăm la următorul serviciu divin.';
+    $('lastText').textContent = getServiceEndedMessages().farewell;
     const earlierBox = $('participantEarlierLines');
     if (earlierBox) earlierBox.innerHTML = '';
     $('history').innerHTML = '';
@@ -828,10 +908,20 @@ function formatServiceEndedTime(iso) {
 function showServiceEndedOverlay(endedAt) {
   const overlay = $('participantServiceEnded');
   if (!overlay) return;
+
+  // Localizez textele popup-ului în limba participantului
+  const messages = getServiceEndedMessages();
+  const titleEl = $('participantServiceEndedTitle');
+  const subtitleEl = overlay.querySelector('.participant-service-ended-subtitle');
+  const closeBtn = $('participantServiceEndedClose');
+  if (titleEl) titleEl.textContent = messages.title;
+  if (subtitleEl) subtitleEl.textContent = messages.subtitle;
+  if (closeBtn) closeBtn.textContent = messages.close;
+
   const timeEl = $('participantServiceEndedTime');
   if (timeEl) timeEl.textContent = formatServiceEndedTime(endedAt);
   overlay.hidden = false;
-  $('participantServiceEndedClose')?.focus();
+  closeBtn?.focus();
 }
 
 function hideServiceEndedOverlay() {
