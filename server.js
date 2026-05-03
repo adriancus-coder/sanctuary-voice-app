@@ -415,7 +415,10 @@ function buildHelmetConnectSources() {
     'http://127.0.0.1:*',
     'ws://127.0.0.1:*',
     'https://*.cognitive.microsoft.com',
-    'wss://*.stt.speech.microsoft.com'
+    'wss://*.stt.speech.microsoft.com',
+    // Microsoft Speech SDK face fetch/XHR la aceste URL-uri pentru source maps și bundle-uri lazy
+    'https://aka.ms',
+    'https://csspeechstorage.blob.core.windows.net'
   ].filter(Boolean);
 }
 
