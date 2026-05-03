@@ -3248,9 +3248,9 @@ body.participant-preview-mode .participant-event-chooser {
   min-height: min(64vh, 720px);
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: clamp(14px, 2vw, 24px);
+  gap: clamp(10px, 1.4vw, 16px);
   align-items: center;
-  padding: clamp(22px, 3.4vw, 56px);
+  padding: clamp(14px, 2.2vw, 36px);
   border: 1px solid rgba(244, 221, 171, 0.14);
   border-radius: clamp(26px, 3.2vw, 44px);
   background:
