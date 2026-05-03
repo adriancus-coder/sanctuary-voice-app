@@ -56,6 +56,7 @@ function registerEventRoutes(app, ctx) {
     normalizeDisplayTextScale,
     normalizeEvent,
     normalizeEventForAccess,
+    normalizeLibraryTitle,
     normalizeOrgId,
     normalizeRemoteOperatorProfile,
     normalizeRemoteOperators,
@@ -725,9 +726,36 @@ function registerEventRoutes(app, ctx) {
       const parsedSong = splitSongBlocksWithLabels(text, labels);
       const blocks = parsedSong.blocks;
       const songSourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
-      const firstBlockTranslations = blocks.length
-        ? await buildSongTranslations(event, blocks.slice(0, 1), songSourceLang)
-        : [];
+
+      // Caut cache-ul existent în library pentru acest cântec (matchuit pe titlu normalizat).
+      // Cântecele nesalvate (ex: paste direct în editor) nu au entry în library, deci songCache = {}
+      // și totul se traduce normal. Cache-ul se persistă doar pentru cântecele salvate în library.
+      const orgLibrary = getOrganizationSongLibrary(getEventOrgId(event)) || [];
+      const normalizedLoadTitle = normalizeLibraryTitle(title);
+      const cachedSongIndex = normalizedLoadTitle
+        ? orgLibrary.findIndex((item) => item && normalizeLibraryTitle(item.title) === normalizedLoadTitle)
+        : -1;
+      const cachedSong = cachedSongIndex >= 0 ? orgLibrary[cachedSongIndex] : null;
+      const songCache = (cachedSong && typeof cachedSong.translationsByHash === 'object' && cachedSong.translationsByHash)
+                        ? cachedSong.translationsByHash : {};
+
+      const persistCacheUpdates = (extraUpdates) => {
+        if (cachedSongIndex < 0) return;
+        const merged = { ...songCache, ...extraUpdates };
+        if (Object.keys(merged).length === 0) return;
+        const lib = getOrganizationSongLibrary(getEventOrgId(event));
+        if (!Array.isArray(lib)) return;
+        const idx = lib.findIndex((item) => item && normalizeLibraryTitle(item.title) === normalizedLoadTitle);
+        if (idx < 0) return;
+        lib[idx].translationsByHash = merged;
+        lib[idx].updatedAt = new Date().toISOString();
+        saveDb();
+      };
+
+      const firstResult = blocks.length
+        ? await buildSongTranslations(event, blocks.slice(0, 1), songSourceLang, songCache)
+        : { allTranslations: [], cacheUpdates: {} };
+      const firstBlockTranslations = firstResult.allTranslations;
       const placeholderTranslations = blocks.map((_, i) => firstBlockTranslations[i] || {});
       event.songState = {
         title,
@@ -758,9 +786,9 @@ function registerEventRoutes(app, ctx) {
       emitUsageStats(event.id);
       res.json({ ok: true, songState: event.songState, event: normalizeEventForAccess(req, event) });
       if (blocks.length > 1) {
-        buildSongTranslations(event, blocks.slice(1), songSourceLang)
-          .then((rest) => {
-            const merged = [placeholderTranslations[0] || {}, ...rest];
+        buildSongTranslations(event, blocks.slice(1), songSourceLang, songCache)
+          .then((restResult) => {
+            const merged = [placeholderTranslations[0] || {}, ...restResult.allTranslations];
             if (event.songState && event.songState.blocks === blocks) {
               event.songState.allTranslations = merged;
               event.songState.translations = merged[event.songState.currentIndex] || {};
@@ -768,8 +796,11 @@ function registerEventRoutes(app, ctx) {
               saveDb();
               io.to(`event:${event.id}`).emit('song_state', event.songState);
             }
+            persistCacheUpdates({ ...firstResult.cacheUpdates, ...restResult.cacheUpdates });
           })
           .catch((err) => logger.error('song background translate:', err?.message || err));
+      } else {
+        persistCacheUpdates(firstResult.cacheUpdates);
       }
     } catch (err) {
       logger.error('song load error:', err);

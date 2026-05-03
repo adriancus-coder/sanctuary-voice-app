@@ -7,7 +7,7 @@ const multer = require('multer');
 const helmet = require('helmet');
 const compression = require('compression');
 const webpush = require('web-push');
-const { createHmac, randomBytes, randomUUID, timingSafeEqual } = require('crypto');
+const { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } = require('crypto');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const OpenAI = require('openai');
@@ -1883,6 +1883,14 @@ function normalizeLibraryTitle(title) {
   return String(title || '').trim().toLowerCase();
 }
 
+// Hash stabil per strofă pentru cache-ul de traduceri din library.
+// Folosit ca cheie în translationsByHash, astfel încât editarea unei singure
+// strofe invalidează doar acea strofă (hash diferit = cache miss), iar restul
+// strofelor neschimbate rămân cached.
+function hashBlock(text) {
+  return createHash('sha256').update(String(text || '').trim()).digest('hex').slice(0, 16);
+}
+
 function upsertLibraryItem(list, { title, text, labels, sourceLang }, maxItems = 100) {
   const safeTitle = String(title || '').trim();
   const safeText = sanitizeStructuredText(text || '');
@@ -1890,12 +1898,17 @@ function upsertLibraryItem(list, { title, text, labels, sourceLang }, maxItems =
   const safeLabels = parsedSong.labels;
   const normalizedTitle = normalizeLibraryTitle(safeTitle);
   const existingIndex = list.findIndex((item) => normalizeLibraryTitle(item.title) === normalizedTitle);
+  const existingItem = existingIndex >= 0 ? list[existingIndex] : null;
   const payload = {
-    id: existingIndex >= 0 ? list[existingIndex].id : randomUUID(),
+    id: existingItem ? existingItem.id : randomUUID(),
     title: safeTitle,
     text: safeText,
     labels: safeLabels,
-    sourceLang: String(sourceLang || list[existingIndex]?.sourceLang || 'ro').trim() || 'ro',
+    sourceLang: String(sourceLang || existingItem?.sourceLang || 'ro').trim() || 'ro',
+    // Păstrăm cache-ul de traduceri per strofă; per-block hash invalidation
+    // ține automat cache-ul valid pentru strofele neschimbate, indiferent dacă
+    // alte strofe s-au editat (vor avea hash nou = cache miss controlat).
+    translationsByHash: existingItem?.translationsByHash || {},
     updatedAt: new Date().toISOString()
   };
 
@@ -3602,16 +3615,39 @@ function buildBlockLabels(blocks, labels = []) {
   });
 }
 
-async function buildSongTranslations(event, blocks, songSourceLang = '') {
+async function buildSongTranslations(event, blocks, songSourceLang = '', cache = {}) {
   const allTranslations = [];
   const normalizedSourceLang = String(songSourceLang || event.sourceLang || 'ro').trim() || 'ro';
+  const cacheUpdates = {};
+
   for (const block of blocks) {
-    const translationPairs = await Promise.all(
-      event.targetLangs.map(async (lang) => [lang, await translateText(block, lang, event, normalizedSourceLang)])
-    );
-    allTranslations.push(Object.fromEntries(translationPairs));
+    const blockHash = hashBlock(block);
+    const cached = cache[blockHash] || {};
+    const blockTranslations = {};
+    const missingLangs = [];
+
+    for (const lang of event.targetLangs) {
+      if (typeof cached[lang] === 'string' && cached[lang]) {
+        blockTranslations[lang] = cached[lang];
+      } else {
+        missingLangs.push(lang);
+      }
+    }
+
+    if (missingLangs.length > 0) {
+      const newTranslations = await Promise.all(
+        missingLangs.map(async (lang) => [lang, await translateText(block, lang, event, normalizedSourceLang)])
+      );
+      for (const [lang, text] of newTranslations) {
+        blockTranslations[lang] = text;
+      }
+      cacheUpdates[blockHash] = { ...cached, ...Object.fromEntries(newTranslations) };
+    }
+
+    allTranslations.push(blockTranslations);
   }
-  return allTranslations;
+
+  return { allTranslations, cacheUpdates };
 }
 
 function setSongIndex(event, index) {
@@ -4385,6 +4421,7 @@ registerEventRoutes(app, {
   normalizeDisplayTextScale,
   normalizeEvent,
   normalizeEventForAccess,
+  normalizeLibraryTitle,
   normalizeOrgId,
   normalizeRemoteOperatorProfile,
   normalizeRemoteOperators,
