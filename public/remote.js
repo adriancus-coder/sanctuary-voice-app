@@ -299,6 +299,30 @@ function populateRemoteLanguageSelects() {
       select.value = available[0][0];
     }
   });
+
+  // Display language selects (primary + secondary). Folosim DOAR limbile target ale event-ului,
+  // nu toate limbile disponibile - asta evită să trimitem pe Main Screen o limbă pentru care
+  // nu există traduceri active.
+  const displayLangChoices = state.currentEvent?.targetLangs || [];
+  const primarySelect = $('remoteDisplayLanguageSelect');
+  const secondarySelect = $('remoteDisplaySecondaryLanguageSelect');
+  if (primarySelect) {
+    const currentPrimary = state.currentEvent?.displayState?.language || displayLangChoices[0] || '';
+    primarySelect.innerHTML = displayLangChoices
+      .map((code) => `<option value="${code}">${state.availableLanguages[code] || code.toUpperCase()}</option>`)
+      .join('');
+    if (currentPrimary && displayLangChoices.includes(currentPrimary)) {
+      primarySelect.value = currentPrimary;
+    }
+  }
+  if (secondarySelect) {
+    const currentSecondary = state.currentEvent?.displayState?.secondaryLanguage || '';
+    secondarySelect.innerHTML = '<option value="">— None —</option>'
+      + displayLangChoices
+          .map((code) => `<option value="${code}">${state.availableLanguages[code] || code.toUpperCase()}</option>`)
+          .join('');
+    secondarySelect.value = currentSecondary;
+  }
 }
 
 function updateRemoteGlossaryMode() {
@@ -671,6 +695,18 @@ $('remoteLiveBtn').addEventListener('click', async () => {
   try { await post(`/api/events/${state.eventId}/display/mode`, { mode: 'auto' }); setStatus('Main screen set to live follow.'); } catch (err) { setStatus(err.message); }
 });
 $('remoteStartLiveAudioBtn')?.addEventListener('click', () => startRemoteLiveAudio());
+
+$('remoteDisplayLanguageSelect')?.addEventListener('change', () => {
+  const primary = $('remoteDisplayLanguageSelect').value;
+  const secondary = $('remoteDisplaySecondaryLanguageSelect')?.value || '';
+  if (primary) setRemoteDisplayLanguage(primary, secondary);
+});
+
+$('remoteDisplaySecondaryLanguageSelect')?.addEventListener('change', () => {
+  const primary = $('remoteDisplayLanguageSelect')?.value || '';
+  const secondary = $('remoteDisplaySecondaryLanguageSelect').value;
+  if (primary) setRemoteDisplayLanguage(primary, secondary);
+});
 $('remoteStopLiveAudioBtn')?.addEventListener('click', () => stopRemoteLiveAudio().then(() => {
   setLiveAudioStatus('Stopped.');
   setStatus('Remote translation stopped.');
@@ -793,6 +829,31 @@ $('remoteSongClearBtn').addEventListener('click', () => {
   clearRemoteSongEditor();
   setStatus('Song editor cleared.');
 });
+
+async function setRemoteDisplayLanguage(language, secondaryLanguage) {
+  if (!state.currentEvent || !state.eventId) {
+    setStatus('No event connected.');
+    return;
+  }
+  const safeSecondary = secondaryLanguage && secondaryLanguage !== language ? secondaryLanguage : '';
+  try {
+    const data = await post(`/api/events/${state.eventId}/display/language`, {
+      language,
+      secondaryLanguage: safeSecondary
+    });
+    if (!data.ok) {
+      setStatus(data.error || 'Could not change screen language.');
+      return;
+    }
+    if (state.currentEvent) {
+      state.currentEvent.displayState = data.displayState || state.currentEvent.displayState;
+    }
+    refreshRemoteUi();
+    setStatus('Main screen language updated.');
+  } catch (err) {
+    setStatus(err.message || 'Could not change screen language.');
+  }
+}
 
 async function remoteBackToLiveText() {
   try {
