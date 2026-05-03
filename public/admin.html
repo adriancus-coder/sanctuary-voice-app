@@ -10,6 +10,7 @@
   <nav class="top-nav-tabs" role="tablist" aria-label="Main navigation">
     <a class="top-nav-btn top-nav-home" href="https://sanctuaryvoice.com" target="_blank" rel="noreferrer noopener">🏠 Home</a>
     <button class="top-nav-btn active" data-tab="events" type="button">Events</button>
+    <button class="top-nav-btn" data-tab="operator-roles" type="button">Operator Roles</button>
     <button class="top-nav-btn" data-tab="dashboard" type="button">Live Control</button>
     <button class="top-nav-btn" data-tab="transcript" type="button">Transcript</button>
     <button class="top-nav-btn" data-tab="mainscreen" type="button">Main Screen</button>
@@ -288,80 +289,32 @@
           <button id="createEventBtn" class="btn btn-primary">Create event</button>
         </div>
 
-        <div class="cards-grid two">
-          <div class="panel glass-panel section-stack access-shell">
-            <div class="section-head">
-              <h2>Event Access</h2>
-              <div class="live-chip">Fast launch</div>
-            </div>
-            <div class="meta-row access-code-row"><span>Admin code</span><strong id="adminCode">-</strong></div>
-            <div class="meta-row access-code-row"><span>Main operator code</span><strong id="accessScreenOperatorCode">-</strong></div>
-            <div class="link-stack">
-              <label>Main screen link</label>
-              <div class="link-row">
-                <input id="translateLink" type="text" readonly>
-                <button id="copyTranslateBtn" class="btn btn-dark">Copy</button>
-                <button id="emailTranslateBtn" class="btn btn-dark" type="button">Email</button>
-              </div>
-            </div>
-
-            <div class="link-stack">
-              <label>Permanent main operator link</label>
-              <div class="link-row">
-                <input id="accessRemoteControlLink" type="text" readonly>
-                <button id="copyAccessRemoteBtn" class="btn btn-dark" type="button">Copy</button>
-                <button id="emailAccessRemoteBtn" class="btn btn-dark" type="button">Email</button>
-              </div>
-            </div>
-            <div class="button-row">
-              <button id="setActiveEventBtn" class="btn btn-primary">Set live event</button>
+        <div class="panel glass-panel section-stack access-shell">
+          <div class="section-head">
+            <h2>Event Access</h2>
+            <div class="live-chip">Fast launch</div>
+          </div>
+          <div class="meta-row access-code-row"><span>Admin code</span><strong id="adminCode">-</strong></div>
+          <div class="meta-row access-code-row"><span>Main operator code</span><strong id="accessScreenOperatorCode">-</strong></div>
+          <div class="link-stack">
+            <label>Main screen link</label>
+            <div class="link-row">
+              <input id="translateLink" type="text" readonly>
+              <button id="copyTranslateBtn" class="btn btn-dark">Copy</button>
+              <button id="emailTranslateBtn" class="btn btn-dark" type="button">Email</button>
             </div>
           </div>
 
-          <div id="eventOperatorPanel" class="panel glass-panel section-stack">
-            <div class="section-head">
-              <h2>Operator Roles</h2>
-              <div class="live-chip">After event creation</div>
+          <div class="link-stack">
+            <label>Permanent main operator link</label>
+            <div class="link-row">
+              <input id="accessRemoteControlLink" type="text" readonly>
+              <button id="copyAccessRemoteBtn" class="btn btn-dark" type="button">Copy</button>
+              <button id="emailAccessRemoteBtn" class="btn btn-dark" type="button">Email</button>
             </div>
-            <div class="info-card soft-card">
-              <div class="label">Main Operator</div>
-              <div class="muted">Permanent link. It automatically connects to the current live event.</div>
-              <div class="meta-row access-code-row"><span>Main operator code</span><strong id="screenOperatorCode">-</strong></div>
-              <div class="link-stack">
-                <label>Permanent remote link</label>
-                <div class="link-row">
-                  <input id="remoteControlLink" type="text" readonly>
-                  <button id="copyRemoteControlBtn" class="btn btn-dark" type="button">Copy</button>
-                </div>
-              </div>
-              <div class="button-row compact-row">
-                <button id="openRemoteControlBtn" class="btn btn-primary" type="button">Open remote control</button>
-              </div>
-            </div>
-            <div class="info-card soft-card">
-              <div class="label">Create remote operator</div>
-              <div class="split-2 compact-library-row">
-                <div>
-                  <label>Name</label>
-                  <input id="remoteOperatorName" type="text" placeholder="Projection operator">
-                </div>
-                <div>
-                  <label>Access profile</label>
-                  <select id="remoteOperatorProfile">
-                    <option value="main_screen">Main Screen only</option>
-                    <option value="song_only">Song only</option>
-                    <option value="main_and_song">Main Screen + Song</option>
-                    <option value="full" selected>Full operator</option>
-                  </select>
-                </div>
-              </div>
-              <div class="button-row compact-row">
-                <button id="createRemoteOperatorBtn" class="btn btn-dark" type="button">Create operator</button>
-              </div>
-              <div id="remoteOperatorsList" class="history-list">
-                <div class="muted">No extra operators yet.</div>
-              </div>
-            </div>
+          </div>
+          <div class="button-row">
+            <button id="setActiveEventBtn" class="btn btn-primary">Set live event</button>
           </div>
         </div>
 
@@ -371,6 +324,54 @@
             <button id="refreshEventsBtn" class="btn btn-dark">Refresh</button>
           </div>
           <div id="eventList" class="event-list"></div>
+        </div>
+      </section>
+
+      <section id="tab-operator-roles" class="tab-panel">
+        <div id="eventOperatorPanel" class="panel glass-panel section-stack">
+          <div class="section-head">
+            <h2>Operator Roles</h2>
+            <div class="live-chip">After event creation</div>
+          </div>
+          <div class="info-card soft-card">
+            <div class="label">Main Operator</div>
+            <div class="muted">Permanent link. It automatically connects to the current live event.</div>
+            <div class="meta-row access-code-row"><span>Main operator code</span><strong id="screenOperatorCode">-</strong></div>
+            <div class="link-stack">
+              <label>Permanent remote link</label>
+              <div class="link-row">
+                <input id="remoteControlLink" type="text" readonly>
+                <button id="copyRemoteControlBtn" class="btn btn-dark" type="button">Copy</button>
+              </div>
+            </div>
+            <div class="button-row compact-row">
+              <button id="openRemoteControlBtn" class="btn btn-primary" type="button">Open remote control</button>
+            </div>
+          </div>
+          <div class="info-card soft-card">
+            <div class="label">Create remote operator</div>
+            <div class="split-2 compact-library-row">
+              <div>
+                <label>Name</label>
+                <input id="remoteOperatorName" type="text" placeholder="Projection operator">
+              </div>
+              <div>
+                <label>Access profile</label>
+                <select id="remoteOperatorProfile">
+                  <option value="main_screen">Main Screen only</option>
+                  <option value="song_only">Song only</option>
+                  <option value="main_and_song">Main Screen + Song</option>
+                  <option value="full" selected>Full operator</option>
+                </select>
+              </div>
+            </div>
+            <div class="button-row compact-row">
+              <button id="createRemoteOperatorBtn" class="btn btn-dark" type="button">Create operator</button>
+            </div>
+            <div id="remoteOperatorsList" class="history-list">
+              <div class="muted">No extra operators yet.</div>
+            </div>
+          </div>
         </div>
 
         <div id="accessRequestsPanel" class="panel glass-panel section-stack" data-anchor="access-requests">

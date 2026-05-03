@@ -2040,7 +2040,7 @@ async function createEvent() {
   if ($('eventModePreset').value === 'song') await setEventMode('song');
   await refreshEventList();
   setStatus('Event created.');
-  switchTab('events');
+  switchTab('operator-roles');
   setTimeout(() => {
     $('eventOperatorPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     $('remoteOperatorName')?.focus();
