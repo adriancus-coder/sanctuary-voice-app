@@ -2875,7 +2875,7 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
   const PARTIAL_THROTTLE_MS = 120;
 
   const emitPartialForLang = (lang, partialText) => {
-    if (event.displayState?.mode !== 'auto') return;
+    if (event.displayState?.mode !== 'auto' && event.mode !== 'live') return;
     const now = Date.now();
     const last = lastEmitAt.get(lang) || 0;
     if (now - last < PARTIAL_THROTTLE_MS) return;
@@ -2890,7 +2890,7 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
   };
 
   const emitLangComplete = (lang, finalText) => {
-    if (event.displayState?.mode !== 'auto') return;
+    if (event.displayState?.mode !== 'auto' && event.mode !== 'live') return;
     accumulatedTranslations[lang] = finalText;
     io.to(`event:${event.id}`).emit('display_live_entry_partial', {
       entryId,
@@ -2933,7 +2933,12 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
   }, false);
   event.latestDisplayEntry = cloneDisplayEntry(entry);
   io.to(`event:${event.id}`).emit('transcript_entry', entry);
-  if (event.displayState?.mode === 'auto') {
+  // Emit display_live_entry când:
+  //  - Main Screen e pe Live (displayState.mode === 'auto') - cazul vechi
+  //  - SAU event-ul (canalul participant) e pe live - chiar dacă Main Screen e Song/Black/Pinned
+  // Asta permite participants să primească live text chiar când Main Screen afișează altceva
+  // (design intenționat: canale paralele independente).
+  if (event.displayState?.mode === 'auto' || event.mode === 'live') {
     io.to(`event:${event.id}`).emit('display_live_entry', cloneDisplayEntry(event.latestDisplayEntry));
   }
   saveDb();
