@@ -2807,11 +2807,11 @@ body.participant-preview-mode .participant-event-chooser {
 }
 
 .participant-earlier-line {
-  font-size: clamp(1.0rem, 2.7vw, 3.1rem);
-  line-height: 1.18;
-  color: rgba(244, 221, 171, 0.65);
+  font-size: clamp(1.7rem, 5vw, 5.5rem);
+  line-height: 1.05;
+  color: #fffaf0;
   font-weight: 500;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.04em;
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
@@ -2828,13 +2828,12 @@ body.participant-preview-mode .participant-event-chooser {
     transform: translateY(8px);
   }
   to {
-    opacity: var(--earlier-target-opacity, 0.65);
     transform: translateY(0);
   }
 }
 
 @media (max-width: 379px) {
-  .participant-listener-stage.participant-focus .participant-earlier-line:not(:first-child) {
+  .participant-listener-stage.participant-focus .participant-earlier-line:nth-child(n+3) {
     display: none;
   }
 }

@@ -566,7 +566,7 @@ function renderEarlierLines(currentId) {
     box.innerHTML = '';
     return;
   }
-  const limit = (window.matchMedia && window.matchMedia('(max-width: 379px)').matches) ? 1 : 2;
+  const limit = (window.matchMedia && window.matchMedia('(max-width: 379px)').matches) ? 2 : 3;
   const ids = state.recentEntryIds
     .filter((id) => id !== currentId)
     .slice(-limit)
@@ -581,7 +581,17 @@ function renderEarlierLines(currentId) {
     return;
   }
   box.innerHTML = lines.map((entry, i) => {
-    const opacity = (lines.length === 2 && i === 1) ? 0.4 : 0.65;
+    // Cu maxim 3 linii: prima (cea mai recentă) cea mai vizibilă, ultima cea mai estompată.
+    // Index 0 = cea mai recentă, ultima = cea mai veche.
+    // Aceeași tonalitate ca live text (alb crem), doar opacity diferit pentru ierarhie.
+    let opacity;
+    if (lines.length === 3) {
+      opacity = i === 0 ? 0.85 : i === 1 ? 0.65 : 0.45;
+    } else if (lines.length === 2) {
+      opacity = i === 0 ? 0.85 : 0.55;
+    } else {
+      opacity = 0.85;
+    }
     const text = getTextForEntry(entry);
     if (!text) return '';
     return `<div class="participant-earlier-line" style="opacity:${opacity}">${highlightBibleRefs(text)}</div>`;
