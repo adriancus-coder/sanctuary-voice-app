@@ -2502,6 +2502,7 @@ function buildPrompt(sourceLangName, targetLangName, speed, glossary) {
     'Translate naturally, smoothly, and conversationally.',
     'Do not translate too literally.',
     'Do not use ellipses.',
+    'If the source contains direct vulgar words or crude anatomical terms, use a polite euphemism appropriate for a religious service audience. Keep the meaning intact but soften the wording. This applies only to genuinely crude language; do not over-censor normal words.',
     speedRules[speed] || speedRules.balanced,
     glossaryText ? `Use these glossary replacements exactly:\n${glossaryText}` : ''
   ].filter(Boolean).join('\n\n');
@@ -3136,6 +3137,14 @@ function startAzureSpeechSession(socket, event) {
   const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION);
   speechConfig.speechRecognitionLanguage = getSpeechLocale(effectiveSourceLang);
   speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, '750');
+  // Dezactivez filtrul de profanitate Azure (default Masked înlocuia cu ***).
+  // În servicii religioase, *** apare aproape exclusiv ca FALSE POSITIVE -
+  // Azure interpretează silabe similare ("curat", "curiozitate") ca profanitate.
+  // Setez Raw pentru text fidel; eventualele cuvinte directe (foarte rare)
+  // sunt politicizate de OpenAI prin prompt în limbile țintă.
+  try {
+    speechConfig.setProfanity(sdk.ProfanityOption.Raw);
+  } catch (_) { /* property not supported in this SDK version */ }
   // Translation Mode controlează cât de agresiv segmentează Azure între propoziții:
   //  - rapid: 300ms - latență minimă, propoziții scurte (Q&A, conversație rapidă)
   //  - balanced: 500ms - echilibru între latență și context (default, validat empiric)
