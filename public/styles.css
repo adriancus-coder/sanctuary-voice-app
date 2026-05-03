@@ -4985,6 +4985,18 @@ body.participant-preview-mode .participant-event-chooser {
   color: rgb(255, 130, 130);
 }
 
+.top-nav-home {
+  color: rgba(244, 221, 171, 0.85);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.top-nav-home:hover {
+  background: rgba(244, 221, 171, 0.1);
+  color: #f4ddab;
+}
+
 /* QR Modal - TASK 32c */
 .qr-modal[hidden] {
   display: none;

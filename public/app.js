@@ -3371,6 +3371,26 @@ $('songBlackScreenBtn')?.addEventListener('click', async () => {
     await blankMainScreen();
   }
 });
+$('songClearBtn')?.addEventListener('click', async () => {
+  if (!currentEvent) return;
+  if (!confirm('Clear current song from screen? Song library and history are preserved.')) return;
+  try {
+    const res = await fetch(`/api/events/${currentEvent.id}/song/clear`, adminJsonOptions('POST'));
+    const data = await res.json();
+    if (!data.ok) {
+      alert(data.error || 'Could not clear song.');
+      return;
+    }
+    currentEvent = data.event || currentEvent;
+    currentEvent.mode = 'live';
+    renderSongState({});
+    refreshDisplayControls();
+    renderActiveEventBadge(currentEvent);
+    setStatus('Song cleared. Ready for next song.');
+  } catch (err) {
+    alert(err.message || 'Could not clear song.');
+  }
+});
 $('displayRestoreBtn').addEventListener('click', restoreLastDisplayState);
   $('displayAutoBtn').addEventListener('click', () => setDisplayMode('auto'));
   $('displayManualBtn').addEventListener('click', () => setDisplayMode('manual'));
