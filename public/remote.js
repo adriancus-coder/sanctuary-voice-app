@@ -22,6 +22,17 @@ const state = {
   }
 };
 
+// Securitate: șterg query param-ul `code` din URL după ce am extras codul.
+// Rămâne în state.accessCode pentru request-uri, dar nu mai e vizibil
+// în bara de adresă, screenshot-uri, server logs, sau bookmark sharing.
+if (params.has('code') && window.history && window.history.replaceState) {
+  const cleanParams = new URLSearchParams(window.location.search);
+  cleanParams.delete('code');
+  const cleanQuery = cleanParams.toString();
+  const cleanUrl = window.location.pathname + (cleanQuery ? '?' + cleanQuery : '') + window.location.hash;
+  window.history.replaceState(null, '', cleanUrl);
+}
+
 const remoteProfileLabels = {
   main_screen: 'Main Screen only',
   song_only: 'Song only',

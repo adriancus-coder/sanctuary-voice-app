@@ -90,6 +90,17 @@ const state = {
   focusMode: participantParams.get('focus') === '1' || localStorage.getItem('sanctuary_voice_participant_focus') === '1'
 };
 
+// Securitate: șterg query param-ul `code` din URL după ce am extras codul.
+// Rămâne în state.previewCode pentru request-uri, dar nu mai e vizibil
+// în bara de adresă, screenshot-uri, server logs, sau bookmark sharing.
+if (participantParams.has('code') && window.history && window.history.replaceState) {
+  const cleanParams = new URLSearchParams(window.location.search);
+  cleanParams.delete('code');
+  const cleanQuery = cleanParams.toString();
+  const cleanUrl = window.location.pathname + (cleanQuery ? '?' + cleanQuery : '') + window.location.hash;
+  window.history.replaceState(null, '', cleanUrl);
+}
+
 let publicEvents = [];
 let pushSubscriptionEventId = '';
 
