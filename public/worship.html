@@ -34,7 +34,12 @@
 
     <section class="worship-event-info" id="worshipEventInfo"></section>
 
-    <section class="worship-song-panel">
+    <nav class="worship-mode-switcher" id="worshipModeSwitcher">
+      <button type="button" data-worship-mode="setlist" class="active">📋 Setlist</button>
+      <button type="button" data-worship-mode="live">🎵 Live</button>
+    </nav>
+
+    <section id="worshipSetlistMode" class="worship-mode-panel worship-song-panel">
       <!-- Import from URL / search resursecrestine.ro -->
       <div class="import-section panel glass-panel">
         <h3>Import / Caută cântare</h3>
@@ -69,6 +74,27 @@
         <input id="globalSongLibrarySearch" type="search" placeholder="Caută în Library...">
         <div id="globalSongLibraryStatus" class="status-line"></div>
         <div id="globalSongLibraryList" class="library-list"></div>
+      </div>
+    </section>
+
+    <section id="worshipLiveMode" class="worship-mode-panel hidden">
+      <div class="panel glass-panel worship-live-panel">
+        <h3>Live — versuri pe tableta ta</h3>
+        <p class="small muted">Independent de proiector. Navighează versetele cu butoanele, lista, sau glisând stânga/dreapta.</p>
+        <div class="live-toolbar">
+          <select id="liveSongSelect" aria-label="Alege cântarea"></select>
+        </div>
+        <div class="live-lyrics-display" id="liveLyricsDisplay">
+          <div class="live-verse-label" id="liveVerseLabel">—</div>
+          <div class="live-verse-text" id="liveVerseText">Selectează o cântare.</div>
+        </div>
+        <div class="live-controls">
+          <button id="liveVersePrev" class="live-nav-btn" type="button" aria-label="Verset anterior">←</button>
+          <div class="live-verse-position" id="liveVersePosition">0 / 0</div>
+          <button id="liveVerseNext" class="live-nav-btn" type="button" aria-label="Verset următor">→</button>
+        </div>
+        <div class="live-verse-list" id="liveVerseList"></div>
+        <div id="liveStatus" class="status-line" role="status"></div>
       </div>
     </section>
   </main>

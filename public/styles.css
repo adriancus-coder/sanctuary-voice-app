@@ -6127,3 +6127,96 @@ button[disabled]:active {
   .worship-app { padding: 8px; }
   .worship-header { flex-wrap: wrap; }
 }
+
+/* === V21.1: Worship Live mode === */
+.worship-mode-switcher {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0;
+}
+.worship-mode-switcher button {
+  flex: 1;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.worship-mode-switcher button.active {
+  background: var(--gold-strong, #ffe4b3);
+  color: #1a1206;
+  border-color: transparent;
+}
+
+.worship-live-panel h3 { margin-top: 0; }
+
+.live-toolbar { margin-bottom: 12px; }
+.live-toolbar select { width: 100%; }
+
+.live-lyrics-display {
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid var(--gold-strong, #ffe4b3);
+  border-radius: 8px;
+  padding: 24px 20px;
+  min-height: 200px;
+  margin-bottom: 14px;
+  user-select: none;
+}
+.live-verse-label {
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 12px;
+}
+.live-verse-text {
+  font-size: 22px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  text-align: center;
+}
+
+.live-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.live-nav-btn {
+  width: 64px;
+  height: 64px;
+  font-size: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: inherit;
+  cursor: pointer;
+}
+.live-nav-btn:active { background: rgba(255, 255, 255, 0.16); }
+.live-verse-position {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.live-verse-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.verse-list-item {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.verse-list-item.current {
+  background: var(--gold-strong, #ffe4b3);
+  color: #1a1206;
+  border-color: transparent;
+}

@@ -5091,6 +5091,35 @@ function isWorshipEditableEvent(event) {
   return typeof event.scheduledTimestamp === 'number' && event.scheduledTimestamp > Date.now();
 }
 
+// V21.1: Worship Live Tablet may also control the currently-active event, not
+// just upcoming ones — setlist editing stays limited to upcoming events
+// (isWorshipEditableEvent), but live verse control needs the active event too.
+function isWorshipAccessibleEvent(event) {
+  if (!event || event.hidden) return false;
+  if (getEventOrgId(event) !== DEFAULT_ORG_ID) return false;
+  return isWorshipEditableEvent(event) || isEventActive(event);
+}
+
+// V21.1: ensure the worship-live state slots exist on an event. Does not
+// overwrite existing values — only initializes missing ones.
+function ensureWorshipState(event) {
+  if (!event) return event;
+  if (!event.worshipState || typeof event.worshipState !== 'object') {
+    event.worshipState = {
+      currentSongId: null,
+      currentVerseIndex: 0,
+      lastUpdatedAt: Date.now(),
+      lastUpdatedBy: null,
+      masterSessionId: null,
+      masterLastSeen: null,
+      offlineMode: false
+    };
+  }
+  if (!Array.isArray(event.worshipViewTokens)) event.worshipViewTokens = [];
+  if (!Array.isArray(event.worshipSyncRequests)) event.worshipSyncRequests = [];
+  return event;
+}
+
 app.post('/api/auth/worship', (req, res) => {
   const rateCheck = checkOperatorLoginRateLimit(getOperatorClientIp(req));
   if (!rateCheck.allowed) {
@@ -5106,7 +5135,9 @@ app.post('/api/auth/worship', (req, res) => {
     return res.status(401).json({ ok: false, error: 'Invalid PIN.' });
   }
   const now = Date.now();
-  const session = { role: 'worship', addedSongs: [], iat: now, exp: now + WORSHIP_SESSION_MAX_AGE_MS };
+  // V21.1: sid gives the worship session a stable identity (offline detection
+  // and master tracking in later V21 stages key on it).
+  const session = { role: 'worship', sid: randomBytes(8).toString('hex'), addedSongs: [], iat: now, exp: now + WORSHIP_SESSION_MAX_AGE_MS };
   setWorshipSessionCookie(req, res, session);
   logger.info('[worship/login] Worship session created');
   return res.json({ ok: true });
@@ -5122,13 +5153,14 @@ app.get('/api/worship/events', (req, res) => {
   if (!session) return;
   try {
     const events = Object.values(db.events || {})
-      .filter(isWorshipEditableEvent)
-      .sort((a, b) => a.scheduledTimestamp - b.scheduledTimestamp)
+      .filter(isWorshipAccessibleEvent)
+      .sort((a, b) => (a.scheduledTimestamp || 0) - (b.scheduledTimestamp || 0))
       .map((event) => ({
         id: event.id,
         name: event.name || 'Untitled event',
         scheduledAt: event.scheduledAt || null,
         scheduledTimestamp: event.scheduledTimestamp,
+        isActive: isEventActive(event),
         songsCount: Array.isArray(event.songLibrary) ? event.songLibrary.length : 0
       }));
     return res.json({ ok: true, events });
@@ -5146,10 +5178,11 @@ app.get('/api/worship/events/:id', (req, res) => {
     if (!event) {
       return res.status(404).json({ ok: false, error: 'Event not found' });
     }
-    if (!isWorshipEditableEvent(event)) {
-      return res.status(403).json({ ok: false, error: 'Event is not an upcoming event' });
+    if (!isWorshipAccessibleEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Event is not accessible to worship' });
     }
     ensureEventUiState(event);
+    ensureWorshipState(event);
     return res.json({
       ok: true,
       event: {
@@ -5157,9 +5190,18 @@ app.get('/api/worship/events/:id', (req, res) => {
         name: event.name || 'Untitled event',
         scheduledAt: event.scheduledAt || null,
         scheduledTimestamp: event.scheduledTimestamp,
+        // V21.1: editable === setlist may be modified (upcoming only); a live
+        // event is accessible (verse control) but not setlist-editable.
+        editable: isWorshipEditableEvent(event),
+        worshipState: {
+          currentSongId: event.worshipState.currentSongId,
+          currentVerseIndex: event.worshipState.currentVerseIndex
+        },
         songs: (event.songLibrary || []).map((song) => ({
           id: song.id,
           title: song.title || '',
+          // V21.1: lyrics are needed by Live mode to render verses.
+          text: song.text || '',
           labels: Array.isArray(song.labels) ? song.labels : [],
           addedByWorship: session.addedSongs.includes(song.id)
         }))
@@ -5248,6 +5290,47 @@ app.delete('/api/worship/events/:id/songs/:itemId', (req, res) => {
     return res.json({ ok: true });
   } catch (err) {
     logger.error('[worship/delete-song] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+// V21.1: Worship Live Tablet — the worship master updates its own verse state.
+// This is independent of the projector (displayState); projector sync arrives
+// in a later V21 stage. State is persisted so it survives a reload/restart.
+app.post('/api/worship/events/:id/verse', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  try {
+    const event = db.events[req.params.id];
+    if (!event) {
+      return res.status(404).json({ ok: false, error: 'Event not found' });
+    }
+    if (!isWorshipAccessibleEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Event is not accessible to worship' });
+    }
+    const songId = req.body?.songId == null ? null : String(req.body.songId).trim() || null;
+    const verseIndex = Number(req.body?.verseIndex);
+    if (!Number.isInteger(verseIndex) || verseIndex < 0) {
+      return res.status(400).json({ ok: false, error: 'Invalid verseIndex' });
+    }
+    ensureWorshipState(event);
+    event.worshipState.currentSongId = songId;
+    event.worshipState.currentVerseIndex = verseIndex;
+    event.worshipState.lastUpdatedAt = Date.now();
+    event.worshipState.lastUpdatedBy = 'worship';
+    event.worshipState.masterSessionId = session.sid || null;
+    event.worshipState.masterLastSeen = Date.now();
+    event.worshipState.offlineMode = false;
+    saveDb();
+    return res.json({
+      ok: true,
+      worshipState: {
+        currentSongId: event.worshipState.currentSongId,
+        currentVerseIndex: event.worshipState.currentVerseIndex
+      }
+    });
+  } catch (err) {
+    logger.error('[worship/verse] Failed:', err);
     return res.status(500).json({ ok: false, error: 'Server error' });
   }
 });

@@ -7,6 +7,11 @@
   let availableEvents = [];
   let libraryItems = [];
 
+  // V21.1: Live mode state
+  let liveMode = 'setlist';
+  let liveCurrentSongId = null;
+  let liveCurrentVerseIndex = 0;
+
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -139,6 +144,7 @@
         '</div>';
       renderEventSongs();
       loadLibrary();
+      resetLiveForEvent();
     } catch (err) {
       $('worshipEventInfo').innerHTML =
         '<p class="muted">Eroare: ' + escapeHtml(err.message) + '</p>';
@@ -205,7 +211,7 @@
       return;
     }
 
-    const canAdd = !!currentEvent;
+    const canAdd = !!currentEvent && currentEvent.editable !== false;
     list.innerHTML = filtered.slice(0, 60).map((item) => {
       const id = escapeHtml(item.id);
       const chars = item.text ? String(item.text).length : 0;
@@ -218,7 +224,7 @@
           '<pre class="library-preview-text">' + escapeHtml(item.text || '') + '</pre>' +
           '<div class="library-card-actions">' +
             '<button class="btn btn-primary btn-sm" type="button" data-worship-lib-add="' + id + '"' +
-              (canAdd ? '' : ' disabled title="Selectează un event"') + '>Adaugă în event</button>' +
+              (canAdd ? '' : ' disabled title="' + (currentEvent ? 'Setlist blocat pentru event live' : 'Selectează un event') + '"') + '>Adaugă în event</button>' +
           '</div>' +
         '</div>' +
       '</details>';
@@ -394,6 +400,148 @@
     }
   }
 
+  // --- V21.1: LIVE MODE ---
+  // Verses are split on blank lines. NOTE: this differs from the projector's
+  // marker-aware block model; reconciling the two indexes is a V21.3 concern
+  // (projector sync). For standalone worship-tablet use this split is enough.
+  function parseVerses(text) {
+    if (!text) return [];
+    return String(text).split(/\n\s*\n/).map((v) => v.trim()).filter(Boolean);
+  }
+
+  function getLiveSong() {
+    const songs = (currentEvent && Array.isArray(currentEvent.songs)) ? currentEvent.songs : [];
+    return songs.find((s) => s.id === liveCurrentSongId) || null;
+  }
+
+  function toggleMode(mode) {
+    if (mode !== 'setlist' && mode !== 'live') return;
+    liveMode = mode;
+    $('worshipSetlistMode').classList.toggle('hidden', mode !== 'setlist');
+    $('worshipLiveMode').classList.toggle('hidden', mode !== 'live');
+    document.querySelectorAll('[data-worship-mode]').forEach((b) => {
+      b.classList.toggle('active', b.dataset.worshipMode === mode);
+    });
+    if (mode === 'live') refreshLiveMode();
+  }
+
+  function refreshLiveMode() {
+    const select = $('liveSongSelect');
+    if (!select) return;
+    const songs = (currentEvent && Array.isArray(currentEvent.songs)) ? currentEvent.songs : [];
+    if (!songs.length) {
+      select.innerHTML = '<option value="">Niciun cântec în event</option>';
+      select.disabled = true;
+    } else {
+      select.disabled = false;
+      select.innerHTML = '<option value="">Alege cântarea…</option>' +
+        songs.map((s) => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.title || 'Fără titlu') + '</option>').join('');
+    }
+    // Restore from the server-side worshipState if it points at a known song.
+    const ws = currentEvent && currentEvent.worshipState;
+    if (ws && ws.currentSongId && songs.some((s) => s.id === ws.currentSongId)) {
+      liveCurrentSongId = ws.currentSongId;
+      liveCurrentVerseIndex = Number.isInteger(ws.currentVerseIndex) ? ws.currentVerseIndex : 0;
+    }
+    select.value = liveCurrentSongId || '';
+    renderLiveMode();
+  }
+
+  function renderLiveMode() {
+    const labelEl = $('liveVerseLabel');
+    const textEl = $('liveVerseText');
+    const posEl = $('liveVersePosition');
+    const listEl = $('liveVerseList');
+    if (!labelEl || !textEl || !posEl || !listEl) return;
+    const song = getLiveSong();
+    if (!song) {
+      labelEl.textContent = '—';
+      textEl.textContent = 'Selectează o cântare.';
+      posEl.textContent = '0 / 0';
+      listEl.innerHTML = '';
+      return;
+    }
+    const verses = parseVerses(song.text);
+    if (!verses.length) {
+      labelEl.textContent = '—';
+      textEl.textContent = 'Cântarea nu are versuri.';
+      posEl.textContent = '0 / 0';
+      listEl.innerHTML = '';
+      return;
+    }
+    const idx = Math.max(0, Math.min(liveCurrentVerseIndex, verses.length - 1));
+    liveCurrentVerseIndex = idx;
+    labelEl.textContent = 'Strofa ' + (idx + 1);
+    textEl.textContent = verses[idx];
+    posEl.textContent = (idx + 1) + ' / ' + verses.length;
+    listEl.innerHTML = verses.map((v, i) =>
+      '<button type="button" class="verse-list-item' + (i === idx ? ' current' : '') +
+      '" data-verse-index="' + i + '">' + (i === idx ? '● ' : '') + 'Strofa ' + (i + 1) + '</button>'
+    ).join('');
+  }
+
+  function resetLiveForEvent() {
+    liveCurrentSongId = null;
+    liveCurrentVerseIndex = 0;
+    refreshLiveMode();
+  }
+
+  async function setLiveVerse(index) {
+    const song = getLiveSong();
+    if (!song || !currentEvent) return;
+    const verses = parseVerses(song.text);
+    if (!verses.length) return;
+    const clamped = Math.max(0, Math.min(index, verses.length - 1));
+    liveCurrentVerseIndex = clamped;
+    renderLiveMode();
+    try {
+      const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) + '/verse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ songId: song.id, verseIndex: clamped })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        setStatus($('liveStatus'), data.error || 'Sincronizare eșuată.', 'err');
+      } else {
+        setStatus($('liveStatus'), 'Sincronizat · strofa ' + (clamped + 1), 'ok');
+      }
+    } catch (err) {
+      setStatus($('liveStatus'), 'Eroare rețea: ' + err.message, 'err');
+    }
+  }
+
+  function changeLiveSong(songId) {
+    liveCurrentSongId = songId || null;
+    liveCurrentVerseIndex = 0;
+    if (liveCurrentSongId) {
+      setLiveVerse(0);
+    } else {
+      renderLiveMode();
+      setStatus($('liveStatus'), '', '');
+    }
+  }
+
+  function attachSwipeHandlers() {
+    const display = $('liveLyricsDisplay');
+    if (!display) return;
+    let startX = null;
+    let startY = null;
+    display.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+    display.addEventListener('touchend', (e) => {
+      if (startX === null) return;
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      startX = null;
+      startY = null;
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+      setLiveVerse(dx < 0 ? liveCurrentVerseIndex + 1 : liveCurrentVerseIndex - 1);
+    }, { passive: true });
+  }
+
   // --- LISTENERS ---
   function attachListeners() {
     $('worshipLoginBtn').addEventListener('click', doLogin);
@@ -428,6 +576,19 @@
     });
     $('songSaveBtn').addEventListener('click', saveSongInLibrary);
     $('songClearBtn').addEventListener('click', clearSongEditor);
+
+    // V21.1: Live mode
+    document.querySelectorAll('[data-worship-mode]').forEach((b) => {
+      b.addEventListener('click', () => toggleMode(b.dataset.worshipMode));
+    });
+    $('liveSongSelect').addEventListener('change', (e) => changeLiveSong(e.target.value));
+    $('liveVersePrev').addEventListener('click', () => setLiveVerse(liveCurrentVerseIndex - 1));
+    $('liveVerseNext').addEventListener('click', () => setLiveVerse(liveCurrentVerseIndex + 1));
+    $('liveVerseList').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-verse-index]');
+      if (btn) setLiveVerse(parseInt(btn.dataset.verseIndex, 10));
+    });
+    attachSwipeHandlers();
 
     $('importUrlResults').addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-import-result-url]');
