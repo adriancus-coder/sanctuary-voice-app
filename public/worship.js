@@ -422,7 +422,11 @@
     document.querySelectorAll('[data-worship-mode]').forEach((b) => {
       b.classList.toggle('active', b.dataset.worshipMode === mode);
     });
-    if (mode === 'live') refreshLiveMode();
+    if (mode === 'live') {
+      refreshLiveMode();
+      initMasterSocket();
+      joinMasterRoom();
+    }
   }
 
   function refreshLiveMode() {
@@ -484,6 +488,7 @@
     liveCurrentSongId = null;
     liveCurrentVerseIndex = 0;
     refreshLiveMode();
+    joinMasterRoom();
   }
 
   async function setLiveVerse(index) {
@@ -585,6 +590,61 @@
     }
   }
 
+  // --- V21.3: MASTER SOCKET + PROJECTOR SYNC REQUEST ---
+  let masterSocket = null;
+  let masterHeartbeatTimer = null;
+  let pendingSyncId = null;
+
+  function joinMasterRoom() {
+    if (masterSocket && masterSocket.connected && currentEvent) {
+      masterSocket.emit('worship:master:join', { eventId: currentEvent.id });
+    }
+  }
+
+  function initMasterSocket() {
+    if (masterSocket || typeof io !== 'function') return;
+    masterSocket = io();
+    masterSocket.on('connect', joinMasterRoom);
+    masterSocket.on('worship:master:denied', (d) => {
+      setStatus($('liveStatus'), (d && d.message) || 'Conexiune worship respinsă.', 'err');
+    });
+    masterSocket.on('worship:sync_request_resolved', (data) => {
+      if (!data || !pendingSyncId || data.requestId !== pendingSyncId) return;
+      pendingSyncId = null;
+      setStatus($('liveStatus'),
+        data.approved ? 'Operatorul a aprobat sync-ul proiectorului.' : 'Operatorul a refuzat sync-ul.',
+        data.approved ? 'ok' : 'err');
+    });
+    masterHeartbeatTimer = setInterval(() => {
+      if (masterSocket && masterSocket.connected && currentEvent) {
+        masterSocket.emit('worship:master:heartbeat', { eventId: currentEvent.id });
+      }
+    }, 20000);
+  }
+
+  async function requestProjectorSync() {
+    if (!currentEvent) { alert('Selectează un event.'); return; }
+    if (!liveCurrentSongId) {
+      setStatus($('liveStatus'), 'Alege o cântare în Live mode mai întâi.', 'err');
+      return;
+    }
+    const btn = $('worshipSyncProjectorBtn');
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) + '/sync-request', {
+        method: 'POST'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Cererea a eșuat.');
+      pendingSyncId = data.requestId;
+      setStatus($('liveStatus'), 'Cerere trimisă — aștept aprobarea operatorului…', '');
+    } catch (err) {
+      setStatus($('liveStatus'), err.message, 'err');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   // --- LISTENERS ---
   function attachListeners() {
     $('worshipLoginBtn').addEventListener('click', doLogin);
@@ -637,6 +697,9 @@
     $('worshipShareBtn').addEventListener('click', shareWithTeam);
     $('worshipQrCloseBtn').addEventListener('click', closeQrModal);
     $('worshipQrCopyBtn').addEventListener('click', copyQrLink);
+
+    // V21.3: projector sync request
+    $('worshipSyncProjectorBtn').addEventListener('click', requestProjectorSync);
 
     $('importUrlResults').addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-import-result-url]');

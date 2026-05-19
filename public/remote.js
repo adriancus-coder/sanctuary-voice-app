@@ -11,6 +11,7 @@ const state = {
   access: null,
   globalSongLibrary: [],
   pinnedTextLibrary: [],
+  worship: { online: false, hasState: false, songTitle: '', verseIndex: 0, request: null },
   glossaryOpen: false,
   liveAudio: {
     running: false,
@@ -715,6 +716,34 @@ async function loadRemotePinnedTextLibrary() {
   }
 }
 
+// V21.3: operator awareness of the worship-live channel.
+function renderRemoteWorshipPanel() {
+  const presenceEl = $('remoteWorshipPresence');
+  const statusEl = $('remoteWorshipStatus');
+  const reqEl = $('remoteWorshipRequest');
+  if (!presenceEl || !statusEl || !reqEl) return;
+  const w = state.worship;
+  presenceEl.textContent = w.online ? 'Worship online' : 'Worship offline';
+  presenceEl.classList.toggle('active', w.online);
+  if (w.hasState && w.songTitle) {
+    statusEl.textContent = `Worship: ${w.songTitle} · strofa ${w.verseIndex + 1}`;
+  } else {
+    statusEl.textContent = 'Echipa worship nu a trimis nicio cântare încă.';
+  }
+  if (w.request) {
+    reqEl.classList.remove('hidden');
+    reqEl.innerHTML = `
+      <div class="worship-sync-toast-text">🎵 Worship cere sync proiector: <b>${escapeHtml(w.request.songTitle || 'cântare')}</b> · strofa ${w.request.verseIndex + 1}</div>
+      <div class="worship-sync-toast-actions">
+        <button class="btn btn-primary" type="button" data-worship-req="approve">Aprob</button>
+        <button class="btn btn-dark" type="button" data-worship-req="decline">Refuz</button>
+      </div>`;
+  } else {
+    reqEl.classList.add('hidden');
+    reqEl.innerHTML = '';
+  }
+}
+
 function refreshRemoteUi() {
   const displayState = state.currentEvent?.displayState || {};
   const activeMode = displayState.blackScreen ? 'blank' : (displayState.mode || 'auto');
@@ -779,6 +808,7 @@ function refreshRemoteUi() {
   renderRemoteSongLibrary();
   renderRemotePinnedTextLibrary();
   renderRemoteSongHistory();
+  renderRemoteWorshipPanel();
   renderRemoteLiveAudioState();
   if (mainScreenAllowed) {
     renderQuickLanguages();
@@ -889,6 +919,54 @@ socket.on('song_history_updated', ({ songHistory }) => {
   state.currentEvent.songHistory = songHistory || [];
   renderRemoteSongHistory();
   renderRemoteSongState();
+});
+// V21.3: worship-live awareness on the operator side.
+socket.on('worship:state_change', (data) => {
+  if (!data || data.eventId !== state.eventId) return;
+  state.worship.hasState = true;
+  state.worship.online = true;
+  state.worship.songTitle = data.song ? (data.song.title || '') : '';
+  state.worship.verseIndex = data.state ? (data.state.currentVerseIndex || 0) : 0;
+  renderRemoteWorshipPanel();
+});
+socket.on('worship:master_presence', (data) => {
+  if (!data || data.eventId !== state.eventId) return;
+  state.worship.online = !!data.online;
+  renderRemoteWorshipPanel();
+});
+socket.on('worship:sync_request_pending', (data) => {
+  if (!data || data.eventId !== state.eventId || !data.request) return;
+  state.worship.request = {
+    id: data.request.id,
+    songTitle: data.songTitle || '',
+    verseIndex: data.request.targetVerseIndex || 0
+  };
+  renderRemoteWorshipPanel();
+  setStatus('Worship cere sync proiector — vezi tab-ul Song.');
+});
+socket.on('worship:sync_request_resolved', (data) => {
+  if (!data || !state.worship.request || data.requestId !== state.worship.request.id) return;
+  state.worship.request = null;
+  renderRemoteWorshipPanel();
+});
+$('remoteWorshipRequest')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-worship-req]');
+  if (!btn || !state.worship.request) return;
+  const approve = btn.getAttribute('data-worship-req') === 'approve';
+  const reqId = state.worship.request.id;
+  try {
+    const res = await fetch(
+      `/api/events/${state.eventId}/worship/sync-request/${reqId}/resolve`,
+      eventCodeOptions('POST', { approve })
+    );
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Acțiune eșuată.');
+    state.worship.request = null;
+    renderRemoteWorshipPanel();
+    setStatus(approve ? 'Cerere worship aprobată.' : 'Cerere worship refuzată.');
+  } catch (err) {
+    setStatus(err.message);
+  }
 });
 socket.on('display_presets_updated', ({ presets }) => {
   if (!state.currentEvent) return;

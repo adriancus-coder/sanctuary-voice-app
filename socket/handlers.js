@@ -29,7 +29,10 @@ function registerSocketHandlers(io, ctx) {
     saveDb,
     setTranscriptionPaused,
     socketCanControlEvent,
-    startAzureSpeechSession
+    startAzureSpeechSession,
+    ensureWorshipState,
+    getWorshipSessionFromSocket,
+    isWorshipAccessibleEvent
   } = ctx;
 
   const RATE_LIMITS = {
@@ -43,7 +46,9 @@ function registerSocketHandlers(io, ctx) {
     azure_audio_start:       { windowMs: 60 * 1000, max: 10 },
     azure_audio_chunk:       { windowMs: 1000,      max: 50 },
     azure_audio_stop:        { windowMs: 60 * 1000, max: 20 },
-    'worship:view:join':     { windowMs: 60 * 1000, max: 30 }
+    'worship:view:join':     { windowMs: 60 * 1000, max: 30 },
+    'worship:master:join':   { windowMs: 60 * 1000, max: 30 },
+    'worship:master:heartbeat': { windowMs: 60 * 1000, max: 12 }
   };
 
   function checkSocketRateLimit(socket, eventName) {
@@ -142,6 +147,47 @@ function registerSocketHandlers(io, ctx) {
       socket.data.worshipViewEventId = eventId;
     });
 
+    // V21.3: worship master socket — presence (offline detection) + receiving
+    // operator notifications. Authenticated by the worship session cookie.
+    on(socket, 'worship:master:join', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return;
+      const session = getWorshipSessionFromSocket(socket);
+      if (!session) {
+        return socket.emit('worship:master:denied', { message: 'Sesiune worship invalidă.' });
+      }
+      const event = db.events[eventId];
+      if (!event || !isWorshipAccessibleEvent(event)) {
+        return socket.emit('worship:master:denied', { message: 'Eveniment indisponibil.' });
+      }
+      socket.join(`worship:${eventId}`);
+      socket.data.worshipMasterEventId = eventId;
+      socket.data.worshipMasterSid = session.sid || null;
+      ensureWorshipState(event);
+      event.worshipState.masterSessionId = session.sid || null;
+      event.worshipState.masterLastSeen = Date.now();
+      event.worshipState.offlineMode = false;
+      saveDb();
+      io.to(`worship:${eventId}`).emit('worship:master_presence', { eventId, online: true });
+    });
+
+    on(socket, 'worship:master:heartbeat', (payload) => {
+      const eventId = asEventId(payload?.eventId) || socket.data.worshipMasterEventId;
+      if (!eventId) return;
+      const event = db.events[eventId];
+      if (!event || !event.worshipState) return;
+      const sid = socket.data.worshipMasterSid || null;
+      // Only the tracked master refreshes presence.
+      if (sid && event.worshipState.masterSessionId && sid !== event.worshipState.masterSessionId) return;
+      event.worshipState.masterLastSeen = Date.now();
+      if (event.worshipState.offlineMode) {
+        event.worshipState.offlineMode = false;
+        event.worshipState.masterSessionId = sid || event.worshipState.masterSessionId;
+        saveDb();
+        io.to(`worship:${eventId}`).emit('worship:master_presence', { eventId, online: true });
+      }
+    });
+
     on(socket, 'join_event', (payload) => {
       const eventId = asEventId(payload?.eventId);
       const role = asString(payload?.role, 32);
@@ -172,6 +218,8 @@ function registerSocketHandlers(io, ctx) {
       if (socket.data.role === 'admin') socket.join(`event:${eventId}:admins`);
       if (socket.data.role === 'screen') socket.join(`event:${eventId}:screens`);
       if (socket.data.role === 'participant' || socket.data.role === 'participant_preview') socket.join(`event:${eventId}:lang:${socket.data.language}`);
+      // V21.3: operators/admins observe the worship-live channel.
+      if (socket.data.role === 'admin' || socket.data.role === 'screen') socket.join(`worship:${eventId}`);
 
       if (socket.data.role === 'participant' && socket.data.participantId) {
         registerParticipantSocket(eventId, socket.data.participantId, socket.data.language, socket.id);

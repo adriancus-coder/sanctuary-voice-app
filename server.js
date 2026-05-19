@@ -5084,6 +5084,17 @@ function requireWorshipApiSession(req, res) {
   return session;
 }
 
+// V21.3: verify a worship session from a Socket.IO handshake cookie (the
+// worship master opens a socket for presence + operator-push notifications).
+function getWorshipSessionFromSocket(socket) {
+  try {
+    const cookies = parseCookies({ headers: { cookie: socket?.handshake?.headers?.cookie || '' } });
+    return verifyWorshipSession(cookies[WORSHIP_SESSION_COOKIE]) || null;
+  } catch (err) {
+    return null;
+  }
+}
+
 // A worship event is one that belongs to the default org, is not hidden, and is
 // scheduled strictly in the future (next service — never past/active).
 function isWorshipEditableEvent(event) {
@@ -5414,6 +5425,77 @@ app.get('/api/worship-view/:eventId', (req, res) => {
   return res.json({ ok: true, eventName: event.name || '', state: payload.state, song: payload.song });
 });
 
+// V21.3: worship master asks an operator/admin to mirror its verse onto the
+// projector. This stage only surfaces the request; the actual projector move
+// is V21.4 — on approve, the operator applies it via the existing Tab Song.
+app.post('/api/worship/events/:id/sync-request', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  try {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Event not found' });
+    if (!isWorshipAccessibleEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Event is not accessible to worship' });
+    }
+    ensureWorshipState(event);
+    if (!event.worshipState.currentSongId) {
+      return res.status(400).json({ ok: false, error: 'Selectează o cântare în Live mode mai întâi.' });
+    }
+    // Only one pending projector request at a time.
+    event.worshipSyncRequests = event.worshipSyncRequests.filter(
+      (r) => !(r && r.type === 'worship_to_projector' && r.status === 'pending')
+    );
+    const request = {
+      id: randomBytes(6).toString('hex'),
+      type: 'worship_to_projector',
+      targetSongId: event.worshipState.currentSongId,
+      targetVerseIndex: event.worshipState.currentVerseIndex,
+      requestedAt: Date.now(),
+      fromRole: 'worship',
+      status: 'pending'
+    };
+    event.worshipSyncRequests.push(request);
+    event.worshipSyncRequests = event.worshipSyncRequests.slice(-20);
+    saveDb();
+    const song = (event.songLibrary || []).find((s) => s && s.id === request.targetSongId);
+    io.to(`worship:${event.id}`).emit('worship:sync_request_pending', {
+      eventId: event.id,
+      request,
+      songTitle: song ? (song.title || '') : ''
+    });
+    return res.json({ ok: true, requestId: request.id });
+  } catch (err) {
+    logger.error('[worship/sync-request] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+// V21.3: operator/admin approves or declines a worship -> projector request.
+app.post('/api/events/:id/worship/sync-request/:reqId/resolve', (req, res) => {
+  const event = db.events[req.params.id];
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+  if (!requireEventPermission(req, res, 'song')) return;
+  ensureWorshipState(event);
+  const request = event.worshipSyncRequests.find((r) => r && r.id === req.params.reqId);
+  if (!request || request.status !== 'pending') {
+    return res.status(404).json({ ok: false, error: 'Cererea nu există sau a fost deja rezolvată.' });
+  }
+  if (request.type !== 'worship_to_projector') {
+    return res.status(400).json({ ok: false, error: 'Tip de cerere greșit.' });
+  }
+  const approve = req.body && req.body.approve === true;
+  request.status = approve ? 'approved' : 'declined';
+  request.resolvedAt = Date.now();
+  saveDb();
+  io.to(`worship:${event.id}`).emit('worship:sync_request_resolved', {
+    eventId: event.id,
+    requestId: request.id,
+    approved: approve
+  });
+  return res.json({ ok: true });
+});
+
 function getOperatorCodeFromRequest(req) {
   const cookieCode = getOperatorCodeFromCookie(req);
   if (cookieCode) return cookieCode;
@@ -5644,7 +5726,10 @@ registerSocketHandlers(io, {
   saveDb,
   setTranscriptionPaused,
   socketCanControlEvent,
-  startAzureSpeechSession
+  startAzureSpeechSession,
+  ensureWorshipState,
+  getWorshipSessionFromSocket,
+  isWorshipAccessibleEvent
 });
 
 async function ensureDefaultEvent() {
@@ -5668,6 +5753,26 @@ async function ensureDefaultEvent() {
 }
 
 loadPersistentTranslationCache();
+
+// V21.3: flag a worship event as offline when its master stops sending
+// heartbeats (~1 min). WORSHIP_OFFLINE_MS is env-overridable for testing.
+const WORSHIP_OFFLINE_MS = Math.max(5000, Number(process.env.WORSHIP_OFFLINE_MS) || 60000);
+setInterval(() => {
+  const now = Date.now();
+  let dirty = false;
+  Object.values(db.events || {}).forEach((event) => {
+    const ws = event && event.worshipState;
+    if (!ws || !ws.masterSessionId || ws.offlineMode) return;
+    if (typeof ws.masterLastSeen !== 'number') return;
+    if (now - ws.masterLastSeen <= WORSHIP_OFFLINE_MS) return;
+    ws.offlineMode = true;
+    ws.masterSessionId = null;
+    dirty = true;
+    io.to(`worship:${event.id}`).emit('worship:master_presence', { eventId: event.id, online: false });
+    logger.info(`[worship/offline] master offline for event=${event.id}`);
+  });
+  if (dirty) saveDb();
+}, Math.min(30000, WORSHIP_OFFLINE_MS)).unref();
 
 const httpServer = server.listen(PORT, () => {
   logger.info(`Sanctuary Voice running on ${httpServer.address()?.port || PORT}`);
