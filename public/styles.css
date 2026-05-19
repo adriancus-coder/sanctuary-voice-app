@@ -5885,3 +5885,187 @@ button[disabled]:active {
   max-height: 400px;
   overflow-y: auto;
 }
+
+/* === V20.2: Worship page (mobile-first) === */
+.worship-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.worship-login-card {
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  padding: 28px 22px;
+}
+
+.worship-login-card h1 {
+  margin: 4px 0 6px;
+  font-size: 28px;
+}
+
+.worship-login-card input {
+  width: 100%;
+  font-size: 18px;
+  padding: 12px;
+  text-align: center;
+  letter-spacing: 4px;
+  margin: 16px 0 10px;
+}
+
+.worship-login-card .btn {
+  width: 100%;
+}
+
+.worship-app {
+  padding: 12px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.worship-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.worship-event-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.worship-event-selector select {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  padding: 8px;
+}
+
+.event-info-card {
+  border-left: 3px solid var(--accent, #e8c477);
+  padding: 4px 0 4px 12px;
+}
+
+.worship-event-info {
+  margin-bottom: 12px;
+}
+
+.worship-song-panel > .panel {
+  margin-bottom: 12px;
+  padding: 14px;
+}
+
+.worship-song-panel h3 {
+  font-size: 13px;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted, rgba(246, 240, 230, 0.6));
+}
+
+.event-songs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.event-song-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+
+.event-song-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.worship-tag {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(232, 196, 119, 0.18);
+  color: var(--accent, #e8c477);
+}
+
+#globalSongLibrarySearch {
+  width: 100%;
+  font-size: 14px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.library-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.library-card summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.library-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.library-card-body {
+  margin-top: 8px;
+}
+
+.library-preview-text {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: inherit;
+  font-size: 13px;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0 0 8px;
+  color: var(--muted, rgba(246, 240, 230, 0.75));
+}
+
+.library-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.status-line {
+  font-size: 13px;
+  min-height: 1.2em;
+  padding: 2px 0;
+}
+
+.status-line.err { color: #ff9c4d; }
+.status-line.ok { color: #6cc36c; }
+
+@media (max-width: 480px) {
+  .worship-app { padding: 8px; }
+  .worship-header { flex-wrap: wrap; }
+}

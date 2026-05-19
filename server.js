@@ -221,6 +221,7 @@ app.get('/main-screen', (req, res) => res.sendFile(path.join(__dirname, 'public'
 app.get('/translate', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/song', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
+app.get('/worship', (req, res) => res.sendFile(path.join(__dirname, 'public', 'worship.html')));
 app.get('/demo-screen', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-screen.html')));
 app.get('/demo-participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-participant.html')));
 app.get('/operator-dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'operator-dashboard.html')));

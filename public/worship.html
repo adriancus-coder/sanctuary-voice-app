@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#050608">
+  <title>Worship — Sanctuary Voice</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="/icon.svg">
+</head>
+<body class="worship-page">
+
+  <!-- LOGIN SCREEN -->
+  <section id="worshipLoginScreen" class="worship-login">
+    <div class="worship-login-card panel glass-panel">
+      <div class="eyebrow">Sanctuary Voice</div>
+      <h1>Worship</h1>
+      <p class="muted">Pregătire cântări pentru slujbă</p>
+      <input id="worshipPinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+      <button id="worshipLoginBtn" class="btn btn-primary" type="button">Intră</button>
+      <div id="worshipLoginStatus" class="status-line" role="status"></div>
+    </div>
+  </section>
+
+  <!-- MAIN APP (hidden until login) -->
+  <main id="worshipApp" class="worship-app hidden">
+    <header class="worship-header panel glass-panel">
+      <div class="worship-event-selector">
+        <label class="small" for="worshipEventSelect">Event</label>
+        <select id="worshipEventSelect"></select>
+      </div>
+      <button id="worshipLogoutBtn" class="btn btn-dark btn-sm" type="button">Logout</button>
+    </header>
+
+    <section class="worship-event-info" id="worshipEventInfo"></section>
+
+    <section class="worship-song-panel">
+      <!-- Songs already in the selected event -->
+      <div class="event-songs-section panel glass-panel">
+        <h3>În acest event (<span id="eventSongsCount">0</span>)</h3>
+        <div id="eventSongsList" class="event-songs-list"></div>
+      </div>
+
+      <!-- Church song library -->
+      <div class="library-section panel glass-panel">
+        <h3>Library cântări</h3>
+        <input id="globalSongLibrarySearch" type="search" placeholder="Caută în Library...">
+        <div id="globalSongLibraryStatus" class="status-line"></div>
+        <div id="globalSongLibraryList" class="library-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/worship.js"></script>
+</body>
+</html>
