@@ -55,6 +55,8 @@ const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION || '';
 const MASTER_ADMIN_PIN = String(process.env.MASTER_ADMIN_PIN || process.env.APP_ADMIN_PIN || '').trim();
 const MASTER_MODERATOR_PIN = String(process.env.MASTER_MODERATOR_PIN || process.env.APP_MODERATOR_PIN || '').trim();
 const MAIN_OPERATOR_PIN = String(process.env.MAIN_OPERATOR_PIN || process.env.MAIN_OPERATOR_CODE || '').trim();
+// V20.1: Worship role PIN — lets the worship team add library songs to upcoming events.
+const WORSHIP_PIN = String(process.env.WORSHIP_PIN || '').trim();
 const TRANSLATION_MONITOR_ENABLED = String(process.env.TRANSLATION_MONITOR_ENABLED || '').trim() === '1';
 const PUBLIC_BASE_URL = normalizePublicBaseUrl(process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'https://sanctuaryvoice.com');
 const ADMIN_APP_BASE_URL = normalizePublicBaseUrl(process.env.ADMIN_APP_BASE_URL || process.env.APP_ADMIN_BASE_URL || '');
@@ -5002,6 +5004,243 @@ app.post('/api/operator-login', (req, res) => {
 app.post('/api/operator-logout', (req, res) => {
   clearOperatorSessionCookie(req, res);
   return res.json({ ok: true });
+});
+
+// === V20.1: Worship role ===
+// Lets the worship team log in with WORSHIP_PIN and add church-library songs to
+// upcoming events from a rehearsal device. Session is a separate signed cookie
+// (HMAC over ADMIN_SESSION_SECRET, namespaced `ws:`) carrying the itemIds added
+// in the current session — worship may delete only those.
+const WORSHIP_SESSION_COOKIE = 'sv_worship_session';
+const WORSHIP_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8h — a rehearsal length
+
+function signWorshipSession(payload) {
+  const body = base64urlEncode(JSON.stringify(payload));
+  const signature = createHmac('sha256', ADMIN_SESSION_SECRET).update(`ws:${body}`).digest('base64url');
+  return `${body}.${signature}`;
+}
+
+function verifyWorshipSession(token) {
+  const rawToken = String(token || '');
+  const [body, signature] = rawToken.split('.');
+  if (!body || !signature) return null;
+  const expectedSignature = createHmac('sha256', ADMIN_SESSION_SECRET).update(`ws:${body}`).digest('base64url');
+  if (!safeStringEqual(signature, expectedSignature)) return null;
+  try {
+    const session = JSON.parse(base64urlDecode(body));
+    if (session.role !== 'worship') return null;
+    if (session.exp && Number(session.exp) < Date.now()) return null;
+    if (!Array.isArray(session.addedSongs)) session.addedSongs = [];
+    return session;
+  } catch (err) {
+    return null;
+  }
+}
+
+function buildWorshipSessionCookie(req, value, maxAgeMs = null) {
+  const parts = [
+    `${WORSHIP_SESSION_COOKIE}=${encodeURIComponent(value)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax'
+  ];
+  if (typeof maxAgeMs === 'number') {
+    parts.push(`Max-Age=${Math.max(0, Math.floor(maxAgeMs / 1000))}`);
+  }
+  if (getCookieSecureFlag(req)) parts.push('Secure');
+  return parts.join('; ');
+}
+
+function setWorshipSessionCookie(req, res, session) {
+  res.setHeader('Set-Cookie', buildWorshipSessionCookie(req, signWorshipSession(session), WORSHIP_SESSION_MAX_AGE_MS));
+}
+
+function clearWorshipSessionCookie(req, res) {
+  res.setHeader('Set-Cookie', buildWorshipSessionCookie(req, '', 0));
+}
+
+// Returns the verified worship session, or null after sending an error response.
+function requireWorshipApiSession(req, res) {
+  if (!WORSHIP_PIN) {
+    res.status(503).json({ ok: false, error: 'Worship role not configured on this server.' });
+    return null;
+  }
+  const cookies = parseCookies(req);
+  const session = verifyWorshipSession(cookies[WORSHIP_SESSION_COOKIE]);
+  if (!session) {
+    res.status(401).json({ ok: false, error: 'Worship login required.' });
+    return null;
+  }
+  return session;
+}
+
+// A worship event is one that belongs to the default org, is not hidden, and is
+// scheduled strictly in the future (next service — never past/active).
+function isWorshipEditableEvent(event) {
+  if (!event || event.hidden) return false;
+  if (getEventOrgId(event) !== DEFAULT_ORG_ID) return false;
+  return typeof event.scheduledTimestamp === 'number' && event.scheduledTimestamp > Date.now();
+}
+
+app.post('/api/auth/worship', (req, res) => {
+  const rateCheck = checkOperatorLoginRateLimit(getOperatorClientIp(req));
+  if (!rateCheck.allowed) {
+    return res.status(429).json({ ok: false, error: `Too many attempts. Try again in ${rateCheck.retryAfter}s.` });
+  }
+  if (!WORSHIP_PIN) {
+    logger.warn('[worship/login] WORSHIP_PIN not configured');
+    return res.status(503).json({ ok: false, error: 'Worship role not configured on this server.' });
+  }
+  const pin = String(req.body?.pin || '').trim();
+  if (!pin || !safeStringEqual(pin, WORSHIP_PIN)) {
+    logger.info('[worship/login] Invalid PIN attempt');
+    return res.status(401).json({ ok: false, error: 'Invalid PIN.' });
+  }
+  const now = Date.now();
+  const session = { role: 'worship', addedSongs: [], iat: now, exp: now + WORSHIP_SESSION_MAX_AGE_MS };
+  setWorshipSessionCookie(req, res, session);
+  logger.info('[worship/login] Worship session created');
+  return res.json({ ok: true });
+});
+
+app.post('/api/auth/worship/logout', (req, res) => {
+  clearWorshipSessionCookie(req, res);
+  return res.json({ ok: true });
+});
+
+app.get('/api/worship/events', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  try {
+    const events = Object.values(db.events || {})
+      .filter(isWorshipEditableEvent)
+      .sort((a, b) => a.scheduledTimestamp - b.scheduledTimestamp)
+      .map((event) => ({
+        id: event.id,
+        name: event.name || 'Untitled event',
+        scheduledAt: event.scheduledAt || null,
+        scheduledTimestamp: event.scheduledTimestamp,
+        songsCount: Array.isArray(event.songLibrary) ? event.songLibrary.length : 0
+      }));
+    return res.json({ ok: true, events });
+  } catch (err) {
+    logger.error('[worship/events] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+app.get('/api/worship/events/:id', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  try {
+    const event = db.events[req.params.id];
+    if (!event) {
+      return res.status(404).json({ ok: false, error: 'Event not found' });
+    }
+    if (!isWorshipEditableEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Event is not an upcoming event' });
+    }
+    ensureEventUiState(event);
+    return res.json({
+      ok: true,
+      event: {
+        id: event.id,
+        name: event.name || 'Untitled event',
+        scheduledAt: event.scheduledAt || null,
+        scheduledTimestamp: event.scheduledTimestamp,
+        songs: (event.songLibrary || []).map((song) => ({
+          id: song.id,
+          title: song.title || '',
+          labels: Array.isArray(song.labels) ? song.labels : [],
+          addedByWorship: session.addedSongs.includes(song.id)
+        }))
+      }
+    });
+  } catch (err) {
+    logger.error('[worship/event-detail] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+app.post('/api/worship/events/:id/songs/add', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  const librarySongId = String(req.body?.librarySongId || '').trim();
+  if (!librarySongId) {
+    return res.status(400).json({ ok: false, error: 'Missing librarySongId' });
+  }
+  try {
+    const event = db.events[req.params.id];
+    if (!event) {
+      return res.status(404).json({ ok: false, error: 'Event not found' });
+    }
+    if (!isWorshipEditableEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Cannot modify this event' });
+    }
+    const library = getOrganizationSongLibrary(getEventOrgId(event)) || [];
+    const librarySong = library.find((song) => song && song.id === librarySongId);
+    if (!librarySong) {
+      return res.status(404).json({ ok: false, error: 'Song not in library' });
+    }
+    ensureEventUiState(event);
+    const beforeIds = new Set(event.songLibrary.map((song) => song.id));
+    const item = upsertLibraryItem(event.songLibrary, {
+      title: librarySong.title,
+      text: librarySong.text,
+      labels: librarySong.labels || [],
+      sourceLang: librarySong.sourceLang || event.sourceLang || 'ro'
+    }, 100);
+    // upsertLibraryItem dedupes by title: it may have overwritten an existing
+    // (admin-added) song instead of creating one. Worship may only delete songs
+    // it actually created this session, so track the id only when it is new.
+    const isNewItem = !beforeIds.has(item.id);
+    if (isNewItem) {
+      item.addedBy = 'worship';
+      item.addedAt = Date.now();
+      session.addedSongs.push(item.id);
+    }
+    saveDb();
+    setWorshipSessionCookie(req, res, session);
+    logger.info(`[worship/add-song] event=${event.id} song="${librarySong.title}" itemId=${item.id} new=${isNewItem}`);
+    return res.json({ ok: true, itemId: item.id, isNewItem });
+  } catch (err) {
+    logger.error('[worship/add-song] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+app.delete('/api/worship/events/:id/songs/:itemId', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  const itemId = String(req.params.itemId || '').trim();
+  // Worship may delete only songs it added in the current session.
+  if (!itemId || !session.addedSongs.includes(itemId)) {
+    logger.warn(`[worship/delete-song] Forbidden: itemId=${itemId} not in session.addedSongs`);
+    return res.status(403).json({ ok: false, error: 'Can only delete songs added in this session' });
+  }
+  try {
+    const event = db.events[req.params.id];
+    if (!event) {
+      return res.status(404).json({ ok: false, error: 'Event not found' });
+    }
+    if (!isWorshipEditableEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Cannot modify this event' });
+    }
+    ensureEventUiState(event);
+    const beforeCount = event.songLibrary.length;
+    event.songLibrary = event.songLibrary.filter((song) => song && song.id !== itemId);
+    if (event.songLibrary.length === beforeCount) {
+      return res.status(404).json({ ok: false, error: 'Song not found in event' });
+    }
+    session.addedSongs = session.addedSongs.filter((id) => id !== itemId);
+    saveDb();
+    setWorshipSessionCookie(req, res, session);
+    logger.info(`[worship/delete-song] event=${event.id} itemId=${itemId}`);
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error('[worship/delete-song] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
 });
 
 function getOperatorCodeFromRequest(req) {
