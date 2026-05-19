@@ -78,6 +78,7 @@ function registerEventRoutes(app, ctx) {
     requireEventPermission,
     requireEventRole,
     requireGlobalLibraryAdmin,
+    tryWorshipSession,
     resolveEventAccessFromCode,
     normalizeTextInput,
     sanitizeStructuredText,
@@ -1606,7 +1607,10 @@ function registerEventRoutes(app, ctx) {
   });
 
   app.post('/api/global-song-library', (req, res) => {
-    if (!requireGlobalLibraryAdmin(req, res)) return;
+    // V20.3: worship-role sessions may save library songs. Admins still pass
+    // via requireGlobalLibraryAdmin (which also sends the 403 when neither
+    // applies). Operators are intentionally NOT granted here — admin + worship only.
+    if (!tryWorshipSession(req) && !requireGlobalLibraryAdmin(req, res)) return;
     const title = String(req.body.title || '').trim();
     const text = sanitizeStructuredText(req.body.text || '');
     const labels = Array.isArray(req.body.labels) ? req.body.labels : [];

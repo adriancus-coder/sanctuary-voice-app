@@ -6065,6 +6065,64 @@ button[disabled]:active {
 .status-line.err { color: #ff9c4d; }
 .status-line.ok { color: #6cc36c; }
 
+/* V20.3: worship import / search / editor */
+.import-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.import-input-row input {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  padding: 10px;
+}
+
+.import-input-row button {
+  white-space: nowrap;
+}
+
+.import-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.import-result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+
+.import-result-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-editor input,
+.song-editor textarea {
+  width: 100%;
+  font-size: 14px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.song-editor textarea {
+  resize: vertical;
+  min-height: 110px;
+  font-family: inherit;
+}
+
+.song-editor-actions {
+  display: flex;
+  gap: 8px;
+}
+
 @media (max-width: 480px) {
   .worship-app { padding: 8px; }
   .worship-header { flex-wrap: wrap; }

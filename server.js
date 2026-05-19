@@ -627,6 +627,8 @@ function requireAdminOrOperatorApiSession(req, res) {
     const access = resolveEventAccessFromCode(event, suppliedCode);
     if (access.role === 'admin' || access.role === 'screen') return true;
   }
+  // V20.3: worship-role sessions may also import/search songs.
+  if (tryWorshipSession(req)) return true;
   res.status(401).json({ ok: false, error: 'Admin or operator login required.' });
   return false;
 }
@@ -5060,14 +5062,20 @@ function clearWorshipSessionCookie(req, res) {
   res.setHeader('Set-Cookie', buildWorshipSessionCookie(req, '', 0));
 }
 
+// Pure check — returns the verified worship session or null, no response/side effects.
+function tryWorshipSession(req) {
+  if (!WORSHIP_PIN) return null;
+  const cookies = parseCookies(req);
+  return verifyWorshipSession(cookies[WORSHIP_SESSION_COOKIE]) || null;
+}
+
 // Returns the verified worship session, or null after sending an error response.
 function requireWorshipApiSession(req, res) {
   if (!WORSHIP_PIN) {
     res.status(503).json({ ok: false, error: 'Worship role not configured on this server.' });
     return null;
   }
-  const cookies = parseCookies(req);
-  const session = verifyWorshipSession(cookies[WORSHIP_SESSION_COOKIE]);
+  const session = tryWorshipSession(req);
   if (!session) {
     res.status(401).json({ ok: false, error: 'Worship login required.' });
     return null;
@@ -5426,6 +5434,7 @@ registerEventRoutes(app, {
   requireEventPermission,
   requireEventRole,
   requireGlobalLibraryAdmin,
+  tryWorshipSession,
   resolveEventAccessFromCode,
   normalizeTextInput,
   sanitizeStructuredText,

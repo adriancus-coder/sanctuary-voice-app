@@ -35,6 +35,28 @@
     <section class="worship-event-info" id="worshipEventInfo"></section>
 
     <section class="worship-song-panel">
+      <!-- Import from URL / search resursecrestine.ro -->
+      <div class="import-section panel glass-panel">
+        <h3>Import / Caută cântare</h3>
+        <div class="import-input-row">
+          <input id="importUrlInput" type="text" placeholder="URL cântec sau cuvinte cheie">
+          <button id="importUrlBtn" class="btn btn-primary" type="button">Import / Caută</button>
+        </div>
+        <div id="importUrlStatus" class="status-line"></div>
+        <div id="importUrlResults" class="import-results"></div>
+      </div>
+
+      <!-- New song editor -->
+      <div class="song-editor panel glass-panel">
+        <h3>Cântare nouă</h3>
+        <input id="songTitle" type="text" placeholder="Titlu cântare">
+        <textarea id="songText" rows="6" placeholder="Versuri..."></textarea>
+        <div class="song-editor-actions">
+          <button id="songSaveBtn" class="btn btn-primary" type="button">Salvează în Library</button>
+          <button id="songClearBtn" class="btn btn-dark" type="button">Curăță</button>
+        </div>
+      </div>
+
       <!-- Songs already in the selected event -->
       <div class="event-songs-section panel glass-panel">
         <h3>În acest event (<span id="eventSongsCount">0</span>)</h3>

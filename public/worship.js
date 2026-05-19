@@ -270,6 +270,130 @@
     }
   }
 
+  // --- V20.3: IMPORT / SEARCH / SAVE ---
+  function findDuplicateInLibrary(title) {
+    const normalized = normalizeForSearch(title);
+    if (!normalized) return null;
+    return libraryItems.find((item) => normalizeForSearch(item.title || '') === normalized) || null;
+  }
+
+  function fillEditor(song) {
+    $('songTitle').value = song.title || '';
+    $('songText').value = song.text || '';
+  }
+
+  function clearSongEditor() {
+    $('songTitle').value = '';
+    $('songText').value = '';
+    $('importUrlResults').innerHTML = '';
+    setStatus($('importUrlStatus'), '', '');
+  }
+
+  async function importFromUrl(url) {
+    const res = await fetch('/api/songs/import-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok || !data.song) throw new Error(data.error || 'Import eșuat.');
+    return data.song;
+  }
+
+  // Fill the editor from an imported song, warning if it duplicates a library
+  // title. Returns true if the editor was filled, false if the user cancelled.
+  function acceptImportedSong(song) {
+    const dup = findDuplicateInLibrary(song.title);
+    if (dup && !confirm('Cântarea "' + dup.title + '" există deja în Library.\n\nContinui oricum?')) {
+      return false;
+    }
+    fillEditor(song);
+    return true;
+  }
+
+  async function doImportOrSearch() {
+    const input = $('importUrlInput');
+    const status = $('importUrlStatus');
+    const resultsEl = $('importUrlResults');
+    const btn = $('importUrlBtn');
+    const value = (input.value || '').trim();
+    if (!value) {
+      setStatus(status, 'Introdu un URL sau cuvinte cheie.', 'err');
+      return;
+    }
+    const isUrl = /^https?:\/\//i.test(value);
+    btn.disabled = true;
+    setStatus(status, isUrl ? 'Se importă...' : 'Se caută...', '');
+    resultsEl.innerHTML = '';
+    try {
+      if (isUrl) {
+        const song = await importFromUrl(value);
+        if (!acceptImportedSong(song)) {
+          setStatus(status, 'Anulat — cântarea există deja în Library.', 'err');
+          return;
+        }
+        input.value = '';
+        setStatus(status, 'Importat: „' + song.title + '”. Verifică și salvează.', 'ok');
+      } else {
+        const res = await fetch('/api/songs/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: value })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Căutare eșuată.');
+        const results = Array.isArray(data.results) ? data.results : [];
+        if (!results.length) {
+          setStatus(status, 'Niciun rezultat pentru „' + value + '”.', 'err');
+          return;
+        }
+        setStatus(status, results.length + ' rezultate — alege și importă:', 'ok');
+        resultsEl.innerHTML = results.map((item) =>
+          '<div class="import-result-row">' +
+            '<div class="import-result-meta">' +
+              '<strong>' + escapeHtml(item.title || 'Fără titlu') + '</strong>' +
+              (item.author ? '<div class="small muted">' + escapeHtml(item.author) + '</div>' : '') +
+            '</div>' +
+            '<button class="btn btn-dark btn-sm" type="button" data-import-result-url="' + escapeHtml(item.url || '') + '">Import</button>' +
+          '</div>'
+        ).join('');
+      }
+    } catch (err) {
+      setStatus(status, 'Eroare: ' + err.message, 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function saveSongInLibrary() {
+    const title = $('songTitle').value.trim();
+    const text = $('songText').value.trim();
+    if (!title || !text) {
+      alert('Completează titlul și versurile.');
+      return;
+    }
+    const dup = findDuplicateInLibrary(title);
+    if (dup && !confirm('Cântarea "' + dup.title + '" există deja în Library. O suprascrii?')) return;
+    const btn = $('songSaveBtn');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/global-song-library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, text })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Salvare eșuată.');
+      clearSongEditor();
+      setStatus($('importUrlStatus'), 'Salvat în Library: „' + title + '”.', 'ok');
+      await loadLibrary();
+    } catch (err) {
+      alert('Eroare la salvare: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   // --- LISTENERS ---
   function attachListeners() {
     $('worshipLoginBtn').addEventListener('click', doLogin);
@@ -296,6 +420,38 @@
       const btn = e.target.closest('[data-event-song-delete]');
       if (!btn) return;
       deleteOwnSong(btn.dataset.eventSongDelete);
+    });
+
+    $('importUrlBtn').addEventListener('click', doImportOrSearch);
+    $('importUrlInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); doImportOrSearch(); }
+    });
+    $('songSaveBtn').addEventListener('click', saveSongInLibrary);
+    $('songClearBtn').addEventListener('click', clearSongEditor);
+
+    $('importUrlResults').addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-import-result-url]');
+      if (!btn || btn.disabled) return;
+      const url = btn.dataset.importResultUrl;
+      if (!url) return;
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        const song = await importFromUrl(url);
+        if (!acceptImportedSong(song)) {
+          btn.disabled = false;
+          btn.textContent = original;
+          return;
+        }
+        $('importUrlInput').value = '';
+        $('importUrlResults').innerHTML = '';
+        setStatus($('importUrlStatus'), 'Importat: „' + song.title + '”. Verifică și salvează.', 'ok');
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = original;
+        alert('Eroare: ' + err.message);
+      }
     });
   }
 
