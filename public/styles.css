@@ -5864,7 +5864,7 @@ button[disabled]:active {
 
 /* V17: Library preview toggle */
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 .library-preview {
