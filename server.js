@@ -222,6 +222,7 @@ app.get('/translate', (req, res) => res.sendFile(path.join(__dirname, 'public', 
 app.get('/song', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
 app.get('/worship', (req, res) => res.sendFile(path.join(__dirname, 'public', 'worship.html')));
+app.get('/worship-view', (req, res) => res.sendFile(path.join(__dirname, 'public', 'worship-view.html')));
 app.get('/demo-screen', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-screen.html')));
 app.get('/demo-participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-participant.html')));
 app.get('/operator-dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'operator-dashboard.html')));
@@ -5120,6 +5121,27 @@ function ensureWorshipState(event) {
   return event;
 }
 
+// V21.2: shape the worship-live state for broadcast / the worship-view client.
+// Includes the current song so members render without a second request.
+function buildWorshipStatePayload(event) {
+  ensureWorshipState(event);
+  const ws = event.worshipState;
+  let song = null;
+  if (ws.currentSongId) {
+    const found = (event.songLibrary || []).find((s) => s && s.id === ws.currentSongId);
+    if (found) song = { id: found.id, title: found.title || '', text: found.text || '' };
+  }
+  return {
+    eventId: event.id,
+    state: {
+      currentSongId: ws.currentSongId,
+      currentVerseIndex: ws.currentVerseIndex,
+      lastUpdatedBy: ws.lastUpdatedBy
+    },
+    song
+  };
+}
+
 app.post('/api/auth/worship', (req, res) => {
   const rateCheck = checkOperatorLoginRateLimit(getOperatorClientIp(req));
   if (!rateCheck.allowed) {
@@ -5144,6 +5166,18 @@ app.post('/api/auth/worship', (req, res) => {
 });
 
 app.post('/api/auth/worship/logout', (req, res) => {
+  // V21.2: revoke this master's worship-view QR tokens on logout.
+  const session = tryWorshipSession(req);
+  if (session && session.sid) {
+    let dirty = false;
+    Object.values(db.events || {}).forEach((event) => {
+      if (!Array.isArray(event.worshipViewTokens) || !event.worshipViewTokens.length) return;
+      const before = event.worshipViewTokens.length;
+      event.worshipViewTokens = event.worshipViewTokens.filter((t) => t && t.masterSessionId !== session.sid);
+      if (event.worshipViewTokens.length !== before) dirty = true;
+    });
+    if (dirty) saveDb();
+  }
   clearWorshipSessionCookie(req, res);
   return res.json({ ok: true });
 });
@@ -5322,6 +5356,8 @@ app.post('/api/worship/events/:id/verse', (req, res) => {
     event.worshipState.masterLastSeen = Date.now();
     event.worshipState.offlineMode = false;
     saveDb();
+    // V21.2: push the change to connected worship members.
+    io.to(`worship:${event.id}`).emit('worship:state_change', buildWorshipStatePayload(event));
     return res.json({
       ok: true,
       worshipState: {
@@ -5333,6 +5369,49 @@ app.post('/api/worship/events/:id/verse', (req, res) => {
     logger.error('[worship/verse] Failed:', err);
     return res.status(500).json({ ok: false, error: 'Server error' });
   }
+});
+
+// V21.2: worship master generates a QR share link for read-only members.
+// One active link per master session — generating again replaces the old one.
+app.post('/api/worship/events/:id/share-qr', async (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  try {
+    const event = db.events[req.params.id];
+    if (!event) {
+      return res.status(404).json({ ok: false, error: 'Event not found' });
+    }
+    if (!isWorshipAccessibleEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Event is not accessible to worship' });
+    }
+    ensureWorshipState(event);
+    const masterSid = session.sid || null;
+    event.worshipViewTokens = event.worshipViewTokens.filter((t) => t && t.masterSessionId !== masterSid);
+    const token = randomBytes(16).toString('hex');
+    event.worshipViewTokens.push({ token, createdAt: Date.now(), masterSessionId: masterSid });
+    saveDb();
+    const url = `${buildBaseUrl(req)}/worship-view?event=${encodeURIComponent(event.id)}&token=${token}`;
+    const qrDataUrl = await QRCode.toDataURL(url, { width: 320, margin: 1 });
+    logger.info(`[worship/share-qr] event=${event.id} token issued`);
+    return res.json({ ok: true, token, url, qrDataUrl });
+  } catch (err) {
+    logger.error('[worship/share-qr] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+// V21.2: read-only worship-view state, authenticated by QR token (no cookie).
+app.get('/api/worship-view/:eventId', (req, res) => {
+  const token = String(req.query.token || '').trim();
+  if (!token) return res.status(401).json({ ok: false, error: 'Missing token' });
+  const event = db.events[req.params.eventId];
+  if (!event) return res.status(404).json({ ok: false, error: 'Event not found' });
+  ensureWorshipState(event);
+  if (!event.worshipViewTokens.some((t) => t && t.token === token)) {
+    return res.status(401).json({ ok: false, error: 'Invalid or expired link' });
+  }
+  const payload = buildWorshipStatePayload(event);
+  return res.json({ ok: true, eventName: event.name || '', state: payload.state, song: payload.song });
 });
 
 function getOperatorCodeFromRequest(req) {

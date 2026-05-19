@@ -542,6 +542,49 @@
     }, { passive: true });
   }
 
+  // --- V21.2: SHARE WITH TEAM (QR) ---
+  async function shareWithTeam() {
+    if (!currentEvent) {
+      alert('Selectează un event mai întâi.');
+      return;
+    }
+    const btn = $('worshipShareBtn');
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) + '/share-qr', {
+        method: 'POST'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Generarea QR a eșuat.');
+      $('worshipQrImage').innerHTML =
+        '<img src="' + escapeHtml(data.qrDataUrl || '') + '" alt="QR cod worship view" width="240" height="240">';
+      $('worshipQrUrl').value = data.url || '';
+      $('worshipQrModal').classList.remove('hidden');
+    } catch (err) {
+      alert('Eroare: ' + err.message);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function closeQrModal() {
+    $('worshipQrModal').classList.add('hidden');
+  }
+
+  async function copyQrLink() {
+    const url = $('worshipQrUrl').value;
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      const btn = $('worshipQrCopyBtn');
+      const original = btn.textContent;
+      btn.textContent = 'Copiat ✓';
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    } catch (err) {
+      $('worshipQrUrl').select();
+    }
+  }
+
   // --- LISTENERS ---
   function attachListeners() {
     $('worshipLoginBtn').addEventListener('click', doLogin);
@@ -589,6 +632,11 @@
       if (btn) setLiveVerse(parseInt(btn.dataset.verseIndex, 10));
     });
     attachSwipeHandlers();
+
+    // V21.2: Share with team (QR)
+    $('worshipShareBtn').addEventListener('click', shareWithTeam);
+    $('worshipQrCloseBtn').addEventListener('click', closeQrModal);
+    $('worshipQrCopyBtn').addEventListener('click', copyQrLink);
 
     $('importUrlResults').addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-import-result-url]');

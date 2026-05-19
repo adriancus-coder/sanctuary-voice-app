@@ -42,7 +42,8 @@ function registerSocketHandlers(io, ctx) {
     end_service:             { windowMs: 60 * 1000, max: 5 },
     azure_audio_start:       { windowMs: 60 * 1000, max: 10 },
     azure_audio_chunk:       { windowMs: 1000,      max: 50 },
-    azure_audio_stop:        { windowMs: 60 * 1000, max: 20 }
+    azure_audio_stop:        { windowMs: 60 * 1000, max: 20 },
+    'worship:view:join':     { windowMs: 60 * 1000, max: 30 }
   };
 
   function checkSocketRateLimit(socket, eventName) {
@@ -122,6 +123,25 @@ function registerSocketHandlers(io, ctx) {
   }
 
   io.on('connection', (socket) => {
+    // V21.2: read-only worship members join with a QR token (no event access
+    // code). Validating the token here keeps the worship view channel separate
+    // from the access-code-gated join_event flow.
+    on(socket, 'worship:view:join', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      const token = asString(payload?.token, 128);
+      if (!eventId || !token) return;
+      const event = db.events[eventId];
+      if (!event) {
+        return socket.emit('worship:view:denied', { message: 'Evenimentul nu există.' });
+      }
+      const tokens = Array.isArray(event.worshipViewTokens) ? event.worshipViewTokens : [];
+      if (!tokens.some((t) => t && t.token === token)) {
+        return socket.emit('worship:view:denied', { message: 'Link invalid sau expirat.' });
+      }
+      socket.join(`worship:${eventId}`);
+      socket.data.worshipViewEventId = eventId;
+    });
+
     on(socket, 'join_event', (payload) => {
       const eventId = asEventId(payload?.eventId);
       const role = asString(payload?.role, 32);

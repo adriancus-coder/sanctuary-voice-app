@@ -6153,8 +6153,13 @@ button[disabled]:active {
 
 .worship-live-panel h3 { margin-top: 0; }
 
-.live-toolbar { margin-bottom: 12px; }
-.live-toolbar select { width: 100%; }
+.live-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.live-toolbar select { flex: 1; min-width: 160px; }
 
 .live-lyrics-display {
   background: rgba(255, 255, 255, 0.04);
@@ -6219,4 +6224,91 @@ button[disabled]:active {
   background: var(--gold-strong, #ffe4b3);
   color: #1a1206;
   border-color: transparent;
+}
+
+/* === V21.2: Worship share QR modal === */
+.worship-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 9999;
+}
+.worship-modal-card {
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  padding: 22px;
+}
+.worship-modal-card h3 { margin-top: 0; }
+.worship-qr-image {
+  margin: 14px auto;
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  width: max-content;
+}
+.worship-qr-image img { display: block; }
+.worship-modal-card input {
+  width: 100%;
+  font-size: 12px;
+  text-align: center;
+}
+.worship-modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.worship-modal-actions .btn { flex: 1; }
+
+/* === V21.2: Worship View (read-only member page) === */
+.worship-view-page {
+  min-height: 100vh;
+  margin: 0;
+  background: #050608;
+  color: #f4ede0;
+}
+.worship-view-main {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  box-sizing: border-box;
+}
+.worship-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.worship-view-title {
+  font-size: 17px;
+  font-weight: 700;
+}
+.worship-view-verse {
+  font-size: 14px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+.worship-view-lyrics {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: pre-wrap;
+  font-size: 28px;
+  line-height: 1.6;
+  padding: 24px 8px;
+}
+.worship-view-status {
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.55;
+  padding-top: 8px;
 }

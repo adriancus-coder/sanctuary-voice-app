@@ -83,6 +83,7 @@
         <p class="small muted">Independent de proiector. Navighează versetele cu butoanele, lista, sau glisând stânga/dreapta.</p>
         <div class="live-toolbar">
           <select id="liveSongSelect" aria-label="Alege cântarea"></select>
+          <button id="worshipShareBtn" class="btn btn-dark" type="button">📱 Share cu echipa</button>
         </div>
         <div class="live-lyrics-display" id="liveLyricsDisplay">
           <div class="live-verse-label" id="liveVerseLabel">—</div>
@@ -98,6 +99,19 @@
       </div>
     </section>
   </main>
+
+  <div id="worshipQrModal" class="worship-modal hidden">
+    <div class="worship-modal-card panel glass-panel">
+      <h3>Share cu echipa worship</h3>
+      <p class="small muted">Membrii scanează codul pe tabletele lor și văd versurile sincronizat cu tine.</p>
+      <div id="worshipQrImage" class="worship-qr-image"></div>
+      <input id="worshipQrUrl" type="text" readonly aria-label="Link worship view">
+      <div class="worship-modal-actions">
+        <button id="worshipQrCopyBtn" class="btn btn-dark" type="button">Copiază link</button>
+        <button id="worshipQrCloseBtn" class="btn btn-primary" type="button">Închide</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/worship.js"></script>
 </body>
