@@ -716,6 +716,33 @@ async function loadRemotePinnedTextLibrary() {
   }
 }
 
+// V21.4-FIX: per-event "Songs in this event" panel on the operator. Read-only
+// (the DELETE endpoint is admin-gated); reads state.currentEvent.songLibrary
+// which is already on the event payload.
+function renderRemoteEventSongLibrary() {
+  const list = $('remoteEventSongsList');
+  const count = $('remoteEventSongsCount');
+  if (!list || !count) return;
+  const items = Array.isArray(state.currentEvent?.songLibrary) ? state.currentEvent.songLibrary : [];
+  count.textContent = String(items.length);
+  if (!state.currentEvent) {
+    list.innerHTML = '<p class="muted small">Niciun event selectat.</p>';
+    return;
+  }
+  if (!items.length) {
+    list.innerHTML = '<p class="muted small">Niciun cântec adăugat în event.</p>';
+    return;
+  }
+  list.innerHTML = items.map((item, idx) => `
+    <div class="event-song-row">
+      <span class="event-song-index">${idx + 1}.</span>
+      <div class="event-song-meta">
+        <strong>${escapeHtml(item.title || 'Untitled')}</strong>
+      </div>
+    </div>
+  `).join('');
+}
+
 // V21.3: operator awareness of the worship-live channel.
 function renderRemoteWorshipPanel() {
   const presenceEl = $('remoteWorshipPresence');
@@ -809,6 +836,7 @@ function refreshRemoteUi() {
   renderRemotePinnedTextLibrary();
   renderRemoteSongHistory();
   renderRemoteWorshipPanel();
+  renderRemoteEventSongLibrary();
   renderRemoteLiveAudioState();
   if (mainScreenAllowed) {
     renderQuickLanguages();

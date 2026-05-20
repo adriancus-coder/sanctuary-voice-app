@@ -482,6 +482,57 @@ function renderActiveEventBadge(event) {
   const isSongMode = event.mode === 'song';
   $('songModeBadge').textContent = isSongMode ? 'Song live' : (event.displayState?.mode === 'manual' ? 'Pinned text live' : 'Live follow');
   $('songModeBadge').className = (isSongMode || event.displayState?.mode === 'manual') ? 'status-pill active' : 'status-pill';
+  renderAdminEventSongLibrary();
+}
+
+// V21.4-FIX: render the per-event "Songs in this event" panel from
+// currentEvent.songLibrary (already on the normalized event payload — no
+// extra fetch needed). Called from renderActiveEventBadge on every event
+// update.
+function renderAdminEventSongLibrary() {
+  const list = $('adminEventSongsList');
+  const count = $('adminEventSongsCount');
+  if (!list || !count) return;
+  if (!currentEvent) {
+    count.textContent = '0 songs';
+    list.innerHTML = '<p class="muted small">Open an event to see its scheduled songs.</p>';
+    return;
+  }
+  const items = Array.isArray(currentEvent.songLibrary) ? currentEvent.songLibrary : [];
+  count.textContent = `${items.length} song${items.length === 1 ? '' : 's'}`;
+  if (!items.length) {
+    list.innerHTML = '<p class="muted small">No songs added yet. Use the "Add to&hellip;" button on Library cards.</p>';
+    return;
+  }
+  list.innerHTML = items.map((item, idx) => {
+    const chars = item.text ? String(item.text).length : 0;
+    return `<div class="event-song-row">
+      <span class="event-song-index">${idx + 1}.</span>
+      <div class="event-song-meta">
+        <strong>${escapeHtml(item.title || 'Untitled')}</strong>
+        <div class="small muted">${chars} characters</div>
+      </div>
+      <button class="btn btn-danger btn-sm" type="button" data-admin-event-song-delete="${escapeHtml(item.id)}">Delete</button>
+    </div>`;
+  }).join('');
+}
+
+async function deleteAdminEventSong(songId) {
+  if (!currentEvent?.id || !songId) return;
+  if (!confirm('Delete this song from the event?')) return;
+  try {
+    const res = await fetch(
+      `/api/events/${encodeURIComponent(currentEvent.id)}/song-library/${encodeURIComponent(songId)}`,
+      adminJsonOptions('DELETE')
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Delete failed.');
+    if (currentEvent) currentEvent.songLibrary = data.songLibrary || [];
+    renderAdminEventSongLibrary();
+    setStatus('Removed from event.');
+  } catch (err) {
+    alert('Could not delete: ' + err.message);
+  }
 }
 
 function refreshDisplayControls() {
@@ -4188,6 +4239,13 @@ $('globalSongLibraryList').addEventListener('click', async (e) => {
     const targetEventName = availableEventsList.find((event) => event.id === targetEventId)?.name || 'selected event';
     setStatus(`Added to ${targetEventName}.`);
     clearLibrarySearch('globalSongLibrarySearch', renderGlobalSongLibrary, currentGlobalSongLibrary);
+    // V21.4-FIX: refresh the per-event songs panel when the target is the
+    // currently-opened event. (upsertLibraryItem dedupes by title, so the
+    // count may stay the same on re-add — that is intended.)
+    if (currentEvent && targetEventId === currentEvent.id) {
+      currentEvent.songLibrary = data.songLibrary || currentEvent.songLibrary || [];
+      renderAdminEventSongLibrary();
+    }
     return;
   }
   if (action === 'delete') {
@@ -4200,6 +4258,13 @@ $('globalSongLibraryList').addEventListener('click', async (e) => {
     setStatus('Deleted from church library.');
   }
 });
+// V21.4-FIX: delete from the per-event Songs panel.
+$('adminEventSongsList')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-admin-event-song-delete]');
+  if (!btn) return;
+  deleteAdminEventSong(btn.getAttribute('data-admin-event-song-delete'));
+});
+
 $('displayPresetsList')?.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-display-preset-action]');
   if (!btn) return;

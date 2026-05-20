@@ -6206,24 +6206,123 @@ button[disabled]:active {
   font-weight: 700;
 }
 
+/* V21.4-FIX: horizontal-scroll mini-cards (replaces flex-wrap chips) */
 .live-verse-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px 6px;
+  scroll-behavior: smooth;
 }
-.verse-list-item {
-  padding: 8px 12px;
+.live-verse-list::-webkit-scrollbar { height: 6px; }
+.live-verse-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+.verse-mini-item {
+  flex-shrink: 0;
+  min-width: 140px;
+  max-width: 200px;
+  padding: 10px 12px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
+  border-radius: 8px;
   color: inherit;
-  font-size: 13px;
+  text-align: left;
   cursor: pointer;
+  font: inherit;
 }
-.verse-list-item.current {
-  background: var(--gold-strong, #ffe4b3);
-  color: #1a1206;
-  border-color: transparent;
+.verse-mini-item:hover { background: rgba(255, 255, 255, 0.1); }
+.verse-mini-item.current {
+  background: rgba(255, 228, 179, 0.22);
+  border-color: var(--gold-strong, #ffe4b3);
+  color: #fff;
+}
+.verse-mini-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.6;
+  margin-bottom: 4px;
+}
+.verse-mini-item.current .verse-mini-label { opacity: 0.95; }
+.verse-mini-text {
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* V21.4-FIX: fullscreen container — native :fullscreen + CSS fallback for iOS */
+.live-fullscreen-container { position: relative; }
+.live-fullscreen-container:fullscreen,
+.live-fullscreen-container.live-fullscreen-fallback {
+  background: #0e0e10;
+  padding: 28px 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.live-fullscreen-container.live-fullscreen-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow: hidden;
+}
+body.live-fullscreen-active { overflow: hidden; }
+.live-fullscreen-container:fullscreen .live-lyrics-display,
+.live-fullscreen-container.live-fullscreen-fallback .live-lyrics-display {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: transparent;
+  border-left: none;
+}
+.live-fullscreen-container:fullscreen .live-verse-text,
+.live-fullscreen-container.live-fullscreen-fallback .live-verse-text {
+  font-size: 34px;
+  line-height: 1.45;
+  text-align: center;
+  max-width: 90%;
+}
+.live-fullscreen-container:fullscreen .verse-mini-item,
+.live-fullscreen-container.live-fullscreen-fallback .verse-mini-item {
+  min-width: 180px;
+  max-width: 240px;
+}
+.live-fullscreen-container:fullscreen .verse-mini-text,
+.live-fullscreen-container.live-fullscreen-fallback .verse-mini-text {
+  font-size: 13px;
+  -webkit-line-clamp: 5;
+}
+.live-exit-fullscreen-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 5;
+}
+.live-exit-fullscreen-btn:hover { background: rgba(0, 0, 0, 0.8); }
+
+/* V21.4-FIX: index column for the Songs-in-event row (admin + remote) */
+.event-song-index {
+  font-weight: 600;
+  opacity: 0.6;
+  min-width: 24px;
+  text-align: right;
 }
 
 /* === V21.2: Worship share QR modal === */

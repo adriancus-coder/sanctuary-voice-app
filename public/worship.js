@@ -478,10 +478,20 @@
     labelEl.textContent = 'Strofa ' + (idx + 1);
     textEl.textContent = verses[idx];
     posEl.textContent = (idx + 1) + ' / ' + verses.length;
+    // V21.4-FIX: mini-cards with full verse preview so the master sees
+    // upcoming text at a glance. Horizontal scroll; current item auto-scrolls
+    // into view after render.
     listEl.innerHTML = verses.map((v, i) =>
-      '<button type="button" class="verse-list-item' + (i === idx ? ' current' : '') +
-      '" data-verse-index="' + i + '">' + (i === idx ? '● ' : '') + 'Strofa ' + (i + 1) + '</button>'
+      '<button type="button" class="verse-mini-item' + (i === idx ? ' current' : '') +
+      '" data-verse-index="' + i + '">' +
+        '<div class="verse-mini-label">Strofa ' + (i + 1) + '</div>' +
+        '<div class="verse-mini-text">' + escapeHtml(v) + '</div>' +
+      '</button>'
     ).join('');
+    const currentEl = listEl.querySelector('.verse-mini-item.current');
+    if (currentEl && typeof currentEl.scrollIntoView === 'function') {
+      currentEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
   }
 
   function resetLiveForEvent() {
@@ -645,6 +655,65 @@
     }
   }
 
+  // --- V21.4-FIX: FULLSCREEN ---
+  // Native Fullscreen API where supported; CSS fallback for iOS Safari which
+  // does not expose requestFullscreen on arbitrary elements.
+  let isLiveFullscreen = false;
+
+  function enterFullscreenFallback() {
+    $('liveFullscreenContainer').classList.add('live-fullscreen-fallback');
+    document.body.classList.add('live-fullscreen-active');
+  }
+  function exitFullscreenFallback() {
+    $('liveFullscreenContainer').classList.remove('live-fullscreen-fallback');
+    document.body.classList.remove('live-fullscreen-active');
+  }
+
+  function setFullscreenUi(on) {
+    isLiveFullscreen = on;
+    $('liveExitFullscreenBtn').classList.toggle('hidden', !on);
+    const btn = $('liveFullscreenBtn');
+    if (btn) btn.textContent = on ? '✕ Ieși din fullscreen' : '⛶ Fullscreen';
+    if (on) renderLiveMode(); // re-scroll mini-list into view inside the new layout
+  }
+
+  async function toggleLiveFullscreen() {
+    const container = $('liveFullscreenContainer');
+    if (!container) return;
+    if (!isLiveFullscreen) {
+      const req = container.requestFullscreen || container.webkitRequestFullscreen;
+      if (typeof req === 'function') {
+        try {
+          await req.call(container);
+          setFullscreenUi(true);
+          return;
+        } catch (err) { /* fall through to CSS fallback */ }
+      }
+      enterFullscreenFallback();
+      setFullscreenUi(true);
+    } else {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        try { await (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (err) {}
+      }
+      exitFullscreenFallback();
+      setFullscreenUi(false);
+    }
+  }
+
+  // Keep UI in sync if the user exits fullscreen via ESC / browser chrome.
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && isLiveFullscreen) {
+      exitFullscreenFallback();
+      setFullscreenUi(false);
+    }
+  });
+  document.addEventListener('webkitfullscreenchange', () => {
+    if (!document.webkitFullscreenElement && isLiveFullscreen) {
+      exitFullscreenFallback();
+      setFullscreenUi(false);
+    }
+  });
+
   // --- LISTENERS ---
   function attachListeners() {
     $('worshipLoginBtn').addEventListener('click', doLogin);
@@ -700,6 +769,10 @@
 
     // V21.3: projector sync request
     $('worshipSyncProjectorBtn').addEventListener('click', requestProjectorSync);
+
+    // V21.4-FIX: fullscreen toggle (enter via toolbar, exit via corner X)
+    $('liveFullscreenBtn').addEventListener('click', toggleLiveFullscreen);
+    $('liveExitFullscreenBtn').addEventListener('click', toggleLiveFullscreen);
 
     $('importUrlResults').addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-import-result-url]');

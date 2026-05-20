@@ -85,17 +85,21 @@
           <select id="liveSongSelect" aria-label="Alege cântarea"></select>
           <button id="worshipShareBtn" class="btn btn-dark" type="button">📱 Share cu echipa</button>
           <button id="worshipSyncProjectorBtn" class="btn btn-primary" type="button">🎬 Sync proiector</button>
+          <button id="liveFullscreenBtn" class="btn btn-dark" type="button">⛶ Fullscreen</button>
         </div>
-        <div class="live-lyrics-display" id="liveLyricsDisplay">
-          <div class="live-verse-label" id="liveVerseLabel">—</div>
-          <div class="live-verse-text" id="liveVerseText">Selectează o cântare.</div>
+        <div id="liveFullscreenContainer" class="live-fullscreen-container">
+          <button id="liveExitFullscreenBtn" class="live-exit-fullscreen-btn hidden" type="button" aria-label="Ieși din fullscreen">✕</button>
+          <div class="live-lyrics-display" id="liveLyricsDisplay">
+            <div class="live-verse-label" id="liveVerseLabel">—</div>
+            <div class="live-verse-text" id="liveVerseText">Selectează o cântare.</div>
+          </div>
+          <div class="live-controls">
+            <button id="liveVersePrev" class="live-nav-btn" type="button" aria-label="Verset anterior">←</button>
+            <div class="live-verse-position" id="liveVersePosition">0 / 0</div>
+            <button id="liveVerseNext" class="live-nav-btn" type="button" aria-label="Verset următor">→</button>
+          </div>
+          <div class="live-verse-list" id="liveVerseList"></div>
         </div>
-        <div class="live-controls">
-          <button id="liveVersePrev" class="live-nav-btn" type="button" aria-label="Verset anterior">←</button>
-          <div class="live-verse-position" id="liveVersePosition">0 / 0</div>
-          <button id="liveVerseNext" class="live-nav-btn" type="button" aria-label="Verset următor">→</button>
-        </div>
-        <div class="live-verse-list" id="liveVerseList"></div>
         <div id="liveStatus" class="status-line" role="status"></div>
       </div>
     </section>
