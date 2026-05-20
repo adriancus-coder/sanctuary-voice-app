@@ -91,6 +91,11 @@
   function enterApp() {
     $('worshipLoginScreen').classList.add('hidden');
     $('worshipApp').classList.remove('hidden');
+    // V21.7: open the master socket on app entry (not on first Live-mode
+    // toggle), so worship receives backend broadcasts on every tab —
+    // including event:songlibrary_changed (V21.6) and the new
+    // active_event_changed handler below.
+    initMasterSocket();
     loadLiveEvent();
   }
 
@@ -729,6 +734,16 @@
         data.approved ? 'Operatorul a aprobat sync-ul proiectorului.' : 'Operatorul a refuzat sync-ul.',
         data.approved ? 'ok' : 'err');
     });
+    // V21.7: when admin starts/stops the active event for the org, the
+    // worship header / Setlist / Live-mode picker must follow without a
+    // page reload. The server already emits active_event_changed
+    // globally (io.emit) on /activate, on event-delete reassignment,
+    // and on auto-activate of a new event. Re-running loadLiveEvent
+    // owns the whole cascade: it re-fetches ?mode=live, updates the
+    // header, swaps currentEvent, and re-renders Setlist + Live mode.
+    masterSocket.on('active_event_changed', () => {
+      loadLiveEvent();
+    });
     // V21.6: live sync of event.songLibrary. The broadcast carries the
     // raw library (no per-session addedByWorship), so we refetch the
     // worship-scoped detail to keep the "adăugat de tine" flag and the
@@ -959,6 +974,10 @@
         if (data && data.ok) {
           $('worshipLoginScreen').classList.add('hidden');
           $('worshipApp').classList.remove('hidden');
+          // V21.7: open the master socket on app entry so the broadcasts
+          // (songlibrary_changed, active_event_changed, sync_request_*)
+          // are received regardless of which tab is active.
+          initMasterSocket();
           liveEvent = Array.isArray(data.events) && data.events.length ? data.events[0] : null;
           renderLiveEventDisplay();
           if (liveEvent) {
