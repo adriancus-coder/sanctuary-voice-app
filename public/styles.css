@@ -6300,6 +6300,24 @@ button[disabled]:active {
 }
 body.live-fullscreen-active { overflow: hidden; }
 
+/* V21.4-FIX7: free the position:fixed fullscreen container from its
+   .glass-panel ancestor's containing block. On iOS Safari any element
+   with backdrop-filter (or filter / transform) on an ancestor traps
+   `position: fixed` descendants — `inset: 0` then anchors to that
+   ancestor instead of the viewport, and the ancestor's `overflow:
+   hidden` clips the "fullscreen" container to its small rectangle.
+   That is exactly the worship case: the live panel is a .glass-panel
+   (backdrop-filter: blur(20px); overflow: hidden). While the iOS
+   fallback fullscreen is active, neutralise both properties on every
+   .glass-panel so the container can actually cover the viewport.
+   When the user exits, body.live-fullscreen-active is removed and the
+   panels regain their normal appearance. */
+body.live-fullscreen-active .glass-panel {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: visible !important;
+}
+
 /* Lyrics: take all remaining space; clip overflow so the verse text never
    spills onto the controls below it. min-height: 0 lets the flex child
    actually shrink (default flex min-size is `auto`, which is the bug
