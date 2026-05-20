@@ -162,7 +162,7 @@
     }
 
     list.innerHTML = songs.map((s) =>
-      '<div class="event-song-row">' +
+      '<div class="event-song-row" data-event-song-id="' + escapeHtml(s.id) + '">' +
         '<div class="event-song-meta">' +
           '<strong>' + escapeHtml(s.title || 'Fără titlu') + '</strong>' +
           (s.addedByWorship ? '<span class="worship-tag">adăugat de tine</span>' : '') +
@@ -232,11 +232,17 @@
   }
 
   // --- ADD / DELETE ---
+  // V21.4-FIX5: visible click feedback parity with admin (V21.4-FIX2).
+  // Pulls just the event detail (NOT the global library) so the green
+  // "✓ Adăugat" state on the Library button survives long enough to read;
+  // calling loadEventDetail here would also rebuild the library list and
+  // wipe the button mid-flight.
   async function addSongToEvent(librarySongId, btn) {
     if (!currentEvent) {
       alert('Selectează un event mai întâi.');
       return;
     }
+    const originalText = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = 'Se adaugă...'; }
     try {
       const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) + '/songs/add', {
@@ -247,13 +253,46 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         alert(data.error || 'Adăugarea a eșuat.');
-        if (btn) { btn.disabled = false; btn.textContent = 'Adaugă în event'; }
+        if (btn) { btn.disabled = false; btn.textContent = originalText || 'Adaugă în event'; }
         return;
       }
-      await loadEventDetail(currentEvent.id);
+      // Refresh event songs only — library content did not change.
+      try {
+        const detail = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id));
+        const dj = await detail.json().catch(() => ({}));
+        if (detail.ok && dj && dj.ok && dj.event) {
+          currentEvent = dj.event;
+          renderEventSongs();
+        }
+      } catch (err) { /* render stale state is fine */ }
+      if (btn) {
+        btn.classList.add('btn-confirmed');
+        btn.textContent = '✓ Adăugat la ' + (currentEvent.name || 'event');
+      }
+      // Flash + scroll the newly added row in the event-songs panel.
+      const newItemId = data.itemId;
+      if (newItemId) {
+        setTimeout(() => {
+          const row = document.querySelector('[data-event-song-id="' + newItemId + '"]');
+          if (row) {
+            row.classList.add('event-song-row-flash');
+            row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            setTimeout(() => row.classList.remove('event-song-row-flash'), 1600);
+          }
+        }, 60);
+      }
+      // Restore the button after the success state has been on screen
+      // long enough to register.
+      setTimeout(() => {
+        if (btn) {
+          btn.classList.remove('btn-confirmed');
+          btn.disabled = false;
+          btn.textContent = originalText || 'Adaugă în event';
+        }
+      }, 1500);
     } catch (err) {
       alert('Eroare: ' + err.message);
-      if (btn) { btn.disabled = false; btn.textContent = 'Adaugă în event'; }
+      if (btn) { btn.disabled = false; btn.textContent = originalText || 'Adaugă în event'; }
     }
   }
 
