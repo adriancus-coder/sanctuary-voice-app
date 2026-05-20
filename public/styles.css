@@ -6278,10 +6278,15 @@ button[disabled]:active {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  /* dvh is "small viewport" on iOS — matches the visible area when the URL
-     bar is shown; lvh would clip when it shrinks. dvh is the safest pick. */
-  height: 100vh;
-  height: 100dvh;
+  /* V21.4-FIX4: rely on inset:0 alone for sizing. The earlier
+     `height: 100vh; height: 100dvh;` here was the bug: on iOS Safari
+     < 15.4, only `100vh` applies, and `100vh` measures the FULL viewport
+     including the URL-bar zone. With `position: fixed; inset: 0`, an
+     explicit `height: 100vh` overrides the bottom:0 constraint — the
+     container extends below the visible area, pushing .live-controls
+     and .live-verse-list off-screen, and placing the exit button at
+     top:10 of the full viewport (i.e. UNDER Safari's URL bar, where
+     it is visible-looking but Safari's chrome intercepts every tap). */
   padding:
     max(20px, env(safe-area-inset-top))
     max(18px, env(safe-area-inset-right))
@@ -6352,7 +6357,10 @@ body.live-fullscreen-active { overflow: hidden; }
 }
 
 /* Exit button: top-right of the fullscreen container, above content,
-   inside the safe area on devices with a notch. */
+   inside the safe area on devices with a notch. V21.4-FIX4 bumps the
+   z-index above the container's own (10000) so the X always wins the
+   stacking contest, and explicit pointer-events guards against any
+   accidental inheritance from a future parent rule. */
 .live-exit-fullscreen-btn {
   position: absolute;
   top: max(10px, env(safe-area-inset-top));
@@ -6366,13 +6374,15 @@ body.live-fullscreen-active { overflow: hidden; }
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
-  z-index: 200;
+  z-index: 100100;
+  pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
 }
 .live-exit-fullscreen-btn:hover { background: rgba(0, 0, 0, 0.85); }
+.live-exit-fullscreen-btn:active { background: rgba(0, 0, 0, 0.92); }
 
 /* V21.4-FIX: index column for the Songs-in-event row (admin + remote) */
 .event-song-index {
