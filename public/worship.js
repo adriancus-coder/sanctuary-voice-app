@@ -4,7 +4,12 @@
   const $ = (id) => document.getElementById(id);
 
   let currentEvent = null;
-  let availableEvents = [];
+  // V21.5: split into liveEvent (the read-only header — the sync source with
+  // admin/operator) and pickerEvents (future + live, used by the per-card
+  // "Add to event" picker). pickerEvents loads lazily on first picker open.
+  let liveEvent = null;
+  let pickerEvents = [];
+  let pickerEventsLoaded = false;
   let libraryItems = [];
 
   // V21.1: Live mode state
@@ -86,43 +91,72 @@
   function enterApp() {
     $('worshipLoginScreen').classList.add('hidden');
     $('worshipApp').classList.remove('hidden');
-    loadEvents();
+    loadLiveEvent();
   }
 
   // --- EVENTS ---
-  async function loadEvents() {
+  // V21.5: the header shows ONLY the live event (sync with admin/operator).
+  // If none exists, the worship app still works for setlist prep — the
+  // per-card picker still lists future events.
+  async function loadLiveEvent() {
     try {
-      const res = await fetch('/api/worship/events');
+      const res = await fetch('/api/worship/events?mode=live');
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
-        $('worshipEventInfo').innerHTML =
-          '<p class="muted">Nu s-au putut încărca event-urile.</p>';
-        return;
-      }
-      availableEvents = Array.isArray(data.events) ? data.events : [];
-      const select = $('worshipEventSelect');
-
-      if (!availableEvents.length) {
-        $('worshipEventInfo').innerHTML =
-          '<p class="muted">Nu există event-uri viitoare. Contactează administratorul pentru a crea un event.</p>';
-        select.innerHTML = '<option>—</option>';
-        select.disabled = true;
-        currentEvent = null;
-        renderEventSongs();
+        liveEvent = null;
+        renderLiveEventDisplay();
+        renderEmptyEventInfo('Nu s-au putut încărca event-urile.');
         loadLibrary();
         return;
       }
-
-      select.disabled = false;
-      select.innerHTML = availableEvents.map((ev) =>
-        `<option value="${escapeHtml(ev.id)}">${escapeHtml(ev.name)} — ${escapeHtml(formatDate(ev.scheduledAt || ev.scheduledTimestamp))}</option>`
-      ).join('');
-      select.value = availableEvents[0].id;
-      await loadEventDetail(availableEvents[0].id);
+      liveEvent = Array.isArray(data.events) && data.events.length ? data.events[0] : null;
+      renderLiveEventDisplay();
+      if (liveEvent) {
+        await loadEventDetail(liveEvent.id);
+      } else {
+        currentEvent = null;
+        renderEmptyEventInfo('Nu există event live. Setlist-ul se completează când admin pornește un event.');
+        renderEventSongs();
+        loadLibrary();
+        resetLiveForEvent();
+      }
     } catch (err) {
-      $('worshipEventInfo').innerHTML =
-        '<p class="muted">Eroare la încărcarea event-urilor: ' + escapeHtml(err.message) + '</p>';
+      liveEvent = null;
+      renderLiveEventDisplay();
+      renderEmptyEventInfo('Eroare la încărcare: ' + escapeHtml(err.message));
     }
+  }
+
+  function renderLiveEventDisplay() {
+    const nameEl = $('worshipLiveEventName');
+    const noneEl = $('worshipLiveEventNoActive');
+    if (!nameEl || !noneEl) return;
+    if (liveEvent) {
+      nameEl.textContent = liveEvent.name || 'Event live';
+      nameEl.classList.remove('hidden');
+      noneEl.classList.add('hidden');
+    } else {
+      nameEl.classList.add('hidden');
+      noneEl.classList.remove('hidden');
+    }
+  }
+
+  function renderEmptyEventInfo(message) {
+    $('worshipEventInfo').innerHTML = '<p class="muted">' + message + '</p>';
+  }
+
+  // V21.5: lazy-load future+live events for the per-card picker. Called the
+  // first time a picker opens; results are cached and reused.
+  async function ensurePickerEvents() {
+    if (pickerEventsLoaded) return;
+    try {
+      const res = await fetch('/api/worship/events?mode=picker');
+      const data = await res.json().catch(() => ({}));
+      pickerEvents = (res.ok && data && data.ok && Array.isArray(data.events)) ? data.events : [];
+    } catch (err) {
+      pickerEvents = [];
+    }
+    pickerEventsLoaded = true;
   }
 
   async function loadEventDetail(eventId) {
@@ -211,7 +245,9 @@
       return;
     }
 
-    const canAdd = !!currentEvent && currentEvent.editable !== false;
+    // V21.5: each Library card opens a per-card "Add to event" picker
+    // (nested <details>) listing future + live events. No more single
+    // currentEvent.editable gate — worship picks the target per song.
     list.innerHTML = filtered.slice(0, 60).map((item) => {
       const id = escapeHtml(item.id);
       const chars = item.text ? String(item.text).length : 0;
@@ -223,12 +259,33 @@
         '<div class="library-card-body">' +
           '<pre class="library-preview-text">' + escapeHtml(item.text || '') + '</pre>' +
           '<div class="library-card-actions">' +
-            '<button class="btn btn-primary btn-sm" type="button" data-worship-lib-add="' + id + '"' +
-              (canAdd ? '' : ' disabled title="' + (currentEvent ? 'Setlist blocat pentru event live' : 'Selectează un event') + '"') + '>Adaugă în event</button>' +
+            '<details class="add-to-event-picker">' +
+              '<summary class="btn btn-primary btn-sm">Adaugă în event ▾</summary>' +
+              '<div class="add-to-event-list" data-library-song-id="' + id + '"></div>' +
+            '</details>' +
           '</div>' +
         '</div>' +
       '</details>';
     }).join('');
+  }
+
+  // V21.5: populate a picker's option list. Lazy — called when the picker
+  // <details> first toggles open.
+  function renderAddToEventPicker(librarySongId, containerEl) {
+    if (!containerEl) return;
+    if (!pickerEvents.length) {
+      containerEl.innerHTML = '<p class="muted small">Niciun event disponibil. Cere admin să creeze un event.</p>';
+      return;
+    }
+    containerEl.innerHTML = pickerEvents.map((ev) =>
+      '<button type="button" class="event-picker-option' + (ev.isActive ? ' active' : '') + '"' +
+        ' data-worship-picker-event="' + escapeHtml(ev.id) + '"' +
+        ' data-worship-picker-song="' + escapeHtml(librarySongId) + '">' +
+        '<span class="event-picker-name"><strong>' + escapeHtml(ev.name || 'Event') + '</strong>' +
+          (ev.isActive ? '<span class="badge-live">LIVE</span>' : '') + '</span>' +
+        '<span class="small muted">' + escapeHtml(formatDate(ev.scheduledAt || ev.scheduledTimestamp)) + '</span>' +
+      '</button>'
+    ).join('');
   }
 
   // --- ADD / DELETE ---
@@ -237,15 +294,20 @@
   // "✓ Adăugat" state on the Library button survives long enough to read;
   // calling loadEventDetail here would also rebuild the library list and
   // wipe the button mid-flight.
-  async function addSongToEvent(librarySongId, btn) {
-    if (!currentEvent) {
-      alert('Selectează un event mai întâi.');
-      return;
-    }
-    const originalText = btn ? btn.textContent : '';
-    if (btn) { btn.disabled = true; btn.textContent = 'Se adaugă...'; }
+  // V21.5: add a song to a specific event chosen in the per-card picker.
+  // Feedback mirrors V21.4-FIX2/FIX5: button shows green confirmation; if the
+  // target is the current live event, the new row in the Setlist panel
+  // flashes gold and scrolls into view. Only the event-detail is refreshed
+  // (not the global library) so the green state survives the 1.5s display
+  // window.
+  async function addSongToSpecificEvent(eventId, librarySongId, btn) {
+    if (!eventId || !librarySongId) return;
+    const targetEvent = pickerEvents.find((e) => e && e.id === eventId);
+    const targetName = targetEvent ? targetEvent.name : 'event';
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '… Se adaugă'; }
     try {
-      const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) + '/songs/add', {
+      const res = await fetch('/api/worship/events/' + encodeURIComponent(eventId) + '/songs/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ librarySongId })
@@ -253,46 +315,49 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         alert(data.error || 'Adăugarea a eșuat.');
-        if (btn) { btn.disabled = false; btn.textContent = originalText || 'Adaugă în event'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = originalText; }
         return;
       }
-      // Refresh event songs only — library content did not change.
-      try {
-        const detail = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id));
-        const dj = await detail.json().catch(() => ({}));
-        if (detail.ok && dj && dj.ok && dj.event) {
-          currentEvent = dj.event;
-          renderEventSongs();
-        }
-      } catch (err) { /* render stale state is fine */ }
       if (btn) {
         btn.classList.add('btn-confirmed');
-        btn.textContent = '✓ Adăugat la ' + (currentEvent.name || 'event');
+        btn.innerHTML = '✓ Adăugat la ' + escapeHtml(targetName);
       }
-      // Flash + scroll the newly added row in the event-songs panel.
-      const newItemId = data.itemId;
-      if (newItemId) {
-        setTimeout(() => {
-          const row = document.querySelector('[data-event-song-id="' + newItemId + '"]');
-          if (row) {
-            row.classList.add('event-song-row-flash');
-            row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            setTimeout(() => row.classList.remove('event-song-row-flash'), 1600);
+      // Refresh the Setlist panel only when the target matches the live event.
+      const isLiveTarget = liveEvent && eventId === liveEvent.id;
+      if (isLiveTarget) {
+        try {
+          const detail = await fetch('/api/worship/events/' + encodeURIComponent(eventId));
+          const dj = await detail.json().catch(() => ({}));
+          if (detail.ok && dj && dj.ok && dj.event) {
+            currentEvent = dj.event;
+            renderEventSongs();
           }
-        }, 60);
+        } catch (err) { /* render stale state is fine */ }
+        const newItemId = data.itemId;
+        if (newItemId) {
+          setTimeout(() => {
+            const row = document.querySelector('[data-event-song-id="' + newItemId + '"]');
+            if (row) {
+              row.classList.add('event-song-row-flash');
+              row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              setTimeout(() => row.classList.remove('event-song-row-flash'), 1600);
+            }
+          }, 60);
+        }
       }
-      // Restore the button after the success state has been on screen
-      // long enough to register.
       setTimeout(() => {
         if (btn) {
           btn.classList.remove('btn-confirmed');
           btn.disabled = false;
-          btn.textContent = originalText || 'Adaugă în event';
+          btn.innerHTML = originalText;
         }
+        // Close the picker after success so the next pick is a fresh tap.
+        const picker = btn ? btn.closest('.add-to-event-picker') : null;
+        if (picker) picker.removeAttribute('open');
       }, 1500);
     } catch (err) {
       alert('Eroare: ' + err.message);
-      if (btn) { btn.disabled = false; btn.textContent = originalText || 'Adaugă în event'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = originalText; }
     }
   }
 
@@ -761,19 +826,33 @@
     });
     $('worshipLogoutBtn').addEventListener('click', doLogout);
 
-    $('worshipEventSelect').addEventListener('change', (e) => {
-      if (e.target.value && e.target.value !== '—') loadEventDetail(e.target.value);
-    });
+    // V21.5: dropdown removed — header now shows the live event read-only.
+    // No change-listener needed; loadLiveEvent owns the single event source.
 
     $('globalSongLibrarySearch').addEventListener('input', (e) => {
       renderLibrary(e.target.value);
     });
 
+    // V21.5: per-card picker — click on an event option adds the song.
     $('globalSongLibraryList').addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-worship-lib-add]');
+      const btn = e.target.closest('[data-worship-picker-event]');
       if (!btn || btn.disabled) return;
-      addSongToEvent(btn.dataset.worshipLibAdd, btn);
+      addSongToSpecificEvent(
+        btn.getAttribute('data-worship-picker-event'),
+        btn.getAttribute('data-worship-picker-song'),
+        btn
+      );
     });
+    // toggle does NOT bubble — capture phase catches it on the way down.
+    $('globalSongLibraryList').addEventListener('toggle', (e) => {
+      const picker = e.target;
+      if (!picker || !picker.matches || !picker.matches('.add-to-event-picker') || !picker.open) return;
+      const listEl = picker.querySelector('.add-to-event-list');
+      if (!listEl) return;
+      ensurePickerEvents().then(() => {
+        renderAddToEventPicker(listEl.getAttribute('data-library-song-id'), listEl);
+      });
+    }, true);
 
     $('eventSongsList').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-event-song-delete]');
@@ -841,41 +920,31 @@
 
   // --- INIT ---
   // Probe the existing session: if the worship cookie is still valid (8h
-  // window) skip the login screen and go straight to the app.
+  // window) skip the login screen and go straight to the app. V21.5 probes
+  // with ?mode=live so the same response can prime the header display.
   async function init() {
     attachListeners();
     try {
-      const res = await fetch('/api/worship/events');
+      const res = await fetch('/api/worship/events?mode=live');
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (data && data.ok) {
           $('worshipLoginScreen').classList.add('hidden');
           $('worshipApp').classList.remove('hidden');
-          availableEvents = Array.isArray(data.events) ? data.events : [];
-          renderEventsFromCache();
+          liveEvent = Array.isArray(data.events) && data.events.length ? data.events[0] : null;
+          renderLiveEventDisplay();
+          if (liveEvent) {
+            loadEventDetail(liveEvent.id);
+          } else {
+            currentEvent = null;
+            renderEmptyEventInfo('Nu există event live. Setlist-ul se completează când admin pornește un event.');
+            renderEventSongs();
+            loadLibrary();
+          }
           return;
         }
       }
     } catch (err) { /* fall through to login screen */ }
-  }
-
-  function renderEventsFromCache() {
-    const select = $('worshipEventSelect');
-    if (!availableEvents.length) {
-      $('worshipEventInfo').innerHTML =
-        '<p class="muted">Nu există event-uri viitoare. Contactează administratorul pentru a crea un event.</p>';
-      select.innerHTML = '<option>—</option>';
-      select.disabled = true;
-      renderEventSongs();
-      loadLibrary();
-      return;
-    }
-    select.disabled = false;
-    select.innerHTML = availableEvents.map((ev) =>
-      `<option value="${escapeHtml(ev.id)}">${escapeHtml(ev.name)} — ${escapeHtml(formatDate(ev.scheduledAt || ev.scheduledTimestamp))}</option>`
-    ).join('');
-    select.value = availableEvents[0].id;
-    loadEventDetail(availableEvents[0].id);
   }
 
   if (document.readyState === 'loading') {

@@ -5197,9 +5197,21 @@ app.get('/api/worship/events', (req, res) => {
   const session = requireWorshipApiSession(req, res);
   if (!session) return;
   try {
+    // V21.5: ?mode=live returns only the active event (used by the worship
+    // header's read-only "Event LIVE" display); ?mode=picker (and the
+    // unspecified default for backward compat) returns future + live, with
+    // the live event first — used by the per-card "Add to event" picker.
+    const mode = String(req.query.mode || 'default');
+    const livePredicate = (ev) => isWorshipAccessibleEvent(ev) && isEventActive(ev);
+    const predicate = mode === 'live' ? livePredicate : isWorshipAccessibleEvent;
     const events = Object.values(db.events || {})
-      .filter(isWorshipAccessibleEvent)
-      .sort((a, b) => (a.scheduledTimestamp || 0) - (b.scheduledTimestamp || 0))
+      .filter(predicate)
+      .sort((a, b) => {
+        const aA = isEventActive(a);
+        const bA = isEventActive(b);
+        if (aA !== bA) return aA ? -1 : 1;
+        return (a.scheduledTimestamp || 0) - (b.scheduledTimestamp || 0);
+      })
       .map((event) => ({
         id: event.id,
         name: event.name || 'Untitled event',
@@ -5270,7 +5282,9 @@ app.post('/api/worship/events/:id/songs/add', (req, res) => {
     if (!event) {
       return res.status(404).json({ ok: false, error: 'Event not found' });
     }
-    if (!isWorshipEditableEvent(event)) {
+    // V21.5: worship may add songs to the live event during a service (was
+    // future-only in V21.1; the new per-card picker exposes future + live).
+    if (!isWorshipAccessibleEvent(event)) {
       return res.status(403).json({ ok: false, error: 'Cannot modify this event' });
     }
     const library = getOrganizationSongLibrary(getEventOrgId(event)) || [];
@@ -5319,7 +5333,9 @@ app.delete('/api/worship/events/:id/songs/:itemId', (req, res) => {
     if (!event) {
       return res.status(404).json({ ok: false, error: 'Event not found' });
     }
-    if (!isWorshipEditableEvent(event)) {
+    // V21.5: symmetric with songs/add — delete is allowed on live too (only
+    // songs the session created, already gated by addedSongs above).
+    if (!isWorshipAccessibleEvent(event)) {
       return res.status(403).json({ ok: false, error: 'Cannot modify this event' });
     }
     ensureEventUiState(event);

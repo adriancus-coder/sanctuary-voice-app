@@ -26,8 +26,11 @@
   <main id="worshipApp" class="worship-app hidden">
     <header class="worship-header panel glass-panel">
       <div class="worship-event-selector">
-        <label class="small" for="worshipEventSelect">Event</label>
-        <select id="worshipEventSelect"></select>
+        <label class="small">Event LIVE</label>
+        <div id="worshipLiveEventDisplay" class="event-display-readonly">
+          <span id="worshipLiveEventName" class="hidden">—</span>
+          <span id="worshipLiveEventNoActive" class="muted small">Nu există event live</span>
+        </div>
       </div>
       <button id="worshipLogoutBtn" class="btn btn-dark btn-sm" type="button">Logout</button>
     </header>

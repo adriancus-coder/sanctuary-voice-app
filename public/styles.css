@@ -6511,3 +6511,86 @@ body.live-fullscreen-active { overflow: hidden; }
   gap: 8px;
 }
 .worship-sync-toast-actions .btn { flex: 1; }
+
+/* === V21.5: read-only live event display in the worship header === */
+.event-display-readonly {
+  padding: 8px 12px;
+  background: rgba(255, 228, 179, 0.1);
+  border-left: 3px solid var(--gold-strong, #ffe4b3);
+  border-radius: 4px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#worshipLiveEventName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#worshipLiveEventNoActive {
+  font-style: italic;
+}
+
+/* === V21.5: per-card "Add to event" picker === */
+.add-to-event-picker {
+  display: inline-block;
+}
+.add-to-event-picker > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  /* Match .btn defaults rather than the browser's <summary> styling. */
+}
+.add-to-event-picker > summary::-webkit-details-marker { display: none; }
+.add-to-event-picker > summary::marker { content: ''; }
+.add-to-event-list {
+  margin-top: 8px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.event-picker-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.event-picker-option:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
+.event-picker-option.active {
+  background: rgba(255, 228, 179, 0.12);
+  border-color: rgba(255, 228, 179, 0.3);
+}
+.event-picker-option.btn-confirmed { background: #2e7d32; color: #fff; }
+.event-picker-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.badge-live {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--gold-strong, #ffe4b3);
+  color: #1a1206;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+}
