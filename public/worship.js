@@ -785,13 +785,24 @@
     const container = $('liveFullscreenContainer');
     if (!container) return;
     if (!isLiveFullscreen) {
-      const req = container.requestFullscreen || container.webkitRequestFullscreen;
-      if (typeof req === 'function') {
+      // V21.4-FIX9: try the STANDARD API first with explicit
+      // navigationUI:'hide'. On Chrome iOS 124+ / Safari iOS 16.4+ that
+      // hides the browser's own URL bar + toolbar — the CSS fallback
+      // cannot do that, only the native API can. Older browsers ignore
+      // the option or fall through to webkit / fallback.
+      if (typeof container.requestFullscreen === 'function') {
         try {
-          await req.call(container);
+          await container.requestFullscreen({ navigationUI: 'hide' });
           setFullscreenUi(true);
           return;
-        } catch (err) { /* fall through to CSS fallback */ }
+        } catch (err) { /* fall through */ }
+      }
+      if (typeof container.webkitRequestFullscreen === 'function') {
+        try {
+          await container.webkitRequestFullscreen();
+          setFullscreenUi(true);
+          return;
+        } catch (err) { /* fall through */ }
       }
       enterFullscreenFallback();
       setFullscreenUi(true);
