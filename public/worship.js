@@ -717,15 +717,27 @@
   let pendingOperatorPush = null;
 
   function joinMasterRoom() {
-    if (masterSocket && masterSocket.connected && currentEvent) {
-      masterSocket.emit('worship:master:join', { eventId: currentEvent.id });
+    if (masterSocket && masterSocket.connected) {
+      // V21.x: prefer liveEvent.id — set EARLY in loadLiveEvent, before
+      // loadEventDetail completes — so the room subscription happens
+      // even during the brief window when currentEvent is still null.
+      const eventId = (liveEvent && liveEvent.id) || (currentEvent && currentEvent.id);
+      if (eventId) masterSocket.emit('worship:master:join', { eventId });
     }
   }
 
   function initMasterSocket() {
     if (masterSocket || typeof io !== 'function') return;
     masterSocket = io();
-    masterSocket.on('connect', joinMasterRoom);
+    // V21.x: on every (re)connect, rejoin the worship room AND resync
+    // state. Socket.IO does not auto-rejoin rooms on reconnect (server
+    // discards membership), so any broadcasts during a network blip
+    // would otherwise be lost — loadLiveEvent's loadEventDetail
+    // refetches the event detail to recover.
+    masterSocket.on('connect', () => {
+      joinMasterRoom();
+      loadLiveEvent();
+    });
     masterSocket.on('worship:master:denied', (d) => {
       setStatus($('liveStatus'), (d && d.message) || 'Conexiune worship respinsă.', 'err');
     });
@@ -762,7 +774,15 @@
     // worship-scoped detail to keep the "adăugat de tine" flag and the
     // Delete button correct for this session.
     masterSocket.on('event:songlibrary_changed', async (data) => {
-      if (!data || !currentEvent || data.eventId !== currentEvent.id) return;
+      if (!data || !data.eventId) return;
+      // V21.x: race-safe — when active_event_changed fires immediately
+      // before this (admin activate + add in quick succession), the
+      // active_event_changed handler is still re-fetching and
+      // currentEvent may not yet be set. liveEvent is populated first
+      // in loadLiveEvent, so use it as the source of truth for which
+      // event this worship is attached to.
+      const myId = (liveEvent && liveEvent.id) || (currentEvent && currentEvent.id);
+      if (!myId || myId !== data.eventId) return;
       try {
         const r = await fetch('/api/worship/events/' + encodeURIComponent(data.eventId));
         const j = await r.json().catch(() => ({}));
