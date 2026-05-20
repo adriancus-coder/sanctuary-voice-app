@@ -20,7 +20,7 @@
 
     <nav class="top-nav-tabs" role="tablist" aria-label="Remote navigation">
       <button class="top-nav-btn active" data-tab="live-control" type="button">Live Control</button>
-      <button id="remoteSongTabBtn" class="top-nav-btn" data-tab="song" type="button">Song</button>
+      <button id="remoteSongTabBtn" class="top-nav-btn" data-tab="song" type="button">Song<span id="remoteSongTabBadge" class="tab-badge hidden" aria-label="cerere worship în așteptare"></span></button>
     </nav>
 
     <section id="tab-live-control" class="tab-panel active">
@@ -291,6 +291,22 @@
         <button id="remoteSaveEditVerseBtn" class="btn btn-dark" type="button">Save (current only)</button>
         <button id="remoteSaveEditVerseLibraryBtn" class="btn btn-primary" type="button">Save &amp; Update Library</button>
       </div>
+    </div>
+  </div>
+
+  <!-- V21.10: global worship-request toast — visible over any tab. -->
+  <div id="worshipGlobalToast" class="worship-global-toast hidden" role="status" aria-live="polite">
+    <div class="worship-global-toast-content panel glass-panel">
+      <span class="worship-global-toast-icon" aria-hidden="true">🎵</span>
+      <div class="worship-global-toast-text">
+        <strong class="worship-global-toast-title">Worship cere sync proiector</strong>
+        <div id="worshipGlobalToastDetail" class="small muted"></div>
+      </div>
+      <div class="worship-global-toast-actions">
+        <button class="btn btn-primary btn-sm" type="button" data-worship-toast-action="note">Am notat</button>
+        <button class="btn btn-dark btn-sm" type="button" data-worship-toast-action="decline">Refuz</button>
+      </div>
+      <button class="worship-global-toast-close" type="button" data-worship-toast-action="close" aria-label="Închide notificarea">✕</button>
     </div>
   </div>
 

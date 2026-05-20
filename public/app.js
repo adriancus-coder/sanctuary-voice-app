@@ -3453,6 +3453,98 @@ socket.on('event:songlibrary_changed', ({ eventId, songLibrary }) => {
   renderAdminEventSongLibrary();
 });
 
+// V21.10: admin worship-request awareness (previously only on /remote).
+// Admin's socket auto-joins worship:<eventId> via V21.3 join_event, so
+// these broadcasts already arrive — we just need to handle them. Scoped
+// to the currently-opened event (admin may have been in multiple
+// worship rooms across event switches).
+let adminPendingWorshipRequest = null;
+function showAdminWorshipGlobalToast(request) {
+  const toast = $('worshipGlobalToast');
+  if (!toast) return;
+  const detail = $('worshipGlobalToastDetail');
+  if (detail) {
+    detail.textContent = `${request.songTitle || 'cântare'} · strofa ${(request.verseIndex || 0) + 1} — sincronizezi manual pe proiector după.`;
+  }
+  toast.dataset.requestId = request.id;
+  toast.dataset.songTitle = request.songTitle || '';
+  toast.classList.remove('hidden');
+  setAdminSongTabBadge(true);
+}
+function hideAdminWorshipGlobalToast() {
+  const toast = $('worshipGlobalToast');
+  if (toast) toast.classList.add('hidden');
+}
+function setAdminSongTabBadge(visible) {
+  const badge = $('adminSongTabBadge');
+  if (badge) badge.classList.toggle('hidden', !visible);
+}
+function clearAdminSongTabBadge() { setAdminSongTabBadge(false); }
+async function resolveAdminWorshipRequest(action, reqId, songTitle) {
+  let body;
+  let label;
+  if (action === 'note') {
+    body = { status: 'noted' };
+    label = `Cerere notată — sincronizează manual pe proiector cântarea ${songTitle || 'worship'}.`;
+  } else if (action === 'decline') {
+    body = { approve: false };
+    label = `Cerere worship refuzată: ${songTitle || 'cântare'}.`;
+  } else {
+    body = { approve: true };
+    label = `Cerere worship aprobată: ${songTitle || 'cântare'}.`;
+  }
+  if (!currentEvent?.id) return;
+  try {
+    const res = await fetch(
+      `/api/events/${encodeURIComponent(currentEvent.id)}/worship/sync-request/${encodeURIComponent(reqId)}/resolve`,
+      adminJsonOptions('POST', body)
+    );
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Acțiune eșuată.');
+    adminPendingWorshipRequest = null;
+    hideAdminWorshipGlobalToast();
+    clearAdminSongTabBadge();
+    setStatus(label);
+  } catch (err) {
+    setStatus(err.message);
+  }
+}
+socket.on('worship:sync_request_pending', (data) => {
+  if (!data || !data.request) return;
+  if (!currentEvent || currentEvent.id !== data.eventId) return;
+  adminPendingWorshipRequest = {
+    id: data.request.id,
+    songTitle: data.songTitle || '',
+    verseIndex: data.request.targetVerseIndex || 0
+  };
+  showAdminWorshipGlobalToast(adminPendingWorshipRequest);
+  setStatus('Worship cere sync proiector — vezi toast.');
+});
+socket.on('worship:sync_request_resolved', (data) => {
+  if (!data) return;
+  if (adminPendingWorshipRequest && data.requestId === adminPendingWorshipRequest.id) {
+    adminPendingWorshipRequest = null;
+    hideAdminWorshipGlobalToast();
+    clearAdminSongTabBadge();
+  }
+});
+$('worshipGlobalToast')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-worship-toast-action]');
+  if (!btn) return;
+  const action = btn.getAttribute('data-worship-toast-action');
+  const toast = $('worshipGlobalToast');
+  if (action === 'close') {
+    // Hide the toast but keep the badge — request still pending.
+    hideAdminWorshipGlobalToast();
+    return;
+  }
+  const reqId = toast?.dataset.requestId;
+  const songTitle = toast?.dataset.songTitle || '';
+  if (!reqId) return;
+  resolveAdminWorshipRequest(action, reqId, songTitle);
+});
+$('adminSongTabBtn')?.addEventListener('click', () => clearAdminSongTabBadge());
+
 relocateMainScreenControls();
 // Listener-e pentru AMBELE tab navigation: sidebar (.nav-btn legacy) + top horizontal (.top-nav-btn)
 // În TASK 32c sidebar-ul va fi eliminat complet.

@@ -993,6 +993,9 @@ socket.on('worship:sync_request_pending', (data) => {
     verseIndex: data.request.targetVerseIndex || 0
   };
   renderRemoteWorshipPanel();
+  // V21.10: also fly the global toast + tab badge so the operator
+  // notices even when on another tab.
+  showRemoteWorshipGlobalToast(state.worship.request);
   setStatus('Worship cere sync proiector — vezi tab-ul Song.');
 });
 socket.on('worship:sync_request_resolved', (data) => {
@@ -1001,6 +1004,10 @@ socket.on('worship:sync_request_resolved', (data) => {
   if (state.worship.request && data.requestId === state.worship.request.id) {
     state.worship.request = null;
     renderRemoteWorshipPanel();
+    // V21.10: hide toast + clear badge when the request is gone for
+    // any reason (resolved here, or resolved from the global toast).
+    hideRemoteWorshipGlobalToast();
+    clearRemoteSongTabBadge();
     return;
   }
   // V21.8: an operator -> worship push WE sent just got accepted/declined
@@ -1043,28 +1050,21 @@ $('remoteEventSongsList')?.addEventListener('click', async (e) => {
   }
 });
 
-$('remoteWorshipRequest')?.addEventListener('click', async (e) => {
-  const btn = e.target.closest('button[data-worship-req]');
-  if (!btn || !state.worship.request) return;
-  // V21.9: three resolution paths — 'note' (acknowledge, new default),
-  // 'decline', and the legacy 'approve' button (kept for safety in case
-  // anything still renders it). Body uses {status} for note, the legacy
-  // {approve} boolean for the other two so older backend code paths
-  // still work if rolled back.
-  const action = btn.getAttribute('data-worship-req');
-  const reqId = state.worship.request.id;
-  const songTitle = state.worship.request.songTitle || 'cântare';
+// V21.10: shared resolver for worship sync requests — used by both the
+// in-panel buttons (Tab Song) AND the new global toast (visible on any
+// tab). Hides the toast + clears the badge on success.
+async function resolveRemoteWorshipRequest(action, reqId, songTitle) {
   let body;
   let label;
   if (action === 'note') {
     body = { status: 'noted' };
-    label = `Cerere notată — sincronizează manual pe proiector cântarea ${songTitle}.`;
+    label = `Cerere notată — sincronizează manual pe proiector cântarea ${songTitle || 'worship'}.`;
   } else if (action === 'decline') {
     body = { approve: false };
-    label = `Cerere worship refuzată: ${songTitle}.`;
+    label = `Cerere worship refuzată: ${songTitle || 'cântare'}.`;
   } else {
     body = { approve: true };
-    label = `Cerere worship aprobată: ${songTitle}.`;
+    label = `Cerere worship aprobată: ${songTitle || 'cântare'}.`;
   }
   try {
     const res = await fetch(
@@ -1075,11 +1075,67 @@ $('remoteWorshipRequest')?.addEventListener('click', async (e) => {
     if (!data.ok) throw new Error(data.error || 'Acțiune eșuată.');
     state.worship.request = null;
     renderRemoteWorshipPanel();
+    hideRemoteWorshipGlobalToast();
+    clearRemoteSongTabBadge();
     setStatus(label);
   } catch (err) {
     setStatus(err.message);
   }
+}
+
+// V21.10: global toast (visible from any tab) + Song-tab dot badge.
+function showRemoteWorshipGlobalToast(request) {
+  const toast = $('worshipGlobalToast');
+  if (!toast) return;
+  const detail = $('worshipGlobalToastDetail');
+  if (detail) {
+    detail.textContent = `${request.songTitle || 'cântare'} · strofa ${(request.verseIndex || 0) + 1} — sincronizezi manual pe proiector după.`;
+  }
+  toast.dataset.requestId = request.id;
+  toast.dataset.songTitle = request.songTitle || '';
+  toast.classList.remove('hidden');
+  setRemoteSongTabBadge(true);
+}
+function hideRemoteWorshipGlobalToast() {
+  const toast = $('worshipGlobalToast');
+  if (toast) toast.classList.add('hidden');
+}
+function setRemoteSongTabBadge(visible) {
+  const badge = $('remoteSongTabBadge');
+  if (badge) badge.classList.toggle('hidden', !visible);
+}
+function clearRemoteSongTabBadge() { setRemoteSongTabBadge(false); }
+
+$('remoteWorshipRequest')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-worship-req]');
+  if (!btn || !state.worship.request) return;
+  const action = btn.getAttribute('data-worship-req');
+  const reqId = state.worship.request.id;
+  const songTitle = state.worship.request.songTitle || 'cântare';
+  resolveRemoteWorshipRequest(action, reqId, songTitle);
 });
+
+// V21.10: global toast click handlers (note / decline / close).
+$('worshipGlobalToast')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-worship-toast-action]');
+  if (!btn) return;
+  const action = btn.getAttribute('data-worship-toast-action');
+  const toast = $('worshipGlobalToast');
+  if (action === 'close') {
+    // Just hide the toast — the request stays pending; the badge keeps
+    // signalling that something needs attention in Tab Song.
+    hideRemoteWorshipGlobalToast();
+    return;
+  }
+  const reqId = toast?.dataset.requestId;
+  const songTitle = toast?.dataset.songTitle || '';
+  if (!reqId) return;
+  resolveRemoteWorshipRequest(action, reqId, songTitle);
+});
+
+// V21.10: clicking the Song tab clears the unread badge (user has
+// presumably noticed the request inside the in-panel UI).
+$('remoteSongTabBtn')?.addEventListener('click', () => clearRemoteSongTabBadge());
 socket.on('display_presets_updated', ({ presets }) => {
   if (!state.currentEvent) return;
   state.currentEvent.displayPresets = presets || [];
