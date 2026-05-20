@@ -744,9 +744,18 @@
     masterSocket.on('worship:sync_request_resolved', (data) => {
       if (!data || !pendingSyncId || data.requestId !== pendingSyncId) return;
       pendingSyncId = null;
-      setStatus($('liveStatus'),
-        data.approved ? 'Operatorul a aprobat sync-ul proiectorului.' : 'Operatorul a refuzat sync-ul.',
-        data.approved ? 'ok' : 'err');
+      // V21.9: prefer the precise `status` field. Old payloads only had
+      // `approved` boolean — fall back to it.
+      const status = (typeof data.status === 'string') ? data.status
+        : (data.approved ? 'approved' : 'declined');
+      if (status === 'noted') {
+        setStatus($('liveStatus'),
+          'Cerere notată — operatorul sincronizează manual pe proiector.', 'ok');
+      } else if (status === 'declined') {
+        setStatus($('liveStatus'), 'Operatorul a refuzat sync-ul.', 'err');
+      } else {
+        setStatus($('liveStatus'), 'Operatorul a aprobat sync-ul proiectorului.', 'ok');
+      }
     });
     // V21.7: when admin starts/stops the active event for the org, the
     // worship header / Setlist / Live-mode picker must follow without a

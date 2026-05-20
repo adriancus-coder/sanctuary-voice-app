@@ -5510,16 +5510,31 @@ app.post('/api/events/:id/worship/sync-request/:reqId/resolve', (req, res) => {
   if (request.type !== 'worship_to_projector') {
     return res.status(400).json({ ok: false, error: 'Tip de cerere greșit.' });
   }
-  const approve = req.body && req.body.approve === true;
-  request.status = approve ? 'approved' : 'declined';
+  // V21.9: accept the new `status:'noted'` body — operator acknowledges
+  // the request and will move the projector by hand. The legacy
+  // `approve:true/false` boolean still works (V21.3 clients) and maps
+  // onto status='approved'/'declined'. The broadcast carries BOTH the
+  // string status (precise) and the legacy `approved` boolean
+  // (backward compat with the existing worship master listener).
+  let status;
+  if (typeof req.body?.status === 'string' && ['noted', 'approved', 'declined'].includes(req.body.status)) {
+    status = req.body.status;
+  } else {
+    status = req.body && req.body.approve === true ? 'approved' : 'declined';
+  }
+  request.status = status;
   request.resolvedAt = Date.now();
   saveDb();
   io.to(`worship:${event.id}`).emit('worship:sync_request_resolved', {
     eventId: event.id,
     requestId: request.id,
-    approved: approve
+    status,
+    // Legacy field: a "noted" acknowledgment is a positive signal so it
+    // maps to approved=true for pre-V21.9 clients (they'll show
+    // "aprobat" — close enough; new clients prefer the status field).
+    approved: status === 'approved' || status === 'noted'
   });
-  return res.json({ ok: true });
+  return res.json({ ok: true, status });
 });
 
 // V21.8: operator/admin pushes a song suggestion to the worship master.

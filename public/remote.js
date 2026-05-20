@@ -766,10 +766,14 @@ function renderRemoteWorshipPanel() {
   }
   if (w.request) {
     reqEl.classList.remove('hidden');
+    // V21.9: "Am notat" replaces "Aprob" — the bridge is not automatic.
+    // The operator acknowledges the worship request and then moves the
+    // projector by hand. The hint line makes that contract explicit.
     reqEl.innerHTML = `
       <div class="worship-sync-toast-text">🎵 Worship cere sync proiector: <b>${escapeHtml(w.request.songTitle || 'cântare')}</b> · strofa ${w.request.verseIndex + 1}</div>
+      <div class="worship-sync-toast-hint small muted">Vei sincroniza manual pe proiector după.</div>
       <div class="worship-sync-toast-actions">
-        <button class="btn btn-primary" type="button" data-worship-req="approve">Aprob</button>
+        <button class="btn btn-primary" type="button" data-worship-req="note">Am notat</button>
         <button class="btn btn-dark" type="button" data-worship-req="decline">Refuz</button>
       </div>`;
   } else {
@@ -1042,18 +1046,36 @@ $('remoteEventSongsList')?.addEventListener('click', async (e) => {
 $('remoteWorshipRequest')?.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-worship-req]');
   if (!btn || !state.worship.request) return;
-  const approve = btn.getAttribute('data-worship-req') === 'approve';
+  // V21.9: three resolution paths — 'note' (acknowledge, new default),
+  // 'decline', and the legacy 'approve' button (kept for safety in case
+  // anything still renders it). Body uses {status} for note, the legacy
+  // {approve} boolean for the other two so older backend code paths
+  // still work if rolled back.
+  const action = btn.getAttribute('data-worship-req');
   const reqId = state.worship.request.id;
+  const songTitle = state.worship.request.songTitle || 'cântare';
+  let body;
+  let label;
+  if (action === 'note') {
+    body = { status: 'noted' };
+    label = `Cerere notată — sincronizează manual pe proiector cântarea ${songTitle}.`;
+  } else if (action === 'decline') {
+    body = { approve: false };
+    label = `Cerere worship refuzată: ${songTitle}.`;
+  } else {
+    body = { approve: true };
+    label = `Cerere worship aprobată: ${songTitle}.`;
+  }
   try {
     const res = await fetch(
       `/api/events/${state.eventId}/worship/sync-request/${reqId}/resolve`,
-      eventCodeOptions('POST', { approve })
+      eventCodeOptions('POST', body)
     );
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Acțiune eșuată.');
     state.worship.request = null;
     renderRemoteWorshipPanel();
-    setStatus(approve ? 'Cerere worship aprobată.' : 'Cerere worship refuzată.');
+    setStatus(label);
   } catch (err) {
     setStatus(err.message);
   }
