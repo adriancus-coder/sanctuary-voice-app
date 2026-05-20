@@ -6318,6 +6318,47 @@ body.live-fullscreen-active .glass-panel {
   overflow: visible !important;
 }
 
+/* V21.4-FIX8: portrait-first Live mode. The h3 + instructional paragraph
+   and the chunky toolbar were eating ~150-180px of vertical space on a
+   portrait phone — leaving the lyrics box squeezed below the fold.
+   The worship leader holds a phone vertically during the service; the
+   verses are the deliverable, not the help text. Hide the chrome and
+   give the lyrics box ~40% of the visible viewport before fullscreen. */
+@media (max-width: 600px) {
+  .worship-live-panel > h3,
+  .worship-live-panel > p {
+    display: none;
+  }
+  .worship-live-panel {
+    padding: 12px;
+  }
+  .live-toolbar {
+    gap: 6px;
+  }
+  .live-toolbar .btn {
+    font-size: 12px;
+    padding: 7px 10px;
+  }
+  .live-toolbar select {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .live-lyrics-display {
+    min-height: 40vh;
+    min-height: 40dvh;
+    padding: 18px 16px;
+  }
+  .live-verse-text {
+    font-size: 20px;
+    line-height: 1.5;
+  }
+  .live-nav-btn {
+    width: 52px;
+    height: 52px;
+    font-size: 22px;
+  }
+}
+
 /* Lyrics: take all remaining space; clip overflow so the verse text never
    spills onto the controls below it. min-height: 0 lets the flex child
    actually shrink (default flex min-size is `auto`, which is the bug
