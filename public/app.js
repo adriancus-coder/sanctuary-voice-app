@@ -488,8 +488,9 @@ function renderActiveEventBadge(event) {
 // V21.4-FIX: render the per-event "Songs in this event" panel from
 // currentEvent.songLibrary (already on the normalized event payload — no
 // extra fetch needed). Called from renderActiveEventBadge on every event
-// update.
-function renderAdminEventSongLibrary() {
+// update. `highlightId` briefly flashes a freshly added row so the user
+// sees that the click actually landed.
+function renderAdminEventSongLibrary(highlightId = null) {
   const list = $('adminEventSongsList');
   const count = $('adminEventSongsCount');
   if (!list || !count) return;
@@ -506,7 +507,7 @@ function renderAdminEventSongLibrary() {
   }
   list.innerHTML = items.map((item, idx) => {
     const chars = item.text ? String(item.text).length : 0;
-    return `<div class="event-song-row">
+    return `<div class="event-song-row" data-admin-event-song-row="${escapeHtml(item.id)}">
       <span class="event-song-index">${idx + 1}.</span>
       <div class="event-song-meta">
         <strong>${escapeHtml(item.title || 'Untitled')}</strong>
@@ -515,6 +516,14 @@ function renderAdminEventSongLibrary() {
       <button class="btn btn-danger btn-sm" type="button" data-admin-event-song-delete="${escapeHtml(item.id)}">Delete</button>
     </div>`;
   }).join('');
+  if (highlightId) {
+    const row = list.querySelector(`[data-admin-event-song-row="${CSS.escape(highlightId)}"]`);
+    if (row) {
+      row.classList.add('event-song-row-flash');
+      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      setTimeout(() => row.classList.remove('event-song-row-flash'), 1600);
+    }
+  }
 }
 
 async function deleteAdminEventSong(songId) {
@@ -4233,18 +4242,42 @@ $('globalSongLibraryList').addEventListener('click', async (e) => {
     const targetEventId = document.querySelector(`[data-global-song-target="${songId}"]`)?.value || '';
     if (!targetEventId) return alert('Choose the event first.');
     if (!currentEvent) return alert('Open any event first so the admin session is active.');
-    const res = await fetch(`/api/events/${currentEvent.id}/global-song-library/${songId}/add-to-event`, adminJsonOptions('POST', { targetEventId }));
-    const data = await res.json();
-    if (!data.ok) return alert(data.error || 'Could not add item to event.');
-    const targetEventName = availableEventsList.find((event) => event.id === targetEventId)?.name || 'selected event';
-    setStatus(`Added to ${targetEventName}.`);
-    clearLibrarySearch('globalSongLibrarySearch', renderGlobalSongLibrary, currentGlobalSongLibrary);
-    // V21.4-FIX: refresh the per-event songs panel when the target is the
-    // currently-opened event. (upsertLibraryItem dedupes by title, so the
-    // count may stay the same on re-add — that is intended.)
-    if (currentEvent && targetEventId === currentEvent.id) {
-      currentEvent.songLibrary = data.songLibrary || currentEvent.songLibrary || [];
-      renderAdminEventSongLibrary();
+    // V21.4-FIX2: visible click feedback — disable + change label. Without
+    // this the only signal was setStatus() into #recognitionStatus on the
+    // Dashboard tab, invisible from Tab Song. The re-render that wipes the
+    // button is deferred until after the user can read the success state.
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '… Adding';
+    try {
+      const res = await fetch(`/api/events/${currentEvent.id}/global-song-library/${songId}/add-to-event`, adminJsonOptions('POST', { targetEventId }));
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Could not add item to event.');
+      const targetEventName = availableEventsList.find((event) => event.id === targetEventId)?.name || 'selected event';
+      const isCurrent = targetEventId === currentEvent.id;
+      btn.textContent = `✓ Added to ${targetEventName}`;
+      btn.classList.add('btn-confirmed');
+      setStatus(`Added to ${targetEventName}.`);
+      if (isCurrent) {
+        // upsertLibraryItem dedupes by title, so a re-add returns the same
+        // id — the count stays the same and the existing row is flashed.
+        currentEvent.songLibrary = data.songLibrary || currentEvent.songLibrary || [];
+        const sourceTitle = currentGlobalSongLibrary.find((x) => x.id === songId)?.title || '';
+        const addedRow = currentEvent.songLibrary.find((s) => s && s.title === sourceTitle);
+        renderAdminEventSongLibrary(addedRow ? addedRow.id : null);
+      } else {
+        // Cross-event add is easy to miss — make the warning unmissable.
+        alert(`Added to "${targetEventName}" — this is NOT the event you have open. Switch to "${targetEventName}" to see it in the Songs in this event panel.`);
+      }
+      // Defer the library re-render so the green button stays visible
+      // long enough to register as feedback.
+      setTimeout(() => {
+        clearLibrarySearch('globalSongLibrarySearch', renderGlobalSongLibrary, currentGlobalSongLibrary);
+      }, 1500);
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+      alert(err.message || 'Could not add item to event.');
     }
     return;
   }

@@ -6325,6 +6325,21 @@ body.live-fullscreen-active { overflow: hidden; }
   text-align: right;
 }
 
+/* V21.4-FIX2: feedback for Add-to-event so the user sees the click landed */
+@keyframes event-song-row-flash {
+  0%   { background: rgba(255, 228, 179, 0.55); box-shadow: 0 0 0 2px var(--gold-strong, #ffe4b3); }
+  60%  { background: rgba(255, 228, 179, 0.25); box-shadow: 0 0 0 2px rgba(255, 228, 179, 0.3); }
+  100% { background: rgba(255, 255, 255, 0.04); box-shadow: none; }
+}
+.event-song-row.event-song-row-flash {
+  animation: event-song-row-flash 1.6s ease-out;
+}
+.btn.btn-confirmed {
+  background: #2e7d32;
+  color: #fff;
+  border-color: #2e7d32;
+}
+
 /* === V21.2: Worship share QR modal === */
 .worship-modal {
   position: fixed;
