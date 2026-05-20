@@ -1283,7 +1283,12 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
     card.className = `event-card library-card-details${event.id === activeEventId ? ' active' : ''}${event.id === openedEventId ? ' opened' : ''}`;
     const langs = (event.targetLangs || []).map((lang) => langLabel(lang)).join(', ');
     const displayId = event.shortId || event.id;
-    const badges = [`<div class="mini-badge">${event.mode || 'live'}</div>`];
+    // V21.x: the "Live" badge marks the org's currently-active event
+    // (matches db.activeEventId). The previous version printed
+    // `event.mode` here, which defaults to "live" for every event —
+    // so two events looked active at once when only one really is.
+    const badges = [];
+    if (event.id === activeEventId) badges.push('<div class="mini-badge mini-badge-active">Live</div>');
     if (event.hidden) badges.push('<div class="mini-badge mini-badge-warn" title="Hidden from participants">Hidden</div>');
     if (event.testMode) badges.push('<div class="mini-badge mini-badge-test" title="Test mode — participants see a TEST banner">Test</div>');
     const visibilityLabel = event.hidden ? 'Show to participants' : 'Hide from participants';

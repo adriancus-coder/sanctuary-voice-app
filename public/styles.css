@@ -1129,6 +1129,15 @@ progress::-moz-progress-bar {
   text-transform: uppercase;
 }
 
+.mini-badge-active {
+  color: #5ddc8c;
+  border-color: rgba(93, 220, 140, 0.45);
+  background: rgba(93, 220, 140, 0.12);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .participant-test-badge {
   color: #fff7e8;
   background: linear-gradient(135deg, #d95a16, #b03d10);
