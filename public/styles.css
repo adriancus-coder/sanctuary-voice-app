@@ -6278,15 +6278,20 @@ button[disabled]:active {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  /* V21.4-FIX4: rely on inset:0 alone for sizing. The earlier
-     `height: 100vh; height: 100dvh;` here was the bug: on iOS Safari
-     < 15.4, only `100vh` applies, and `100vh` measures the FULL viewport
-     including the URL-bar zone. With `position: fixed; inset: 0`, an
-     explicit `height: 100vh` overrides the bottom:0 constraint — the
-     container extends below the visible area, pushing .live-controls
-     and .live-verse-list off-screen, and placing the exit button at
-     top:10 of the full viewport (i.e. UNDER Safari's URL bar, where
-     it is visible-looking but Safari's chrome intercepts every tap). */
+  /* V21.4-FIX6: restore an explicit height. V21.4-FIX4 stripped this
+     thinking inset:0 was enough — but on iOS Safari, `position: fixed;
+     inset: 0;` ALONE leaves the flex container's height indeterminate
+     for flex resolution, so `flex: 1 1 0` on .live-lyrics-display
+     collapses to 0 (basis 0, no remaining space to grow). Then the
+     verse text's `max-height: 100%` resolves against a 0-height parent
+     and becomes invisible — only the label (intrinsic size + shrink:0)
+     remained.
+     Use 100dvh ONLY (no 100vh fallback): on iOS 15.4+ this equals the
+     visible viewport, giving the flex container a determinate height
+     so children resolve correctly AND keeping the bottom edge inside
+     the visible area (the FIX3 controls-off-screen bug returned with
+     100vh on iOS, because 100vh measures the FULL viewport there). */
+  height: 100dvh;
   padding:
     max(20px, env(safe-area-inset-top))
     max(18px, env(safe-area-inset-right))
