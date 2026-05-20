@@ -120,7 +120,7 @@
         await loadEventDetail(liveEvent.id);
       } else {
         currentEvent = null;
-        renderEmptyEventInfo('Nu există event live. Setlist-ul se completează când admin pornește un event.');
+        renderEmptyEventInfo('Nu există event live. Programul se completează când admin pornește un event.');
         renderEventSongs();
         loadLibrary();
         resetLiveForEvent();
@@ -1039,7 +1039,7 @@
             loadEventDetail(liveEvent.id);
           } else {
             currentEvent = null;
-            renderEmptyEventInfo('Nu există event live. Setlist-ul se completează când admin pornește un event.');
+            renderEmptyEventInfo('Nu există event live. Programul se completează când admin pornește un event.');
             renderEventSongs();
             loadLibrary();
           }
