@@ -6256,27 +6256,51 @@ button[disabled]:active {
   overflow: hidden;
 }
 
-/* V21.4-FIX: fullscreen container — native :fullscreen + CSS fallback for iOS */
+/* V21.4-FIX3: fullscreen container — robust mobile layout. Native :fullscreen
+   and CSS fallback share the same rules. The fallback uses position:fixed +
+   100dvh so iOS Safari's collapsing URL bar does not break the layout. */
 .live-fullscreen-container { position: relative; }
 .live-fullscreen-container:fullscreen,
 .live-fullscreen-container.live-fullscreen-fallback {
   background: #0e0e10;
-  padding: 28px 22px 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  overflow: hidden;
+}
+.live-fullscreen-container:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  padding: 24px 22px 18px;
 }
 .live-fullscreen-container.live-fullscreen-fallback {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  overflow: hidden;
+  /* dvh is "small viewport" on iOS — matches the visible area when the URL
+     bar is shown; lvh would clip when it shrinks. dvh is the safest pick. */
+  height: 100vh;
+  height: 100dvh;
+  padding:
+    max(20px, env(safe-area-inset-top))
+    max(18px, env(safe-area-inset-right))
+    max(18px, env(safe-area-inset-bottom))
+    max(18px, env(safe-area-inset-left));
 }
 body.live-fullscreen-active { overflow: hidden; }
+
+/* Lyrics: take all remaining space; clip overflow so the verse text never
+   spills onto the controls below it. min-height: 0 lets the flex child
+   actually shrink (default flex min-size is `auto`, which is the bug
+   that caused the overlap on mobile). */
 .live-fullscreen-container:fullscreen .live-lyrics-display,
 .live-fullscreen-container.live-fullscreen-fallback .live-lyrics-display {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
+  margin-bottom: 0;
+  padding: 12px 8px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -6284,38 +6308,71 @@ body.live-fullscreen-active { overflow: hidden; }
   background: transparent;
   border-left: none;
 }
+.live-fullscreen-container:fullscreen .live-verse-label,
+.live-fullscreen-container.live-fullscreen-fallback .live-verse-label {
+  flex-shrink: 0;
+  margin-bottom: 14px;
+}
 .live-fullscreen-container:fullscreen .live-verse-text,
 .live-fullscreen-container.live-fullscreen-fallback .live-verse-text {
-  font-size: 34px;
-  line-height: 1.45;
+  /* Responsive — small phones get 22px, large screens cap at 38px. */
+  font-size: clamp(22px, 6vw, 38px);
+  line-height: 1.4;
   text-align: center;
-  max-width: 90%;
+  max-width: 95%;
+  max-height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Controls and mini-list must NOT shrink — they have a fixed footprint so
+   the lyrics box gets the actual remaining height. */
+.live-fullscreen-container:fullscreen .live-controls,
+.live-fullscreen-container.live-fullscreen-fallback .live-controls {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+}
+.live-fullscreen-container:fullscreen .live-verse-list,
+.live-fullscreen-container.live-fullscreen-fallback .live-verse-list {
+  flex: 0 0 auto;
+  max-height: 28vh;
+  max-height: 28dvh;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 .live-fullscreen-container:fullscreen .verse-mini-item,
 .live-fullscreen-container.live-fullscreen-fallback .verse-mini-item {
-  min-width: 180px;
-  max-width: 240px;
+  min-width: 150px;
+  max-width: 220px;
 }
 .live-fullscreen-container:fullscreen .verse-mini-text,
 .live-fullscreen-container.live-fullscreen-fallback .verse-mini-text {
-  font-size: 13px;
-  -webkit-line-clamp: 5;
+  font-size: 12px;
+  -webkit-line-clamp: 4;
 }
+
+/* Exit button: top-right of the fullscreen container, above content,
+   inside the safe area on devices with a notch. */
 .live-exit-fullscreen-btn {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
-  font-size: 20px;
+  font-size: 22px;
+  line-height: 1;
   cursor: pointer;
-  z-index: 5;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
-.live-exit-fullscreen-btn:hover { background: rgba(0, 0, 0, 0.8); }
+.live-exit-fullscreen-btn:hover { background: rgba(0, 0, 0, 0.85); }
 
 /* V21.4-FIX: index column for the Songs-in-event row (admin + remote) */
 .event-song-index {
