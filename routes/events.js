@@ -1578,6 +1578,11 @@ function registerEventRoutes(app, ctx) {
     upsertLibraryItem(event.songLibrary, { title, text, labels, sourceLang }, 100);
 
     saveDb();
+    // V21.6: live-sync event songLibrary across admin / operator / worship.
+    io.to(`event:${event.id}`).to(`worship:${event.id}`).emit('event:songlibrary_changed', {
+      eventId: event.id,
+      songLibrary: event.songLibrary
+    });
     res.json({ ok: true, songLibrary: event.songLibrary });
   });
 
@@ -1597,7 +1602,11 @@ function registerEventRoutes(app, ctx) {
     ensureEventUiState(event);
     event.songLibrary = event.songLibrary.filter((item) => item.id !== req.params.songId);
     saveDb();
-
+    // V21.6: live-sync event songLibrary across admin / operator / worship.
+    io.to(`event:${event.id}`).to(`worship:${event.id}`).emit('event:songlibrary_changed', {
+      eventId: event.id,
+      songLibrary: event.songLibrary
+    });
     res.json({ ok: true, songLibrary: event.songLibrary });
   });
 
@@ -1714,6 +1723,11 @@ function registerEventRoutes(app, ctx) {
 
     upsertLibraryItem(event.songLibrary, { title: item.title, text: item.text, labels: item.labels || [], sourceLang: item.sourceLang || event.sourceLang || 'ro' }, 100);
     saveDb();
+    // V21.6: live-sync event songLibrary across admin / operator / worship.
+    io.to(`event:${event.id}`).to(`worship:${event.id}`).emit('event:songlibrary_changed', {
+      eventId: event.id,
+      songLibrary: event.songLibrary
+    });
     res.json({ ok: true, targetEvent: summarizeEvent(event), songLibrary: event.songLibrary, globalSongLibrary: library });
   });
 

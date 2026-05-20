@@ -948,6 +948,13 @@ socket.on('song_history_updated', ({ songHistory }) => {
   renderRemoteSongHistory();
   renderRemoteSongState();
 });
+// V21.6: live sync of event.songLibrary — operator sees changes that
+// originated on worship / admin without a manual refresh.
+socket.on('event:songlibrary_changed', ({ eventId, songLibrary }) => {
+  if (!state.currentEvent || state.currentEvent.id !== eventId) return;
+  state.currentEvent.songLibrary = Array.isArray(songLibrary) ? songLibrary : [];
+  renderRemoteEventSongLibrary();
+});
 // V21.3: worship-live awareness on the operator side.
 socket.on('worship:state_change', (data) => {
   if (!data || data.eventId !== state.eventId) return;

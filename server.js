@@ -5311,6 +5311,11 @@ app.post('/api/worship/events/:id/songs/add', (req, res) => {
     }
     saveDb();
     setWorshipSessionCookie(req, res, session);
+    // V21.6: live-sync event songLibrary across admin / operator / worship.
+    io.to(`event:${event.id}`).to(`worship:${event.id}`).emit('event:songlibrary_changed', {
+      eventId: event.id,
+      songLibrary: event.songLibrary
+    });
     logger.info(`[worship/add-song] event=${event.id} song="${librarySong.title}" itemId=${item.id} new=${isNewItem}`);
     return res.json({ ok: true, itemId: item.id, isNewItem });
   } catch (err) {
@@ -5347,6 +5352,11 @@ app.delete('/api/worship/events/:id/songs/:itemId', (req, res) => {
     session.addedSongs = session.addedSongs.filter((id) => id !== itemId);
     saveDb();
     setWorshipSessionCookie(req, res, session);
+    // V21.6: live-sync event songLibrary across admin / operator / worship.
+    io.to(`event:${event.id}`).to(`worship:${event.id}`).emit('event:songlibrary_changed', {
+      eventId: event.id,
+      songLibrary: event.songLibrary
+    });
     logger.info(`[worship/delete-song] event=${event.id} itemId=${itemId}`);
     return res.json({ ok: true });
   } catch (err) {

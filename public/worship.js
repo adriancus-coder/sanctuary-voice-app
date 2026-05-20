@@ -729,6 +729,23 @@
         data.approved ? 'Operatorul a aprobat sync-ul proiectorului.' : 'Operatorul a refuzat sync-ul.',
         data.approved ? 'ok' : 'err');
     });
+    // V21.6: live sync of event.songLibrary. The broadcast carries the
+    // raw library (no per-session addedByWorship), so we refetch the
+    // worship-scoped detail to keep the "adăugat de tine" flag and the
+    // Delete button correct for this session.
+    masterSocket.on('event:songlibrary_changed', async (data) => {
+      if (!data || !currentEvent || data.eventId !== currentEvent.id) return;
+      try {
+        const r = await fetch('/api/worship/events/' + encodeURIComponent(data.eventId));
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j && j.ok && j.event) {
+          currentEvent = j.event;
+          renderEventSongs();
+          // Keep Live mode's song picker fresh too (new song may need it).
+          refreshLiveMode();
+        }
+      } catch (err) { /* render stale state is fine */ }
+    });
     masterHeartbeatTimer = setInterval(() => {
       if (masterSocket && masterSocket.connected && currentEvent) {
         masterSocket.emit('worship:master:heartbeat', { eventId: currentEvent.id });

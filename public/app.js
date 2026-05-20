@@ -3440,6 +3440,13 @@ socket.on('song_history_updated', ({ songHistory }) => {
   renderSongHistory(currentEvent.songHistory);
   renderSongState(currentEvent.songState || {});
 });
+// V21.6: live sync of event.songLibrary — admin sees changes that
+// originated on worship / operator without a manual refresh.
+socket.on('event:songlibrary_changed', ({ eventId, songLibrary }) => {
+  if (!currentEvent || currentEvent.id !== eventId) return;
+  currentEvent.songLibrary = Array.isArray(songLibrary) ? songLibrary : [];
+  renderAdminEventSongLibrary();
+});
 
 relocateMainScreenControls();
 // Listener-e pentru AMBELE tab navigation: sidebar (.nav-btn legacy) + top horizontal (.top-nav-btn)
