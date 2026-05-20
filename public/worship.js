@@ -713,6 +713,8 @@
   let masterSocket = null;
   let masterHeartbeatTimer = null;
   let pendingSyncId = null;
+  // V21.8: incoming operator->worship push awaiting accept/decline.
+  let pendingOperatorPush = null;
 
   function joinMasterRoom() {
     if (masterSocket && masterSocket.connected && currentEvent) {
@@ -744,6 +746,17 @@
     masterSocket.on('active_event_changed', () => {
       loadLiveEvent();
     });
+    // V21.8: operator suggested a song. Show the accept/decline modal —
+    // the master picks. Decline marks the request declined; Accept moves
+    // worshipState via the sync-response endpoint, which broadcasts to
+    // members + operator. Verse defaults to 0 server-side.
+    masterSocket.on('worship:operator_push', (data) => {
+      if (!data || !currentEvent || data.eventId !== currentEvent.id) return;
+      pendingOperatorPush = data.request || null;
+      const titleEl = $('worshipPushSongTitle');
+      if (titleEl) titleEl.textContent = data.songTitle || 'Cântare';
+      $('worshipPushModal').classList.remove('hidden');
+    });
     // V21.6: live sync of event.songLibrary. The broadcast carries the
     // raw library (no per-session addedByWorship), so we refetch the
     // worship-scoped detail to keep the "adăugat de tine" flag and the
@@ -766,6 +779,44 @@
         masterSocket.emit('worship:master:heartbeat', { eventId: currentEvent.id });
       }
     }, 20000);
+  }
+
+  // V21.8: accept / decline an operator push. Accept moves worshipState
+  // via /sync-response (which broadcasts state_change to members and the
+  // operator's panel); we also apply the response to the local Live mode
+  // UI so the picker + verse update on the master tablet.
+  async function respondToOperatorPush(accept) {
+    if (!currentEvent || !pendingOperatorPush) return;
+    const requestId = pendingOperatorPush.id;
+    const acceptBtn = $('worshipPushAcceptBtn');
+    const declineBtn = $('worshipPushDeclineBtn');
+    if (acceptBtn) acceptBtn.disabled = true;
+    if (declineBtn) declineBtn.disabled = true;
+    try {
+      const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) + '/sync-response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, accept: !!accept })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Răspuns eșuat.');
+      if (accept && data.worshipState) {
+        // Apply server-confirmed state to the local Live mode picker.
+        if (liveMode !== 'live') toggleMode('live');
+        liveCurrentSongId = data.worshipState.currentSongId || null;
+        liveCurrentVerseIndex = Number.isInteger(data.worshipState.currentVerseIndex)
+          ? data.worshipState.currentVerseIndex : 0;
+        refreshLiveMode();
+        setStatus($('liveStatus'), 'Cântare primită de la operator · strofa ' + (liveCurrentVerseIndex + 1), 'ok');
+      }
+    } catch (err) {
+      alert('Eroare: ' + err.message);
+    } finally {
+      if (acceptBtn) acceptBtn.disabled = false;
+      if (declineBtn) declineBtn.disabled = false;
+      pendingOperatorPush = null;
+      $('worshipPushModal').classList.add('hidden');
+    }
   }
 
   async function requestProjectorSync() {
@@ -930,6 +981,10 @@
 
     // V21.3: projector sync request
     $('worshipSyncProjectorBtn').addEventListener('click', requestProjectorSync);
+
+    // V21.8: operator push accept/decline
+    $('worshipPushAcceptBtn').addEventListener('click', () => respondToOperatorPush(true));
+    $('worshipPushDeclineBtn').addEventListener('click', () => respondToOperatorPush(false));
 
     // V21.4-FIX: fullscreen toggle (enter via toolbar, exit via corner X)
     $('liveFullscreenBtn').addEventListener('click', toggleLiveFullscreen);

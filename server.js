@@ -5522,6 +5522,106 @@ app.post('/api/events/:id/worship/sync-request/:reqId/resolve', (req, res) => {
   return res.json({ ok: true });
 });
 
+// V21.8: operator/admin pushes a song suggestion to the worship master.
+// Verse index is forced to 0 — the verse-model reconciliation between
+// projector blocks (marker-aware) and worship verses (blank-line split)
+// is deferred to the bridge (V21.x); pushing index 0 is unambiguous and
+// useful as-is ("start this song"). The master gets a modal; on accept
+// the response endpoint moves worshipState which broadcasts to members
+// and the operator's panel via the existing worship:state_change.
+app.post('/api/events/:id/worship/push', (req, res) => {
+  const event = db.events[req.params.id];
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+  if (!requireEventPermission(req, res, 'song')) return;
+  const songId = String(req.body?.songId || '').trim();
+  if (!songId) return res.status(400).json({ ok: false, error: 'Lipsește songId.' });
+  ensureEventUiState(event);
+  const song = (event.songLibrary || []).find((s) => s && s.id === songId);
+  if (!song) return res.status(404).json({ ok: false, error: 'Cântarea nu este în event.' });
+  ensureWorshipState(event);
+  // One pending operator->worship push at a time. The newest replaces
+  // any stale pending one — operator can change their mind before the
+  // master responds.
+  event.worshipSyncRequests = event.worshipSyncRequests.filter(
+    (r) => !(r && r.type === 'operator_to_worship' && r.status === 'pending')
+  );
+  const request = {
+    id: randomBytes(6).toString('hex'),
+    type: 'operator_to_worship',
+    targetSongId: song.id,
+    targetVerseIndex: 0,
+    requestedAt: Date.now(),
+    fromRole: req.eventRole || 'screen',
+    status: 'pending'
+  };
+  event.worshipSyncRequests.push(request);
+  event.worshipSyncRequests = event.worshipSyncRequests.slice(-20);
+  saveDb();
+  io.to(`worship:${event.id}`).emit('worship:operator_push', {
+    eventId: event.id,
+    request,
+    songTitle: song.title || ''
+  });
+  return res.json({ ok: true, requestId: request.id });
+});
+
+// V21.8: worship master accepts or declines an operator_to_worship push.
+// On accept, worshipState is moved to the requested song/verse and the
+// usual worship:state_change broadcast updates members + the operator's
+// awareness panel.
+app.post('/api/worship/events/:id/sync-response', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  try {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Event not found' });
+    if (!isWorshipAccessibleEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Event is not accessible to worship' });
+    }
+    ensureWorshipState(event);
+    const requestId = String(req.body?.requestId || '').trim();
+    const accept = req.body && req.body.accept === true;
+    const request = event.worshipSyncRequests.find((r) => r && r.id === requestId);
+    if (!request || request.status !== 'pending') {
+      return res.status(404).json({ ok: false, error: 'Cererea nu există sau a fost deja rezolvată.' });
+    }
+    if (request.type !== 'operator_to_worship') {
+      return res.status(400).json({ ok: false, error: 'Tip de cerere greșit.' });
+    }
+    request.status = accept ? 'accepted' : 'declined';
+    request.resolvedAt = Date.now();
+    if (accept) {
+      event.worshipState.currentSongId = request.targetSongId;
+      event.worshipState.currentVerseIndex = Number.isInteger(request.targetVerseIndex) ? request.targetVerseIndex : 0;
+      event.worshipState.lastUpdatedAt = Date.now();
+      event.worshipState.lastUpdatedBy = 'operator';
+      event.worshipState.masterSessionId = session.sid || event.worshipState.masterSessionId;
+      event.worshipState.masterLastSeen = Date.now();
+      event.worshipState.offlineMode = false;
+    }
+    saveDb();
+    if (accept) {
+      io.to(`worship:${event.id}`).emit('worship:state_change', buildWorshipStatePayload(event));
+    }
+    io.to(`worship:${event.id}`).emit('worship:sync_request_resolved', {
+      eventId: event.id,
+      requestId: request.id,
+      approved: accept
+    });
+    return res.json({
+      ok: true,
+      worshipState: {
+        currentSongId: event.worshipState.currentSongId,
+        currentVerseIndex: event.worshipState.currentVerseIndex
+      }
+    });
+  } catch (err) {
+    logger.error('[worship/sync-response] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
 function getOperatorCodeFromRequest(req) {
   const cookieCode = getOperatorCodeFromCookie(req);
   if (cookieCode) return cookieCode;

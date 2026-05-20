@@ -733,12 +733,19 @@ function renderRemoteEventSongLibrary() {
     list.innerHTML = '<p class="muted small">Niciun cântec adăugat în event.</p>';
     return;
   }
+  // V21.8: per-row "Push worship" button. Disabled when worship is
+  // offline (no master socket reachable) so the operator does not push
+  // into a void; the V21.3 presence flag drives the gate.
+  const worshipOnline = !!state.worship?.online;
   list.innerHTML = items.map((item, idx) => `
     <div class="event-song-row">
       <span class="event-song-index">${idx + 1}.</span>
       <div class="event-song-meta">
         <strong>${escapeHtml(item.title || 'Untitled')}</strong>
       </div>
+      <button class="btn btn-primary btn-sm" type="button"
+              data-remote-push-worship="${escapeHtml(item.id)}"
+              ${worshipOnline ? '' : 'disabled title="Worship offline"'}>📢 Push worship</button>
     </div>
   `).join('');
 }
@@ -963,11 +970,16 @@ socket.on('worship:state_change', (data) => {
   state.worship.songTitle = data.song ? (data.song.title || '') : '';
   state.worship.verseIndex = data.state ? (data.state.currentVerseIndex || 0) : 0;
   renderRemoteWorshipPanel();
+  // V21.8: push-button gating depends on worship online — re-render.
+  renderRemoteEventSongLibrary();
 });
 socket.on('worship:master_presence', (data) => {
   if (!data || data.eventId !== state.eventId) return;
   state.worship.online = !!data.online;
   renderRemoteWorshipPanel();
+  // V21.8: push buttons in the event-songs panel are gated by worship
+  // presence — re-render so they enable/disable in lockstep.
+  renderRemoteEventSongLibrary();
 });
 socket.on('worship:sync_request_pending', (data) => {
   if (!data || data.eventId !== state.eventId || !data.request) return;
@@ -980,10 +992,53 @@ socket.on('worship:sync_request_pending', (data) => {
   setStatus('Worship cere sync proiector — vezi tab-ul Song.');
 });
 socket.on('worship:sync_request_resolved', (data) => {
-  if (!data || !state.worship.request || data.requestId !== state.worship.request.id) return;
-  state.worship.request = null;
-  renderRemoteWorshipPanel();
+  if (!data) return;
+  // V21.3: worship -> projector request the operator just resolved.
+  if (state.worship.request && data.requestId === state.worship.request.id) {
+    state.worship.request = null;
+    renderRemoteWorshipPanel();
+    return;
+  }
+  // V21.8: an operator -> worship push WE sent just got accepted/declined
+  // by the worship master. Surface the result so the operator knows.
+  if (remotePendingPush && data.requestId === remotePendingPush.id) {
+    const songTitle = remotePendingPush.songTitle || 'cântarea';
+    remotePendingPush = null;
+    setStatus(data.approved
+      ? `Worship a acceptat: ${songTitle}.`
+      : `Worship a refuzat: ${songTitle}.`);
+  }
 });
+
+// V21.8: operator pushes a song from the per-event list to the worship
+// master. Verse defaults to 0 (the verse-model reconciliation between
+// projector and worship lives in the bridge — deferred). Single pending
+// push at a time, matched by request id.
+let remotePendingPush = null;
+$('remoteEventSongsList')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-remote-push-worship]');
+  if (!btn || btn.disabled) return;
+  const songId = btn.getAttribute('data-remote-push-worship');
+  const songTitle = btn.parentElement?.querySelector('.event-song-meta strong')?.textContent || '';
+  if (!state.eventId || !songId) return;
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '… Trimit';
+  try {
+    const res = await fetch(`/api/events/${state.eventId}/worship/push`, eventCodeOptions('POST', { songId }));
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Push eșuat.');
+    remotePendingPush = { id: data.requestId, songTitle };
+    btn.innerHTML = '✓ Trimis';
+    setStatus(`Sugestie trimisă worship-ului: ${songTitle}.`);
+    setTimeout(() => { btn.disabled = false; btn.innerHTML = originalText; }, 1500);
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+    alert('Eroare: ' + err.message);
+  }
+});
+
 $('remoteWorshipRequest')?.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-worship-req]');
   if (!btn || !state.worship.request) return;

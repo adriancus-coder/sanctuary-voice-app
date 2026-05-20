@@ -121,6 +121,18 @@
     </div>
   </div>
 
+  <div id="worshipPushModal" class="worship-modal hidden">
+    <div class="worship-modal-card panel glass-panel">
+      <h3>Sugestie de la operator</h3>
+      <p class="small muted">Operatorul îți propune o cântare. O accepți?</p>
+      <div id="worshipPushSongTitle" class="worship-push-song">—</div>
+      <div class="worship-modal-actions">
+        <button id="worshipPushDeclineBtn" class="btn btn-dark" type="button">Refuz</button>
+        <button id="worshipPushAcceptBtn" class="btn btn-primary" type="button">Accept</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="/worship.js"></script>
 </body>

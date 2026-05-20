@@ -6509,6 +6509,18 @@ body.live-fullscreen-active .glass-panel {
 }
 .worship-modal-actions .btn { flex: 1; }
 
+/* V21.8: operator->worship push modal — emphasised song title. */
+.worship-push-song {
+  margin: 16px 0 4px;
+  padding: 14px;
+  background: rgba(255, 228, 179, 0.12);
+  border-left: 3px solid var(--gold-strong, #ffe4b3);
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+}
+
 /* === V21.2: Worship View (read-only member page) === */
 .worship-view-page {
   min-height: 100vh;
