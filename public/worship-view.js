@@ -87,15 +87,47 @@
   }
 
   // V21.13: per-device lyrics font size. Inline px overrides the CSS;
-  // no persistence — resets to default on reload.
+  // no persistence — resets to default on reload. V21.13-FIX: shared
+  // by the A−/A+ buttons AND pinch-to-zoom.
   let viewFontSize = 32;
+  const VIEW_FONT_MIN = 20;
+  const VIEW_FONT_MAX = 48;
   function applyViewFontSize() {
     const el = $('viewLyrics');
     if (el) el.style.fontSize = viewFontSize + 'px';
   }
   function changeViewFontSize(delta) {
-    viewFontSize = Math.max(20, Math.min(48, viewFontSize + delta));
+    viewFontSize = Math.max(VIEW_FONT_MIN, Math.min(VIEW_FONT_MAX, viewFontSize + delta));
     applyViewFontSize();
+  }
+
+  // V21.13-FIX: pinch-to-zoom on the member lyrics. The member view is
+  // read-only (no swipe), so two fingers is unambiguous — no guard
+  // needed against a swipe gesture.
+  function attachViewPinchZoom() {
+    const el = $('viewLyrics');
+    if (!el) return;
+    let startDist = null;
+    let startFont = null;
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    el.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        startDist = dist(e.touches);
+        startFont = viewFontSize;
+        e.preventDefault();
+      }
+    }, { passive: false });
+    el.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && startDist) {
+        const next = Math.round(startFont * (dist(e.touches) / startDist));
+        viewFontSize = Math.max(VIEW_FONT_MIN, Math.min(VIEW_FONT_MAX, next));
+        applyViewFontSize();
+        e.preventDefault();
+      }
+    }, { passive: false });
+    el.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) { startDist = null; startFont = null; }
+    });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -106,5 +138,6 @@
     if (dec) dec.addEventListener('click', () => changeViewFontSize(-2));
     if (inc) inc.addEventListener('click', () => changeViewFontSize(2));
     applyViewFontSize();
+    attachViewPinchZoom();
   });
 })();

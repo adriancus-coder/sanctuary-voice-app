@@ -17,8 +17,11 @@
   let liveCurrentSongId = null;
   let liveCurrentVerseIndex = 0;
   // V21.13: lyrics font size (master). Inline px overrides the CSS —
-  // no persistence, resets to default on reload.
+  // no persistence, resets to default on reload. V21.13-FIX: shared by
+  // the A−/A+ buttons AND pinch-to-zoom.
   let liveFontSize = 32;
+  const LIVE_FONT_MIN = 20;
+  const LIVE_FONT_MAX = 48;
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
@@ -655,6 +658,10 @@
     let startX = null;
     let startY = null;
     display.addEventListener('touchstart', (e) => {
+      // V21.13-FIX: only a single-finger touch is a swipe. Two fingers
+      // is a pinch-zoom (handled separately) — clear any swipe in
+      // progress so the touchend below bails.
+      if (e.touches.length !== 1) { startX = null; startY = null; return; }
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
     }, { passive: true });
@@ -667,6 +674,35 @@
       if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
       setLiveVerse(dx < 0 ? liveCurrentVerseIndex + 1 : liveCurrentVerseIndex - 1);
     }, { passive: true });
+  }
+
+  // V21.13-FIX: pinch-to-zoom on the lyrics display (two fingers).
+  // Shares liveFontSize with the A−/A+ buttons. preventDefault stops
+  // the browser's native page zoom; passive:false is required for it.
+  function attachPinchZoom() {
+    const display = $('liveLyricsDisplay');
+    if (!display) return;
+    let pinchStartDist = null;
+    let pinchStartFont = null;
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    display.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        pinchStartDist = dist(e.touches);
+        pinchStartFont = liveFontSize;
+        e.preventDefault();
+      }
+    }, { passive: false });
+    display.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && pinchStartDist) {
+        const next = Math.round(pinchStartFont * (dist(e.touches) / pinchStartDist));
+        liveFontSize = Math.max(LIVE_FONT_MIN, Math.min(LIVE_FONT_MAX, next));
+        applyLiveFontSize();
+        e.preventDefault();
+      }
+    }, { passive: false });
+    display.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) { pinchStartDist = null; pinchStartFont = null; }
+    });
   }
 
   // --- V21.2: SHARE WITH TEAM (QR) ---
@@ -950,7 +986,7 @@
     if (el) el.style.fontSize = liveFontSize + 'px';
   }
   function changeLiveFontSize(delta) {
-    liveFontSize = Math.max(20, Math.min(48, liveFontSize + delta));
+    liveFontSize = Math.max(LIVE_FONT_MIN, Math.min(LIVE_FONT_MAX, liveFontSize + delta));
     applyLiveFontSize();
   }
 
@@ -1015,6 +1051,7 @@
       if (btn) setLiveVerse(parseInt(btn.dataset.verseIndex, 10));
     });
     attachSwipeHandlers();
+    attachPinchZoom();
 
     // V21.2: Share with team (QR)
     $('worshipShareBtn').addEventListener('click', shareWithTeam);

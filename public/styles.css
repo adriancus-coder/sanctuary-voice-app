@@ -6220,6 +6220,7 @@ button[disabled]:active {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 6px;
   margin-bottom: 14px;
 }
 .live-nav-btn {
@@ -6810,29 +6811,25 @@ body.live-fullscreen-active .glass-panel {
 }
 
 /* V21.13: lyrics font-size controls (master Live mode + member view). */
-.live-font-controls {
-  position: absolute;
-  top: max(10px, env(safe-area-inset-top));
-  left: max(10px, env(safe-area-inset-left));
-  display: flex;
-  gap: 4px;
-  z-index: 6;
-}
+/* V21.13-FIX: A−/A+ buttons. Master ones now sit inline in the
+   .live-controls row (no longer a top-corner overlay — that area is
+   covered by the browser's native fullscreen X). */
 .live-font-btn,
 .view-font-btn {
-  width: 40px;
-  height: 36px;
+  flex-shrink: 0;
+  min-width: 44px;
+  height: 44px;
   padding: 0;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   color: #fff;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
 }
 .live-font-btn:active,
-.view-font-btn:active { background: rgba(0, 0, 0, 0.85); }
+.view-font-btn:active { background: rgba(255, 255, 255, 0.2); }
 
 .view-font-controls {
   position: fixed;
