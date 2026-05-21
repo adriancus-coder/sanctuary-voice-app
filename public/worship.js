@@ -16,6 +16,9 @@
   let liveMode = 'setlist';
   let liveCurrentSongId = null;
   let liveCurrentVerseIndex = 0;
+  // V21.13: lyrics font size (master). Inline px overrides the CSS —
+  // no persistence, resets to default on reload.
+  let liveFontSize = 32;
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
@@ -941,6 +944,16 @@
     }
   });
 
+  // --- V21.13: LYRICS FONT SIZE (master) ---
+  function applyLiveFontSize() {
+    const el = $('liveVerseText');
+    if (el) el.style.fontSize = liveFontSize + 'px';
+  }
+  function changeLiveFontSize(delta) {
+    liveFontSize = Math.max(20, Math.min(48, liveFontSize + delta));
+    applyLiveFontSize();
+  }
+
   // --- LISTENERS ---
   function attachListeners() {
     $('worshipLoginBtn').addEventListener('click', doLogin);
@@ -1018,6 +1031,11 @@
     // V21.4-FIX: fullscreen toggle (enter via toolbar, exit via corner X)
     $('liveFullscreenBtn').addEventListener('click', toggleLiveFullscreen);
     $('liveExitFullscreenBtn').addEventListener('click', toggleLiveFullscreen);
+
+    // V21.13: lyrics font size +/- (works in both normal and fullscreen)
+    $('liveFontDecrease').addEventListener('click', () => changeLiveFontSize(-2));
+    $('liveFontIncrease').addEventListener('click', () => changeLiveFontSize(2));
+    applyLiveFontSize();
 
     $('importUrlResults').addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-import-result-url]');

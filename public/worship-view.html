@@ -18,6 +18,12 @@
     <div id="viewStatus" class="worship-view-status" role="status"></div>
   </main>
 
+  <!-- V21.13: per-device font size control (no persistence). -->
+  <div class="view-font-controls">
+    <button id="viewFontDecrease" class="view-font-btn" type="button" aria-label="Text mai mic">A−</button>
+    <button id="viewFontIncrease" class="view-font-btn" type="button" aria-label="Text mai mare">A+</button>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="/worship-view.js"></script>
 </body>

@@ -86,8 +86,25 @@
     });
   }
 
+  // V21.13: per-device lyrics font size. Inline px overrides the CSS;
+  // no persistence — resets to default on reload.
+  let viewFontSize = 32;
+  function applyViewFontSize() {
+    const el = $('viewLyrics');
+    if (el) el.style.fontSize = viewFontSize + 'px';
+  }
+  function changeViewFontSize(delta) {
+    viewFontSize = Math.max(20, Math.min(48, viewFontSize + delta));
+    applyViewFontSize();
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     loadInitial();
     if (eventId && token) initSocket();
+    const dec = $('viewFontDecrease');
+    const inc = $('viewFontIncrease');
+    if (dec) dec.addEventListener('click', () => changeViewFontSize(-2));
+    if (inc) inc.addEventListener('click', () => changeViewFontSize(2));
+    applyViewFontSize();
   });
 })();

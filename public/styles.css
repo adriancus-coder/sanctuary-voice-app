@@ -6802,3 +6802,40 @@ body.live-fullscreen-active .glass-panel {
   border-radius: 4px;
   font-size: 13px;
 }
+
+/* V21.13: lyrics font-size controls (master Live mode + member view). */
+.live-font-controls {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  display: flex;
+  gap: 4px;
+  z-index: 6;
+}
+.live-font-btn,
+.view-font-btn {
+  width: 40px;
+  height: 36px;
+  padding: 0;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.live-font-btn:active,
+.view-font-btn:active { background: rgba(0, 0, 0, 0.85); }
+
+.view-font-controls {
+  position: fixed;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left: max(10px, env(safe-area-inset-left));
+  display: flex;
+  gap: 4px;
+  z-index: 50;
+  opacity: 0.55;
+}
+.view-font-controls:hover,
+.view-font-controls:active { opacity: 1; }
