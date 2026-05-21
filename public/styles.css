@@ -6297,14 +6297,14 @@ button[disabled]:active {
   background: #0e0e10;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   overflow: hidden;
 }
 .live-fullscreen-container:fullscreen {
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  padding: 24px 22px 18px;
+  padding: 14px 8px 10px;
 }
 .live-fullscreen-container.live-fullscreen-fallback {
   position: fixed;
@@ -6324,11 +6324,14 @@ button[disabled]:active {
      the visible area (the FIX3 controls-off-screen bug returned with
      100vh on iOS, because 100vh measures the FULL viewport there). */
   height: 100dvh;
+  /* V21.13.1: tighter padding — content closer to the screen edges.
+     The env(safe-area-inset-*) terms still keep clear of the notch /
+     home indicator; only the no-inset floor was reduced. */
   padding:
-    max(20px, env(safe-area-inset-top))
-    max(18px, env(safe-area-inset-right))
-    max(18px, env(safe-area-inset-bottom))
-    max(18px, env(safe-area-inset-left));
+    max(12px, env(safe-area-inset-top))
+    max(6px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom))
+    max(6px, env(safe-area-inset-left));
 }
 body.live-fullscreen-active { overflow: hidden; }
 
@@ -6400,7 +6403,7 @@ body.live-fullscreen-active .glass-panel {
   flex: 1 1 0;
   min-height: 0;
   margin-bottom: 0;
-  padding: 12px 8px;
+  padding: 6px 2px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -6416,11 +6419,14 @@ body.live-fullscreen-active .glass-panel {
 }
 .live-fullscreen-container:fullscreen .live-verse-text,
 .live-fullscreen-container.live-fullscreen-fallback .live-verse-text {
-  /* Responsive — small phones get 22px, large screens cap at 38px. */
+  /* Responsive — small phones get 22px, large screens cap at 38px.
+     (Inline style.fontSize from the V21.13 A−/A+ controls overrides
+     this when the user adjusts.) */
   font-size: clamp(22px, 6vw, 38px);
   line-height: 1.4;
   text-align: center;
-  max-width: 95%;
+  /* V21.13.1: full width — lyrics reach close to the screen edges. */
+  max-width: 100%;
   max-height: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
