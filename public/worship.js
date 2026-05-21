@@ -21,7 +21,7 @@
   // the A−/A+ buttons AND pinch-to-zoom.
   let liveFontSize = 32;
   const LIVE_FONT_MIN = 20;
-  const LIVE_FONT_MAX = 48;
+  const LIVE_FONT_MAX = 60;
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({

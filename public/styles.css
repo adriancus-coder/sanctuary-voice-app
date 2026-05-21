@@ -6212,6 +6212,8 @@ button[disabled]:active {
 .live-verse-text {
   font-size: 22px;
   line-height: 1.6;
+  /* V21.13-FIX2: slightly bolder for readability at a distance. */
+  font-weight: 600;
   white-space: pre-wrap;
   text-align: center;
 }
