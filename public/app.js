@@ -1593,7 +1593,7 @@ function renderSongState(songState) {
     const firstLine = (block || '').split('\n')[0] || '';
     const preview = firstLine.length > 80 ? firstLine.slice(0, 80) + '...' : firstLine;
     const worshipMarker = (worshipInfo.mode === 'same' && index === worshipInfo.verseIndex)
-      ? '<span class="song-block-worship-marker" title="Worship e aici acum">🎵</span>' : '';
+      ? '<span class="song-block-worship-badge" title="Worship e aici acum">♪ worship</span>' : '';
     return `
       <div class="song-section-item-wrap${activeClass}${displayedClass}">
         <button class="history-item song-section-item${activeClass}${displayedClass}" type="button" data-song-block-index="${index}">
@@ -1610,7 +1610,7 @@ function renderSongState(songState) {
   }).join('');
   if (worshipInfo.mode === 'different') {
     blocksEl.insertAdjacentHTML('afterbegin',
-      `<div class="worship-different-song-msg">🎵 Worship e pe altă cântare: <strong>${escapeHtml(worshipInfo.songTitle)}</strong></div>`);
+      `<div class="worship-different-song-msg">♪ Worship e pe altă cântare: <strong>${escapeHtml(worshipInfo.songTitle)}</strong></div>`);
   }
 }
 

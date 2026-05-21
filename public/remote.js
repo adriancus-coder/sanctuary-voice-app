@@ -400,7 +400,7 @@ function renderRemoteSongState() {
   // V21.11: worship-position awareness. Recon (parser comparison)
   // confirmed worship verseIndex N == projector block index N — both
   // parsers split on the same /\n\s*\n/. So if worship is on the SAME
-  // song as the projector, the green 🎵 marks the exact block.
+  // song as the projector, the green "♪ worship" badge marks the block.
   const worshipInfo = getRemoteWorshipBlockInfo();
   blocksEl.innerHTML = blocks.map((block, index) => {
     const activeClass = index === currentIndex ? ' active' : '';
@@ -409,7 +409,7 @@ function renderRemoteSongState() {
     const firstLine = String(block || '').split('\n')[0] || '';
     const preview = firstLine.length > 80 ? `${firstLine.slice(0, 80)}...` : firstLine;
     const worshipMarker = (worshipInfo.mode === 'same' && index === worshipInfo.verseIndex)
-      ? '<span class="song-block-worship-marker" title="Worship e aici acum">🎵</span>' : '';
+      ? '<span class="song-block-worship-badge" title="Worship e aici acum">♪ worship</span>' : '';
     return `
       <div class="song-section-item-wrap${activeClass}${displayedClass}">
         <button class="history-item song-section-item${activeClass}${displayedClass}" type="button" data-remote-song-block-index="${index}">
@@ -426,7 +426,7 @@ function renderRemoteSongState() {
   }).join('');
   if (worshipInfo.mode === 'different') {
     blocksEl.insertAdjacentHTML('afterbegin',
-      `<div class="worship-different-song-msg">🎵 Worship e pe altă cântare: <strong>${escapeHtml(worshipInfo.songTitle)}</strong></div>`);
+      `<div class="worship-different-song-msg">♪ Worship e pe altă cântare: <strong>${escapeHtml(worshipInfo.songTitle)}</strong></div>`);
   }
 }
 
@@ -1002,7 +1002,7 @@ socket.on('worship:state_change', (data) => {
   renderRemoteWorshipPanel();
   // V21.8: push-button gating depends on worship online — re-render.
   renderRemoteEventSongLibrary();
-  // V21.11: refresh the 🎵 marker on the song blocks.
+  // V21.11: refresh the worship badge on the song blocks.
   renderRemoteSongState();
 });
 socket.on('worship:master_presence', (data) => {
@@ -1012,7 +1012,7 @@ socket.on('worship:master_presence', (data) => {
   // V21.8: push buttons in the event-songs panel are gated by worship
   // presence — re-render so they enable/disable in lockstep.
   renderRemoteEventSongLibrary();
-  // V21.11: the 🎵 marker hides when worship goes offline.
+  // V21.11: the worship badge hides when worship goes offline.
   renderRemoteSongState();
 });
 socket.on('worship:sync_request_pending', (data) => {
