@@ -397,17 +397,24 @@ function renderRemoteSongState() {
     blocksEl.innerHTML = '<div class="muted">Use Save in library or Send first verse.</div>';
     return;
   }
+  // V21.11: worship-position awareness. Recon (parser comparison)
+  // confirmed worship verseIndex N == projector block index N — both
+  // parsers split on the same /\n\s*\n/. So if worship is on the SAME
+  // song as the projector, the green 🎵 marks the exact block.
+  const worshipInfo = getRemoteWorshipBlockInfo();
   blocksEl.innerHTML = blocks.map((block, index) => {
     const activeClass = index === currentIndex ? ' active' : '';
     const displayedClass = remoteDisplayedSongBlocks.has(index) && index !== currentIndex ? ' already-displayed' : '';
     const label = escapeHtml(labels[index] || `Verse ${index + 1}`);
     const firstLine = String(block || '').split('\n')[0] || '';
     const preview = firstLine.length > 80 ? `${firstLine.slice(0, 80)}...` : firstLine;
+    const worshipMarker = (worshipInfo.mode === 'same' && index === worshipInfo.verseIndex)
+      ? '<span class="song-block-worship-marker" title="Worship e aici acum">🎵</span>' : '';
     return `
       <div class="song-section-item-wrap${activeClass}${displayedClass}">
         <button class="history-item song-section-item${activeClass}${displayedClass}" type="button" data-remote-song-block-index="${index}">
           <div class="entry-head">
-            <b>${label}</b>
+            <b>${label}</b>${worshipMarker}
             <span class="small">${index === currentIndex ? 'Live now' : 'Click to send live'}</span>
           </div>
           <div class="small song-block-preview">${escapeHtml(preview)}</div>
@@ -417,6 +424,25 @@ function renderRemoteSongState() {
       </div>
     `;
   }).join('');
+  if (worshipInfo.mode === 'different') {
+    blocksEl.insertAdjacentHTML('afterbegin',
+      `<div class="worship-different-song-msg">🎵 Worship e pe altă cântare: <strong>${escapeHtml(worshipInfo.songTitle)}</strong></div>`);
+  }
+}
+
+// V21.11: where is worship now, relative to the song loaded on the
+// projector? Match is by title — songState carries `title`, the
+// worship:state_change broadcast carries the song title too. (songState
+// has no library id, so title is the only shared key.)
+function getRemoteWorshipBlockInfo() {
+  const w = state.worship;
+  if (!w || !w.online || !w.songTitle) return { mode: 'none' };
+  const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const projectorTitle = norm(state.currentEvent?.songState?.title);
+  if (projectorTitle && norm(w.songTitle) === projectorTitle) {
+    return { mode: 'same', verseIndex: Number.isInteger(w.verseIndex) ? w.verseIndex : 0 };
+  }
+  return { mode: 'different', songTitle: w.songTitle };
 }
 
 function fillRemoteSongEditor(item) {
@@ -976,6 +1002,8 @@ socket.on('worship:state_change', (data) => {
   renderRemoteWorshipPanel();
   // V21.8: push-button gating depends on worship online — re-render.
   renderRemoteEventSongLibrary();
+  // V21.11: refresh the 🎵 marker on the song blocks.
+  renderRemoteSongState();
 });
 socket.on('worship:master_presence', (data) => {
   if (!data || data.eventId !== state.eventId) return;
@@ -984,6 +1012,8 @@ socket.on('worship:master_presence', (data) => {
   // V21.8: push buttons in the event-songs panel are gated by worship
   // presence — re-render so they enable/disable in lockstep.
   renderRemoteEventSongLibrary();
+  // V21.11: the 🎵 marker hides when worship goes offline.
+  renderRemoteSongState();
 });
 socket.on('worship:sync_request_pending', (data) => {
   if (!data || data.eventId !== state.eventId || !data.request) return;

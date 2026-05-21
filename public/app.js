@@ -1579,6 +1579,11 @@ function renderSongState(songState) {
     return;
   }
 
+  // V21.11: worship-position awareness on admin's Song Blocks. Recon
+  // confirmed worship verseIndex N == projector block index N (both
+  // parsers split on /\n\s*\n/). Match worship to the projector song
+  // by title (songState has no library id).
+  const worshipInfo = getAdminWorshipBlockInfo(songState);
   blocksEl.innerHTML = blocks.map((block, index) => {
     const activeClass = index === currentIndex ? ' active' : '';
     // FEATURE 1: marker strofe deja afișate (dar nu activa)
@@ -1587,11 +1592,13 @@ function renderSongState(songState) {
     // Preview scurt: doar prima linie de text (max 80 caractere) pentru identificare rapidă
     const firstLine = (block || '').split('\n')[0] || '';
     const preview = firstLine.length > 80 ? firstLine.slice(0, 80) + '...' : firstLine;
+    const worshipMarker = (worshipInfo.mode === 'same' && index === worshipInfo.verseIndex)
+      ? '<span class="song-block-worship-marker" title="Worship e aici acum">🎵</span>' : '';
     return `
       <div class="song-section-item-wrap${activeClass}${displayedClass}">
         <button class="history-item song-section-item${activeClass}${displayedClass}" type="button" data-song-block-index="${index}">
           <div class="entry-head">
-            <b>${label}</b>
+            <b>${label}</b>${worshipMarker}
             <span class="small">${index === currentIndex ? 'Live now' : 'Click to send live'}</span>
           </div>
           <div class="small song-block-preview">${escapeHtml(preview)}</div>
@@ -1601,7 +1608,40 @@ function renderSongState(songState) {
       </div>
     `;
   }).join('');
+  if (worshipInfo.mode === 'different') {
+    blocksEl.insertAdjacentHTML('afterbegin',
+      `<div class="worship-different-song-msg">🎵 Worship e pe altă cântare: <strong>${escapeHtml(worshipInfo.songTitle)}</strong></div>`);
+  }
 }
+
+// V21.11: admin worship-position tracking. Admin had no worship
+// state_change listener before this — added below. Match worship to
+// the projector song by title.
+const adminWorship = { online: false, songTitle: '', verseIndex: 0 };
+function getAdminWorshipBlockInfo(songState) {
+  if (!adminWorship.online || !adminWorship.songTitle) return { mode: 'none' };
+  const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const projectorTitle = norm(songState?.title);
+  if (projectorTitle && norm(adminWorship.songTitle) === projectorTitle) {
+    return { mode: 'same', verseIndex: Number.isInteger(adminWorship.verseIndex) ? adminWorship.verseIndex : 0 };
+  }
+  return { mode: 'different', songTitle: adminWorship.songTitle };
+}
+function rerenderAdminSongBlocksForWorship() {
+  if (currentEvent && currentEvent.songState) renderSongState(currentEvent.songState);
+}
+socket.on('worship:state_change', (data) => {
+  if (!data || !currentEvent || data.eventId !== currentEvent.id) return;
+  adminWorship.online = true;
+  adminWorship.songTitle = data.song ? (data.song.title || '') : '';
+  adminWorship.verseIndex = data.state ? (data.state.currentVerseIndex || 0) : 0;
+  rerenderAdminSongBlocksForWorship();
+});
+socket.on('worship:master_presence', (data) => {
+  if (!data || !currentEvent || data.eventId !== currentEvent.id) return;
+  adminWorship.online = !!data.online;
+  rerenderAdminSongBlocksForWorship();
+});
 
 function renderGlobalSongLibrary(items = []) {
   const box = $('globalSongLibraryList');

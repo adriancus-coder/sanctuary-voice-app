@@ -6747,3 +6747,24 @@ body.live-fullscreen-active .glass-panel {
   letter-spacing: 0.5px;
   border-radius: 3px;
 }
+
+/* V21.11: worship-position indicator on operator/admin Song Blocks. */
+.song-block-worship-marker {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 14px;
+  color: #4caf50;
+  animation: worshipMarkerPulse 2s ease-in-out infinite;
+}
+@keyframes worshipMarkerPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+.worship-different-song-msg {
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: rgba(76, 175, 80, 0.12);
+  border-left: 3px solid #4caf50;
+  border-radius: 4px;
+  font-size: 13px;
+}
