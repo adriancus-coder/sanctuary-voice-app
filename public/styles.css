@@ -6845,3 +6845,11 @@ body.live-fullscreen-active .glass-panel {
 }
 .view-font-controls:hover,
 .view-font-controls:active { opacity: 1; }
+
+/* V21.14: church library backup controls */
+.library-backup-controls {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}

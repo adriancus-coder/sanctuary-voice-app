@@ -1782,6 +1782,38 @@ async function loadGlobalSongLibrary() {
   }
 }
 
+// V21.14: download the church library as a JSON backup. The browser
+// handles the download via the endpoint's Content-Disposition header;
+// the admin session cookie travels with the navigation.
+function exportLibrary() {
+  window.location.href = '/api/global-song-library/export';
+}
+
+async function handleImportLibraryFile(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data || data.type !== 'sanctuary-voice-library' || !Array.isArray(data.songs)) {
+      throw new Error('Not a Sanctuary Voice library export.');
+    }
+    if (!confirm(`Import ${data.songs.length} song(s)?\n\nSame-title songs are updated (MERGE) — nothing existing is deleted.`)) {
+      return;
+    }
+    const res = await fetch('/api/global-song-library/import', globalJsonOptions('POST', data));
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok || !result.ok) throw new Error(result.error || 'Import failed.');
+    let msg = `Import done.\nAdded: ${result.added}\nUpdated: ${result.updated}\nLibrary total: ${result.total}`;
+    if (result.skipped) msg += `\nSkipped (no title/text): ${result.skipped}`;
+    alert(msg);
+    await loadGlobalSongLibrary();
+  } catch (err) {
+    alert('Import error: ' + err.message);
+  } finally {
+    e.target.value = '';
+  }
+}
+
 function fillSongEditor(item) {
   $('songTitle').value = item?.title || '';
   $('songText').value = item?.text || '';
@@ -4380,6 +4412,11 @@ $('saveEditVerseLibraryBtn')?.addEventListener('click', () => saveEditedVerse(tr
 document.querySelectorAll('[data-edit-verse-close]').forEach((el) => {
   el.addEventListener('click', closeEditLiveVerseModal);
 });
+// V21.14: church library export / import (JSON backup).
+$('exportLibraryBtn')?.addEventListener('click', exportLibrary);
+$('importLibraryBtn')?.addEventListener('click', () => $('importLibraryFile')?.click());
+$('importLibraryFile')?.addEventListener('change', handleImportLibraryFile);
+
 $('globalSongLibraryList').addEventListener('click', async (e) => {
   const summary = e.target.closest('.library-card-summary');
   if (summary) return;

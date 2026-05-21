@@ -1671,6 +1671,63 @@ function registerEventRoutes(app, ctx) {
     res.json({ ok: true, globalSongLibrary: Array.isArray(library) ? library : [], organization: buildPublicOrganization() });
   });
 
+  // V21.14: download the whole church library as a JSON backup file.
+  app.get('/api/global-song-library/export', (req, res) => {
+    if (!requireGlobalLibraryAdmin(req, res)) return;
+    const library = getOrganizationSongLibrary(DEFAULT_ORG_ID) || [];
+    const payload = {
+      type: 'sanctuary-voice-library',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      count: library.length,
+      songs: library
+    };
+    const filename = `sanctuary-voice-library-${new Date().toISOString().slice(0, 10)}.json`;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(JSON.stringify(payload, null, 2));
+  });
+
+  // V21.14: import a library backup — MERGE (never replace). Same-title
+  // songs are updated in place via upsertLibraryItem; new ones are added.
+  // No existing song is deleted. NOTE: the church library is capped at
+  // 100 entries (upsertLibraryItem default) — an import that would push
+  // past 100 keeps the 100 most-recently-touched; `total` reports the
+  // real post-import count so the caller can see if the cap was hit.
+  app.post('/api/global-song-library/import', (req, res) => {
+    if (!requireGlobalLibraryAdmin(req, res)) return;
+    const data = req.body;
+    if (!data || data.type !== 'sanctuary-voice-library' || !Array.isArray(data.songs)) {
+      return res.status(400).json({ ok: false, error: 'Format invalid. Așteptat un export Sanctuary Voice.' });
+    }
+    const library = getOrganizationSongLibrary(DEFAULT_ORG_ID);
+    if (!Array.isArray(library)) {
+      return res.status(500).json({ ok: false, error: 'Biblioteca nu este disponibilă.' });
+    }
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+    data.songs.forEach((song) => {
+      if (!song || !String(song.title || '').trim() || !String(song.text || '').trim()) {
+        skipped++;
+        return;
+      }
+      const norm = normalizeLibraryTitle(song.title);
+      const existed = library.some((it) => it && normalizeLibraryTitle(it.title) === norm);
+      upsertLibraryItem(library, {
+        title: song.title,
+        text: song.text,
+        labels: Array.isArray(song.labels) ? song.labels : [],
+        sourceLang: song.sourceLang
+      });
+      if (existed) updated++;
+      else added++;
+    });
+    saveDb();
+    logger.info(`[library/import] added=${added} updated=${updated} skipped=${skipped} total=${library.length}`);
+    return res.json({ ok: true, added, updated, skipped, total: library.length });
+  });
+
   app.post('/api/global-song-library', (req, res) => {
     // V20.3: worship-role sessions may save library songs. Admins still pass
     // via requireGlobalLibraryAdmin (which also sends the 403 when neither
