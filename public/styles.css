@@ -5995,11 +5995,34 @@ button[disabled]:active {
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.04);
   border-radius: 8px;
+  /* V21.12: allow the preview panel to wrap to its own full-width line. */
+  flex-wrap: wrap;
 }
 
 .event-song-meta {
   flex: 1;
   min-width: 0;
+}
+
+/* V21.12: per-row action buttons + inline text preview. */
+.event-song-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.event-song-preview {
+  flex-basis: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+}
+.event-song-preview pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  margin: 0;
 }
 
 .worship-tag {

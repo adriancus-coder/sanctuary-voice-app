@@ -762,16 +762,23 @@ function renderRemoteEventSongLibrary() {
   // V21.8: per-row "Push worship" button. Disabled when worship is
   // offline (no master socket reachable) so the operator does not push
   // into a void; the V21.3 presence flag drives the gate.
+  // V21.12: Preview / Load (staged) / Send first verse buttons added.
   const worshipOnline = !!state.worship?.online;
   list.innerHTML = items.map((item, idx) => `
-    <div class="event-song-row">
+    <div class="event-song-row" data-remote-event-song-row="${escapeHtml(item.id)}">
       <span class="event-song-index">${idx + 1}.</span>
       <div class="event-song-meta">
         <strong>${escapeHtml(item.title || 'Untitled')}</strong>
       </div>
-      <button class="btn btn-primary btn-sm" type="button"
-              data-remote-push-worship="${escapeHtml(item.id)}"
-              ${worshipOnline ? '' : 'disabled title="Worship offline"'}>📢 Push worship</button>
+      <div class="event-song-actions">
+        <button class="btn btn-dark btn-sm" type="button" data-event-song-preview="${escapeHtml(item.id)}">Preview</button>
+        <button class="btn btn-dark btn-sm" type="button" data-event-song-load="${escapeHtml(item.id)}">Load</button>
+        <button class="btn btn-primary btn-sm" type="button" data-event-song-send="${escapeHtml(item.id)}">Send</button>
+        <button class="btn btn-primary btn-sm" type="button"
+                data-remote-push-worship="${escapeHtml(item.id)}"
+                ${worshipOnline ? '' : 'disabled title="Worship offline"'}>📢 Push</button>
+      </div>
+      <div class="event-song-preview hidden" data-event-song-preview-text="${escapeHtml(item.id)}"><pre>${escapeHtml(item.text || '')}</pre></div>
     </div>
   `).join('');
 }
@@ -1056,7 +1063,49 @@ socket.on('worship:sync_request_resolved', (data) => {
 // projector and worship lives in the bridge — deferred). Single pending
 // push at a time, matched by request id.
 let remotePendingPush = null;
+
+// V21.12: load a scheduled song into Live Song Control. staged=true
+// uses /song/load {stage:true} (projector untouched); staged=false is
+// "Send first verse" (projector switches immediately). post() applies
+// the songState from the response and re-renders via refreshRemoteUi.
+async function remoteLoadScheduledSong(item, staged) {
+  if (!state.eventId || !item) return;
+  try {
+    await post(`/api/events/${state.eventId}/song/load`, {
+      title: item.title || '',
+      text: item.text || '',
+      labels: item.labels || [],
+      sourceLang: item.sourceLang || state.currentEvent?.sourceLang || 'ro',
+      stage: !!staged
+    });
+    setStatus(staged
+      ? `"${item.title || 'Cântare'}" încărcată în Live Song Control — alege o strofă pentru proiector.`
+      : `"${item.title || 'Cântare'}" — prima strofă e live.`);
+  } catch (err) {
+    setStatus(err.message);
+  }
+}
+
 $('remoteEventSongsList')?.addEventListener('click', async (e) => {
+  // V21.12: Preview / Load (staged) / Send first verse.
+  const previewBtn = e.target.closest('[data-event-song-preview]');
+  if (previewBtn) {
+    const id = previewBtn.getAttribute('data-event-song-preview');
+    document.querySelector(`[data-event-song-preview-text="${CSS.escape(id)}"]`)?.classList.toggle('hidden');
+    return;
+  }
+  const loadBtn = e.target.closest('[data-event-song-load]');
+  if (loadBtn) {
+    const item = (state.currentEvent?.songLibrary || []).find((s) => s.id === loadBtn.getAttribute('data-event-song-load'));
+    if (item) remoteLoadScheduledSong(item, true);
+    return;
+  }
+  const sendBtn = e.target.closest('[data-event-song-send]');
+  if (sendBtn) {
+    const item = (state.currentEvent?.songLibrary || []).find((s) => s.id === sendBtn.getAttribute('data-event-song-send'));
+    if (item) remoteLoadScheduledSong(item, false);
+    return;
+  }
   const btn = e.target.closest('[data-remote-push-worship]');
   if (!btn || btn.disabled) return;
   const songId = btn.getAttribute('data-remote-push-worship');

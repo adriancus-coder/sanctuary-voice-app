@@ -505,6 +505,7 @@ function renderAdminEventSongLibrary(highlightId = null) {
     list.innerHTML = '<p class="muted small">No songs added yet. Use the "Add to&hellip;" button on Library cards.</p>';
     return;
   }
+  // V21.12: Preview / Load (staged) / Send first verse / Delete per row.
   list.innerHTML = items.map((item, idx) => {
     const chars = item.text ? String(item.text).length : 0;
     return `<div class="event-song-row" data-admin-event-song-row="${escapeHtml(item.id)}">
@@ -513,7 +514,13 @@ function renderAdminEventSongLibrary(highlightId = null) {
         <strong>${escapeHtml(item.title || 'Untitled')}</strong>
         <div class="small muted">${chars} characters</div>
       </div>
-      <button class="btn btn-danger btn-sm" type="button" data-admin-event-song-delete="${escapeHtml(item.id)}">Delete</button>
+      <div class="event-song-actions">
+        <button class="btn btn-dark btn-sm" type="button" data-event-song-preview="${escapeHtml(item.id)}">Preview</button>
+        <button class="btn btn-dark btn-sm" type="button" data-event-song-load="${escapeHtml(item.id)}">Load</button>
+        <button class="btn btn-primary btn-sm" type="button" data-event-song-send="${escapeHtml(item.id)}">Send</button>
+        <button class="btn btn-danger btn-sm" type="button" data-admin-event-song-delete="${escapeHtml(item.id)}">Delete</button>
+      </div>
+      <div class="event-song-preview hidden" data-event-song-preview-text="${escapeHtml(item.id)}"><pre>${escapeHtml(item.text || '')}</pre></div>
     </div>`;
   }).join('');
   if (highlightId) {
@@ -541,6 +548,35 @@ async function deleteAdminEventSong(songId) {
     setStatus('Removed from event.');
   } catch (err) {
     alert('Could not delete: ' + err.message);
+  }
+}
+
+// V21.12: load a scheduled song into Live Song Control WITHOUT sending
+// it to the projector ({stage:true}). Mirrors sendSongItemToLive but
+// with the staging flag — the operator then clicks a Song Block to
+// actually display it.
+async function loadAdminSongStaged(item) {
+  if (!currentEvent?.id || !item) return;
+  try {
+    const res = await fetch(
+      `/api/events/${encodeURIComponent(currentEvent.id)}/song/load`,
+      adminJsonOptions('POST', {
+        title: item.title || '',
+        text: item.text || '',
+        labels: Array.isArray(item.labels) ? item.labels : [],
+        sourceLang: item.sourceLang || currentEvent?.sourceLang || 'ro',
+        stage: true
+      })
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Load failed.');
+    currentEvent = data.event || currentEvent;
+    currentEvent.songState = data.songState || currentEvent.songState;
+    renderActiveEventBadge(currentEvent);
+    renderSongState(currentEvent.songState || {});
+    setStatus(`"${item.title || 'Song'}" loaded into Live Song Control — pick a verse to display it.`);
+  } catch (err) {
+    alert('Could not load: ' + err.message);
   }
 }
 
@@ -4435,11 +4471,31 @@ $('globalSongLibraryList').addEventListener('click', async (e) => {
     setStatus('Deleted from church library.');
   }
 });
-// V21.4-FIX: delete from the per-event Songs panel.
+// V21.4-FIX / V21.12: per-event Songs panel actions —
+// Preview / Load (staged) / Send first verse / Delete.
 $('adminEventSongsList')?.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-admin-event-song-delete]');
-  if (!btn) return;
-  deleteAdminEventSong(btn.getAttribute('data-admin-event-song-delete'));
+  const previewBtn = e.target.closest('[data-event-song-preview]');
+  if (previewBtn) {
+    const id = previewBtn.getAttribute('data-event-song-preview');
+    document.querySelector(`[data-event-song-preview-text="${CSS.escape(id)}"]`)?.classList.toggle('hidden');
+    return;
+  }
+  const loadBtn = e.target.closest('[data-event-song-load]');
+  if (loadBtn) {
+    const item = (currentEvent?.songLibrary || []).find((s) => s.id === loadBtn.getAttribute('data-event-song-load'));
+    if (item) loadAdminSongStaged(item);
+    return;
+  }
+  const sendBtn = e.target.closest('[data-event-song-send]');
+  if (sendBtn) {
+    const item = (currentEvent?.songLibrary || []).find((s) => s.id === sendBtn.getAttribute('data-event-song-send'));
+    if (item) sendSongItemToLive(item);
+    return;
+  }
+  const delBtn = e.target.closest('[data-admin-event-song-delete]');
+  if (delBtn) {
+    deleteAdminEventSong(delBtn.getAttribute('data-admin-event-song-delete'));
+  }
 });
 
 $('displayPresetsList')?.addEventListener('click', async (e) => {
