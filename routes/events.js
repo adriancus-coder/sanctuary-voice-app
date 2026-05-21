@@ -740,6 +740,10 @@ function registerEventRoutes(app, ctx) {
     const title = String(req.body.title || '').trim();
     const text = sanitizeStructuredText(req.body.text || '');
     const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
+    // V21.12: stage=true loads the song into songState WITHOUT switching
+    // the projector (no mode/displayState change, no transcription pause,
+    // no emits). The first /song/show then activates song mode.
+    const stage = req.body && req.body.stage === true;
     if (!text) return res.status(400).json({ ok: false, error: 'Text lipsă.' });
     try {
       const parsedSong = splitSongBlocksWithLabels(text, labels);
@@ -781,12 +785,40 @@ function registerEventRoutes(app, ctx) {
         sourceLang: songSourceLang,
         blocks,
         blockLabels: parsedSong.labels,
-        currentIndex: blocks.length ? 0 : -1,
-        activeBlock: blocks[0] || null,
+        // V21.12: a staged song has nothing live yet — currentIndex -1
+        // so the Song Blocks UI shows no "Live now" block.
+        currentIndex: stage ? -1 : (blocks.length ? 0 : -1),
+        activeBlock: stage ? null : (blocks[0] || null),
         translations: placeholderTranslations[0] || {},
         allTranslations: placeholderTranslations,
         updatedAt: new Date().toISOString()
       };
+      // V21.12: staged load — songState is ready; the projector is left
+      // exactly as it was. Early-return so the non-stage path below is
+      // byte-identical to the pre-V21.12 behaviour (zero regression).
+      if (stage) {
+        saveDb();
+        res.json({ ok: true, songState: event.songState, event: normalizeEventForAccess(req, event) });
+        if (blocks.length > 1) {
+          buildSongTranslations(event, blocks.slice(1), songSourceLang, songCache)
+            .then((restResult) => {
+              const merged = [placeholderTranslations[0] || {}, ...restResult.allTranslations];
+              if (event.songState && event.songState.blocks === blocks) {
+                event.songState.allTranslations = merged;
+                event.songState.translations = merged[event.songState.currentIndex] || {};
+                event.songState.updatedAt = new Date().toISOString();
+                saveDb();
+                // No song_state emit — a staged song must not reach the
+                // projector until the operator shows a block.
+              }
+              persistCacheUpdates({ ...firstResult.cacheUpdates, ...restResult.cacheUpdates });
+            })
+            .catch((err) => logger.error('song staged translate:', err?.message || err));
+        } else {
+          persistCacheUpdates(firstResult.cacheUpdates);
+        }
+        return;
+      }
       event.mode = 'song';
       speechBuffers.delete(event.id);
       event.lastTranscriptNorm = '';
@@ -862,6 +894,24 @@ function registerEventRoutes(app, ctx) {
     const index = Number(req.params.index);
     if (!setSongIndex(event, index)) return res.status(400).json({ ok: false, error: 'Index invalid.' });
     recordScreenAction(event, 'song');
+    // V21.12: if the song was staged (loaded with {stage:true}), the
+    // projector is still in its previous mode. The first /song/show is
+    // the staged song "going live" — activate song mode here, mirroring
+    // the mode/transcription/displayState steps that /song/load does in
+    // its non-stage path. For a normal (non-staged) load displayState
+    // is already 'song', so this block is a no-op — zero regression.
+    let songModeActivated = false;
+    if (event.displayState && event.displayState.mode !== 'song') {
+      event.mode = 'song';
+      speechBuffers.delete(event.id);
+      event.lastTranscriptNorm = '';
+      setTranscriptionPaused(event, true, { save: false, emit: false, markOnAir: false });
+      rememberDisplayState(event);
+      event.displayState.mode = 'song';
+      event.displayState.blackScreen = false;
+      event.displayState.sceneLabel = '';
+      songModeActivated = true;
+    }
     // V11.8: same dual-mode no-op as /song/load — switch displayState.language to verse's
     // source on jump-to-verse. /song/show emits ONLY song_state today, so we also emit
     // display_mode_changed (conditionally, only if language actually changed) so Main Screen
@@ -878,7 +928,13 @@ function registerEventRoutes(app, ctx) {
       }
     }
     io.to(`event:${event.id}`).emit('song_state', event.songState);
-    if (displayLanguageChanged) {
+    // V21.12: when a staged song goes live, also announce the mode flip
+    // so the projector switches to song view. display_mode_changed
+    // already covers the language case below; mode_changed is needed too.
+    if (songModeActivated) {
+      io.to(`event:${event.id}`).emit('mode_changed', { mode: 'song' });
+    }
+    if (displayLanguageChanged || songModeActivated) {
       io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
     }
     res.json({ ok: true, songState: event.songState });
