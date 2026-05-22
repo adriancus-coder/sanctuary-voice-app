@@ -32,7 +32,10 @@ function registerSocketHandlers(io, ctx) {
     startAzureSpeechSession,
     ensureWorshipState,
     getWorshipSessionFromSocket,
-    isWorshipAccessibleEvent
+    isWorshipAccessibleEvent,
+    getWorshipViewSessionFromSocket,
+    getActiveWorshipEventForView,
+    buildWorshipStatePayload
   } = ctx;
 
   const RATE_LIMITS = {
@@ -47,6 +50,7 @@ function registerSocketHandlers(io, ctx) {
     azure_audio_chunk:       { windowMs: 1000,      max: 50 },
     azure_audio_stop:        { windowMs: 60 * 1000, max: 20 },
     'worship:view:join':     { windowMs: 60 * 1000, max: 30 },
+    'worship:view:join_permanent': { windowMs: 60 * 1000, max: 30 },
     'worship:master:join':   { windowMs: 60 * 1000, max: 30 },
     'worship:master:heartbeat': { windowMs: 60 * 1000, max: 12 }
   };
@@ -145,6 +149,31 @@ function registerSocketHandlers(io, ctx) {
       }
       socket.join(`worship:${eventId}`);
       socket.data.worshipViewEventId = eventId;
+    });
+
+    // V21.18: permanent-link worship view — read-only viewers authenticated by
+    // the `wv:` cookie subscribe to a global room. The server pushes
+    // `worship:view:live` whenever the live event's worship state changes (or
+    // the live event itself flips), and `worship:view:offline` when nothing is
+    // currently live. Membership in this room confers no control rights — it
+    // only receives broadcasts.
+    on(socket, 'worship:view:join_permanent', () => {
+      const session = typeof getWorshipViewSessionFromSocket === 'function'
+        ? getWorshipViewSessionFromSocket(socket)
+        : null;
+      if (!session) {
+        return socket.emit('worship:view:permanent_denied', { message: 'Sesiune invalidă.' });
+      }
+      socket.join('worship-view:permanent');
+      socket.data.worshipViewPermanent = true;
+      const event = typeof getActiveWorshipEventForView === 'function'
+        ? getActiveWorshipEventForView()
+        : null;
+      if (event && typeof buildWorshipStatePayload === 'function') {
+        socket.emit('worship:view:live', buildWorshipStatePayload(event));
+      } else {
+        socket.emit('worship:view:offline');
+      }
     });
 
     // V21.3: worship master socket — presence (offline detection) + receiving

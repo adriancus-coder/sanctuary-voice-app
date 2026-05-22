@@ -79,6 +79,7 @@ function registerEventRoutes(app, ctx) {
     requireEventRole,
     requireGlobalLibraryAdmin,
     tryWorshipSession,
+    broadcastPermanentWorshipView,
     resolveEventAccessFromCode,
     normalizeTextInput,
     sanitizeStructuredText,
@@ -571,6 +572,8 @@ function registerEventRoutes(app, ctx) {
     }
     saveDb();
     io.emit('active_event_changed', { eventId: event.id });
+    // V21.18: refresh permanent worship-view subscribers when the live event flips.
+    if (typeof broadcastPermanentWorshipView === 'function') broadcastPermanentWorshipView();
     res.json({ ok: true, event: normalizeEventForAccess(req, event) });
   });
 
@@ -594,6 +597,8 @@ function registerEventRoutes(app, ctx) {
     }
     saveDb();
     io.emit('active_event_changed', { eventId: getActiveEventIdForOrg(orgId) || null });
+    // V21.18: refresh permanent worship-view subscribers when the live event flips.
+    if (typeof broadcastPermanentWorshipView === 'function') broadcastPermanentWorshipView();
     res.json({ ok: true, activeEventId: getActiveEventIdForOrg(orgId) || null });
   });
 

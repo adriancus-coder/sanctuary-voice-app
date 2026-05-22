@@ -9,7 +9,23 @@
   <link rel="icon" href="/icon.svg">
 </head>
 <body class="worship-view-page">
-  <main class="worship-view-main">
+
+  <!-- V21.18: PIN gate for the permanent link. Hidden by default; the script
+       reveals it when the page is loaded without a QR token AND the device has
+       no valid `wv:` cookie. After a successful PIN, the cookie persists ~30
+       days so the team installs the page once and doesn't re-enter the PIN. -->
+  <section id="viewLoginScreen" class="worship-login hidden">
+    <div class="worship-login-card panel glass-panel">
+      <div class="eyebrow">Sanctuary Voice</div>
+      <h1>Worship View</h1>
+      <p class="muted">Versurile cântărilor pe ecranul tău</p>
+      <input id="viewPinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+      <button id="viewLoginBtn" class="btn btn-primary" type="button">Intră</button>
+      <div id="viewLoginStatus" class="status-line" role="status"></div>
+    </div>
+  </section>
+
+  <main id="viewApp" class="worship-view-main hidden">
     <div class="worship-view-header">
       <span id="viewSongTitle" class="worship-view-title">—</span>
       <span id="viewVerseLabel" class="worship-view-verse">—</span>
@@ -19,7 +35,7 @@
   </main>
 
   <!-- V21.13: per-device font size control (no persistence). -->
-  <div class="view-font-controls">
+  <div id="viewFontControls" class="view-font-controls hidden">
     <button id="viewFontDecrease" class="view-font-btn" type="button" aria-label="Text mai mic">A−</button>
     <button id="viewFontIncrease" class="view-font-btn" type="button" aria-label="Text mai mare">A+</button>
   </div>

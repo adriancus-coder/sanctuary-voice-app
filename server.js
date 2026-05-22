@@ -2598,7 +2598,11 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
   db.events[id] = event;
   setActiveEventIdForOrg(organization.id, id);
   saveDb();
-  setImmediate(() => io.emit('active_event_changed', { eventId: id }));
+  setImmediate(() => {
+    io.emit('active_event_changed', { eventId: id });
+    // V21.18: refresh permanent worship-view subscribers.
+    broadcastPermanentWorshipView();
+  });
   return event;
 }
 
@@ -5095,6 +5099,98 @@ function getWorshipSessionFromSocket(socket) {
   }
 }
 
+// === V21.18: Worship View permanent link — read-only auth via WORSHIP_PIN ===
+// Separate from the master `ws:` session (which can mutate setlist/state).
+// The view cookie (`wv:` namespace, role `worship_view`) is HMAC-signed but
+// grants ZERO control rights — no API endpoint or socket handler accepts a
+// `worship_view` session in place of an admin/operator/worship session. It
+// only unlocks `/api/worship-view/live` (read) and the
+// `worship:view:join_permanent` socket subscription.
+const WORSHIP_VIEW_SESSION_COOKIE = 'sv_worship_view';
+const WORSHIP_VIEW_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — install + forget
+
+function signWorshipViewSession(payload) {
+  const body = base64urlEncode(JSON.stringify(payload));
+  const signature = createHmac('sha256', ADMIN_SESSION_SECRET).update(`wv:${body}`).digest('base64url');
+  return `${body}.${signature}`;
+}
+
+function verifyWorshipViewSession(token) {
+  const rawToken = String(token || '');
+  const [body, signature] = rawToken.split('.');
+  if (!body || !signature) return null;
+  const expectedSignature = createHmac('sha256', ADMIN_SESSION_SECRET).update(`wv:${body}`).digest('base64url');
+  if (!safeStringEqual(signature, expectedSignature)) return null;
+  try {
+    const session = JSON.parse(base64urlDecode(body));
+    if (session.role !== 'worship_view') return null;
+    if (session.exp && Number(session.exp) < Date.now()) return null;
+    return session;
+  } catch (err) {
+    return null;
+  }
+}
+
+function buildWorshipViewSessionCookie(req, value, maxAgeMs = null) {
+  const parts = [
+    `${WORSHIP_VIEW_SESSION_COOKIE}=${encodeURIComponent(value)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax'
+  ];
+  if (typeof maxAgeMs === 'number') {
+    parts.push(`Max-Age=${Math.max(0, Math.floor(maxAgeMs / 1000))}`);
+  }
+  if (getCookieSecureFlag(req)) parts.push('Secure');
+  return parts.join('; ');
+}
+
+function setWorshipViewSessionCookie(req, res, session) {
+  res.setHeader('Set-Cookie', buildWorshipViewSessionCookie(req, signWorshipViewSession(session), WORSHIP_VIEW_MAX_AGE_MS));
+}
+
+function clearWorshipViewSessionCookie(req, res) {
+  res.setHeader('Set-Cookie', buildWorshipViewSessionCookie(req, '', 0));
+}
+
+function tryWorshipViewSession(req) {
+  if (!WORSHIP_PIN) return null;
+  const cookies = parseCookies(req);
+  return verifyWorshipViewSession(cookies[WORSHIP_VIEW_SESSION_COOKIE]) || null;
+}
+
+function getWorshipViewSessionFromSocket(socket) {
+  try {
+    const cookies = parseCookies({ headers: { cookie: socket?.handshake?.headers?.cookie || '' } });
+    return verifyWorshipViewSession(cookies[WORSHIP_VIEW_SESSION_COOKIE]) || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// Returns the currently active event of DEFAULT_ORG with worship slots ensured,
+// or null if no event is live. Used by the permanent-link view to decide
+// between "show lyrics" and the "waiting" screen.
+function getActiveWorshipEventForView() {
+  const activeId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
+  if (!activeId) return null;
+  const event = db.events[activeId];
+  if (!event || event.hidden) return null;
+  ensureWorshipState(event);
+  return event;
+}
+
+// Push fresh state to permanent-link viewers. Call after the active event
+// changes OR after the active event's worship state changes.
+function broadcastPermanentWorshipView() {
+  const event = getActiveWorshipEventForView();
+  if (event) {
+    io.to('worship-view:permanent').emit('worship:view:live', buildWorshipStatePayload(event));
+  } else {
+    io.to('worship-view:permanent').emit('worship:view:offline');
+  }
+}
+
 // A worship event is one that belongs to the default org, is not hidden, and is
 // scheduled strictly in the future (next service — never past/active).
 function isWorshipEditableEvent(event) {
@@ -5191,6 +5287,51 @@ app.post('/api/auth/worship/logout', (req, res) => {
   }
   clearWorshipSessionCookie(req, res);
   return res.json({ ok: true });
+});
+
+// V21.18: permanent-link worship view auth. Reuses WORSHIP_PIN; mints a
+// long-lived (30 days) read-only cookie under the `wv:` namespace. The cookie
+// does not grant any control rights — it only unlocks `/api/worship-view/live`
+// and the `worship:view:join_permanent` socket subscription.
+app.post('/api/worship-view/auth', (req, res) => {
+  const rateCheck = checkOperatorLoginRateLimit(getOperatorClientIp(req));
+  if (!rateCheck.allowed) {
+    return res.status(429).json({ ok: false, error: `Too many attempts. Try again in ${rateCheck.retryAfter}s.` });
+  }
+  if (!WORSHIP_PIN) {
+    return res.status(503).json({ ok: false, error: 'Worship role not configured on this server.' });
+  }
+  const pin = String(req.body?.pin || '').trim();
+  if (!pin || !safeStringEqual(pin, WORSHIP_PIN)) {
+    logger.info('[worship-view/auth] Invalid PIN attempt');
+    return res.status(401).json({ ok: false, error: 'PIN invalid.' });
+  }
+  const now = Date.now();
+  const session = { role: 'worship_view', iat: now, exp: now + WORSHIP_VIEW_MAX_AGE_MS };
+  setWorshipViewSessionCookie(req, res, session);
+  logger.info('[worship-view/auth] View session created');
+  return res.json({ ok: true });
+});
+
+app.post('/api/worship-view/logout', (req, res) => {
+  clearWorshipViewSessionCookie(req, res);
+  return res.json({ ok: true });
+});
+
+app.get('/api/worship-view/me', (req, res) => {
+  if (!WORSHIP_PIN) return res.json({ ok: true, authenticated: false, configured: false });
+  const session = tryWorshipViewSession(req);
+  return res.json({ ok: true, authenticated: !!session, configured: true });
+});
+
+app.get('/api/worship-view/live', (req, res) => {
+  if (!WORSHIP_PIN) return res.status(503).json({ ok: false, error: 'Worship role not configured on this server.' });
+  const session = tryWorshipViewSession(req);
+  if (!session) return res.status(401).json({ ok: false, error: 'Autentificare necesară.' });
+  const event = getActiveWorshipEventForView();
+  if (!event) return res.json({ ok: true, live: false });
+  const payload = buildWorshipStatePayload(event);
+  return res.json({ ok: true, live: true, eventId: event.id, eventName: event.name || '', state: payload.state, song: payload.song });
 });
 
 app.get('/api/worship/events', (req, res) => {
@@ -5395,6 +5536,8 @@ app.post('/api/worship/events/:id/verse', (req, res) => {
     saveDb();
     // V21.2: push the change to connected worship members.
     io.to(`worship:${event.id}`).emit('worship:state_change', buildWorshipStatePayload(event));
+    // V21.18: mirror to permanent-link viewers if this is the live event.
+    if (isEventActive(event)) broadcastPermanentWorshipView();
     return res.json({
       ok: true,
       worshipState: {
@@ -5618,6 +5761,8 @@ app.post('/api/worship/events/:id/sync-response', (req, res) => {
     saveDb();
     if (accept) {
       io.to(`worship:${event.id}`).emit('worship:state_change', buildWorshipStatePayload(event));
+      // V21.18: mirror to permanent-link viewers if this is the live event.
+      if (isEventActive(event)) broadcastPermanentWorshipView();
     }
     io.to(`worship:${event.id}`).emit('worship:sync_request_resolved', {
       eventId: event.id,
@@ -5820,6 +5965,7 @@ registerEventRoutes(app, {
   requireEventRole,
   requireGlobalLibraryAdmin,
   tryWorshipSession,
+  broadcastPermanentWorshipView,
   resolveEventAccessFromCode,
   normalizeTextInput,
   sanitizeStructuredText,
@@ -5870,7 +6016,10 @@ registerSocketHandlers(io, {
   startAzureSpeechSession,
   ensureWorshipState,
   getWorshipSessionFromSocket,
-  isWorshipAccessibleEvent
+  isWorshipAccessibleEvent,
+  getWorshipViewSessionFromSocket,
+  getActiveWorshipEventForView,
+  buildWorshipStatePayload
 });
 
 async function ensureDefaultEvent() {
