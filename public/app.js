@@ -506,6 +506,9 @@ function renderAdminEventSongLibrary(highlightId = null) {
     return;
   }
   // V21.12: Preview / Load (staged) / Send first verse / Delete per row.
+  // V21.16: + "Push worship" (parity with operator V21.8). Gated by
+  // worship presence so admin does not push into a void.
+  const worshipOnline = !!adminWorship.online;
   list.innerHTML = items.map((item, idx) => {
     const chars = item.text ? String(item.text).length : 0;
     return `<div class="event-song-row" data-admin-event-song-row="${escapeHtml(item.id)}">
@@ -518,6 +521,7 @@ function renderAdminEventSongLibrary(highlightId = null) {
         <button class="btn btn-dark btn-sm" type="button" data-event-song-preview="${escapeHtml(item.id)}">Preview</button>
         <button class="btn btn-dark btn-sm" type="button" data-event-song-load="${escapeHtml(item.id)}">Load</button>
         <button class="btn btn-primary btn-sm" type="button" data-event-song-send="${escapeHtml(item.id)}">Send</button>
+        <button class="btn btn-primary btn-sm" type="button" data-admin-push-worship="${escapeHtml(item.id)}" ${worshipOnline ? '' : 'disabled title="Worship offline"'}>📢 Push</button>
         <button class="btn btn-danger btn-sm" type="button" data-admin-event-song-delete="${escapeHtml(item.id)}">Delete</button>
       </div>
       <div class="event-song-preview hidden" data-event-song-preview-text="${escapeHtml(item.id)}"><pre>${escapeHtml(item.text || '')}</pre></div>
@@ -548,6 +552,37 @@ async function deleteAdminEventSong(songId) {
     setStatus('Removed from event.');
   } catch (err) {
     alert('Could not delete: ' + err.message);
+  }
+}
+
+// V21.16: admin pushes a song suggestion to the worship master — parity
+// with the operator's V21.8 button. Reuses the SAME endpoint
+// (POST /api/events/:id/worship/push); admin authenticates with the event
+// admin code via adminJsonOptions. No new socket flow: on accept the
+// master moves worshipState, which broadcasts back over
+// worship:state_change (admin already listens, V21.11). The accept/decline
+// result is surfaced from the worship:sync_request_resolved listener,
+// matched by request id.
+let adminPendingPush = null;
+async function pushWorshipFromAdmin(songId, btn) {
+  if (!currentEvent?.id || !songId) return;
+  const songTitle = btn?.closest('.event-song-row')?.querySelector('.event-song-meta strong')?.textContent || '';
+  const originalText = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '… Trimit'; }
+  try {
+    const res = await fetch(
+      `/api/events/${encodeURIComponent(currentEvent.id)}/worship/push`,
+      adminJsonOptions('POST', { songId })
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Push eșuat.');
+    adminPendingPush = { id: data.requestId, songTitle };
+    if (btn) btn.innerHTML = '✓ Trimis';
+    setStatus(`Sugestie trimisă worship-ului: ${songTitle}.`);
+    setTimeout(() => { if (btn) { btn.disabled = false; btn.innerHTML = originalText; } }, 1500);
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.innerHTML = originalText; }
+    alert('Eroare: ' + err.message);
   }
 }
 
@@ -1672,11 +1707,16 @@ socket.on('worship:state_change', (data) => {
   adminWorship.songTitle = data.song ? (data.song.title || '') : '';
   adminWorship.verseIndex = data.state ? (data.state.currentVerseIndex || 0) : 0;
   rerenderAdminSongBlocksForWorship();
+  // V21.16: the per-row "Push worship" buttons are gated by worship
+  // presence — re-render so they enable/disable in lockstep.
+  renderAdminEventSongLibrary();
 });
 socket.on('worship:master_presence', (data) => {
   if (!data || !currentEvent || data.eventId !== currentEvent.id) return;
   adminWorship.online = !!data.online;
   rerenderAdminSongBlocksForWorship();
+  // V21.16: re-render so "Push worship" buttons follow worship presence.
+  renderAdminEventSongLibrary();
 });
 
 function renderGlobalSongLibrary(items = []) {
@@ -3635,6 +3675,15 @@ socket.on('worship:sync_request_resolved', (data) => {
     hideAdminWorshipGlobalToast();
     clearAdminSongTabBadge();
   }
+  // V21.16: an admin -> worship push we sent got accepted/declined by the
+  // worship master — surface the result (mirrors operator V21.8).
+  if (adminPendingPush && data.requestId === adminPendingPush.id) {
+    const songTitle = adminPendingPush.songTitle || 'cântarea';
+    adminPendingPush = null;
+    setStatus(data.approved
+      ? `Worship a acceptat: ${songTitle}.`
+      : `Worship a refuzat: ${songTitle}.`);
+  }
 });
 $('worshipGlobalToast')?.addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-worship-toast-action]');
@@ -4540,6 +4589,12 @@ $('adminEventSongsList')?.addEventListener('click', (e) => {
   if (sendBtn) {
     const item = (currentEvent?.songLibrary || []).find((s) => s.id === sendBtn.getAttribute('data-event-song-send'));
     if (item) sendSongItemToLive(item);
+    return;
+  }
+  // V21.16: push a scheduled song to the worship master.
+  const pushBtn = e.target.closest('[data-admin-push-worship]');
+  if (pushBtn) {
+    if (!pushBtn.disabled) pushWorshipFromAdmin(pushBtn.getAttribute('data-admin-push-worship'), pushBtn);
     return;
   }
   const delBtn = e.target.closest('[data-admin-event-song-delete]');

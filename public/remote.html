@@ -122,7 +122,7 @@
         </div>
       </div>
 
-      <div class="panel glass-panel section-stack">
+      <div class="panel glass-panel section-stack panel-full-width">
         <div class="section-head">
           <h2>Song</h2>
           <div id="remoteSongModeBadge" class="status-pill">Live</div>
@@ -155,30 +155,7 @@
         </div>
       </div>
 
-      <div id="remoteSongEditorPanel" class="panel glass-panel section-stack">
-        <div class="section-head">
-          <h2>Song Editor</h2>
-          <div class="muted">Compose, save, and send songs live</div>
-        </div>
-        <div class="split-2 compact-library-row">
-          <div>
-            <label for="remoteSongTitle">Title</label>
-            <input id="remoteSongTitle" type="text" placeholder="Song title">
-          </div>
-          <div>
-            <label for="remoteSongSourceLang">Song language</label>
-            <select id="remoteSongSourceLang"></select>
-          </div>
-        </div>
-        <textarea id="remoteSongText" placeholder="Write song lyrics here. Use markers like 1., 2., R., R2. or R: %repeat note% to create verses and choruses."></textarea>
-        <div class="button-row compact-row">
-          <button id="remoteSongSaveBtn" class="btn btn-dark" type="button">Save to church library</button>
-          <button id="remoteSongSendBtn" class="btn btn-primary" type="button">Send first verse live</button>
-          <button id="remoteBackToLiveTextBtn" class="btn btn-primary" type="button">Back to live text</button>
-          <button id="remoteSongClearBtn" class="btn btn-dark" type="button">Clear editor</button>
-        </div>
-      </div>
-
+      <!-- V21.16: Church Library moved above Song Editor (reorder per request). -->
       <div class="panel glass-panel section-stack">
         <div class="section-head">
           <h2>Church Library</h2>
@@ -205,6 +182,30 @@
             <div class="unified-search-section-label">De pe Resurse <span class="unified-search-spinner hidden">⏳</span></div>
             <div id="remoteImportUrlResults" class="import-url-results unified-search-resurse-results"></div>
           </div>
+        </div>
+      </div>
+
+      <div id="remoteSongEditorPanel" class="panel glass-panel section-stack">
+        <div class="section-head">
+          <h2>Song Editor</h2>
+          <div class="muted">Compose, save, and send songs live</div>
+        </div>
+        <div class="split-2 compact-library-row">
+          <div>
+            <label for="remoteSongTitle">Title</label>
+            <input id="remoteSongTitle" type="text" placeholder="Song title">
+          </div>
+          <div>
+            <label for="remoteSongSourceLang">Song language</label>
+            <select id="remoteSongSourceLang"></select>
+          </div>
+        </div>
+        <textarea id="remoteSongText" placeholder="Write song lyrics here. Use markers like 1., 2., R., R2. or R: %repeat note% to create verses and choruses."></textarea>
+        <div class="button-row compact-row">
+          <button id="remoteSongSaveBtn" class="btn btn-dark" type="button">Save to church library</button>
+          <button id="remoteSongSendBtn" class="btn btn-primary" type="button">Send first verse live</button>
+          <button id="remoteBackToLiveTextBtn" class="btn btn-primary" type="button">Back to live text</button>
+          <button id="remoteSongClearBtn" class="btn btn-dark" type="button">Clear editor</button>
         </div>
       </div>
 

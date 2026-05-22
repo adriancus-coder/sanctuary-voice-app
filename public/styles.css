@@ -1160,6 +1160,23 @@ progress::-moz-progress-bar {
   display: block;
 }
 
+/* V21.16: operator 2-column card layout on large screens (>=1024px).
+   The active tab section becomes a 2-col grid; panels flow row by row,
+   and the heavy Song panel spans both columns via .panel-full-width.
+   Scoped to .remote-shell so the admin tab panels stay single-column.
+   Below 1024px no grid is applied — panels stay stacked one per line. */
+@media (min-width: 1024px) {
+  .remote-shell .tab-panel.active {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .remote-shell .tab-panel.active .panel-full-width {
+    grid-column: 1 / -1;
+  }
+}
+
 .cards-grid {
   display: grid;
   gap: 16px;
