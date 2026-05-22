@@ -18,13 +18,25 @@
       </div>
     </div>
 
-    <nav class="top-nav-tabs" role="tablist" aria-label="Remote navigation">
-      <button class="top-nav-btn active" data-tab="live-control" type="button">Live Control</button>
-      <button id="remoteSongTabBtn" class="top-nav-btn" data-tab="song" type="button">Song<span id="remoteSongTabBadge" class="tab-badge hidden" aria-label="cerere worship în așteptare"></span></button>
-    </nav>
+    <!-- V21.17: operator is now a single tab. All panels live in one grid. -->
+    <section id="tab-main" class="tab-panel active">
+      <!-- V21.17: thin header bar — active event + worship status + screen shortcuts. -->
+      <div class="remote-header-bar">
+        <div class="remote-header-event">
+          <span class="remote-header-event-label">Event</span>
+          <strong id="remoteHeaderEventName">—</strong>
+        </div>
+        <div class="remote-worship-status-pill" id="remoteHeaderWorshipPill" title="Worship live status">
+          <span class="remote-worship-status-dot" id="remoteHeaderWorshipDot"></span>
+          <span id="remoteHeaderWorshipText">Worship offline</span>
+        </div>
+        <div class="remote-header-actions">
+          <button id="remoteOpenMainPreviewBtn" class="btn btn-dark btn-sm" type="button">Open main screen</button>
+          <button id="remoteOpenParticipantPreviewBtn" class="btn btn-primary btn-sm" type="button">Open participant</button>
+        </div>
+      </div>
 
-    <section id="tab-live-control" class="tab-panel active">
-      <div id="remoteMainScreenPanel" class="panel glass-panel section-stack">
+      <div id="remoteMainScreenPanel" class="panel glass-panel section-stack panel-full-width">
         <div class="section-head">
           <h2>Main Screen Control</h2>
           <div id="remoteAccessProfileBadge" class="live-chip">Remote operator</div>
@@ -72,57 +84,7 @@
         </div>
       </div>
 
-      <div class="panel glass-panel section-stack remote-live-monitor">
-        <div class="section-head">
-          <div>
-            <h2>Live Monitor</h2>
-            <div class="muted">Simple preview for Main Screen and Participant</div>
-          </div>
-          <div class="button-row compact-row">
-            <button id="remoteOpenMainPreviewBtn" class="btn btn-dark" type="button">Open main screen</button>
-            <button id="remoteOpenParticipantPreviewBtn" class="btn btn-primary" type="button">Open participant direct</button>
-          </div>
-        </div>
-        <div class="remote-simple-preview-grid">
-          <div class="remote-simple-preview-box">
-            <div class="remote-simple-preview-head">Main Screen</div>
-            <div class="remote-preview-meta" id="remoteMainPreviewMeta">Waiting for event…</div>
-            <div class="remote-simple-preview-stage">
-              <div id="remoteMainPreviewText" class="remote-simple-preview-text">Waiting for preview…</div>
-            </div>
-          </div>
-          <div class="remote-simple-preview-box">
-            <div class="remote-simple-preview-head">Participant</div>
-            <div class="remote-preview-meta" id="remoteParticipantPreviewMeta">Waiting for event…</div>
-            <div class="remote-simple-preview-stage">
-              <div id="remoteParticipantPreviewText" class="remote-simple-preview-text">Waiting for preview…</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="tab-song" class="tab-panel">
-      <div id="remoteWorshipPanel" class="panel glass-panel section-stack">
-        <div class="section-head">
-          <h2>Worship Live</h2>
-          <div id="remoteWorshipPresence" class="status-pill">Worship inactiv</div>
-        </div>
-        <div id="remoteWorshipStatus" class="muted">Echipa worship nu a pornit Live mode.</div>
-        <div id="remoteWorshipRequest" class="worship-sync-toast hidden"></div>
-      </div>
-
-      <div class="panel glass-panel section-stack">
-        <div class="section-head">
-          <h2>Cântări programate</h2>
-          <div class="muted" id="remoteEventSongsCount">0</div>
-        </div>
-        <div id="remoteEventSongsList" class="event-songs-list">
-          <p class="muted small">Niciun event selectat.</p>
-        </div>
-      </div>
-
-      <div class="panel glass-panel section-stack panel-full-width">
+      <div class="panel glass-panel section-stack" data-remote-song-section>
         <div class="section-head">
           <h2>Song</h2>
           <div id="remoteSongModeBadge" class="status-pill">Live</div>
@@ -155,8 +117,27 @@
         </div>
       </div>
 
+      <div class="panel glass-panel section-stack" data-remote-song-section>
+        <div class="section-head">
+          <h2>Cântări programate</h2>
+          <div class="muted" id="remoteEventSongsCount">0</div>
+        </div>
+        <div id="remoteEventSongsList" class="event-songs-list">
+          <p class="muted small">Niciun event selectat.</p>
+        </div>
+      </div>
+
+      <div id="remoteWorshipPanel" class="panel glass-panel section-stack" data-remote-song-section>
+        <div class="section-head">
+          <h2>Worship Live</h2>
+          <div id="remoteWorshipPresence" class="status-pill">Worship inactiv</div>
+        </div>
+        <div id="remoteWorshipStatus" class="muted">Echipa worship nu a pornit Live mode.</div>
+        <div id="remoteWorshipRequest" class="worship-sync-toast hidden"></div>
+      </div>
+
       <!-- V21.16: Church Library moved above Song Editor (reorder per request). -->
-      <div class="panel glass-panel section-stack">
+      <div class="panel glass-panel section-stack" data-remote-song-section>
         <div class="section-head">
           <h2>Church Library</h2>
           <div class="muted">Shared for all events · search resursecrestine.ro too</div>
@@ -185,7 +166,7 @@
         </div>
       </div>
 
-      <div id="remoteSongEditorPanel" class="panel glass-panel section-stack">
+      <div id="remoteSongEditorPanel" class="panel glass-panel section-stack" data-remote-song-section>
         <div class="section-head">
           <h2>Song Editor</h2>
           <div class="muted">Compose, save, and send songs live</div>
@@ -209,59 +190,64 @@
         </div>
       </div>
 
-      <div id="remotePinnedTextPanel" class="panel glass-panel section-stack">
-        <div class="section-head">
-          <h2>Pinned Text Library</h2>
-          <div class="muted">Send a saved announcement to the main screen</div>
-        </div>
-        <div class="info-card soft-card">
-          <div class="section-head admin-subsection-head">
-            <h2>Pinned Text Sender</h2>
-            <div class="muted">Edit then push to the projector</div>
+      <!-- V21.17: Pinned Text + Recent Sends collapsed by default (closed <details>). -->
+      <details id="remotePinnedTextPanel" class="panel glass-panel remote-collapsible-panel panel-full-width">
+        <summary class="remote-collapsible-summary">
+          <span class="remote-collapsible-title">Pinned Text Library</span>
+          <span class="muted small">Send a saved announcement to the main screen</span>
+        </summary>
+        <div class="section-stack remote-collapsible-body">
+          <div class="info-card soft-card">
+            <div class="section-head admin-subsection-head">
+              <h2>Pinned Text Sender</h2>
+              <div class="muted">Edit then push to the projector</div>
+            </div>
+            <div class="split-2 compact-library-row">
+              <div>
+                <label for="remotePinnedTitle">Title</label>
+                <input id="remotePinnedTitle" type="text" placeholder="Announcement title">
+              </div>
+              <div>
+                <label for="remotePinnedSourceLang">Text language</label>
+                <select id="remotePinnedSourceLang"></select>
+              </div>
+            </div>
+            <textarea id="remotePinnedText" placeholder="Write the pinned text to display on the main screen."></textarea>
+            <div class="button-row compact-row">
+              <button id="remotePinnedSendBtn" class="btn btn-primary" type="button">Send to main screen</button>
+            </div>
           </div>
           <div class="split-2 compact-library-row">
             <div>
-              <label for="remotePinnedTitle">Title</label>
-              <input id="remotePinnedTitle" type="text" placeholder="Announcement title">
+              <label for="remoteManualLibrarySearch">Search</label>
+              <input id="remoteManualLibrarySearch" type="text" placeholder="Search pinned texts">
             </div>
             <div>
-              <label for="remotePinnedSourceLang">Text language</label>
-              <select id="remotePinnedSourceLang"></select>
+              <label for="remoteManualLibrarySort">Sort</label>
+              <select id="remoteManualLibrarySort">
+                <option value="az" selected>Title A-Z</option>
+                <option value="za">Title Z-A</option>
+                <option value="recent">Recent first</option>
+              </select>
             </div>
           </div>
-          <textarea id="remotePinnedText" placeholder="Write the pinned text to display on the main screen."></textarea>
-          <div class="button-row compact-row">
-            <button id="remotePinnedSendBtn" class="btn btn-primary" type="button">Send to main screen</button>
+          <div id="remoteManualLibraryList" class="event-list">
+            <div class="muted">Loading pinned text library...</div>
           </div>
         </div>
-        <div class="split-2 compact-library-row">
-          <div>
-            <label for="remoteManualLibrarySearch">Search</label>
-            <input id="remoteManualLibrarySearch" type="text" placeholder="Search pinned texts">
-          </div>
-          <div>
-            <label for="remoteManualLibrarySort">Sort</label>
-            <select id="remoteManualLibrarySort">
-              <option value="az" selected>Title A-Z</option>
-              <option value="za">Title Z-A</option>
-              <option value="recent">Recent first</option>
-            </select>
-          </div>
-        </div>
-        <div id="remoteManualLibraryList" class="event-list">
-          <div class="muted">Loading pinned text library...</div>
-        </div>
-      </div>
+      </details>
 
-      <div class="panel glass-panel section-stack">
-        <div class="section-head">
-          <h2>Recent Sends</h2>
-          <div class="muted">Latest items on screen</div>
+      <details class="panel glass-panel remote-collapsible-panel panel-full-width" data-remote-song-section>
+        <summary class="remote-collapsible-summary">
+          <span class="remote-collapsible-title">Recent Sends</span>
+          <span class="muted small">Latest items on screen</span>
+        </summary>
+        <div class="section-stack remote-collapsible-body">
+          <div id="remoteSongHistoryList" class="history">
+            <div class="muted">Nothing sent yet.</div>
+          </div>
         </div>
-        <div id="remoteSongHistoryList" class="history">
-          <div class="muted">Nothing sent yet.</div>
-        </div>
-      </div>
+      </details>
     </section>
   </div>
 

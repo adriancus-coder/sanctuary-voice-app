@@ -118,6 +118,9 @@ async function resolveRemoteEventId() {
 
 function updateHeader() {
   $('remoteEventName').textContent = state.currentEvent?.name || 'Remote control';
+  // V21.17: compact event name in the thin header bar.
+  const headerEventEl = $('remoteHeaderEventName');
+  if (headerEventEl) headerEventEl.textContent = state.currentEvent?.name || '—';
   const displayState = state.currentEvent?.displayState || {};
   const modeLabel = displayState.blackScreen
     ? 'Black screen'
@@ -785,11 +788,23 @@ function renderRemoteEventSongLibrary() {
 
 // V21.3: operator awareness of the worship-live channel.
 function renderRemoteWorshipPanel() {
+  const w = state.worship;
+  // V21.17: mirror worship status into the thin header pill (always visible,
+  // even when the Worship Live panel itself is hidden for non-song operators).
+  const headerDot = $('remoteHeaderWorshipDot');
+  const headerText = $('remoteHeaderWorshipText');
+  if (headerDot) headerDot.classList.toggle('online', !!w.online);
+  if (headerText) {
+    if (w.online && w.hasState && w.songTitle) {
+      headerText.textContent = `Worship live · ${w.songTitle}`;
+    } else {
+      headerText.textContent = w.online ? 'Worship live' : 'Worship offline';
+    }
+  }
   const presenceEl = $('remoteWorshipPresence');
   const statusEl = $('remoteWorshipStatus');
   const reqEl = $('remoteWorshipRequest');
   if (!presenceEl || !statusEl || !reqEl) return;
-  const w = state.worship;
   presenceEl.textContent = w.online ? 'Worship online' : 'Worship offline';
   presenceEl.classList.toggle('active', w.online);
   if (w.hasState && w.songTitle) {
@@ -862,13 +877,15 @@ function refreshRemoteUi() {
   }
   if (presetsPanel) presetsPanel.hidden = !mainScreenAllowed;
   if (glossaryPanel) glossaryPanel.hidden = !glossaryAllowed;
-  // V19: the whole Song tab is gated by the 'song' permission; pinned-text sending
-  // needs 'main_screen'. If the operator loses access to the active tab, fall back.
+  // V19 / V21.17: song panels are gated by the 'song' permission; pinned-text
+  // sending needs 'main_screen'. With the tabs merged into one panel (V21.17),
+  // each song panel carries data-remote-song-section and is hidden individually
+  // when the operator lacks 'song' — the old per-tab gating is gone.
   if (songTabBtn) songTabBtn.hidden = !songAllowed;
   if (pinnedTextPanel) pinnedTextPanel.hidden = !mainScreenAllowed;
-  if (!songAllowed && $('tab-song')?.classList.contains('active')) {
-    switchRemoteTab('live-control');
-  }
+  document.querySelectorAll('[data-remote-song-section]').forEach((el) => {
+    el.hidden = !songAllowed;
+  });
   updateHeader();
   populateRemoteLanguageSelects();
   updateRemoteTextScaleDisplay();

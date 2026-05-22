@@ -1160,11 +1160,12 @@ progress::-moz-progress-bar {
   display: block;
 }
 
-/* V21.16: operator 2-column card layout on large screens (>=1024px).
-   The active tab section becomes a 2-col grid; panels flow row by row,
-   and the heavy Song panel spans both columns via .panel-full-width.
-   Scoped to .remote-shell so the admin tab panels stay single-column.
-   Below 1024px no grid is applied — panels stay stacked one per line. */
+/* V21.16 / V21.17: operator card layout on large screens (>=1024px).
+   The single operator tab section becomes a 2-col grid; panels flow row
+   by row. The thin header bar and the full-width panels (Main Screen
+   Control, collapsibles) span both columns. Scoped to .remote-shell so
+   the admin tab panels stay single-column. Below 1024px no grid is
+   applied — panels stay stacked one per line. */
 @media (min-width: 1024px) {
   .remote-shell .tab-panel.active {
     display: grid;
@@ -1172,9 +1173,99 @@ progress::-moz-progress-bar {
     gap: 16px;
     align-items: start;
   }
+  .remote-shell .tab-panel.active .remote-header-bar,
   .remote-shell .tab-panel.active .panel-full-width {
     grid-column: 1 / -1;
   }
+}
+
+/* V21.17: operator single-tab thin header bar — active event + worship
+   status pill + open-screen shortcuts. Full-width above the panel grid. */
+.remote-header-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+.remote-header-event {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.remote-header-event-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+.remote-header-event strong {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+.remote-worship-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  font-size: 12px;
+}
+.remote-worship-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #888;
+  flex: none;
+}
+.remote-worship-status-dot.online {
+  background: #4caf50;
+  box-shadow: 0 0 6px rgba(76, 175, 80, 0.6);
+}
+.remote-header-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+/* V21.17: collapsible panels (Pinned Text Library, Recent Sends) —
+   rendered as closed <details> by default to cut operator scroll. */
+.remote-collapsible-panel > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px;
+  user-select: none;
+}
+.remote-collapsible-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.remote-collapsible-panel > summary::before {
+  content: "\25B8";
+  font-size: 12px;
+  opacity: 0.7;
+}
+.remote-collapsible-panel[open] > summary::before {
+  content: "\25BE";
+}
+.remote-collapsible-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.remote-collapsible-body {
+  padding-top: 0;
 }
 
 .cards-grid {
