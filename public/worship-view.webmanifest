@@ -1,0 +1,19 @@
+{
+  "name": "Sanctuary Voice Worship",
+  "short_name": "Worship",
+  "description": "Versuri live pe tableta echipei de laudă.",
+  "start_url": "/worship-view",
+  "scope": "/worship-view",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050608",
+  "theme_color": "#050608",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

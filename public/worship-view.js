@@ -272,6 +272,17 @@
     });
   }
 
+  // V21.18: register the worship-view service worker for PWA installability.
+  // The SW caches only the static shell — live lyrics travel over the socket
+  // and are never cached. Scope `/worship-view` keeps it isolated from
+  // push-sw.js (which handles /participant offline shell + push notifications).
+  function registerWorshipViewServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker
+      .register('/worship-view-sw.js', { scope: '/worship-view' })
+      .catch((err) => console.warn('worship-view SW registration failed:', err && err.message));
+  }
+
   document.addEventListener('DOMContentLoaded', async () => {
     const dec = $('viewFontDecrease');
     const inc = $('viewFontIncrease');
@@ -279,6 +290,7 @@
     if (inc) inc.addEventListener('click', () => changeViewFontSize(2));
     applyViewFontSize();
     attachViewPinchZoom();
+    registerWorshipViewServiceWorker();
 
     if (mode === 'token') {
       // V21.2 QR flow — straight in, no PIN gate.

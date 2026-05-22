@@ -205,6 +205,15 @@ app.use((req, res, next) => {
   if (req.path === '/admin.html') return requireAdminPage(req, res, next);
   return next();
 });
+// V21.18: the worship-view service worker is registered with scope
+// `/worship-view` (separate from push-sw.js at scope `/` so the two
+// don't clobber each other). The browser requires the
+// Service-Worker-Allowed response header to permit a scope above the
+// worker's own directory.
+app.use('/worship-view-sw.js', (req, res, next) => {
+  res.setHeader('Service-Worker-Allowed', '/worship-view');
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res, next) => {
