@@ -1520,7 +1520,13 @@ document.querySelectorAll('.top-nav-btn[data-tab]').forEach((btn) => {
   btn.addEventListener('click', () => switchRemoteTab(btn.dataset.tab));
 });
 
-$('remoteSongLibrarySearch')?.addEventListener('input', renderRemoteSongLibrary);
+let remoteLibrarySearchDebounce;
+$('remoteSongLibrarySearch')?.addEventListener('input', () => {
+  clearTimeout(remoteLibrarySearchDebounce);
+  remoteLibrarySearchDebounce = setTimeout(renderRemoteSongLibrary, 220);
+  // Resurse results are stale once the query changes — hide until re-run.
+  document.querySelector('.unified-search-resurse-section')?.classList.add('hidden');
+});
 $('remoteSongLibrarySort')?.addEventListener('change', renderRemoteSongLibrary);
 $('remoteManualLibrarySearch')?.addEventListener('input', renderRemotePinnedTextLibrary);
 $('remoteManualLibrarySort')?.addEventListener('change', renderRemotePinnedTextLibrary);
@@ -1752,11 +1758,16 @@ async function importRemoteSongFromUrl(url) {
   return data.song;
 }
 
+// V21.15: the unified search field is #remoteSongLibrarySearch. Library
+// filtering is instant on input; this resurse search runs only on Enter or
+// the "Caută și pe resurse" button so external requests stay rate-light.
 $('remoteImportUrlBtn')?.addEventListener('click', async () => {
-  const input = $('remoteImportUrlInput');
+  const input = $('remoteSongLibrarySearch');
   const status = $('remoteImportUrlStatus');
   const resultsEl = $('remoteImportUrlResults');
   const btn = $('remoteImportUrlBtn');
+  const resurseSection = document.querySelector('.unified-search-resurse-section');
+  const spinner = document.querySelector('.unified-search-spinner');
   const value = (input?.value || '').trim();
   if (!value) {
     if (status) {
@@ -1766,8 +1777,10 @@ $('remoteImportUrlBtn')?.addEventListener('click', async () => {
     return;
   }
   const isUrl = /^https?:\/\//i.test(value);
+  if (resurseSection) resurseSection.classList.remove('hidden');
+  if (spinner) spinner.classList.remove('hidden');
   if (status) {
-    status.textContent = isUrl ? 'Se importă...' : 'Se caută...';
+    status.textContent = isUrl ? 'Se importă...' : 'Se caută pe resurse...';
     status.style.color = '';
   }
   if (resultsEl) resultsEl.innerHTML = '';
@@ -1779,7 +1792,6 @@ $('remoteImportUrlBtn')?.addEventListener('click', async () => {
         status.textContent = `Importat: "${song.title}" (${song.sourceProvider || 'URL'})`;
         status.style.color = '#0c0';
       }
-      if (input) input.value = '';
     } else {
       const res = await fetch('/api/songs/search', {
         method: 'POST',
@@ -1823,10 +1835,12 @@ $('remoteImportUrlBtn')?.addEventListener('click', async () => {
     }
   } finally {
     if (btn) btn.disabled = false;
+    if (spinner) spinner.classList.add('hidden');
   }
 });
 
-$('remoteImportUrlInput')?.addEventListener('keydown', (e) => {
+// V21.15: Enter on the unified search field fires the resurse search.
+$('remoteSongLibrarySearch')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     $('remoteImportUrlBtn')?.click();
@@ -1838,7 +1852,6 @@ $('remoteImportUrlResults')?.addEventListener('click', async (e) => {
   if (!btn) return;
   const url = btn.dataset.remoteImportResultUrl;
   const status = $('remoteImportUrlStatus');
-  const input = $('remoteImportUrlInput');
   const resultsEl = $('remoteImportUrlResults');
   if (status) {
     status.textContent = 'Se importă rezultatul selectat...';
@@ -1852,7 +1865,6 @@ $('remoteImportUrlResults')?.addEventListener('click', async (e) => {
       status.textContent = `Importat: "${song.title}"`;
       status.style.color = '#0c0';
     }
-    if (input) input.value = '';
     if (resultsEl) resultsEl.innerHTML = '';
   } catch (err) {
     if (status) {

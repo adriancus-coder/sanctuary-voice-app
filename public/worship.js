@@ -432,11 +432,16 @@
     return true;
   }
 
+  // V21.15: the unified search field is #globalSongLibrarySearch. Library
+  // filtering is instant on input; this resurse search runs only on Enter or
+  // the "Caută și pe resurse" button so external requests stay rate-light.
   async function doImportOrSearch() {
-    const input = $('importUrlInput');
+    const input = $('globalSongLibrarySearch');
     const status = $('importUrlStatus');
     const resultsEl = $('importUrlResults');
     const btn = $('importUrlBtn');
+    const resurseSection = document.querySelector('.unified-search-resurse-section');
+    const spinner = document.querySelector('.unified-search-spinner');
     const value = (input.value || '').trim();
     if (!value) {
       setStatus(status, 'Introdu un URL sau cuvinte cheie.', 'err');
@@ -444,7 +449,9 @@
     }
     const isUrl = /^https?:\/\//i.test(value);
     btn.disabled = true;
-    setStatus(status, isUrl ? 'Se importă...' : 'Se caută...', '');
+    if (resurseSection) resurseSection.classList.remove('hidden');
+    if (spinner) spinner.classList.remove('hidden');
+    setStatus(status, isUrl ? 'Se importă...' : 'Se caută pe resurse...', '');
     resultsEl.innerHTML = '';
     try {
       if (isUrl) {
@@ -453,7 +460,6 @@
           setStatus(status, 'Anulat — cântarea există deja în Library.', 'err');
           return;
         }
-        input.value = '';
         setStatus(status, 'Importat: „' + song.title + '”. Verifică și salvează.', 'ok');
       } else {
         const res = await fetch('/api/songs/search', {
@@ -483,6 +489,7 @@
       setStatus(status, 'Eroare: ' + err.message, 'err');
     } finally {
       btn.disabled = false;
+      if (spinner) spinner.classList.add('hidden');
     }
   }
 
@@ -1001,8 +1008,19 @@
     // V21.5: dropdown removed — header now shows the live event read-only.
     // No change-listener needed; loadLiveEvent owns the single event source.
 
+    // V21.15: one unified field. Library filters instantly (debounced);
+    // Enter additionally fires the resurse search.
+    let librarySearchDebounce;
     $('globalSongLibrarySearch').addEventListener('input', (e) => {
-      renderLibrary(e.target.value);
+      const val = e.target.value;
+      clearTimeout(librarySearchDebounce);
+      librarySearchDebounce = setTimeout(() => renderLibrary(val), 220);
+      // Resurse results are stale once the query changes — hide until re-run.
+      const resurseSection = document.querySelector('.unified-search-resurse-section');
+      if (resurseSection) resurseSection.classList.add('hidden');
+    });
+    $('globalSongLibrarySearch').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); doImportOrSearch(); }
     });
 
     // V21.5: per-card picker — click on an event option adds the song.
@@ -1033,9 +1051,6 @@
     });
 
     $('importUrlBtn').addEventListener('click', doImportOrSearch);
-    $('importUrlInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); doImportOrSearch(); }
-    });
     $('songSaveBtn').addEventListener('click', saveSongInLibrary);
     $('songClearBtn').addEventListener('click', clearSongEditor);
 
@@ -1089,7 +1104,6 @@
           btn.textContent = original;
           return;
         }
-        $('importUrlInput').value = '';
         $('importUrlResults').innerHTML = '';
         setStatus($('importUrlStatus'), 'Importat: „' + song.title + '”. Verifică și salvează.', 'ok');
       } catch (err) {

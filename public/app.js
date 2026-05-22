@@ -4179,7 +4179,13 @@ $('saveDisplayPresetBtn')?.addEventListener('click', saveDisplayPreset);
 $('openMainPreviewBtn').addEventListener('click', openMainPreviewWindow);
 $('openParticipantPreviewBtn').addEventListener('click', openParticipantPreviewWindow);
 $('openBothPreviewsBtn').addEventListener('click', openBothPreviewWindows);
-$('globalSongLibrarySearch').addEventListener('input', () => renderGlobalSongLibrary(currentGlobalSongLibrary));
+let adminLibrarySearchDebounce;
+$('globalSongLibrarySearch').addEventListener('input', () => {
+  clearTimeout(adminLibrarySearchDebounce);
+  adminLibrarySearchDebounce = setTimeout(() => renderGlobalSongLibrary(currentGlobalSongLibrary), 220);
+  // Resurse results are stale once the query changes — hide until re-run.
+  document.querySelector('.unified-search-resurse-section')?.classList.add('hidden');
+});
 $('globalSongLibrarySort').addEventListener('change', () => renderGlobalSongLibrary(currentGlobalSongLibrary));
 $('manualLibrarySearch').addEventListener('input', () => renderPinnedTextLibrary(currentPinnedTextLibrary));
 $('manualLibrarySort').addEventListener('change', () => renderPinnedTextLibrary(currentPinnedTextLibrary));
@@ -4295,11 +4301,16 @@ async function importSongFromUrl(url) {
   return data.song;
 }
 
+// V21.15: the unified search field is #globalSongLibrarySearch. Library
+// filtering is instant on input; this resurse search runs only on Enter or
+// the "Caută și pe resurse" button so external requests stay rate-light.
 $('importUrlBtn')?.addEventListener('click', async () => {
-  const input = $('importUrlInput');
+  const input = $('globalSongLibrarySearch');
   const status = $('importUrlStatus');
   const resultsEl = $('importUrlResults');
   const btn = $('importUrlBtn');
+  const resurseSection = document.querySelector('.unified-search-resurse-section');
+  const spinner = document.querySelector('.unified-search-spinner');
   const value = (input?.value || '').trim();
 
   if (!value) {
@@ -4309,7 +4320,9 @@ $('importUrlBtn')?.addEventListener('click', async () => {
   }
 
   const isUrl = /^https?:\/\//i.test(value);
-  status.textContent = isUrl ? 'Se importă...' : 'Se caută...';
+  if (resurseSection) resurseSection.classList.remove('hidden');
+  if (spinner) spinner.classList.remove('hidden');
+  status.textContent = isUrl ? 'Se importă...' : 'Se caută pe resurse...';
   status.style.color = '';
   if (resultsEl) resultsEl.innerHTML = '';
   btn.disabled = true;
@@ -4319,7 +4332,7 @@ $('importUrlBtn')?.addEventListener('click', async () => {
       const song = await importSongFromUrl(value);
       status.textContent = `Importat: "${song.title}" (${song.sourceProvider})`;
       status.style.color = '#0c0';
-      input.value = '';
+      document.querySelector('.song-editor-details')?.setAttribute('open', '');
     } else {
       const res = await fetch('/api/songs/search', {
         method: 'POST',
@@ -4359,11 +4372,12 @@ $('importUrlBtn')?.addEventListener('click', async () => {
     }
   } finally {
     btn.disabled = false;
+    if (spinner) spinner.classList.add('hidden');
   }
 });
 
-// V18.1: Enter declanșează butonul Import / Caută
-$('importUrlInput')?.addEventListener('keydown', (e) => {
+// V18.1 / V21.15: Enter on the unified search field fires the resurse search.
+$('globalSongLibrarySearch')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     $('importUrlBtn')?.click();
@@ -4377,7 +4391,6 @@ $('importUrlResults')?.addEventListener('click', async (e) => {
 
   const url = btn.dataset.importResultUrl;
   const status = $('importUrlStatus');
-  const input = $('importUrlInput');
   const resultsEl = $('importUrlResults');
 
   status.textContent = 'Se importă rezultatul selectat...';
@@ -4389,8 +4402,8 @@ $('importUrlResults')?.addEventListener('click', async (e) => {
     const song = await importSongFromUrl(url);
     status.textContent = `Importat: "${song.title}"`;
     status.style.color = '#0c0';
-    if (input) input.value = '';
     if (resultsEl) resultsEl.innerHTML = '';
+    document.querySelector('.song-editor-details')?.setAttribute('open', '');
   } catch (err) {
     if (err.cancelled) {
       status.textContent = err.message;

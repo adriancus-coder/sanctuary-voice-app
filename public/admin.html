@@ -638,15 +638,7 @@
                 <span class="song-editor-toggle">▾</span>
               </summary>
               <div class="song-editor-body">
-                <div class="import-from-url-row" style="margin-bottom: 12px;">
-                  <label>Import din URL sau Caută pe resursecrestine.ro</label>
-                  <div style="display: flex; gap: 8px;">
-                    <input id="importUrlInput" type="text" placeholder="URL cântec sau cuvinte cheie (ex: pâinea vieții)" style="flex: 1;">
-                    <button id="importUrlBtn" class="btn btn-primary" type="button">Import / Caută</button>
-                  </div>
-                  <div id="importUrlStatus" class="muted" style="margin-top: 4px; min-height: 1em;"></div>
-                  <div id="importUrlResults" class="import-url-results" style="margin-top: 8px;"></div>
-                </div>
+                <p class="muted small" style="margin-bottom: 10px;">Tip: use the unified search in Church Library below to find songs in the library or on resursecrestine.ro.</p>
                 <label>Title</label>
                 <input id="songTitle" type="text" placeholder="Amazing Grace">
                 <label>Song language</label>
@@ -665,22 +657,33 @@
           <div class="panel glass-panel section-stack">
             <div class="section-head">
               <h2>Church Library</h2>
-              <div class="muted">Shared for all events</div>
+              <div class="muted">Shared for all events · search resursecrestine.ro too</div>
             </div>
-            <div class="button-row compact-row">
-              <input id="globalSongLibrarySearch" type="text" placeholder="Search church library">
-              <select id="globalSongLibrarySort">
-                <option value="az" selected>Title A-Z</option>
-                <option value="za">Title Z-A</option>
-                <option value="recent">Recent first</option>
-              </select>
+            <div class="unified-search">
+              <div class="unified-search-input-row">
+                <input id="globalSongLibrarySearch" type="text" class="unified-search-input" placeholder="Caută cântare (Library + Resurse)...">
+                <select id="globalSongLibrarySort">
+                  <option value="az" selected>Title A-Z</option>
+                  <option value="za">Title Z-A</option>
+                  <option value="recent">Recent first</option>
+                </select>
+                <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button">Caută și pe resurse</button>
+              </div>
+              <div id="importUrlStatus" class="muted" style="min-height: 1em;"></div>
+              <div class="library-backup-controls">
+                <button id="exportLibraryBtn" class="btn btn-dark btn-sm" type="button">⬇ Export Library</button>
+                <button id="importLibraryBtn" class="btn btn-dark btn-sm" type="button">⬆ Import Library</button>
+                <input id="importLibraryFile" type="file" accept="application/json,.json" class="hidden">
+              </div>
+              <div class="unified-search-library-section">
+                <div class="unified-search-section-label">Din Library</div>
+                <div id="globalSongLibraryList" class="event-list unified-search-library-results"></div>
+              </div>
+              <div class="unified-search-resurse-section hidden">
+                <div class="unified-search-section-label">De pe Resurse <span class="unified-search-spinner hidden">⏳</span></div>
+                <div id="importUrlResults" class="import-url-results unified-search-resurse-results"></div>
+              </div>
             </div>
-            <div class="library-backup-controls">
-              <button id="exportLibraryBtn" class="btn btn-dark btn-sm" type="button">⬇ Export Library</button>
-              <button id="importLibraryBtn" class="btn btn-dark btn-sm" type="button">⬆ Import Library</button>
-              <input id="importLibraryFile" type="file" accept="application/json,.json" class="hidden">
-            </div>
-            <div id="globalSongLibraryList" class="event-list"></div>
             <div class="section-head admin-subsection-head">
               <h2>Songs in this event</h2>
               <div class="muted" id="adminEventSongsCount">0 songs</div>

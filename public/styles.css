@@ -6136,6 +6136,48 @@ button[disabled]:active {
   min-width: 0;
 }
 
+/* === V21.15: Unified search (Library + Resurse) — shared across worship/admin/operator === */
+.unified-search {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.unified-search-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.unified-search-input {
+  flex: 1;
+  min-width: 200px;
+  font-size: 14px;
+  padding: 10px;
+}
+.unified-search-resurse-btn {
+  white-space: nowrap;
+}
+.unified-search-section-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+  margin-bottom: 6px;
+}
+.unified-search-library-section,
+.unified-search-resurse-section {
+  display: flex;
+  flex-direction: column;
+}
+.unified-search-resurse-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
+}
+.unified-search-spinner {
+  font-size: 0.9em;
+}
+
 .song-editor input,
 .song-editor textarea {
   width: 100%;
