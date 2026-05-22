@@ -8,33 +8,38 @@
 </head>
 <body>
   <div class="participant-shell remote-shell">
-    <div class="participant-header panel glass-panel participant-premium-hero">
-      <div class="eyebrow">Sanctuary Voice</div>
-      <h1 id="remoteEventName">Remote control</h1>
-      <div id="remoteStatus" class="muted">Connecting...</div>
-      <div class="participant-badge-row">
+    <!-- V21.17-FIX: hero + thin header bar merged into one card. Event name
+         appears once (remoteEventName). The old `remoteHeaderEventName` was
+         the duplicate and is removed; `remoteStatus`, `remoteModeBadge`,
+         `remoteLanguageBadge` stay in DOM (setStatus / updateHeader write to
+         them without `?.` guards). The worship status pill, screen shortcuts,
+         and the new Copy link buttons live in the hero. -->
+    <div class="participant-header panel glass-panel participant-premium-hero remote-hero">
+      <div class="remote-hero-top">
+        <div class="remote-hero-event">
+          <div class="eyebrow">Sanctuary Voice</div>
+          <h1 id="remoteEventName">Remote control</h1>
+        </div>
+        <div class="remote-header-actions remote-hero-actions">
+          <button id="remoteOpenMainPreviewBtn" class="btn btn-dark btn-sm" type="button">Open main screen</button>
+          <button id="remoteOpenParticipantPreviewBtn" class="btn btn-primary btn-sm" type="button">Open participant</button>
+          <button id="remoteCopyWorshipLink" class="btn btn-dark btn-sm" type="button" title="Copiază link pentru worship leader">Copiază link worship</button>
+          <button id="remoteCopyTeamLink" class="btn btn-dark btn-sm" type="button" title="Copiază link permanent pentru echipa worship">Copiază link team</button>
+        </div>
+      </div>
+      <div class="participant-badge-row remote-hero-badges">
         <div id="remoteModeBadge" class="status-pill active">Live follow</div>
         <div id="remoteLanguageBadge" class="status-pill">Language</div>
-      </div>
-    </div>
-
-    <!-- V21.17: operator is now a single tab. All panels live in one grid. -->
-    <section id="tab-main" class="tab-panel active">
-      <!-- V21.17: thin header bar — active event + worship status + screen shortcuts. -->
-      <div class="remote-header-bar">
-        <div class="remote-header-event">
-          <span class="remote-header-event-label">Event</span>
-          <strong id="remoteHeaderEventName">—</strong>
-        </div>
         <div class="remote-worship-status-pill" id="remoteHeaderWorshipPill" title="Worship live status">
           <span class="remote-worship-status-dot" id="remoteHeaderWorshipDot"></span>
           <span id="remoteHeaderWorshipText">Worship offline</span>
         </div>
-        <div class="remote-header-actions">
-          <button id="remoteOpenMainPreviewBtn" class="btn btn-dark btn-sm" type="button">Open main screen</button>
-          <button id="remoteOpenParticipantPreviewBtn" class="btn btn-primary btn-sm" type="button">Open participant</button>
-        </div>
       </div>
+      <div id="remoteStatus" class="muted small remote-status-line">Connecting...</div>
+    </div>
+
+    <!-- V21.17: operator is now a single tab. All panels live in one grid. -->
+    <section id="tab-main" class="tab-panel active">
 
       <div id="remoteMainScreenPanel" class="panel glass-panel section-stack panel-full-width">
         <div class="section-head">
@@ -52,36 +57,43 @@
         <div id="remoteQuickLanguages" class="quick-language-row">
           <div class="muted">Waiting for event languages...</div>
         </div>
-        <div class="info-card soft-card compact-control-card">
-          <div class="meta-row">
-            <label for="remoteDisplayLanguageSelect">Display language (primary)</label>
-            <select id="remoteDisplayLanguageSelect"></select>
-          </div>
-          <div class="meta-row">
-            <label for="remoteDisplaySecondaryLanguageSelect">Second language (for dual)</label>
-            <select id="remoteDisplaySecondaryLanguageSelect">
-              <option value="">— None —</option>
-            </select>
-          </div>
-          <label class="inline-check"><input type="checkbox" id="remoteDualLanguageToggle"> Afișaj dual limbă</label>
-          <div class="muted">Arată două limbi simultan pe Main Screen când există cel puțin două limbi disponibile.</div>
-          <div class="meta-row">
-            <label>Text fitting</label>
-            <div class="button-row compact-row">
-              <button id="remoteTextZoomMinusBtn" class="btn btn-dark" type="button">A−</button>
-              <span id="remoteTextScaleValue" class="status-pill">100%</span>
-              <button id="remoteTextZoomPlusBtn" class="btn btn-dark" type="button">A+</button>
-              <button id="remoteTextZoomResetBtn" class="btn btn-dark" type="button">Reset</button>
-              <button id="remoteTextSizeMoreBtn" class="btn btn-dark" type="button">More ▾</button>
+        <!-- V21.17-FIX: language selectors + dual + text fitting collapsed by
+             default — the card surfaces only live actions until the operator
+             needs settings. The selectors themselves are unchanged (load-bearing
+             for display state). -->
+        <details class="remote-display-settings">
+          <summary>Setări afișaj</summary>
+          <div class="info-card soft-card compact-control-card">
+            <div class="meta-row">
+              <label for="remoteDisplayLanguageSelect">Display language (primary)</label>
+              <select id="remoteDisplayLanguageSelect"></select>
             </div>
-            <div id="remoteTextSizeMorePanel" class="button-row compact-row" hidden style="margin-top:8px;">
-              <button class="btn btn-dark remote-text-size-preset" data-text-size="compact" type="button">Compact</button>
-              <button class="btn btn-dark remote-text-size-preset" data-text-size="large" type="button">Large</button>
-              <button class="btn btn-dark remote-text-size-preset" data-text-size="xlarge" type="button">XL</button>
-              <button class="btn btn-dark remote-text-size-preset" data-text-size="huge" type="button">Huge</button>
+            <div class="meta-row">
+              <label for="remoteDisplaySecondaryLanguageSelect">Second language (for dual)</label>
+              <select id="remoteDisplaySecondaryLanguageSelect">
+                <option value="">— None —</option>
+              </select>
+            </div>
+            <label class="inline-check"><input type="checkbox" id="remoteDualLanguageToggle"> Afișaj dual limbă</label>
+            <div class="muted">Arată două limbi simultan pe Main Screen când există cel puțin două limbi disponibile.</div>
+            <div class="meta-row">
+              <label>Text fitting</label>
+              <div class="button-row compact-row">
+                <button id="remoteTextZoomMinusBtn" class="btn btn-dark" type="button">A−</button>
+                <span id="remoteTextScaleValue" class="status-pill">100%</span>
+                <button id="remoteTextZoomPlusBtn" class="btn btn-dark" type="button">A+</button>
+                <button id="remoteTextZoomResetBtn" class="btn btn-dark" type="button">Reset</button>
+                <button id="remoteTextSizeMoreBtn" class="btn btn-dark" type="button">More ▾</button>
+              </div>
+              <div id="remoteTextSizeMorePanel" class="button-row compact-row" hidden style="margin-top:8px;">
+                <button class="btn btn-dark remote-text-size-preset" data-text-size="compact" type="button">Compact</button>
+                <button class="btn btn-dark remote-text-size-preset" data-text-size="large" type="button">Large</button>
+                <button class="btn btn-dark remote-text-size-preset" data-text-size="xlarge" type="button">XL</button>
+                <button class="btn btn-dark remote-text-size-preset" data-text-size="huge" type="button">Huge</button>
+              </div>
             </div>
           </div>
-        </div>
+        </details>
       </div>
 
       <div class="panel glass-panel section-stack" data-remote-song-section>
@@ -117,26 +129,11 @@
         </div>
       </div>
 
-      <div class="panel glass-panel section-stack" data-remote-song-section>
-        <div class="section-head">
-          <h2>Cântări programate</h2>
-          <div class="muted" id="remoteEventSongsCount">0</div>
-        </div>
-        <div id="remoteEventSongsList" class="event-songs-list">
-          <p class="muted small">Niciun event selectat.</p>
-        </div>
-      </div>
-
-      <div id="remoteWorshipPanel" class="panel glass-panel section-stack" data-remote-song-section>
-        <div class="section-head">
-          <h2>Worship Live</h2>
-          <div id="remoteWorshipPresence" class="status-pill">Worship inactiv</div>
-        </div>
-        <div id="remoteWorshipStatus" class="muted">Echipa worship nu a pornit Live mode.</div>
-        <div id="remoteWorshipRequest" class="worship-sync-toast hidden"></div>
-      </div>
-
-      <!-- V21.16: Church Library moved above Song Editor (reorder per request). -->
+      <!-- V21.17-FIX: panel order in the 2-col grid (>=1024px):
+           Row 1: Song | Church Library
+           Row 2: Song Editor | Cântări programate
+           Row 3: Worship Live (full-width)
+           Collapsibles below stay full-width. -->
       <div class="panel glass-panel section-stack" data-remote-song-section>
         <div class="section-head">
           <h2>Church Library</h2>
@@ -188,6 +185,25 @@
           <button id="remoteBackToLiveTextBtn" class="btn btn-primary" type="button">Back to live text</button>
           <button id="remoteSongClearBtn" class="btn btn-dark" type="button">Clear editor</button>
         </div>
+      </div>
+
+      <div class="panel glass-panel section-stack" data-remote-song-section>
+        <div class="section-head">
+          <h2>Cântări programate</h2>
+          <div class="muted" id="remoteEventSongsCount">0</div>
+        </div>
+        <div id="remoteEventSongsList" class="event-songs-list">
+          <p class="muted small">Niciun event selectat.</p>
+        </div>
+      </div>
+
+      <div id="remoteWorshipPanel" class="panel glass-panel section-stack panel-full-width" data-remote-song-section>
+        <div class="section-head">
+          <h2>Worship Live</h2>
+          <div id="remoteWorshipPresence" class="status-pill">Worship inactiv</div>
+        </div>
+        <div id="remoteWorshipStatus" class="muted">Echipa worship nu a pornit Live mode.</div>
+        <div id="remoteWorshipRequest" class="worship-sync-toast hidden"></div>
       </div>
 
       <!-- V21.17: Pinned Text + Recent Sends collapsed by default (closed <details>). -->

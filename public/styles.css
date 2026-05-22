@@ -1179,8 +1179,65 @@ progress::-moz-progress-bar {
   }
 }
 
-/* V21.17: operator single-tab thin header bar — active event + worship
-   status pill + open-screen shortcuts. Full-width above the panel grid. */
+/* V21.17-FIX: hero card merges the old hero + thin header bar. The top row
+   lays out event name (left) against the action buttons cluster (right,
+   wraps on narrow screens). Badge row hosts the mode + language pills and
+   the worship status pill. The status line below stays small + muted so
+   the connect message doesn't compete with the live actions. */
+.remote-hero .remote-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.remote-hero .remote-hero-event {
+  min-width: 0;
+}
+.remote-hero .remote-hero-actions {
+  margin-left: auto;
+}
+.remote-hero .remote-hero-badges {
+  margin-top: 8px;
+}
+.remote-hero .remote-status-line {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.75;
+  min-height: 1em;
+}
+
+/* V21.17-FIX: collapsible settings inside Main Screen Control. Closed by
+   default — the card surfaces live actions; setări afișaj are one click away. */
+.remote-display-settings {
+  margin-top: 8px;
+}
+.remote-display-settings > summary {
+  cursor: pointer;
+  padding: 8px 0;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  list-style: none;
+  user-select: none;
+}
+.remote-display-settings > summary::-webkit-details-marker {
+  display: none;
+}
+.remote-display-settings > summary::before {
+  content: '▸ ';
+  display: inline-block;
+  margin-right: 2px;
+  transition: transform 0.15s ease;
+}
+.remote-display-settings[open] > summary::before {
+  content: '▾ ';
+}
+.remote-display-settings > summary:hover {
+  color: #fff;
+}
+
+/* V21.17: operator single-tab thin header bar — kept for the old header
+   styles that the merged hero now reuses (worship status pill, actions). */
 .remote-header-bar {
   display: flex;
   align-items: center;

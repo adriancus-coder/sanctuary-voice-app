@@ -1434,6 +1434,41 @@ $('remotePresetsList')?.addEventListener('click', async (e) => {
 
 $('remoteOpenMainPreviewBtn').addEventListener('click', openRemoteMainScreen);
 
+// V21.17-FIX: quick clipboard copy for the two worship links the operator hands
+// to leaders + team. Worship master = /worship (PIN gate); team permanent view
+// = /worship-view (V21.18 — own PIN gate, no token needed). Falls back to a
+// prompt-like alert if the Clipboard API is unavailable (insecure context).
+function copyWorshipLink(path, label, btn) {
+  const url = window.location.origin + path;
+  const flashOk = () => {
+    setStatus(`Link ${label} copiat: ${url}`);
+    if (btn) {
+      const original = btn.textContent;
+      btn.textContent = '✓ Copiat';
+      btn.disabled = true;
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.disabled = false;
+      }, 1500);
+    }
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(url).then(flashOk).catch(() => {
+      window.prompt(`Copiază manual linkul ${label}:`, url);
+    });
+  } else {
+    window.prompt(`Copiază manual linkul ${label}:`, url);
+  }
+}
+
+$('remoteCopyWorshipLink')?.addEventListener('click', (e) => {
+  copyWorshipLink('/worship', 'worship', e.currentTarget);
+});
+
+$('remoteCopyTeamLink')?.addEventListener('click', (e) => {
+  copyWorshipLink('/worship-view', 'team', e.currentTarget);
+});
+
 $('remoteOpenParticipantPreviewBtn').addEventListener('click', () => {
   const displayLang = getRemoteParticipantLanguage();
   const url = state.currentEvent?.id
