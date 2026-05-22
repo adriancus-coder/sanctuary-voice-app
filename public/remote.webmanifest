@@ -1,0 +1,19 @@
+{
+  "name": "Sanctuary Voice Operator",
+  "short_name": "Operator",
+  "description": "Operator console pentru ecranul principal — live, song, pinned, worship.",
+  "start_url": "/remote",
+  "scope": "/remote",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050608",
+  "theme_color": "#050608",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

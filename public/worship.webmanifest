@@ -1,0 +1,19 @@
+{
+  "name": "Sanctuary Voice Worship",
+  "short_name": "Worship",
+  "description": "Worship master — pregătire program și control live al cântărilor.",
+  "start_url": "/worship",
+  "scope": "/worship",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050608",
+  "theme_color": "#050608",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

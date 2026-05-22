@@ -1987,3 +1987,15 @@ window.addEventListener('beforeunload', () => {
     socket.emit('azure_audio_stop', { eventId: state.eventId });
   }
 });
+
+// V21.19: register the operator service worker for PWA installability.
+// Scope `/remote` keeps it isolated from push-sw.js (scope /, used by
+// /participant) and worship-sw.js (scope /worship). Shell-only cache —
+// live state arrives over Socket.IO and is never cached.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/remote-sw.js', { scope: '/remote' })
+      .catch((err) => console.warn('remote SW registration failed:', err && err.message));
+  });
+}

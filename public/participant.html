@@ -9,6 +9,12 @@
   <meta name="theme-color" content="#0A0A0A">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
   <link rel="apple-touch-icon" href="/icon.svg">
+  <!-- V21.19: complete the iOS install meta set so Add to Home Screen
+       opens the listener as a standalone app. push-sw.js already provides
+       the offline shell cache + push notifications. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sanctuary">
 </head>
 <body>
   <div class="participant-shell participant-shell-v3 participant-listener-stage">

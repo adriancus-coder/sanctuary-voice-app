@@ -1152,4 +1152,18 @@
   } else {
     init();
   }
+
+  // V21.19: register the worship master service worker for PWA installability.
+  // Scope `/worship` does NOT swallow `/worship-view` because that scope is
+  // more specific and is owned by worship-view-sw.js (V21.18) — the most
+  // specific matching scope wins. The fetch handler in worship-sw.js also
+  // restricts caching to its SHELL list, so even if scopes ever overlapped
+  // the worker would not intercept worship-view assets.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('/worship-sw.js', { scope: '/worship' })
+        .catch((err) => console.warn('worship SW registration failed:', err && err.message));
+    });
+  }
 })();
