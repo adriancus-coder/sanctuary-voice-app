@@ -4075,10 +4075,10 @@ document.addEventListener('keydown', (e) => {
     $('muteGlobalBtn')?.click();
   } else if (e.key === 'b' || e.key === 'B') {
     e.preventDefault();
-    $('heroBlackScreenBtn')?.click();
+    applyBlackScreen();
   } else if (e.key === 'r' || e.key === 'R') {
     e.preventDefault();
-    $('heroRestoreScreenBtn')?.click();
+    applyRestoreScreen();
   } else if (e.key === '?') {
     e.preventDefault();
     alert('Keyboard shortcuts:\n\nSpace — toggle Start / Stop live\nM — toggle Mute global\nB — black screen on\nR — restore last screen state\n? — this help');
@@ -4173,15 +4173,18 @@ $('heroActiveEventSelect')?.addEventListener('change', async (e) => {
   }
 });
 
-$('heroBlackScreenBtn')?.addEventListener('click', async () => {
+// V21.23: Black/Restore screen actions moved off the deleted Quick screens
+// hero card. Keeping the named helpers so the B/R keyboard shortcuts (below)
+// continue to work without the DOM proxies.
+async function applyBlackScreen() {
   if (!currentEvent?.id) return alert('Open an event first.');
   try { await fetch(`/api/events/${currentEvent.id}/display/blank`, adminJsonOptions('POST')); setStatus('Black screen on.'); } catch (err) { setStatus(err.message); }
-});
+}
 
-$('heroRestoreScreenBtn')?.addEventListener('click', async () => {
+async function applyRestoreScreen() {
   if (!currentEvent?.id) return alert('Open an event first.');
   try { await fetch(`/api/events/${currentEvent.id}/display/restore-last`, adminJsonOptions('POST')); setStatus('Screen restored.'); } catch (err) { setStatus(err.message); }
-});
+}
 
 // Hero topbar quick actions - proxy către butoanele din tab Dashboard.
 // Reutilizez handler-ele existente prin .click() ca să nu duplichez logica
@@ -4873,7 +4876,13 @@ async function logoutAdminSession() {
 }
 
 $('adminLogoutBtn')?.addEventListener('click', logoutAdminSession);
-$('openTranslateScreenBtn').addEventListener('click', () => { const url = $('translateLink').value || '/translate'; if (url) window.open(url, '_blank'); });
+// V21.23: dashboard open-in-new-tab buttons (Worship / Team / Participant / Screen).
+document.querySelectorAll('[data-open-page]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const url = btn.getAttribute('data-open-page');
+    if (url) window.open(url, '_blank');
+  });
+});
 $('eventList').addEventListener('change', (e) => {
   if (e.target.id === 'bulkSelectAllPast') {
     const now = Date.now();

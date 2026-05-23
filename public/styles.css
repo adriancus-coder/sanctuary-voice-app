@@ -1089,6 +1089,33 @@ progress::-moz-progress-bar {
   align-content: start;
 }
 
+/* V21.23: dashboard open-in-new-tab buttons row. */
+.dashboard-open-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+/* V21.23: worship + operators as compact informational sub-cards
+   side-by-side at the top of the dashboard. */
+.dashboard-info-subcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.dashboard-subcard {
+  padding: 12px 14px;
+}
+.dashboard-subcard h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.dashboard-subcard .section-head {
+  margin-bottom: 6px;
+}
+
 .hero-status-label,
 .label {
   color: var(--muted);
