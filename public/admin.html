@@ -24,88 +24,109 @@
   <div class="app-shell admin-redesign-shell admin-shell-top-tabs">
     <main class="main-content">
       <section class="topbar panel glass-panel hero-topbar hero-topbar-compact">
-        <div class="hero-copy-block">
-          <div class="eyebrow">Sanctuary Voice</div>
-          <h1>Dashboard</h1>
+        <!-- V21.25: Dashboard restructure.
+             Row 1 (header): Dashboard + Active event (left) | Public event + Recognition (right)
+             Row 2: 4 open-in-new-tab shortcuts
+             Row 3: Live Session (Start/Stop/End + Read from Bible) + status text
+             Row 4: <details> Detalii — Worship/Operatori sub-cards + Participant access + Participant audio
+             All IDs preserved verbatim from the prior structure; this is a pure
+             DOM reorganization. Handlers in app.js (heroStartRecognitionBtn,
+             heroEndServiceBtn, heroBibleModeBtn, heroActiveEventSelect,
+             heroParticipantLink, heroShowQrBtn, heroMuteGlobalBtn, heroPanicBtn,
+             applyBlackScreen/Restore via B/R keyboard) unchanged. -->
+        <div class="dashboard-header-row">
+          <div class="dashboard-header-left">
+            <div class="hero-copy-block">
+              <div class="eyebrow">Sanctuary Voice</div>
+              <h1>Dashboard</h1>
+            </div>
+            <div class="dashboard-header-active-event">
+              <span class="hero-status-label">Active event</span>
+              <select id="heroActiveEventSelect" class="hero-active-event-select"></select>
+            </div>
+          </div>
+          <div class="dashboard-header-right">
+            <div class="dashboard-status-pill-group">
+              <span class="hero-status-label">Public event</span>
+              <div id="activeEventBadge" class="status-pill">No live event</div>
+            </div>
+            <div class="dashboard-status-pill-group">
+              <span class="hero-status-label">Recognition</span>
+              <div id="onAirBadge" class="status-pill">Off-Air</div>
+            </div>
+          </div>
         </div>
-        <!-- V21.25: 4 open-in-new-tab shortcuts moved here from tab-dashboard
-             so they sit right under the Dashboard title, above the status
-             grid. Handler is generic ([data-open-page]) so it finds them
-             wherever they live. -->
+
         <div class="dashboard-open-buttons">
           <button class="btn btn-dark" type="button" data-open-page="/worship">Open Worship</button>
           <button class="btn btn-dark" type="button" data-open-page="/worship-view">Open Team</button>
           <button class="btn btn-dark" type="button" data-open-page="/participant">Open Participant</button>
           <button class="btn btn-dark" type="button" data-open-page="/translate">Open Screen</button>
         </div>
-        <div class="hero-status-grid">
-          <div class="hero-status-card">
-            <span class="hero-status-label">Public event</span>
-            <div id="activeEventBadge" class="status-pill">No live event</div>
+
+        <div class="dashboard-live-session">
+          <span class="hero-status-label">Live session</span>
+          <div class="button-row compact-row">
+            <button id="heroStartRecognitionBtn" class="btn btn-primary" type="button">▶ Start</button>
+            <button id="heroStopRecognitionBtn" class="btn btn-dark" type="button">⏸ Stop</button>
+            <button id="heroEndServiceBtn" class="btn btn-danger" type="button">⏹ End</button>
+            <button id="heroBibleModeBtn" class="btn btn-secondary" type="button">📖 Read from Bible</button>
           </div>
-          <div class="hero-status-card">
-            <span class="hero-status-label">Recognition</span>
-            <div id="onAirBadge" class="status-pill">Off-Air</div>
-          </div>
-          <div class="hero-status-card hero-active-event-card">
-            <span class="hero-status-label">Active event</span>
-            <select id="heroActiveEventSelect" class="hero-active-event-select"></select>
-          </div>
-          <div class="hero-status-card hero-participant-card">
-            <span class="hero-status-label">Participant access</span>
-            <div class="hero-participant-row">
-              <input id="heroParticipantLink" type="text" readonly placeholder="Participant link">
-              <button id="heroCopyParticipantBtn" class="btn btn-dark" type="button" title="Copy link">📋</button>
-              <button id="heroShowQrBtn" class="btn btn-dark" type="button">📱 Show QR</button>
-            </div>
-          </div>
+          <div id="heroBibleModeStatus" class="hero-quick-status muted small">Translation active</div>
         </div>
 
-        <div class="hero-quick-actions">
-          <div class="hero-quick-action-group">
-            <span class="hero-status-label">Live session</span>
-            <div class="button-row compact-row">
-              <button id="heroStartRecognitionBtn" class="btn btn-primary" type="button">▶ Start</button>
-              <button id="heroStopRecognitionBtn" class="btn btn-dark" type="button">⏸ Stop</button>
-              <button id="heroEndServiceBtn" class="btn btn-danger" type="button">⏹ End</button>
+        <details class="dashboard-details">
+          <summary>Detalii</summary>
+          <div class="dashboard-details-content">
+            <!-- Worship Live + Operatori online (moved from tab-dashboard, V21.21+V21.23) -->
+            <div class="dashboard-info-subcards">
+              <div id="adminWorshipPanel" class="panel glass-panel dashboard-subcard">
+                <div class="section-head">
+                  <h3>Worship Live</h3>
+                  <div id="adminWorshipPresence" class="status-pill">Worship inactiv</div>
+                </div>
+                <div id="adminWorshipStatus" class="muted small">Echipa worship nu a pornit Live mode.</div>
+                <div id="adminWorshipMembers" class="muted small">0 membri online.</div>
+                <div id="adminWorshipRequest" class="worship-sync-toast hidden"></div>
+              </div>
+              <div id="adminOperatorsPanel" class="panel glass-panel dashboard-subcard">
+                <div class="section-head">
+                  <h3>Operatori online <span id="adminOperatorsCount" class="muted small">(0)</span></h3>
+                  <div class="muted small">Nume + permisiuni (volatil)</div>
+                </div>
+                <div id="adminOperatorsList" class="muted small">Niciun operator conectat.</div>
+              </div>
+            </div>
+
+            <!-- Participant access (moved from hero-status-grid) -->
+            <div class="panel glass-panel dashboard-subcard">
+              <div class="section-head">
+                <h3>Participant access</h3>
+              </div>
+              <div class="hero-participant-row">
+                <input id="heroParticipantLink" type="text" readonly placeholder="Participant link">
+                <button id="heroCopyParticipantBtn" class="btn btn-dark" type="button" title="Copy link">📋</button>
+                <button id="heroShowQrBtn" class="btn btn-dark" type="button">📱 Show QR</button>
+              </div>
+            </div>
+
+            <!-- Participant audio (moved from hero-quick-actions — Mute/Panic) -->
+            <div class="panel glass-panel dashboard-subcard">
+              <div class="section-head">
+                <h3>Participant audio</h3>
+              </div>
+              <div class="button-row compact-row">
+                <button id="heroMuteGlobalBtn" class="btn btn-dark" type="button">🔇 Mute</button>
+                <button id="heroPanicBtn" class="btn btn-danger" type="button">🚨 Panic</button>
+              </div>
             </div>
           </div>
-          <div class="hero-quick-action-group hero-bible-group">
-            <button id="heroBibleModeBtn" class="btn btn-secondary hero-quick-btn" type="button">📖 Read from Bible</button>
-            <div id="heroBibleModeStatus" class="hero-quick-status">Translation active</div>
-          </div>
-          <div class="hero-quick-action-group">
-            <span class="hero-status-label">Participant audio</span>
-            <div class="button-row compact-row">
-              <button id="heroMuteGlobalBtn" class="btn btn-dark" type="button">🔇 Mute</button>
-              <button id="heroPanicBtn" class="btn btn-danger" type="button">🚨 Panic</button>
-            </div>
-          </div>
-        </div>
+        </details>
       </section>
 
       <section id="tab-dashboard" class="tab-panel">
-        <!-- V21.21 + V21.23: Worship Live + Operatori online as compact, side-by-side
-             informational sub-cards in the dashboard. Render IDs unchanged from V21.21. -->
-        <div class="dashboard-info-subcards">
-          <div id="adminWorshipPanel" class="panel glass-panel dashboard-subcard">
-            <div class="section-head">
-              <h3>Worship Live</h3>
-              <div id="adminWorshipPresence" class="status-pill">Worship inactiv</div>
-            </div>
-            <div id="adminWorshipStatus" class="muted small">Echipa worship nu a pornit Live mode.</div>
-            <div id="adminWorshipMembers" class="muted small">0 membri online.</div>
-            <div id="adminWorshipRequest" class="worship-sync-toast hidden"></div>
-          </div>
-
-          <div id="adminOperatorsPanel" class="panel glass-panel dashboard-subcard">
-            <div class="section-head">
-              <h3>Operatori online <span id="adminOperatorsCount" class="muted small">(0)</span></h3>
-              <div class="muted small">Nume + permisiuni (volatil)</div>
-            </div>
-            <div id="adminOperatorsList" class="muted small">Niciun operator conectat.</div>
-          </div>
-        </div>
+        <!-- V21.25: worship + operators sub-cards moved into the Detalii
+             dropdown in the Dashboard hero card above. -->
 
         <div class="metric-card panel glass-panel metrics-combined">
           <div class="metrics-combined-cell">
