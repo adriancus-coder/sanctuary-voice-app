@@ -38,6 +38,72 @@ function registerSocketHandlers(io, ctx) {
     buildWorshipStatePayload
   } = ctx;
 
+  // V21.21: in-memory operator presence (admin-only visibility). Volatile,
+  // like participantPresence — rebuilt on restart, not persisted. Keyed by
+  // eventId → Map(socketId → { name, profile, permissions, joinedAt }).
+  const operatorPresence = new Map();
+
+  function getOperatorPresence(eventId) {
+    if (!operatorPresence.has(eventId)) operatorPresence.set(eventId, new Map());
+    return operatorPresence.get(eventId);
+  }
+
+  function buildOperatorsPresencePayload(eventId) {
+    const presence = getOperatorPresence(eventId);
+    const operators = Array.from(presence.values()).map((op) => ({
+      name: op.name,
+      profile: op.profile,
+      permissions: Array.isArray(op.permissions) ? op.permissions.slice() : []
+    }));
+    return { eventId, operators };
+  }
+
+  function emitOperatorsPresence(eventId) {
+    if (!eventId) return;
+    io.to(`event:${eventId}:admins`).emit('operators:presence', buildOperatorsPresencePayload(eventId));
+  }
+
+  // V21.21: worship-view membership = token viewers joined to
+  // `worship:${eventId}` with socket.data.worshipViewEventId set, plus
+  // permanent-link viewers in the global `worship-view:permanent` room
+  // attributed to whichever event is currently active for worship.
+  function countWorshipMembers(eventId) {
+    let tokenCount = 0;
+    let permanentCount = 0;
+    const sockets = io.sockets.sockets;
+    sockets.forEach((s) => {
+      if (s.data && s.data.worshipViewEventId === eventId) tokenCount += 1;
+    });
+    const activeEvent = typeof getActiveWorshipEventForView === 'function'
+      ? getActiveWorshipEventForView()
+      : null;
+    if (activeEvent && activeEvent.id === eventId) {
+      sockets.forEach((s) => {
+        if (s.data && s.data.worshipViewPermanent) permanentCount += 1;
+      });
+    }
+    return {
+      eventId,
+      total: tokenCount + permanentCount,
+      permanent: permanentCount,
+      token: tokenCount
+    };
+  }
+
+  function emitWorshipMembersCount(eventId) {
+    if (!eventId) return;
+    io.to(`worship:${eventId}`).emit('worship:members_count', countWorshipMembers(eventId));
+  }
+
+  // Permanent viewers follow whichever event is live — when membership
+  // changes we always recount the active event (if any).
+  function emitActiveWorshipMembersCount() {
+    const activeEvent = typeof getActiveWorshipEventForView === 'function'
+      ? getActiveWorshipEventForView()
+      : null;
+    if (activeEvent) emitWorshipMembersCount(activeEvent.id);
+  }
+
   const RATE_LIMITS = {
     join_event:              { windowMs: 60 * 1000, max: 30 },
     participant_language:    { windowMs: 60 * 1000, max: 60 },
@@ -167,6 +233,8 @@ function registerSocketHandlers(io, ctx) {
       }
       socket.join(`worship:${eventId}`);
       socket.data.worshipViewEventId = eventId;
+      // V21.21: a new token viewer joined — refresh the member count.
+      emitWorshipMembersCount(eventId);
     });
 
     // V21.18: permanent-link worship view — read-only viewers authenticated by
@@ -192,6 +260,9 @@ function registerSocketHandlers(io, ctx) {
       } else {
         socket.emit('worship:view:offline');
       }
+      // V21.21: permanent viewers are attributed to the active worship
+      // event — recount for that event.
+      emitActiveWorshipMembersCount();
     });
 
     // V21.3: worship master socket — presence (offline detection) + receiving
@@ -281,6 +352,26 @@ function registerSocketHandlers(io, ctx) {
         recordOperatorJoin(event, socket.data.role);
         saveDb();
         emitParticipantStats(eventId);
+      }
+      // V21.21: track screen operators (named, scoped operators) in volatile
+      // presence so admins can see who's connected. Admins are NOT tracked
+      // here — only `screen` role, which carries an `access.operator`.
+      if (socket.data.role === 'screen' && access.operator) {
+        const presence = getOperatorPresence(eventId);
+        presence.set(socket.id, {
+          name: access.operator.name || 'Operator',
+          profile: access.operator.profile || 'main_screen',
+          permissions: Array.isArray(access.permissions) ? access.permissions.slice() : [],
+          joinedAt: Date.now()
+        });
+        socket.data.operatorPresenceEventId = eventId;
+        emitOperatorsPresence(eventId);
+      }
+      // V21.21: an admin opening an event should receive an immediate
+      // snapshot of current operators + worship members for that event.
+      if (socket.data.role === 'admin') {
+        socket.emit('operators:presence', buildOperatorsPresencePayload(eventId));
+        socket.emit('worship:members_count', countWorshipMembers(eventId));
       }
 
       socket.emit('joined_event', {
@@ -470,6 +561,26 @@ function registerSocketHandlers(io, ctx) {
 
     socket.on('disconnect', () => {
       closeAzureSpeechSession(socket.id);
+      // V21.21: drop this socket from operator presence + worship member
+      // tracking and broadcast fresh counts. Happens BEFORE the worship
+      // master grace handler so admins see operator leaves immediately.
+      const opEventId = socket.data && socket.data.operatorPresenceEventId;
+      if (opEventId) {
+        const presence = getOperatorPresence(opEventId);
+        if (presence.delete(socket.id)) emitOperatorsPresence(opEventId);
+        if (presence.size === 0) operatorPresence.delete(opEventId);
+      }
+      // Clear the flags first — the disconnecting socket is still in
+      // io.sockets.sockets when the disconnect handler runs, so the
+      // recount must not see itself.
+      const wvTokenEventId = socket.data && socket.data.worshipViewEventId;
+      const wasPermanent = !!(socket.data && socket.data.worshipViewPermanent);
+      if (socket.data) {
+        socket.data.worshipViewEventId = '';
+        socket.data.worshipViewPermanent = false;
+      }
+      if (wvTokenEventId) emitWorshipMembersCount(wvTokenEventId);
+      if (wasPermanent) emitActiveWorshipMembersCount();
       // V21.20: if this socket was the tracked worship master, start a short
       // grace timer instead of waiting ~60s for the heartbeat watcher. On
       // expiry, only mark offline + broadcast if the master hasn't reclaimed

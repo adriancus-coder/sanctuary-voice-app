@@ -83,6 +83,28 @@
       </section>
 
       <section id="tab-dashboard" class="tab-panel">
+        <!-- V21.21: Worship Live panel — mirrors the operator's panel so the
+             admin sees worship presence + current song/verse + pending sync
+             request without bouncing to /remote. -->
+        <div id="adminWorshipPanel" class="panel glass-panel section-stack">
+          <div class="section-head">
+            <h2>Worship Live</h2>
+            <div id="adminWorshipPresence" class="status-pill">Worship inactiv</div>
+          </div>
+          <div id="adminWorshipStatus" class="muted">Echipa worship nu a pornit Live mode.</div>
+          <div id="adminWorshipMembers" class="muted small">0 membri online.</div>
+          <div id="adminWorshipRequest" class="worship-sync-toast hidden"></div>
+        </div>
+
+        <!-- V21.21: Operatori online — admin-only presence (in-memory). -->
+        <div id="adminOperatorsPanel" class="panel glass-panel section-stack">
+          <div class="section-head">
+            <h2>Operatori online <span id="adminOperatorsCount" class="muted small">(0)</span></h2>
+            <div class="muted small">Nume + permisiuni (volatil)</div>
+          </div>
+          <div id="adminOperatorsList" class="muted small">Niciun operator conectat.</div>
+        </div>
+
         <div class="metric-card panel glass-panel metrics-combined">
           <div class="metrics-combined-cell">
             <div class="metric-label">Participants</div>

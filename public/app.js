@@ -1688,7 +1688,80 @@ function renderSongState(songState) {
 // V21.11: admin worship-position tracking. Admin had no worship
 // state_change listener before this — added below. Match worship to
 // the projector song by title.
-const adminWorship = { online: false, songTitle: '', verseIndex: 0 };
+// V21.21: extended with hasState + request so the Worship Live panel
+// on admin can mirror what the operator already shows.
+const adminWorship = { online: false, hasState: false, songTitle: '', verseIndex: 0, request: null };
+const adminWorshipMembers = { total: 0, permanent: 0, token: 0 };
+const adminOperatorsPresence = []; // [{name, profile, permissions, joinedAt}]
+
+function renderAdminWorshipPanel() {
+  const presenceEl = $('adminWorshipPresence');
+  const statusEl = $('adminWorshipStatus');
+  const membersEl = $('adminWorshipMembers');
+  const reqEl = $('adminWorshipRequest');
+  if (!presenceEl || !statusEl || !reqEl) return;
+  const w = adminWorship;
+  presenceEl.textContent = w.online ? 'Worship online' : 'Worship offline';
+  presenceEl.classList.toggle('active', !!w.online);
+  if (w.hasState && w.songTitle) {
+    statusEl.textContent = `Worship: ${w.songTitle} · strofa ${(w.verseIndex || 0) + 1}`;
+  } else {
+    statusEl.textContent = 'Echipa worship nu a trimis nicio cântare încă.';
+  }
+  if (membersEl) {
+    const m = adminWorshipMembers;
+    if (m.total > 0) {
+      const parts = [];
+      if (m.permanent > 0) parts.push(`${m.permanent} permanent`);
+      if (m.token > 0) parts.push(`${m.token} QR`);
+      membersEl.textContent = parts.length
+        ? `${m.total} membri online (${parts.join(' · ')}).`
+        : `${m.total} membri online.`;
+    } else {
+      membersEl.textContent = '0 membri online.';
+    }
+  }
+  if (w.request) {
+    reqEl.classList.remove('hidden');
+    reqEl.innerHTML = `
+      <div class="worship-sync-toast-text">🎵 Worship cere sync proiector: <b>${escapeHtml(w.request.songTitle || 'cântare')}</b> · strofa ${(w.request.verseIndex || 0) + 1}</div>
+      <div class="worship-sync-toast-hint small muted">Vei sincroniza manual pe proiector după.</div>
+      <div class="worship-sync-toast-actions">
+        <button class="btn btn-primary" type="button" data-admin-worship-req="note">Am notat</button>
+        <button class="btn btn-dark" type="button" data-admin-worship-req="decline">Refuz</button>
+      </div>`;
+  } else {
+    reqEl.classList.add('hidden');
+    reqEl.innerHTML = '';
+  }
+}
+
+function renderAdminOperatorsPanel() {
+  const countEl = $('adminOperatorsCount');
+  const listEl = $('adminOperatorsList');
+  if (!countEl || !listEl) return;
+  const list = adminOperatorsPresence;
+  countEl.textContent = `(${list.length})`;
+  if (!list.length) {
+    listEl.textContent = 'Niciun operator conectat.';
+    return;
+  }
+  const profileLabel = (profile) => {
+    switch (profile) {
+      case 'main_screen': return 'Main Screen';
+      case 'song_only':   return 'Song';
+      case 'main_and_song': return 'Main + Song';
+      case 'full':        return 'Full';
+      default:            return profile || '—';
+    }
+  };
+  listEl.innerHTML = list.map((op) => `
+    <div class="info-card soft-card" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;margin-top:4px;">
+      <span>${escapeHtml(op.name || 'Operator')}</span>
+      <span class="small muted">${escapeHtml(profileLabel(op.profile))}</span>
+    </div>
+  `).join('');
+}
 function getAdminWorshipBlockInfo(songState) {
   if (!adminWorship.online || !adminWorship.songTitle) return { mode: 'none' };
   const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -1704,12 +1777,15 @@ function rerenderAdminSongBlocksForWorship() {
 socket.on('worship:state_change', (data) => {
   if (!data || !currentEvent || data.eventId !== currentEvent.id) return;
   adminWorship.online = true;
+  adminWorship.hasState = true;
   adminWorship.songTitle = data.song ? (data.song.title || '') : '';
   adminWorship.verseIndex = data.state ? (data.state.currentVerseIndex || 0) : 0;
   rerenderAdminSongBlocksForWorship();
   // V21.16: the per-row "Push worship" buttons are gated by worship
   // presence — re-render so they enable/disable in lockstep.
   renderAdminEventSongLibrary();
+  // V21.21: keep the dedicated Worship Live panel in sync.
+  renderAdminWorshipPanel();
 });
 socket.on('worship:master_presence', (data) => {
   if (!data || !currentEvent || data.eventId !== currentEvent.id) return;
@@ -1717,6 +1793,8 @@ socket.on('worship:master_presence', (data) => {
   rerenderAdminSongBlocksForWorship();
   // V21.16: re-render so "Push worship" buttons follow worship presence.
   renderAdminEventSongLibrary();
+  // V21.21: keep the dedicated Worship Live panel in sync.
+  renderAdminWorshipPanel();
 });
 
 function renderGlobalSongLibrary(items = []) {
@@ -3363,6 +3441,19 @@ async function saveEditedVerse(updateLibrary) {
 socket.on('joined_event', ({ event, role }) => {
   if (role !== 'admin') return;
   currentEvent = event;
+  // V21.21: reset worship/operators view when an event is opened; fresh
+  // state will arrive via the dedicated socket events.
+  adminWorship.online = false;
+  adminWorship.hasState = false;
+  adminWorship.songTitle = '';
+  adminWorship.verseIndex = 0;
+  adminWorship.request = null;
+  adminWorshipMembers.total = 0;
+  adminWorshipMembers.permanent = 0;
+  adminWorshipMembers.token = 0;
+  adminOperatorsPresence.length = 0;
+  renderAdminWorshipPanel();
+  renderAdminOperatorsPanel();
   if ($('songSourceLang')) $('songSourceLang').value = currentEvent.songState?.sourceLang || currentEvent.sourceLang || 'ro';
   if ($('manualSourceLang')) $('manualSourceLang').value = currentEvent.displayState?.manualSourceLang || currentEvent.sourceLang || 'ro';
   $('speed').value = event.speed || 'balanced';
@@ -3666,6 +3757,9 @@ socket.on('worship:sync_request_pending', (data) => {
     verseIndex: data.request.targetVerseIndex || 0
   };
   showAdminWorshipGlobalToast(adminPendingWorshipRequest);
+  // V21.21: surface the pending request inside the dedicated panel too.
+  adminWorship.request = adminPendingWorshipRequest;
+  renderAdminWorshipPanel();
   setStatus('Worship cere sync proiector — vezi toast.');
 });
 socket.on('worship:sync_request_resolved', (data) => {
@@ -3674,6 +3768,9 @@ socket.on('worship:sync_request_resolved', (data) => {
     adminPendingWorshipRequest = null;
     hideAdminWorshipGlobalToast();
     clearAdminSongTabBadge();
+    // V21.21: clear the panel's inline request too.
+    adminWorship.request = null;
+    renderAdminWorshipPanel();
   }
   // V21.16: an admin -> worship push we sent got accepted/declined by the
   // worship master — surface the result (mirrors operator V21.8).
@@ -3701,6 +3798,35 @@ $('worshipGlobalToast')?.addEventListener('click', (e) => {
   resolveAdminWorshipRequest(action, reqId, songTitle);
 });
 $('adminSongTabBtn')?.addEventListener('click', () => clearAdminSongTabBadge());
+
+// V21.21: inline panel buttons mirror the global toast actions.
+$('adminWorshipRequest')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-admin-worship-req]');
+  if (!btn || !adminPendingWorshipRequest) return;
+  const action = btn.getAttribute('data-admin-worship-req');
+  resolveAdminWorshipRequest(action, adminPendingWorshipRequest.id, adminPendingWorshipRequest.songTitle);
+});
+
+// V21.21: backend pushes membership counts for the active worship room.
+socket.on('worship:members_count', (data) => {
+  if (!data) return;
+  if (!currentEvent || data.eventId !== currentEvent.id) return;
+  adminWorshipMembers.total = Number(data.total) || 0;
+  adminWorshipMembers.permanent = Number(data.permanent) || 0;
+  adminWorshipMembers.token = Number(data.token) || 0;
+  renderAdminWorshipPanel();
+});
+
+// V21.21: backend pushes operator presence (admins only).
+socket.on('operators:presence', (data) => {
+  if (!data) return;
+  if (!currentEvent || data.eventId !== currentEvent.id) return;
+  adminOperatorsPresence.length = 0;
+  if (Array.isArray(data.operators)) {
+    for (const op of data.operators) adminOperatorsPresence.push(op);
+  }
+  renderAdminOperatorsPanel();
+});
 
 relocateMainScreenControls();
 // Listener-e pentru AMBELE tab navigation: sidebar (.nav-btn legacy) + top horizontal (.top-nav-btn)
