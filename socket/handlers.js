@@ -55,6 +55,24 @@ function registerSocketHandlers(io, ctx) {
     'worship:master:heartbeat': { windowMs: 60 * 1000, max: 12 }
   };
 
+  // V21.20: anti-flicker grace before declaring a worship master offline on
+  // socket disconnect. Browsers drop sockets on micro-net-hiccups and tab
+  // switches on mobile; without a grace, we'd flap the badge. 5s is short
+  // enough to feel "instant" but long enough to survive a brief reconnect.
+  // The 60s WORSHIP_OFFLINE_MS heartbeat watcher remains as final fallback.
+  const WORSHIP_DISCONNECT_GRACE_MS = Math.max(1000, Number(process.env.WORSHIP_DISCONNECT_GRACE_MS) || 5000);
+  const worshipDisconnectTimers = new Map();
+
+  function clearWorshipDisconnectTimer(eventId, sid) {
+    if (!eventId || !sid) return;
+    const key = `${eventId}:${sid}`;
+    const t = worshipDisconnectTimers.get(key);
+    if (t) {
+      clearTimeout(t);
+      worshipDisconnectTimers.delete(key);
+    }
+  }
+
   function checkSocketRateLimit(socket, eventName) {
     const limit = RATE_LIMITS[eventName];
     if (!limit) return true;
@@ -196,6 +214,9 @@ function registerSocketHandlers(io, ctx) {
       event.worshipState.masterSessionId = session.sid || null;
       event.worshipState.masterLastSeen = Date.now();
       event.worshipState.offlineMode = false;
+      // V21.20: a fresh master:join after a brief disconnect must cancel any
+      // pending offline-grace timer so the badge doesn't flap.
+      clearWorshipDisconnectTimer(eventId, session.sid || null);
       saveDb();
       io.to(`worship:${eventId}`).emit('worship:master_presence', { eventId, online: true });
     });
@@ -449,6 +470,31 @@ function registerSocketHandlers(io, ctx) {
 
     socket.on('disconnect', () => {
       closeAzureSpeechSession(socket.id);
+      // V21.20: if this socket was the tracked worship master, start a short
+      // grace timer instead of waiting ~60s for the heartbeat watcher. On
+      // expiry, only mark offline + broadcast if the master hasn't reclaimed
+      // its slot (sid still matches). Uses the SAME channel as online.
+      const wEventId = socket.data.worshipMasterEventId;
+      const wSid = socket.data.worshipMasterSid;
+      if (wEventId && wSid) {
+        const event = db.events[wEventId];
+        if (event && event.worshipState && event.worshipState.masterSessionId === wSid) {
+          clearWorshipDisconnectTimer(wEventId, wSid);
+          const key = `${wEventId}:${wSid}`;
+          const timer = setTimeout(() => {
+            worshipDisconnectTimers.delete(key);
+            const ev = db.events[wEventId];
+            const ws = ev && ev.worshipState;
+            if (!ws || ws.masterSessionId !== wSid) return;
+            ws.offlineMode = true;
+            ws.masterSessionId = null;
+            saveDb();
+            io.to(`worship:${wEventId}`).emit('worship:master_presence', { eventId: wEventId, online: false });
+            logger.info(`[worship/offline] master disconnect grace expired event=${wEventId}`);
+          }, WORSHIP_DISCONNECT_GRACE_MS);
+          worshipDisconnectTimers.set(key, timer);
+        }
+      }
       cleanupSocketPresence(socket);
     });
   });

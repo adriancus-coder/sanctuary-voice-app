@@ -5301,6 +5301,20 @@ app.post('/api/auth/worship/logout', (req, res) => {
       event.worshipViewTokens = event.worshipViewTokens.filter((t) => t && t.masterSessionId !== session.sid);
       if (event.worshipViewTokens.length !== before) dirty = true;
     });
+    // V21.20: instant offline propagation on ordered logout. The 60s heartbeat
+    // watcher (WORSHIP_OFFLINE_MS) is too slow; emit on the SAME channel as the
+    // online path (`worship:master_presence` in the `worship:${eventId}` room)
+    // so operators/admins (already listeners — app.js / remote.js) flip to
+    // offline immediately.
+    Object.values(db.events || {}).forEach((event) => {
+      const ws = event && event.worshipState;
+      if (!ws || ws.masterSessionId !== session.sid) return;
+      ws.offlineMode = true;
+      ws.masterSessionId = null;
+      dirty = true;
+      io.to(`worship:${event.id}`).emit('worship:master_presence', { eventId: event.id, online: false });
+      logger.info(`[worship/offline] master logout event=${event.id}`);
+    });
     if (dirty) saveDb();
   }
   clearWorshipSessionCookie(req, res);
