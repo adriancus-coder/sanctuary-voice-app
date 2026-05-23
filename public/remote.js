@@ -1252,6 +1252,16 @@ socket.on('service_ended', (payload) => {
 });
 
 $('remoteLiveBtn').addEventListener('click', async () => {
+  // V21.26: parity with admin (app.js setDisplayModeWithConfirmation) —
+  // putting Live Text on Main Screen is unusual; warn before doing it.
+  // Same text, same condition (mode === 'auto' / Live follow). Song and
+  // pinned-text modes are NOT gated (mirrors admin behavior).
+  const confirmed = window.confirm(
+    'Live Text on Main Screen is unusual.\n\n' +
+    'Main Screen is typically for Song display.\n\n' +
+    'Are you sure you want to show Live Text on the projector?'
+  );
+  if (!confirmed) return;
   try { await post(`/api/events/${state.eventId}/display/mode`, { mode: 'auto' }); setStatus('Main screen set to live follow.'); } catch (err) { setStatus(err.message); }
 });
 $('remoteStartLiveAudioBtn')?.addEventListener('click', () => startRemoteLiveAudio());
