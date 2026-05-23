@@ -367,13 +367,6 @@ function registerSocketHandlers(io, ctx) {
         socket.data.operatorPresenceEventId = eventId;
         emitOperatorsPresence(eventId);
       }
-      // V21.21: an admin opening an event should receive an immediate
-      // snapshot of current operators + worship members for that event.
-      if (socket.data.role === 'admin') {
-        socket.emit('operators:presence', buildOperatorsPresencePayload(eventId));
-        socket.emit('worship:members_count', countWorshipMembers(eventId));
-      }
-
       socket.emit('joined_event', {
         ok: true,
         role: socket.data.role,
@@ -388,6 +381,17 @@ function registerSocketHandlers(io, ctx) {
         languageEndonyms: LANGUAGE_ENDONYMS,
         organization: buildPublicOrganization(getOrganizationForEvent(event))
       });
+
+      // V21.21-FIX: snapshots must be emitted AFTER joined_event. The admin
+      // client's joined_event handler resets adminOperatorsPresence and
+      // adminWorshipMembers to a clean slate before re-rendering; when the
+      // snapshots arrived first they were promptly wiped, so the admin saw
+      // 'Niciun operator conectat' even with operators connected. Tracking,
+      // broadcast, listener — all worked; only the order was wrong.
+      if (socket.data.role === 'admin') {
+        socket.emit('operators:presence', buildOperatorsPresencePayload(eventId));
+        socket.emit('worship:members_count', countWorshipMembers(eventId));
+      }
     });
 
     on(socket, 'participant_language', (payload) => {
