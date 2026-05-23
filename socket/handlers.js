@@ -353,19 +353,31 @@ function registerSocketHandlers(io, ctx) {
         saveDb();
         emitParticipantStats(eventId);
       }
-      // V21.21: track screen operators (named, scoped operators) in volatile
-      // presence so admins can see who's connected. Admins are NOT tracked
-      // here — only `screen` role, which carries an `access.operator`.
-      if (socket.data.role === 'screen' && access.operator) {
+      // V21.21: track screen operators in volatile presence so admins can
+      // see who's connected. Admins are NOT tracked here — only `screen`
+      // role (admins join with socket.data.role === 'admin').
+      //
+      // V21.21-FIX2: dropped the `&& access.operator` guard. resolveEventAccess-
+      // FromCode populates `operator` for the named/main-operator/master-mod
+      // paths, but the user reported that MAIN_OPERATOR_PIN logins weren't
+      // tracked while named operators were — i.e. some live path was reaching
+      // here with role='screen' but operator=null (e.g. admin code supplied
+      // via /remote yields access.role='admin' + operator=null while
+      // socket.data.role stays 'screen'). Now we track every screen-role
+      // socket and build a fallback identity from whatever access carries.
+      if (socket.data.role === 'screen') {
+        const op = access.operator;
+        const fallbackName = access.role === 'admin' ? 'Administrator' : 'Operator principal';
         const presence = getOperatorPresence(eventId);
         presence.set(socket.id, {
-          name: access.operator.name || 'Operator',
-          profile: access.operator.profile || 'main_screen',
+          name: (op && op.name) || fallbackName,
+          profile: (op && op.profile) || 'full',
           permissions: Array.isArray(access.permissions) ? access.permissions.slice() : [],
           joinedAt: Date.now()
         });
         socket.data.operatorPresenceEventId = eventId;
         emitOperatorsPresence(eventId);
+        logger.info(`[operator/presence] join event=${eventId} socket=${socket.id} accessRole=${access.role} opId=${op && op.id || '-'} name="${(op && op.name) || fallbackName}"`);
       }
       socket.emit('joined_event', {
         ok: true,
