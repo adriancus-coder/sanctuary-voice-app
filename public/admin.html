@@ -28,6 +28,16 @@
           <div class="eyebrow">Sanctuary Voice</div>
           <h1>Dashboard</h1>
         </div>
+        <!-- V21.25: 4 open-in-new-tab shortcuts moved here from tab-dashboard
+             so they sit right under the Dashboard title, above the status
+             grid. Handler is generic ([data-open-page]) so it finds them
+             wherever they live. -->
+        <div class="dashboard-open-buttons">
+          <button class="btn btn-dark" type="button" data-open-page="/worship">Open Worship</button>
+          <button class="btn btn-dark" type="button" data-open-page="/worship-view">Open Team</button>
+          <button class="btn btn-dark" type="button" data-open-page="/participant">Open Participant</button>
+          <button class="btn btn-dark" type="button" data-open-page="/translate">Open Screen</button>
+        </div>
         <div class="hero-status-grid">
           <div class="hero-status-card">
             <span class="hero-status-label">Public event</span>
@@ -75,14 +85,6 @@
       </section>
 
       <section id="tab-dashboard" class="tab-panel">
-        <!-- V21.23: open-in-new-tab shortcuts for the four key screens. -->
-        <div class="dashboard-open-buttons">
-          <button class="btn btn-dark" type="button" data-open-page="/worship">Open Worship</button>
-          <button class="btn btn-dark" type="button" data-open-page="/worship-view">Open Team</button>
-          <button class="btn btn-dark" type="button" data-open-page="/participant">Open Participant</button>
-          <button class="btn btn-dark" type="button" data-open-page="/translate">Open Screen</button>
-        </div>
-
         <!-- V21.21 + V21.23: Worship Live + Operatori online as compact, side-by-side
              informational sub-cards in the dashboard. Render IDs unchanged from V21.21. -->
         <div class="dashboard-info-subcards">

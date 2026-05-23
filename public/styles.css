@@ -1089,12 +1089,15 @@ progress::-moz-progress-bar {
   align-content: start;
 }
 
-/* V21.23: dashboard open-in-new-tab buttons row. */
+/* V21.23 + V21.25: dashboard open-in-new-tab buttons row. Lives inside the
+   hero topbar card right under the "Dashboard" title (above the status
+   grid). margin-top adds a small gap below the title; margin-bottom keeps
+   it visually separate from the hero-status-grid below. */
 .dashboard-open-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 14px;
+  margin: 8px 0 14px;
 }
 
 /* V21.23: worship + operators as compact informational sub-cards
