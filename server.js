@@ -804,9 +804,20 @@ function defaultSongState() {
 function defaultDisplayState() {
   return {
     mode: 'auto',
-    blackScreen: false,
+    // V21.27: Main Screen starts black on a fresh event so the projector
+    // doesn't show 'Waiting for translation...' placeholder text before
+    // anything is live. POST /api/events/:id/display/mode (any mode pick
+    // — Live/Song/Manual) auto-clears blackScreen=false (events.js:1115),
+    // so the first admin/operator action lights up the screen. Refresh
+    // preserves whatever blackScreen ended up at, because
+    // ensureEventUiState only initializes displayState when missing.
+    blackScreen: true,
     theme: 'dark',
-    language: 'no',
+    // V21.27: default display language is Romanian. ensureEventUiState
+    // validates this against the event's targetLangs and falls back to
+    // the first valid choice when 'ro' isn't available — so this only
+    // takes effect when the event actually exposes Romanian on screen.
+    language: 'ro',
     secondaryLanguage: '',
     backgroundPreset: 'none',
     customBackground: '',
@@ -2606,7 +2617,11 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     pushSubscriptions: [],
     songState: defaultSongState(),
     latestDisplayEntry: null,
-    displayState: { ...defaultDisplayState(), language: (targetLangs?.length ? targetLangs[0] : 'no') },
+    // V21.27: prefer 'ro' as display language when it's actually in the
+    // event's targetLangs; otherwise fall back to the first targetLang
+    // (or 'ro' as last resort — ensureEventUiState then normalizes if
+    // needed). blackScreen=true comes from defaultDisplayState().
+    displayState: { ...defaultDisplayState(), language: (targetLangs?.includes('ro') ? 'ro' : (targetLangs?.[0] || 'ro')) },
     displayStatePrevious: null,
     songLibrary: defaultSongLibrary(),
     songHistory: defaultSongHistory(),
