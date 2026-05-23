@@ -79,6 +79,13 @@
     showAppShell();
     currentSong = songObj || null;
     currentVerseIndex = state && Number.isInteger(state.currentVerseIndex) ? state.currentVerseIndex : 0;
+    // V21.22: worship master can blank the members' screen at song end with
+    // the right-arrow → END button. Reuse the existing waiting screen so
+    // members see consistent UX between "not live yet" and "paused".
+    if (state && state.ended === true) {
+      showWaiting('Pauză worship. Așteaptă următoarea cântare.');
+      return;
+    }
     render();
   }
 

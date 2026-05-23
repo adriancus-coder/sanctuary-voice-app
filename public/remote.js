@@ -11,7 +11,7 @@ const state = {
   access: null,
   globalSongLibrary: [],
   pinnedTextLibrary: [],
-  worship: { online: false, hasState: false, songTitle: '', verseIndex: 0, request: null },
+  worship: { online: false, hasState: false, songTitle: '', verseIndex: 0, ended: false, request: null },
   glossaryOpen: false,
   liveAudio: {
     running: false,
@@ -796,7 +796,10 @@ function renderRemoteWorshipPanel() {
   if (headerDot) headerDot.classList.toggle('online', !!w.online);
   if (headerText) {
     if (w.online && w.hasState && w.songTitle) {
-      headerText.textContent = `Worship live · ${w.songTitle}`;
+      // V21.22: surface END in the thin header pill too.
+      headerText.textContent = w.ended
+        ? `Worship · ${w.songTitle} · END`
+        : `Worship live · ${w.songTitle}`;
     } else {
       headerText.textContent = w.online ? 'Worship live' : 'Worship offline';
     }
@@ -808,7 +811,12 @@ function renderRemoteWorshipPanel() {
   presenceEl.textContent = w.online ? 'Worship online' : 'Worship offline';
   presenceEl.classList.toggle('active', w.online);
   if (w.hasState && w.songTitle) {
-    statusEl.textContent = `Worship: ${w.songTitle} · strofa ${w.verseIndex + 1}`;
+    if (w.ended) {
+      // V21.22: worship master blanked the members' screen.
+      statusEl.textContent = `Worship: ${w.songTitle} · END (ecran golit pentru membri)`;
+    } else {
+      statusEl.textContent = `Worship: ${w.songTitle} · strofa ${w.verseIndex + 1}`;
+    }
   } else {
     statusEl.textContent = 'Echipa worship nu a trimis nicio cântare încă.';
   }
@@ -1023,6 +1031,7 @@ socket.on('worship:state_change', (data) => {
   state.worship.online = true;
   state.worship.songTitle = data.song ? (data.song.title || '') : '';
   state.worship.verseIndex = data.state ? (data.state.currentVerseIndex || 0) : 0;
+  state.worship.ended = !!(data.state && data.state.ended);
   renderRemoteWorshipPanel();
   // V21.8: push-button gating depends on worship online — re-render.
   renderRemoteEventSongLibrary();

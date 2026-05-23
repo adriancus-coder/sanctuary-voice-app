@@ -1690,7 +1690,7 @@ function renderSongState(songState) {
 // the projector song by title.
 // V21.21: extended with hasState + request so the Worship Live panel
 // on admin can mirror what the operator already shows.
-const adminWorship = { online: false, hasState: false, songTitle: '', verseIndex: 0, request: null };
+const adminWorship = { online: false, hasState: false, songTitle: '', verseIndex: 0, ended: false, request: null };
 const adminWorshipMembers = { total: 0, permanent: 0, token: 0 };
 const adminOperatorsPresence = []; // [{name, profile, permissions, joinedAt}]
 
@@ -1704,7 +1704,12 @@ function renderAdminWorshipPanel() {
   presenceEl.textContent = w.online ? 'Worship online' : 'Worship offline';
   presenceEl.classList.toggle('active', !!w.online);
   if (w.hasState && w.songTitle) {
-    statusEl.textContent = `Worship: ${w.songTitle} · strofa ${(w.verseIndex || 0) + 1}`;
+    if (w.ended) {
+      // V21.22: worship master ended the song — members see waiting screen.
+      statusEl.textContent = `Worship: ${w.songTitle} · END (ecran golit pentru membri)`;
+    } else {
+      statusEl.textContent = `Worship: ${w.songTitle} · strofa ${(w.verseIndex || 0) + 1}`;
+    }
   } else {
     statusEl.textContent = 'Echipa worship nu a trimis nicio cântare încă.';
   }
@@ -1780,6 +1785,7 @@ socket.on('worship:state_change', (data) => {
   adminWorship.hasState = true;
   adminWorship.songTitle = data.song ? (data.song.title || '') : '';
   adminWorship.verseIndex = data.state ? (data.state.currentVerseIndex || 0) : 0;
+  adminWorship.ended = !!(data.state && data.state.ended);
   rerenderAdminSongBlocksForWorship();
   // V21.16: the per-row "Push worship" buttons are gated by worship
   // presence — re-render so they enable/disable in lockstep.
@@ -3447,6 +3453,7 @@ socket.on('joined_event', ({ event, role }) => {
   adminWorship.hasState = false;
   adminWorship.songTitle = '';
   adminWorship.verseIndex = 0;
+  adminWorship.ended = false;
   adminWorship.request = null;
   adminWorshipMembers.total = 0;
   adminWorshipMembers.permanent = 0;

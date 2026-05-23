@@ -6443,6 +6443,19 @@ button[disabled]:active {
   cursor: pointer;
 }
 .live-nav-btn:active { background: rgba(255, 255, 255, 0.16); }
+.live-nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* V21.22: right-arrow morphs into a red-tinted END button on the last verse. */
+.live-nav-btn.live-end-btn {
+  width: auto;
+  padding: 0 18px;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  background: rgba(229, 57, 53, 0.22);
+  border-color: rgba(229, 57, 53, 0.55);
+  color: #ff8a80;
+  font-weight: 700;
+}
+.live-nav-btn.live-end-btn:active { background: rgba(229, 57, 53, 0.35); }
 .live-verse-position {
   font-size: 16px;
   font-weight: 700;

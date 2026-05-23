@@ -5234,6 +5234,10 @@ function ensureWorshipState(event) {
     event.worshipState = {
       currentSongId: null,
       currentVerseIndex: 0,
+      // V21.22: master can blank the members' screen at song end. ended=true
+      // keeps song/verse for the reverse path but tells worship-view to show
+      // its waiting screen.
+      ended: false,
       lastUpdatedAt: Date.now(),
       lastUpdatedBy: null,
       masterSessionId: null,
@@ -5241,6 +5245,7 @@ function ensureWorshipState(event) {
       offlineMode: false
     };
   }
+  if (typeof event.worshipState.ended !== 'boolean') event.worshipState.ended = false;
   if (!Array.isArray(event.worshipViewTokens)) event.worshipViewTokens = [];
   if (!Array.isArray(event.worshipSyncRequests)) event.worshipSyncRequests = [];
   return event;
@@ -5261,6 +5266,9 @@ function buildWorshipStatePayload(event) {
     state: {
       currentSongId: ws.currentSongId,
       currentVerseIndex: ws.currentVerseIndex,
+      // V21.22: surface the ended flag so worship-view can switch to its
+      // waiting screen without dropping the song/verse context.
+      ended: !!ws.ended,
       lastUpdatedBy: ws.lastUpdatedBy
     },
     song
@@ -5554,12 +5562,17 @@ app.post('/api/worship/events/:id/verse', (req, res) => {
     }
     const songId = req.body?.songId == null ? null : String(req.body.songId).trim() || null;
     const verseIndex = Number(req.body?.verseIndex);
+    // V21.22: optional `ended` flag — when true, blanks members' screen but
+    // keeps song/verse so the master can step back from END with the left
+    // arrow.
+    const wantEnded = req.body?.ended === true;
     if (!Number.isInteger(verseIndex) || verseIndex < 0) {
       return res.status(400).json({ ok: false, error: 'Invalid verseIndex' });
     }
     ensureWorshipState(event);
     event.worshipState.currentSongId = songId;
     event.worshipState.currentVerseIndex = verseIndex;
+    event.worshipState.ended = wantEnded;
     event.worshipState.lastUpdatedAt = Date.now();
     event.worshipState.lastUpdatedBy = 'worship';
     event.worshipState.masterSessionId = session.sid || null;
@@ -5574,7 +5587,8 @@ app.post('/api/worship/events/:id/verse', (req, res) => {
       ok: true,
       worshipState: {
         currentSongId: event.worshipState.currentSongId,
-        currentVerseIndex: event.worshipState.currentVerseIndex
+        currentVerseIndex: event.worshipState.currentVerseIndex,
+        ended: event.worshipState.ended
       }
     });
   } catch (err) {
@@ -5784,6 +5798,8 @@ app.post('/api/worship/events/:id/sync-response', (req, res) => {
     if (accept) {
       event.worshipState.currentSongId = request.targetSongId;
       event.worshipState.currentVerseIndex = Number.isInteger(request.targetVerseIndex) ? request.targetVerseIndex : 0;
+      // V21.22: accepting an operator push implies leaving END state.
+      event.worshipState.ended = false;
       event.worshipState.lastUpdatedAt = Date.now();
       event.worshipState.lastUpdatedBy = 'operator';
       event.worshipState.masterSessionId = session.sid || event.worshipState.masterSessionId;

@@ -16,6 +16,9 @@
   let liveMode = 'setlist';
   let liveCurrentSongId = null;
   let liveCurrentVerseIndex = 0;
+  // V21.22: when true, the members' screen is blanked (waiting); song/verse
+  // are preserved so the master can step back with the left arrow.
+  let liveEnded = false;
   // V21.13: lyrics font size (master). Inline px overrides the CSS —
   // no persistence, resets to default on reload. V21.13-FIX: shared by
   // the A−/A+ buttons AND pinch-to-zoom.
@@ -568,6 +571,9 @@
     if (ws && ws.currentSongId && songs.some((s) => s.id === ws.currentSongId)) {
       liveCurrentSongId = ws.currentSongId;
       liveCurrentVerseIndex = Number.isInteger(ws.currentVerseIndex) ? ws.currentVerseIndex : 0;
+      // V21.22: pick up the ended flag so a refresh keeps the master's UI
+      // in END state if that's where the session was.
+      liveEnded = !!ws.ended;
     }
     select.value = liveCurrentSongId || '';
     renderLiveMode();
@@ -597,14 +603,22 @@
     }
     const idx = Math.max(0, Math.min(liveCurrentVerseIndex, verses.length - 1));
     liveCurrentVerseIndex = idx;
-    labelEl.textContent = 'Strofa ' + (idx + 1);
-    textEl.textContent = verses[idx];
-    posEl.textContent = (idx + 1) + ' / ' + verses.length;
+    // V21.22: when in END state, show a clear "paused" view while keeping
+    // the verse list highlighted so the master can step back.
+    if (liveEnded) {
+      labelEl.textContent = 'END';
+      textEl.textContent = 'Ecran golit pentru membri.';
+      posEl.textContent = 'END · ' + verses.length + ' / ' + verses.length;
+    } else {
+      labelEl.textContent = 'Strofa ' + (idx + 1);
+      textEl.textContent = verses[idx];
+      posEl.textContent = (idx + 1) + ' / ' + verses.length;
+    }
     // V21.4-FIX: mini-cards with full verse preview so the master sees
     // upcoming text at a glance. Horizontal scroll; current item auto-scrolls
     // into view after render.
     listEl.innerHTML = verses.map((v, i) =>
-      '<button type="button" class="verse-mini-item' + (i === idx ? ' current' : '') +
+      '<button type="button" class="verse-mini-item' + (i === idx && !liveEnded ? ' current' : '') +
       '" data-verse-index="' + i + '">' +
         '<div class="verse-mini-label">Strofa ' + (i + 1) + '</div>' +
         '<div class="verse-mini-text">' + escapeHtml(v) + '</div>' +
@@ -614,32 +628,50 @@
     if (currentEl && typeof currentEl.scrollIntoView === 'function') {
       currentEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
+    // V21.22: next-button label morphs:
+    //   normal verse  → '→'
+    //   last verse    → 'END'  (next press blanks members)
+    //   ended         → '→'    (disabled — only ← exits END)
+    const nextBtn = $('liveVerseNext');
+    if (nextBtn) {
+      const isLast = idx === verses.length - 1;
+      nextBtn.classList.toggle('live-end-btn', !liveEnded && isLast);
+      nextBtn.disabled = liveEnded;
+      nextBtn.textContent = liveEnded ? '→' : (isLast ? 'END' : '→');
+      nextBtn.setAttribute('aria-label',
+        liveEnded ? 'Sfârșit' : (isLast ? 'Termină cântarea' : 'Verset următor'));
+    }
   }
 
   function resetLiveForEvent() {
     liveCurrentSongId = null;
     liveCurrentVerseIndex = 0;
+    liveEnded = false;
     refreshLiveMode();
     joinMasterRoom();
   }
 
-  async function setLiveVerse(index) {
+  async function setLiveVerse(index, opts) {
     const song = getLiveSong();
     if (!song || !currentEvent) return;
     const verses = parseVerses(song.text);
     if (!verses.length) return;
     const clamped = Math.max(0, Math.min(index, verses.length - 1));
+    const ended = !!(opts && opts.ended);
     liveCurrentVerseIndex = clamped;
+    liveEnded = ended;
     renderLiveMode();
     try {
       const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) + '/verse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ songId: song.id, verseIndex: clamped })
+        body: JSON.stringify({ songId: song.id, verseIndex: clamped, ended })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         setStatus($('liveStatus'), data.error || 'Sincronizare eșuată.', 'err');
+      } else if (ended) {
+        setStatus($('liveStatus'), 'Sincronizat · ecran golit pentru membri', 'ok');
       } else {
         setStatus($('liveStatus'), 'Sincronizat · strofa ' + (clamped + 1), 'ok');
       }
@@ -648,9 +680,43 @@
     }
   }
 
+  // V21.22: arrow / swipe navigation that knows about END state.
+  //   prev from END  → back to last verse (same index, ended=false)
+  //   next on last   → enter END (same index, ended=true)
+  //   prev / next while in END are otherwise ignored
+  function liveNext() {
+    if (liveEnded) return;
+    const song = getLiveSong();
+    if (!song) return;
+    const verses = parseVerses(song.text);
+    if (!verses.length) return;
+    if (liveCurrentVerseIndex >= verses.length - 1) {
+      setLiveVerse(verses.length - 1, { ended: true });
+    } else {
+      setLiveVerse(liveCurrentVerseIndex + 1);
+    }
+  }
+
+  function livePrev() {
+    if (liveEnded) {
+      const song = getLiveSong();
+      const verses = song ? parseVerses(song.text) : [];
+      if (!verses.length) {
+        liveEnded = false;
+        renderLiveMode();
+        return;
+      }
+      setLiveVerse(verses.length - 1);
+    } else {
+      setLiveVerse(liveCurrentVerseIndex - 1);
+    }
+  }
+
   function changeLiveSong(songId) {
     liveCurrentSongId = songId || null;
     liveCurrentVerseIndex = 0;
+    // V21.22: switching songs always exits END.
+    liveEnded = false;
     if (liveCurrentSongId) {
       setLiveVerse(0);
     } else {
@@ -679,7 +745,8 @@
       startX = null;
       startY = null;
       if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
-      setLiveVerse(dx < 0 ? liveCurrentVerseIndex + 1 : liveCurrentVerseIndex - 1);
+      // V21.22: swipe uses the same END-aware helpers as the buttons.
+      if (dx < 0) liveNext(); else livePrev();
     }, { passive: true });
   }
 
@@ -881,6 +948,8 @@
         liveCurrentSongId = data.worshipState.currentSongId || null;
         liveCurrentVerseIndex = Number.isInteger(data.worshipState.currentVerseIndex)
           ? data.worshipState.currentVerseIndex : 0;
+        // V21.22: accepting a push exits END (server already cleared it).
+        liveEnded = false;
         refreshLiveMode();
         setStatus($('liveStatus'), 'Cântare primită de la operator · strofa ' + (liveCurrentVerseIndex + 1), 'ok');
       }
@@ -1059,8 +1128,10 @@
       b.addEventListener('click', () => toggleMode(b.dataset.worshipMode));
     });
     $('liveSongSelect').addEventListener('change', (e) => changeLiveSong(e.target.value));
-    $('liveVersePrev').addEventListener('click', () => setLiveVerse(liveCurrentVerseIndex - 1));
-    $('liveVerseNext').addEventListener('click', () => setLiveVerse(liveCurrentVerseIndex + 1));
+    // V21.22: navigation goes through liveNext/livePrev so END semantics
+    // (right-arrow → END on last verse; left-arrow exits END) are honored.
+    $('liveVersePrev').addEventListener('click', livePrev);
+    $('liveVerseNext').addEventListener('click', liveNext);
     $('liveVerseList').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-verse-index]');
       if (btn) setLiveVerse(parseInt(btn.dataset.verseIndex, 10));
