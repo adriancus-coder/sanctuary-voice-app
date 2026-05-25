@@ -285,8 +285,15 @@ function fitDisplayTextElement(box, container, options = {}) {
   // cap. These multipliers were applied to starting size in shrink-to-fit;
   // preserve them in grow-to-fit by scaling the upper search bound. Without this
   // the compact/large/xlarge/huge buttons + scale slider would become no-ops.
+  // V21.28: callers that want textScale applied as a DIRECT multiplier on the
+  // fitted size (like clock-scale on styles.css:3837) pass ignoreManualScale=true
+  // and multiply box.style.fontSize themselves after the fit returns. Folding
+  // textScale into the cap was a no-op for the single-language projector because
+  // short verses settle below the cap — the cap was never the binding constraint.
   const sizeModeMult = ({ compact: 0.78, large: 1.0, xlarge: 1.18, huge: 1.4 })[state.textSize || 'large'] ?? 1.0;
-  const manualScale = Math.min(1.3, Math.max(0.65, Number(state.textScale || 1)));
+  const manualScale = options.ignoreManualScale
+    ? 1
+    : Math.min(1.3, Math.max(0.65, Number(state.textScale || 1)));
   const baseCap = Math.min(options.maxSize ?? 220, 220);   // V11.7: absolute cap 220px
   const effectiveCap = Math.round(baseCap * sizeModeMult * manualScale);
   const minSize = 18;
@@ -418,7 +425,17 @@ function autoFitText() {
   const clock = $('displayClock');
   const labelHeight = label && !label.hidden ? label.getBoundingClientRect().height + 18 : 0;
   const clockReserve = clock && clock.style.display !== 'none' ? Math.max(clock.getBoundingClientRect().height + 20, 48) : 0;
-  fitDisplayTextElement(box, wrap, { reserveHeight: labelHeight + clockReserve, dense: false, maxSize: 130 });
+  // V21.28: textScale on the single-language projector must be a DIRECT
+  // multiplier on the fitted size, not a cap. Same model as clock-scale on
+  // styles.css:3837. Fit first at natural fill (ignoreManualScale=true so the
+  // cap reflects only the textSize preset), then multiply. Zoom-in (>1) can
+  // overflow the card — that's the explicit operator choice, mirroring how
+  // dual --dual-text-scale > 1 also overflows. We do NOT re-fit, because
+  // re-fitting would cancel the scale.
+  const scale = Math.min(1.4, Math.max(0.65, Number(state.textScale || 1)));
+  fitDisplayTextElement(box, wrap, { reserveHeight: labelHeight + clockReserve, dense: false, maxSize: 130, ignoreManualScale: true });
+  const fitted = parseFloat(box.style.fontSize);
+  if (fitted) box.style.fontSize = (fitted * scale) + 'px';
 }
 
 function renderDisplay() {
