@@ -425,17 +425,25 @@ function autoFitText() {
   const clock = $('displayClock');
   const labelHeight = label && !label.hidden ? label.getBoundingClientRect().height + 18 : 0;
   const clockReserve = clock && clock.style.display !== 'none' ? Math.max(clock.getBoundingClientRect().height + 20, 48) : 0;
-  // V21.28: textScale on the single-language projector must be a DIRECT
-  // multiplier on the fitted size, not a cap. Same model as clock-scale on
-  // styles.css:3837. Fit first at natural fill (ignoreManualScale=true so the
-  // cap reflects only the textSize preset), then multiply. Zoom-in (>1) can
-  // overflow the card — that's the explicit operator choice, mirroring how
-  // dual --dual-text-scale > 1 also overflows. We do NOT re-fit, because
-  // re-fitting would cancel the scale.
+  // V21.29: zoom single — split on direction so + stays contained inside
+  // the usable card while − is always visibly smaller.
+  //   SHRINK (<1): fit at natural fill (ignoreManualScale=true so the cap
+  //   reflects only the textSize preset) then multiply post-fit. The result
+  //   is always strictly smaller than the natural fit → never clips.
+  //   GROW (>=1): keep textScale in the cap (V11.7 behavior preserved in
+  //   fitDisplayTextElement). The binary search stops at the largest size
+  //   that fits both dimensions, so + grows ONLY into the slack a short
+  //   verse leaves on the card and never spills past the usable edge.
+  //   We do NOT multiply post-fit on grow — that would push text past the
+  //   binary search's overflow stopping condition (the V21.28 clipping bug).
   const scale = Math.min(1.4, Math.max(0.65, Number(state.textScale || 1)));
-  fitDisplayTextElement(box, wrap, { reserveHeight: labelHeight + clockReserve, dense: false, maxSize: 130, ignoreManualScale: true });
-  const fitted = parseFloat(box.style.fontSize);
-  if (fitted) box.style.fontSize = (fitted * scale) + 'px';
+  if (scale < 1) {
+    fitDisplayTextElement(box, wrap, { reserveHeight: labelHeight + clockReserve, dense: false, maxSize: 130, ignoreManualScale: true });
+    const fitted = parseFloat(box.style.fontSize);
+    if (fitted) box.style.fontSize = (fitted * scale) + 'px';
+  } else {
+    fitDisplayTextElement(box, wrap, { reserveHeight: labelHeight + clockReserve, dense: false, maxSize: 130 });
+  }
 }
 
 function renderDisplay() {
