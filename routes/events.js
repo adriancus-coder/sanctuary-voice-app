@@ -1079,8 +1079,16 @@ function registerEventRoutes(app, ctx) {
     event.lastTranscriptNorm = '';
     ensureEventUiState(event);
     event.latestDisplayEntry = null;
-    event.displayState.mode = 'auto';
-    event.displayState.blackScreen = false;
+    // V21.33: Clear = negru și rămâne (server-side, global admin + operator).
+    // Anterior setam mode='auto' + blackScreen=false → proiectorul intra în
+    // live-follow și afișa instant display_live_entry. Admin masca cu un
+    // blankMainScreen() pe client; operatorul NU avea petic → bug în slujbă.
+    // Acum facem corect server-side: rămâne pe 'song' (păstrăm modul
+    // semantic — utilizatorul tocmai era pe Song) și forțăm blackScreen=true.
+    // rememberDisplayState (V11.x) e apelat la începutul handlerului → Restore
+    // pe admin readuce starea anterioară Clear-ului, neatinsă.
+    event.displayState.mode = 'song';
+    event.displayState.blackScreen = true;
     event.displayState.sceneLabel = '';
     event.displayState.updatedAt = new Date().toISOString();
     saveDb();
