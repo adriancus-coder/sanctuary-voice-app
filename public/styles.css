@@ -7177,3 +7177,20 @@ body.live-fullscreen-active .glass-panel {
   margin: 8px 0;
   flex-wrap: wrap;
 }
+
+/* V21.30: F11 hint replacing the Fullscreen API button on /translate.
+   Sits inside #displayChrome, so the existing
+   @media (display-mode: fullscreen) rule (styles.css:3945) hides it
+   automatically when the projector enters fullscreen. */
+.fullscreen-hint {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  color: var(--muted);
+}
+.fullscreen-hint kbd {
+  padding: 2px 7px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 0.85em;
+}

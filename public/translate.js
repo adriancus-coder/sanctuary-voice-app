@@ -483,16 +483,12 @@ function scheduleDisplayRender(delay = 70) {
   }, delay);
 }
 
-async function enterFullscreen() {
-  try {
-    if (document.fullscreenElement) {
-      await document.exitFullscreen();
-      return;
-    }
-    await document.documentElement.requestFullscreen();
-    await enableMainScreenWakeLock();
-  } catch (_) {}
-}
+// V21.30: enterFullscreen() and its button listener removed. The Fullscreen
+// API drops out when the projector tab loses focus (Chrome policy), which
+// happens routinely on the same-laptop setup when admin clicks Clear in the
+// admin window. F11 = browser-level fullscreen, immune to tab-blur. The
+// fullscreenchange handler below stays as a defensive no-op; wake-lock is
+// still triggered via visibilitychange + load (not fullscreen).
 
 async function resolveEventId() {
   if (state.fixedEventId) return state.fixedEventId;
@@ -697,7 +693,8 @@ socket.on('transcripts_cleared', ({ eventId }) => {
 });
 
 $('translateLanguage')?.addEventListener('change', handleLanguageChange);
-$('fullscreenBtn')?.addEventListener('click', enterFullscreen);
+// V21.30: fullscreenBtn removed from translate.html; F11 (browser fullscreen)
+// is the supported path now. Listener removed alongside enterFullscreen().
 window.addEventListener('resize', autoFitText);
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible') {

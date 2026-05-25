@@ -11,7 +11,11 @@
     <section class="participant-header panel glass-panel participant-hero-v2 unified-display-top" id="displayChrome">
       <div class="participant-controls unified-display-controls unified-display-controls-single">
         <div class="button-row compact-row participant-audio-actions">
-          <button id="fullscreenBtn" class="btn btn-primary" type="button">Full screen</button>
+          <!-- V21.30: Fullscreen API drops out of fullscreen when the projector
+               tab loses focus (e.g. admin Clear). F11 = browser-level fullscreen,
+               unaffected by tab-blur. Hint disappears in display-mode:fullscreen
+               via styles.css:3945, which already hides #displayChrome. -->
+          <span id="fullscreenHint" class="fullscreen-hint">Apasă <kbd>F11</kbd> pentru tot ecranul</span>
         </div>
       </div>
       <div class="eyebrow" hidden>Sanctuary Voice Main Screen</div>
