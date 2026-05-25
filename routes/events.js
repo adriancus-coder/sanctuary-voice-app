@@ -1666,7 +1666,12 @@ function registerEventRoutes(app, ctx) {
   app.delete('/api/events/:id/song-library/:songId', (req, res) => {
     const event = db.events[req.params.id];
     if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
-    if (!requireEventAdmin(req, res, event)) return;
+    // V21.34: open to operator (screen role with 'song' permission). Was
+    // admin-only — but operators already create/load/send/push songs on this
+    // list, so removing one is the natural complement. Mirrors the auth pair
+    // used by every other song-library mutation in this file.
+    if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+    if (!requireEventPermission(req, res, 'song')) return;
 
     ensureEventUiState(event);
     event.songLibrary = event.songLibrary.filter((item) => item.id !== req.params.songId);

@@ -780,6 +780,9 @@ function renderRemoteEventSongLibrary() {
         <button class="btn btn-primary btn-sm" type="button"
                 data-remote-push-worship="${escapeHtml(item.id)}"
                 ${worshipOnline ? '' : 'disabled title="Worship offline"'}>📢 Push</button>
+        <!-- V21.34: mirror admin's per-event Delete (server-side gating
+             relaxed to screen+'song') -->
+        <button class="btn btn-danger btn-sm" type="button" data-event-song-delete="${escapeHtml(item.id)}">Delete</button>
       </div>
       <div class="event-song-preview hidden" data-event-song-preview-text="${escapeHtml(item.id)}"><pre>${escapeHtml(item.text || '')}</pre></div>
     </div>
@@ -928,6 +931,18 @@ async function post(path, payload = {}) {
     state.currentEvent.songState = data.songState;
   }
   refreshRemoteUi();
+  return data;
+}
+
+// V21.34: minimal DELETE helper, paralel cu post(). Folosește același
+// eventCodeOptions (codul operatorului ajunge tot în body sub `code`,
+// pe care server-ul îl citește prin requireEventRole). Throws on !data.ok,
+// la fel ca post(). Re-randarea listei după DELETE NU se face aici —
+// vine prin socket event:songlibrary_changed (V21.6, remote.js:1022).
+async function del(path) {
+  const res = await fetch(path, eventCodeOptions('DELETE'));
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Request failed.');
   return data;
 }
 
@@ -1130,6 +1145,22 @@ $('remoteEventSongsList')?.addEventListener('click', async (e) => {
   if (sendBtn) {
     const item = (state.currentEvent?.songLibrary || []).find((s) => s.id === sendBtn.getAttribute('data-event-song-send'));
     if (item) remoteLoadScheduledSong(item, false);
+    return;
+  }
+  // V21.34: Delete — server emits event:songlibrary_changed which the
+  // socket listener at line 1022 catches and re-renders the list, so we
+  // don't call renderRemoteEventSongLibrary() here.
+  const delBtn = e.target.closest('[data-event-song-delete]');
+  if (delBtn) {
+    const id = delBtn.getAttribute('data-event-song-delete');
+    if (!id || !state.eventId) return;
+    if (!confirm('Delete this song from the event?')) return;
+    try {
+      await del(`/api/events/${state.eventId}/song-library/${encodeURIComponent(id)}`);
+      setStatus('Removed from event.');
+    } catch (err) {
+      setStatus(err.message || 'Could not delete.');
+    }
     return;
   }
   const btn = e.target.closest('[data-remote-push-worship]');
