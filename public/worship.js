@@ -1098,7 +1098,11 @@
       setTimeout(() => { try { e.target.select(); } catch (_) {} }, 0);
     });
     $('globalSongLibrarySearch').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); doImportOrSearch(); }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        doImportOrSearch();
+        setTimeout(() => { try { e.target.select(); } catch (_) {} }, 0);  // V21.40: select query after search
+      }
     });
 
     // V21.5: per-card picker — click on an event option adds the song.

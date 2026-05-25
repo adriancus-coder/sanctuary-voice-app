@@ -2021,6 +2021,7 @@ $('remoteSongLibrarySearch')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     $('remoteImportUrlBtn')?.click();
+    setTimeout(() => { try { e.target.select(); } catch (_) {} }, 0);  // V21.40: select query after search
   }
 });
 

@@ -4578,6 +4578,10 @@ $('globalSongLibrarySearch')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     $('importUrlBtn')?.click();
+    // V21.40: after the Enter-triggered search, select the query so the next
+    // keystroke replaces it. focus listener (V21.39) doesn't re-fire when the
+    // field is already focused; this is the same idea, keyed off Enter instead.
+    setTimeout(() => { try { e.target.select(); } catch (_) {} }, 0);
   }
 });
 
