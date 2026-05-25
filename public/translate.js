@@ -215,12 +215,12 @@ function getTextToDisplay(language = state.currentLanguage) {
     const sourceLang = state.songState?.sourceLang || state.currentEvent?.sourceLang || 'ro';
     if (language === sourceLang) {
       return state.songState.activeBlock
-        || 'Waiting for song text...';
+        || '…';
     }
     // BUGFIX V3: NU folosim activeBlock ca fallback (text original)
     // pentru a evita afișarea textului românesc pe Main Screen când e altă limbă selectată
     return state.songState.translations?.[language]
-      || 'Waiting for song translation...';
+      || '…';
   }
   if (state.currentDisplayMode === 'manual') {
     if (language === (state.manualSourceLang || state.currentEvent?.sourceLang || 'ro')) {
@@ -231,9 +231,9 @@ function getTextToDisplay(language = state.currentLanguage) {
   if (state.latestLiveEntry) {
     return state.latestLiveEntry.translations?.[language]
       || state.latestLiveEntry.original
-      || 'Waiting for translation...';
+      || '…';
   }
-  return 'Waiting for translation...';
+  return '…';
 }
 
 function updateMeta() {
