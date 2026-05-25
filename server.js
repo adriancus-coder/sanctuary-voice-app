@@ -821,9 +821,14 @@ function defaultDisplayState() {
     secondaryLanguage: '',
     backgroundPreset: 'none',
     customBackground: '',
-    showClock: false,
+    // V21.36: new events start with the clock visible at max server-allowed
+    // size (server clamp 0.7-1.8 in routes/events.js:1297). Existing events
+    // are unaffected — ensureEventUiState only fills clockScale when missing
+    // (legacy default 2, still inside its 0.7-2.5 clamp), and existing
+    // displayStates persist whatever values were already saved.
+    showClock: true,
     clockPosition: 'bottom-right',
-    clockScale: 2,
+    clockScale: 1.8,
     textSize: 'large',
     textScale: 1,
     screenStyle: 'focus',
