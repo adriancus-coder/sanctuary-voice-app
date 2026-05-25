@@ -85,7 +85,7 @@ Most server emits target the broad `event:<id>` room and the client filters by l
 
 ### Frontend layout (vanilla JS)
 
-`public/` is plain ES modules / scripts loaded by HTML pages — `app.js`, `participant.js`, `remote.js`, `song.js`, `translate.js`, `operator-dashboard.js`. There is no bundler. Service worker for push lives at `public/push-sw.js`; PWA manifest at `public/manifest.webmanifest`. `landing.html` is the public marketing page served at `/` and `/home`.
+`public/` is plain ES modules / scripts loaded by HTML pages — `app.js`, `participant.js`, `remote.js`, `translate.js`, `operator-dashboard.js`. There is no bundler. Service worker for push lives at `public/push-sw.js`; PWA manifest at `public/manifest.webmanifest`. `landing.html` is the public marketing page served at `/` and `/home`.
 
 ## Things that bite
 
