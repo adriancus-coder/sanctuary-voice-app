@@ -1692,6 +1692,11 @@ $('remoteSongLibrarySearch')?.addEventListener('input', () => {
   // Resurse results are stale once the query changes — hide until re-run.
   document.querySelector('.unified-search-resurse-section')?.classList.add('hidden');
 });
+// V21.39: select-all on focus so re-tap replaces the previous query in one keypress.
+// setTimeout(0) sidesteps mouseup-deselect when the focus arrived via click.
+$('remoteSongLibrarySearch')?.addEventListener('focus', (e) => {
+  setTimeout(() => { try { e.target.select(); } catch (_) {} }, 0);
+});
 $('remoteSongLibrarySort')?.addEventListener('change', renderRemoteSongLibrary);
 $('remoteManualLibrarySearch')?.addEventListener('input', renderRemotePinnedTextLibrary);
 $('remoteManualLibrarySort')?.addEventListener('change', renderRemotePinnedTextLibrary);
@@ -1715,6 +1720,9 @@ $('remoteSongLibraryList')?.addEventListener('click', async (e) => {
   if (action === 'load') {
     fillRemoteSongEditor(item);
     setStatus('Loaded from church library into the editor.');
+    // V21.39: clear the search field after a successful action so the next
+    // search starts fresh (admin already does this via clearLibrarySearch).
+    const sEl = $('remoteSongLibrarySearch'); if (sEl) { sEl.value = ''; renderRemoteSongLibrary(); }
     return;
   }
   if (action === 'send') {
@@ -1727,6 +1735,8 @@ $('remoteSongLibraryList')?.addEventListener('click', async (e) => {
       });
       btn.closest('.library-card-details')?.removeAttribute('open');
       setStatus('Song loaded from church library — first verse is live.');
+      // V21.39: clear search after success (mirror admin clearLibrarySearch).
+      const sEl = $('remoteSongLibrarySearch'); if (sEl) { sEl.value = ''; renderRemoteSongLibrary(); }
     } catch (err) {
       setStatus(err.message);
     }
@@ -1742,6 +1752,8 @@ $('remoteSongLibraryList')?.addEventListener('click', async (e) => {
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Could not add song to event.');
       setStatus(`Added "${item.title || 'song'}" to this event's song library.`);
+      // V21.39: clear search after success (mirror admin clearLibrarySearch).
+      const sEl = $('remoteSongLibrarySearch'); if (sEl) { sEl.value = ''; renderRemoteSongLibrary(); }
     } catch (err) {
       setStatus(err.message);
     }

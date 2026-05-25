@@ -4378,6 +4378,11 @@ $('globalSongLibrarySearch').addEventListener('input', () => {
   // Resurse results are stale once the query changes — hide until re-run.
   document.querySelector('.unified-search-resurse-section')?.classList.add('hidden');
 });
+// V21.39: select-all on focus so re-tap replaces the previous query in one keypress.
+// setTimeout(0) sidesteps mouseup-deselect when the focus arrived via click.
+$('globalSongLibrarySearch')?.addEventListener('focus', (e) => {
+  setTimeout(() => { try { e.target.select(); } catch (_) {} }, 0);
+});
 $('globalSongLibrarySort').addEventListener('change', () => renderGlobalSongLibrary(currentGlobalSongLibrary));
 $('manualLibrarySearch').addEventListener('input', () => renderPinnedTextLibrary(currentPinnedTextLibrary));
 $('manualLibrarySort').addEventListener('change', () => renderPinnedTextLibrary(currentPinnedTextLibrary));

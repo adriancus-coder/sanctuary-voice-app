@@ -368,6 +368,10 @@
         // Close the picker after success so the next pick is a fresh tap.
         const picker = btn ? btn.closest('.add-to-event-picker') : null;
         if (picker) picker.removeAttribute('open');
+        // V21.39: clear the search field after a successful add so the next
+        // search starts fresh — pairs with the picker close above.
+        const sEl = $('globalSongLibrarySearch');
+        if (sEl) { sEl.value = ''; renderLibrary(); }
       }, 1500);
     } catch (err) {
       alert('Eroare: ' + err.message);
@@ -1087,6 +1091,11 @@
       // Resurse results are stale once the query changes — hide until re-run.
       const resurseSection = document.querySelector('.unified-search-resurse-section');
       if (resurseSection) resurseSection.classList.add('hidden');
+    });
+    // V21.39: select-all on focus so re-tap replaces the previous query in
+    // one keypress. setTimeout(0) sidesteps mouseup-deselect on click-focus.
+    $('globalSongLibrarySearch').addEventListener('focus', (e) => {
+      setTimeout(() => { try { e.target.select(); } catch (_) {} }, 0);
     });
     $('globalSongLibrarySearch').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); doImportOrSearch(); }
