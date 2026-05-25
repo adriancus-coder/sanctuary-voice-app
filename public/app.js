@@ -677,7 +677,11 @@ function refreshDisplayControls() {
   }
   if (clockScaleInput) {
     const scale = Number(currentEvent?.displayState?.clockScale || 1);
-    clockScaleInput.value = String(Math.min(2.5, Math.max(0.7, scale)));
+    // V21.37: clamp aligned with server (routes/events.js:1297 accepts 0.7-1.8).
+    // Previously 2.5; admin's +/- could push the saved value to 1.9-2.5 silently,
+    // and any subsequent /display/text POST with clockScale > 1.8 was 400'd
+    // ("Mărime ceas invalidă"). Operator was already at 1.8 (V21.35).
+    clockScaleInput.value = String(Math.min(1.8, Math.max(0.7, scale)));
   }
   if (clockScaleValue) {
     const scale = Number(clockScaleInput?.value || currentEvent?.displayState?.clockScale || 1);
@@ -2142,7 +2146,10 @@ async function adjustClockScale(delta) {
   const input = $('displayClockScaleInput');
   if (!input) return;
   const current = Number(input.value || currentEvent?.displayState?.clockScale || 1);
-  const next = Math.min(2.5, Math.max(0.7, Math.round((current + delta) * 10) / 10));
+  // V21.37: clamp aligned with server max (1.8). See refreshDisplayControls
+  // for the rationale — the previous 2.5 upper bound silently produced 400s
+  // for any value above 1.8 on the next POST /display/text.
+  const next = Math.min(1.8, Math.max(0.7, Math.round((current + delta) * 10) / 10));
   input.value = String(next);
   if ($('displayClockScaleValue')) $('displayClockScaleValue').textContent = `${Math.round(next * 100)}%`;
   await applyDisplayPartial({ clockScale: next });
