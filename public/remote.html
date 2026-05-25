@@ -100,6 +100,26 @@
                 <button class="btn btn-dark remote-text-size-preset" data-text-size="huge" type="button">Huge</button>
               </div>
             </div>
+            <!-- V21.35: clock controls mirroring admin (Show clock + position + zoom).
+                 All three POST to /display/text — same endpoint as text zoom. Server
+                 validates clockScale 0.7-1.8; we clamp to that range so the buttons
+                 never bounce off a 400. -->
+            <div class="meta-row">
+              <label class="inline-check"><input type="checkbox" id="remoteShowClockBox"> Show clock</label>
+              <label style="margin-top:8px;">Clock position</label>
+              <select id="remoteClockPositionSelect">
+                <option value="top-right">Clock top right</option>
+                <option value="top-left">Clock top left</option>
+                <option value="bottom-right">Clock bottom right</option>
+                <option value="bottom-left">Clock bottom left</option>
+              </select>
+              <label style="margin-top:8px;">Clock size</label>
+              <div class="button-row compact-row">
+                <button id="remoteClockSizeMinusBtn" class="btn btn-dark" type="button">−</button>
+                <span id="remoteClockScaleValue" class="status-pill">100%</span>
+                <button id="remoteClockSizePlusBtn" class="btn btn-dark" type="button">+</button>
+              </div>
+            </div>
           </div>
         </details>
       </div>

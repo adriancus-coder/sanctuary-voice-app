@@ -900,6 +900,7 @@ function refreshRemoteUi() {
   updateHeader();
   populateRemoteLanguageSelects();
   updateRemoteTextScaleDisplay();
+  updateRemoteClockControls();  // V21.35: keep clock UI in sync with displayState
   updateRemoteGlossaryMode();
   syncGlossaryToggle();
   renderRemoteSimplePreviews();
@@ -1332,6 +1333,36 @@ async function setRemoteTextScale(newScale) {
   }
 }
 
+// V21.35: clock controls mirror admin (showClock + clockPosition + clockScale).
+// All ride the same /display/text endpoint as text zoom.
+function updateRemoteClockControls() {
+  const ds = state.currentEvent?.displayState || {};
+  if ($('remoteShowClockBox')) $('remoteShowClockBox').checked = !!ds.showClock;
+  if ($('remoteClockPositionSelect')) $('remoteClockPositionSelect').value = ds.clockPosition || 'top-right';
+  const scale = Number(ds.clockScale || 1);
+  if ($('remoteClockScaleValue')) $('remoteClockScaleValue').textContent = `${Math.round(scale * 100)}%`;
+}
+
+async function setRemoteClockScale(newScale) {
+  if (!state.eventId) return;
+  // Server validates clockScale 0.7-1.8 (routes/events.js:1297). Admin clamps
+  // to 2.5 — latent bug there, NOT fixed here. We clamp to the server limits
+  // so the operator's buttons never produce a 400.
+  const safe = Math.min(1.8, Math.max(0.7, Math.round(Number(newScale) * 10) / 10));
+  try {
+    const data = await post(`/api/events/${state.eventId}/display/text`, { clockScale: safe });
+    if (!data.ok) {
+      setStatus(data.error || 'Could not change clock size.');
+      return;
+    }
+    if (state.currentEvent) state.currentEvent.displayState = data.displayState || state.currentEvent.displayState;
+    updateRemoteClockControls();
+    setStatus(`Clock size: ${Math.round(safe * 100)}%`);
+  } catch (err) {
+    setStatus(err.message || 'Could not change clock size.');
+  }
+}
+
 async function setRemoteTextSize(textSize) {
   if (!state.eventId) return;
   if (!['compact', 'large', 'xlarge', 'huge'].includes(textSize)) return;
@@ -1382,6 +1413,38 @@ document.querySelectorAll('.remote-text-size-preset').forEach((btn) => {
     const size = btn.dataset.textSize;
     if (size) setRemoteTextSize(size);
   });
+});
+
+// V21.35: clock controls — paralel cu text zoom bindings.
+$('remoteShowClockBox')?.addEventListener('change', async () => {
+  if (!state.eventId) return;
+  const showClock = !!$('remoteShowClockBox').checked;
+  try {
+    const data = await post(`/api/events/${state.eventId}/display/text`, { showClock });
+    if (state.currentEvent && data.displayState) state.currentEvent.displayState = data.displayState;
+    setStatus(`Clock ${showClock ? 'shown' : 'hidden'}.`);
+  } catch (err) {
+    setStatus(err.message || 'Could not toggle clock.');
+  }
+});
+$('remoteClockPositionSelect')?.addEventListener('change', async () => {
+  if (!state.eventId) return;
+  const clockPosition = $('remoteClockPositionSelect').value;
+  try {
+    const data = await post(`/api/events/${state.eventId}/display/text`, { clockPosition });
+    if (state.currentEvent && data.displayState) state.currentEvent.displayState = data.displayState;
+    setStatus(`Clock position: ${clockPosition}.`);
+  } catch (err) {
+    setStatus(err.message || 'Could not move clock.');
+  }
+});
+$('remoteClockSizeMinusBtn')?.addEventListener('click', () => {
+  const current = Number(state.currentEvent?.displayState?.clockScale || 1);
+  setRemoteClockScale(current - 0.1);
+});
+$('remoteClockSizePlusBtn')?.addEventListener('click', () => {
+  const current = Number(state.currentEvent?.displayState?.clockScale || 1);
+  setRemoteClockScale(current + 0.1);
 });
 
 $('remoteStopLiveAudioBtn')?.addEventListener('click', () => stopRemoteLiveAudio().then(() => {
