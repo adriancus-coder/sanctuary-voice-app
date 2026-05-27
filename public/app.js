@@ -60,6 +60,14 @@ let audioState = {
   azureReady: false
 };
 
+// V22.2 — Audio Source state (Mic / Tab audio / File)
+const audioSourceState = {
+  type: 'mic',
+  externalStream: null,
+  controller: null,
+  pendingFile: null,
+};
+
 function langLabel(code) {
   return availableLanguages[code] || code.toUpperCase();
 }
@@ -2886,10 +2894,89 @@ function startMeterLoop() {
   draw();
 }
 
+// V22.2 — Acquire audio dintr-un tab partajat (Chrome desktop). User trebuie să BIFEZE
+// „Share tab audio" în picker. Pe mobile / fără getDisplayMedia → throw clar.
+async function acquireTabAudioStream() {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    throw new Error('Tab audio not supported in this browser. Use Chrome/Edge desktop.');
+  }
+  const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  const audioTracks = display.getAudioTracks();
+  if (audioTracks.length === 0) {
+    display.getTracks().forEach(t => t.stop());
+    throw new Error('No audio track. Did you bifa „Share tab audio"? Try again and check the box.');
+  }
+  display.getVideoTracks().forEach(t => t.stop());
+  return new MediaStream([audioTracks[0]]);
+}
+
+// V22.2 — Acquire audio dintr-un fișier local (orice browser, inclusiv mobile).
+async function acquireFileAudioStream(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
+  const dest = tempCtx.createMediaStreamDestination();
+  const source = tempCtx.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(dest);
+  source.start();
+  source.onended = () => { dest.stream.getTracks().forEach(t => t.stop()); };
+  return { stream: dest.stream, controller: { source, context: tempCtx, file } };
+}
+
+// V22.2 — Audio Source UI
+function setAudioSourceType(type) {
+  if (audioState.running) {
+    alert('Stop recognition first to change audio source.');
+    return;
+  }
+  audioSourceState.type = type;
+  document.querySelectorAll('.audio-source-tab').forEach(b => {
+    b.classList.toggle('is-active', b.dataset.source === type);
+  });
+  const mic = $('audioSourceDetailMic');
+  const tab = $('audioSourceDetailTab');
+  const file = $('audioSourceDetailFile');
+  if (mic) mic.classList.toggle('hidden', type !== 'mic');
+  if (tab) tab.classList.toggle('hidden', type !== 'tab');
+  if (file) file.classList.toggle('hidden', type !== 'file');
+}
+
+function initAudioSourceUI() {
+  if (!$('audioSourcePanel')) return;
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    const tabBtn = $('audioSourceTabBtn');
+    if (tabBtn) {
+      tabBtn.classList.add('hidden');
+      tabBtn.title = 'Not supported in this browser';
+    }
+  }
+  document.querySelectorAll('.audio-source-tab').forEach(b => {
+    b.addEventListener('click', () => setAudioSourceType(b.dataset.source));
+  });
+  const fileInput = $('audioSourceFile');
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      audioSourceState.pendingFile = f;
+      const nameEl = $('audioSourceFileName');
+      if (nameEl) nameEl.textContent = f.name;
+    });
+  }
+}
+
 async function createAudioPipeline(options = {}) {
-  const deviceId = $('audioInput').value;
   await destroyAudioPipeline({ preserveRunState: !!options.preserveRunState });
-  audioState.stream = await navigator.mediaDevices.getUserMedia(getAudioConstraints(deviceId));
+  // V22.2: sursa audio poate fi externă (tab audio / file). Default rămâne mic.
+  if (options.externalStream) {
+    audioState.stream = options.externalStream;
+    audioState.externalSourceType = options.externalSourceType || 'external';
+  } else {
+    const deviceId = $('audioInput').value;
+    audioState.stream = await navigator.mediaDevices.getUserMedia(getAudioConstraints(deviceId));
+    audioState.externalSourceType = null;
+  }
   audioState.context = new (window.AudioContext || window.webkitAudioContext)();
   await audioState.context.resume();
   audioState.source = audioState.context.createMediaStreamSource(audioState.stream);
@@ -3214,6 +3301,39 @@ async function startTranslation(options = {}) {
     audioState.openAiFallbackActive = false;
   }
   await setEventMode('live');
+  // V22.2 — dacă source != mic, acquiește external stream înainte de a porni pipeline-ul.
+  let externalStream = null;
+  let externalSourceType = null;
+  if (audioSourceState.type === 'tab') {
+    try {
+      externalStream = await acquireTabAudioStream();
+      externalSourceType = 'tab';
+      const statusEl = $('audioSourceStatus');
+      if (statusEl) statusEl.textContent = '📺 Tab audio active';
+    } catch (err) {
+      alert(err.message);
+      return;
+    }
+  } else if (audioSourceState.type === 'file') {
+    if (!audioSourceState.pendingFile) { alert('Pick a file first.'); return; }
+    try {
+      const { stream, controller } = await acquireFileAudioStream(audioSourceState.pendingFile);
+      externalStream = stream;
+      externalSourceType = 'file';
+      audioSourceState.controller = controller;
+      const statusEl = $('audioSourceStatus');
+      if (statusEl) statusEl.textContent = `📁 ${audioSourceState.pendingFile.name} playing`;
+    } catch (err) {
+      alert('Could not decode file: ' + err.message);
+      return;
+    }
+  }
+  if (externalStream) {
+    externalStream.getTracks()[0]?.addEventListener('ended', () => {
+      const statusEl = $('audioSourceStatus');
+      if (statusEl) statusEl.textContent = '⚠️ Audio source ended — stop & restart to continue';
+    });
+  }
   audioState.running = true;
   window.isRecognitionRunning = true;
   setOnAirState(true);
@@ -3221,7 +3341,7 @@ async function startTranslation(options = {}) {
   await enableScreenWakeLock();
   if (isAzureSpeechProvider()) {
     try {
-      await createAudioPipeline({ preserveRunState: true });
+      await createAudioPipeline({ preserveRunState: true, externalStream, externalSourceType });
     } catch (err) {
       console.error(err);
       audioState.running = false;
@@ -3246,7 +3366,7 @@ async function startTranslation(options = {}) {
     if (started) return;
   }
   if (!window.MediaRecorder) return alert('Use Chrome or Edge.');
-  try { await createAudioPipeline({ preserveRunState: true }); } catch (_) {
+  try { await createAudioPipeline({ preserveRunState: true, externalStream, externalSourceType }); } catch (_) {
     audioState.running = false;
     window.isRecognitionRunning = false;
     setOnAirState(false);
@@ -5059,6 +5179,7 @@ window.addEventListener('load', async () => {
   await refreshEventList();
   await refreshAccessRequests();
   initCodeMasking();
+  initAudioSourceUI();
   initAdminPush().catch(() => {});
   try {
     const res = await fetch('/api/events/active');

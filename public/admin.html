@@ -178,6 +178,25 @@
             <label>Audio input</label>
             <select id="audioInput"></select>
 
+            <!-- V22.2 — Audio Source selector (testing) -->
+            <div class="audio-source-panel" id="audioSourcePanel">
+              <label class="audio-source-label">Audio source:</label>
+              <div class="audio-source-tabs">
+                <button type="button" class="audio-source-tab is-active" data-source="mic">🎙 Mic</button>
+                <button type="button" class="audio-source-tab" data-source="tab" id="audioSourceTabBtn">📺 Tab audio</button>
+                <button type="button" class="audio-source-tab" data-source="file">📁 File</button>
+              </div>
+              <div class="audio-source-detail" id="audioSourceDetailMic">(use mic selector above)</div>
+              <div class="audio-source-detail hidden" id="audioSourceDetailTab">
+                Chrome/Edge desktop only. Pick a tab and check „Share tab audio" in the picker.
+              </div>
+              <div class="audio-source-detail hidden" id="audioSourceDetailFile">
+                <input type="file" id="audioSourceFile" accept="audio/*">
+                <span id="audioSourceFileName" class="muted"></span>
+              </div>
+              <div class="audio-source-status" id="audioSourceStatus"></div>
+            </div>
+
             <details class="info-card soft-card audio-processing-card">
               <summary>
                 <span class="label">Audio settings</span>
