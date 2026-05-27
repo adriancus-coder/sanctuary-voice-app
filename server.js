@@ -1613,6 +1613,11 @@ const AZURE_LIVE_TEXT_SOFT_WAIT_MS = 150;
 const AZURE_LIVE_TEXT_HARD_WAIT_MS = 600;
 // SMART FLUSH V2: threshold pentru proactive flush partial (mai mic decât MAX_WORDS)
 const AZURE_PARTIAL_FLUSH_THRESHOLD = 8;  // partial flush la 8 cuvinte (era 12 prin MAX_WORDS)
+// V22.0 — Smooth mode: când true, sărim SMART FLUSH V2 (commit doar pe recognized,
+// adică pe sfârșit-de-propoziție real de la Azure). Reduce „sare prea repede" și
+// scade aglomerarea traducerilor. Default false (no behavior change unless explicit).
+const AZURE_SMOOTH_MODE = String(process.env.AZURE_SMOOTH_MODE || 'false').toLowerCase() === 'true';
+logger.info('[Azure] smooth mode:', AZURE_SMOOTH_MODE ? 'ON (commit only on recognized)' : 'OFF (legacy partial-flush at 8 words)');
 
 // Conectori clasici - blochează flush la sfârșit (păstrează în buffer pentru context)
 // ATENȚIE: scoatem 'și', 'si', 'să', 'sa', 'dar', 'iar' - acum sunt FLUSH_BEFORE triggers
@@ -3741,26 +3746,29 @@ function startAzureSpeechSession(socket, event) {
     // Asta e MARE diferență față de comportamentul vechi care aștepta `recognized`
     const words = countWords(text);
 
-    // SMART FLUSH V2: Trigger la AZURE_PARTIAL_FLUSH_THRESHOLD (8) ȘI nu e duplicat
-    if (words >= AZURE_PARTIAL_FLUSH_THRESHOLD) {
-      // Verific cu tracker dacă deja am flush-uit text similar
-      if (!isPartialFlushDuplicate(event.id, text)) {
-        // Calculez delta - doar partea nouă (după ce am flush-uit ultima oară)
-        const tracker = partialFlushTracker.get(event.id);
-        let deltaText = text;
-        if (tracker && tracker.lastFlushedText) {
-          // Dacă noul text începe exact cu vechiul, ia doar partea nouă
-          const oldLen = tracker.lastFlushedText.length;
-          if (text.length > oldLen && text.startsWith(tracker.lastFlushedText)) {
-            deltaText = text.slice(oldLen).trim();
+    // V22.0 — în smooth mode, sărim partial-flush; comităm doar pe recognized.
+    if (!AZURE_SMOOTH_MODE) {
+      // SMART FLUSH V2: Trigger la AZURE_PARTIAL_FLUSH_THRESHOLD (8) ȘI nu e duplicat
+      if (words >= AZURE_PARTIAL_FLUSH_THRESHOLD) {
+        // Verific cu tracker dacă deja am flush-uit text similar
+        if (!isPartialFlushDuplicate(event.id, text)) {
+          // Calculez delta - doar partea nouă (după ce am flush-uit ultima oară)
+          const tracker = partialFlushTracker.get(event.id);
+          let deltaText = text;
+          if (tracker && tracker.lastFlushedText) {
+            // Dacă noul text începe exact cu vechiul, ia doar partea nouă
+            const oldLen = tracker.lastFlushedText.length;
+            if (text.length > oldLen && text.startsWith(tracker.lastFlushedText)) {
+              deltaText = text.slice(oldLen).trim();
+            }
           }
-        }
 
-        const deltaWords = countWords(deltaText);
-        // Trimite delta DOAR dacă are minim 3 cuvinte (nu propoziții fragmentare)
-        if (deltaWords >= AZURE_LIVE_TEXT_MIN_WORDS) {
-          markPartialFlushed(event.id, text);
-          queueSpeechText(event.id, deltaText, effectiveSourceLang, 'azure_sdk');
+          const deltaWords = countWords(deltaText);
+          // Trimite delta DOAR dacă are minim 3 cuvinte (nu propoziții fragmentare)
+          if (deltaWords >= AZURE_LIVE_TEXT_MIN_WORDS) {
+            markPartialFlushed(event.id, text);
+            queueSpeechText(event.id, deltaText, effectiveSourceLang, 'azure_sdk');
+          }
         }
       }
     }
