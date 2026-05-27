@@ -7194,3 +7194,28 @@ body.live-fullscreen-active .glass-panel {
   font: inherit;
   font-size: 0.85em;
 }
+
+/* V22.1 — listening indicator (înlocuiește placeholder „Waiting for full sentence...") */
+.listening-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  color: var(--muted);
+  vertical-align: middle;
+}
+.listening-dots > span {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+  animation: listening-pulse 1.4s ease-in-out infinite;
+}
+.listening-dots > span:nth-child(1) { animation-delay: 0s; }
+.listening-dots > span:nth-child(2) { animation-delay: 0.18s; }
+.listening-dots > span:nth-child(3) { animation-delay: 0.36s; }
+.listening-dots > span:nth-child(4) { animation-delay: 0.54s; }
+
+@keyframes listening-pulse {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+  40%           { opacity: 1;    transform: scale(1.1); }
+}

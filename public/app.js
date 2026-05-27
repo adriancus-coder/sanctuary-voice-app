@@ -76,8 +76,10 @@ function setStatus(text) {
   if (el) el.textContent = text;
 }
 
+// V22.1 — listening indicator (4 puncte pulsând) când nu există partial.
+const LISTENING_DOTS_HTML = '<span class="listening-dots" aria-label="listening"><span></span><span></span><span></span><span></span></span>';
+
 function setPartialTranscript(text = '') {
-  const value = text || 'Waiting for full sentence...';
   if (text && text.trim() && text.trim() !== lastPartialCaptured) {
     window.partialTranscriptHistory.push({
       timestamp: new Date().toISOString(),
@@ -90,8 +92,13 @@ function setPartialTranscript(text = '') {
   }
   const compact = $('partialTranscript');
   const large = $('partialTranscriptLarge');
-  if (compact) compact.textContent = value;
-  if (large) large.textContent = value;
+  if (text) {
+    if (compact) compact.textContent = text;
+    if (large) large.textContent = text;
+  } else {
+    if (compact) compact.innerHTML = LISTENING_DOTS_HTML;
+    if (large) large.innerHTML = LISTENING_DOTS_HTML;
+  }
 }
 
 function setOnAirState(isOn) {
