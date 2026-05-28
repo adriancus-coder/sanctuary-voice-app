@@ -57,7 +57,9 @@ let audioState = {
   openAiFallbackActive: false,
   azureProcessor: null,
   azureSource: null,
-  azureReady: false
+  azureReady: false,
+  azureWorkletNode: null,        // V22.13
+  azureWorkletLoaded: false      // V22.13
 };
 
 // V22.2 — Audio Source state (Mic / Tab audio / File)
@@ -3282,22 +3284,55 @@ async function startAzureAudioStream() {
   if (!currentEvent || !audioState.context || !audioState.preampNode) return false;
   audioState.azureReady = false;
   socket.emit('azure_audio_start', { eventId: currentEvent.id });
-
   audioState.azureSource = audioState.preampNode;
-  audioState.azureProcessor = audioState.context.createScriptProcessor(4096, 1, 1);
-  audioState.azureProcessor.onaudioprocess = (event) => {
+
+  // V22.13 — preferă AudioWorklet (thread separat); fallback la ScriptProcessor.
+  const emitPcm = (float32) => {
     if (!audioState.running || !isAzureSpeechProvider()) return;
     if (getInputGainPercent() <= 0) return;
-    const pcm = downsampleTo16kPcm(event.inputBuffer.getChannelData(0), audioState.context.sampleRate);
+    const pcm = downsampleTo16kPcm(float32, audioState.context.sampleRate);
     if (pcm.byteLength) socket.emit('azure_audio_chunk', { eventId: currentEvent.id, audio: pcm });
   };
-  audioState.azureSource.connect(audioState.azureProcessor);
-  audioState.azureProcessor.connect(audioState.context.destination);
+
+  let workletOk = false;
+  if (audioState.context.audioWorklet) {
+    try {
+      if (!audioState.azureWorkletLoaded) {
+        await audioState.context.audioWorklet.addModule('/azure-pcm-worklet.js');
+        audioState.azureWorkletLoaded = true;
+      }
+      const node = new AudioWorkletNode(audioState.context, 'azure-pcm-processor', { numberOfOutputs: 0 });
+      node.port.onmessage = (e) => emitPcm(e.data);
+      audioState.azureSource.connect(node);
+      audioState.azureWorkletNode = node;
+      workletOk = true;
+      console.info('[Azure] using AudioWorklet');
+    } catch (err) {
+      console.warn('[Azure] AudioWorklet failed, fallback to ScriptProcessor:', err);
+      workletOk = false;
+    }
+  }
+
+  if (!workletOk) {
+    audioState.azureProcessor = audioState.context.createScriptProcessor(4096, 1, 1);
+    audioState.azureProcessor.onaudioprocess = (event) => {
+      emitPcm(event.inputBuffer.getChannelData(0));
+    };
+    audioState.azureSource.connect(audioState.azureProcessor);
+    audioState.azureProcessor.connect(audioState.context.destination);
+  }
   return true;
 }
 
 function stopAzureAudioStream() {
   if (currentEvent) socket.emit('azure_audio_stop', { eventId: currentEvent.id });
+  // V22.13 — curăță worklet node dacă există
+  if (audioState.azureWorkletNode) {
+    try { audioState.azureSource?.disconnect(audioState.azureWorkletNode); } catch (_) {}
+    try { audioState.azureWorkletNode.port.onmessage = null; } catch (_) {}
+    try { audioState.azureWorkletNode.disconnect(); } catch (_) {}
+    audioState.azureWorkletNode = null;
+  }
   if (audioState.azureSource && audioState.azureProcessor) {
     try { audioState.azureSource.disconnect(audioState.azureProcessor); } catch (_) {}
   }
