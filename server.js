@@ -3785,6 +3785,14 @@ function startAzureSpeechSession(socket, event) {
       return;
     }
 
+    // V22.5 — În smooth mode, recognized e mereu o propoziție completă (nu există
+    // partial-flush de deduplicat). Sărim logica TASK 37 care, la propoziții consecutive
+    // cu început similar, calcula deltas greșite și lipea fragmente. Commit direct, curat.
+    if (AZURE_SMOOTH_MODE) {
+      queueSpeechText(event.id, text, effectiveSourceLang, 'azure_sdk');
+      return;
+    }
+
     // TASK 37: Verific dacă acest text final a fost deja flush-uit prin partial
     if (isPartialFlushDuplicate(event.id, text)) {
       // Dar poate textul final are info ÎN PLUS față de partial
