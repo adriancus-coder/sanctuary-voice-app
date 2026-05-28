@@ -1600,19 +1600,25 @@ const processingLocks = new Map();
 const participantPresence = new Map();
 const azureSpeechSessions = new Map();
 
+// ── Segmentare text live — DOUĂ seturi, per provider (NU redundante) ──────────────
+// Setul LIVE_TEXT_* = calea OpenAI (chunked REST). Chunk-uri mai mari (target 9 / max 16)
+// fiindcă OpenAI primește felii audio, nu stream continuu.
 const LIVE_TEXT_MIN_WORDS = 4;
 const LIVE_TEXT_TARGET_WORDS = 9;
 const LIVE_TEXT_MAX_WORDS = 16;
 const LIVE_TEXT_MAX_CHARS = 160;
 const LIVE_TEXT_SOFT_WAIT_MS = 200;
 const LIVE_TEXT_HARD_WAIT_MS = 1000;
+// Setul AZURE_LIVE_TEXT_* = calea Azure (streaming nativ). Segmente mai mici/rapide
+// (target 6 / max 12) fiindcă Azure dă cuvinte continuu cu latență mică.
 const AZURE_LIVE_TEXT_MIN_WORDS = 3;
 const AZURE_LIVE_TEXT_TARGET_WORDS = 6;
 const AZURE_LIVE_TEXT_MAX_WORDS = 12;
 const AZURE_LIVE_TEXT_SOFT_WAIT_MS = 150;
 const AZURE_LIVE_TEXT_HARD_WAIT_MS = 600;
-// SMART FLUSH V2: threshold pentru proactive flush partial (mai mic decât MAX_WORDS)
-const AZURE_PARTIAL_FLUSH_THRESHOLD = 8;  // partial flush la 8 cuvinte (era 12 prin MAX_WORDS)
+// LEGACY (V22.12+): folosit DOAR când AZURE_SMOOTH_MODE=false (smooth e acum default ON).
+// În smooth mode commitem pe recognized (final), deci partial-flush-ul ăsta nu rulează.
+const AZURE_PARTIAL_FLUSH_THRESHOLD = 8;
 // V22.0 — Smooth mode: când true, sărim SMART FLUSH V2 (commit doar pe recognized,
 // adică pe sfârșit-de-propoziție real de la Azure). Reduce „sare prea repede" și
 // scade aglomerarea traducerilor. Default false (no behavior change unless explicit).
