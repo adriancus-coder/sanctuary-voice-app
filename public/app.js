@@ -2925,14 +2925,27 @@ async function acquireFileAudioStream(file) {
     audioEl.load();
   });
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (_) {} }
   const sourceNode = ctx.createMediaElementSource(audioEl);
   const dest = ctx.createMediaStreamDestination();
   sourceNode.connect(dest);
-  // (NU conectăm la ctx.destination → nu se aude dublu în difuzorul admin-ului;
-  //  pipeline-ul primește audio prin dest.stream. Dacă vrei să-l AUZI și local,
-  //  decomentează: sourceNode.connect(ctx.destination);)
-  await audioEl.play();
+  // (NU conectăm la ctx.destination → fără dublu-audio local)
+
+  // V22.7 — iOS (WebKit) robust start: resume context + play, cu verificare și retry scurt.
+  async function ensureAudioPlaying() {
+    if (ctx.state === 'suspended') {
+      try { await ctx.resume(); } catch (_) {}
+    }
+    try {
+      await audioEl.play();
+    } catch (err) {
+      try { if (ctx.state === 'suspended') await ctx.resume(); } catch (_) {}
+      await audioEl.play();
+    }
+    if (audioEl.paused) {
+      throw new Error('iOS blocked audio playback — tap Start again.');
+    }
+  }
+  await ensureAudioPlaying();
   audioEl.addEventListener('ended', () => { dest.stream.getTracks().forEach(t => t.stop()); }, { once: true });
   return {
     stream: dest.stream,
@@ -3342,7 +3355,9 @@ async function startTranslation(options = {}) {
       const statusEl = $('audioSourceStatus');
       if (statusEl) statusEl.textContent = `📁 ${audioSourceState.pendingFile.name} playing`;
     } catch (err) {
-      alert('Could not decode file: ' + err.message);
+      // V22.7 — pe iOS, dacă play e blocat, mesaj clar + revenim la mic ca să nu blocăm
+      setStatus('File audio: ' + (err.message || 'could not start') + ' — tap Start again or use Mic.');
+      audioState.running = false; window.isRecognitionRunning = false; setOnAirState(false);
       return;
     }
   }
