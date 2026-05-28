@@ -2910,6 +2910,24 @@ async function acquireTabAudioStream() {
   return new MediaStream([audioTracks[0]]);
 }
 
+// V22.8 — iOS audio unlock: rulat SINCRON în gestul de tap (Start), înainte de lanțul async.
+// Creează/reia un AudioContext persistent + un buffer silențios scurt → „dezgheață" audio
+// pe iOS WebKit, ca play()-ul ulterior (oricât de târziu) să nu mai fie blocat.
+let _iosUnlockCtx = null;
+function primeIosAudioUnlock() {
+  try {
+    if (!_iosUnlockCtx) {
+      _iosUnlockCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (_iosUnlockCtx.state === 'suspended') { _iosUnlockCtx.resume().catch(() => {}); }
+    const buf = _iosUnlockCtx.createBuffer(1, 1, 22050);
+    const src = _iosUnlockCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(_iosUnlockCtx.destination);
+    src.start(0);
+  } catch (_) { /* non-critic */ }
+}
+
 // V22.2 — Acquire audio dintr-un fișier local (orice browser, inclusiv mobile).
 // V22.4 — streaming prin <audio> (RAM mică, suportă predici lungi pe mobile).
 async function acquireFileAudioStream(file) {
@@ -4103,7 +4121,10 @@ $('audioInput').addEventListener('change', async () => {
   }
   else { try { await createAudioPipeline(); setStatus('Audio source changed.'); } catch (_) { setStatus('Selected source failed.'); } }
 });
-$('startRecognitionBtn').addEventListener('click', startTranslation);
+$('startRecognitionBtn').addEventListener('click', () => {
+  primeIosAudioUnlock();   // V22.8 — dezgheață audio iOS în gestul direct
+  startTranslation();
+});
 $('stopRecognitionBtn').addEventListener('click', stopTranslation);
 
 // BIBLE MODE: toggle button
