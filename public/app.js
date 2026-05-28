@@ -66,6 +66,7 @@ const audioSourceState = {
   externalStream: null,
   controller: null,
   pendingFile: null,
+  preloadedAudio: null,   // V22.11 — { audioEl, url, file } pre-încărcat la selectare
 };
 
 function langLabel(code) {
@@ -2936,6 +2937,21 @@ function getSharedAudioContext() {
   return _iosUnlockCtx;
 }
 
+// V22.11 — creează + încarcă elementul <audio> la selectare, ca să fie gata la Start.
+function preloadAudioFile(file) {
+  try {
+    if (audioSourceState.preloadedAudio?.url) {
+      try { URL.revokeObjectURL(audioSourceState.preloadedAudio.url); } catch (_) {}
+    }
+    const url = URL.createObjectURL(file);
+    const audioEl = new Audio();
+    audioEl.src = url;
+    audioEl.preload = 'auto';
+    audioEl.load();
+    audioSourceState.preloadedAudio = { audioEl, url, file };
+  } catch (_) { audioSourceState.preloadedAudio = null; }
+}
+
 // V22.2 — Acquire audio dintr-un fișier local (orice browser, inclusiv mobile).
 // V22.4 — streaming prin <audio> (RAM mică, suportă predici lungi pe mobile).
 async function acquireFileAudioStream(file) {
@@ -2944,17 +2960,32 @@ async function acquireFileAudioStream(file) {
     try { audioSourceState.controller.stop(); } catch (_) {}
     audioSourceState.controller = null;
   }
-  const url = URL.createObjectURL(file);
-  const audioEl = new Audio();
-  audioEl.src = url;
-  audioEl.crossOrigin = 'anonymous';
-  audioEl.preload = 'auto';
-  await new Promise((resolve, reject) => {
-    const to = setTimeout(() => reject(new Error('Audio load timeout')), 15000);
-    audioEl.addEventListener('canplay', () => { clearTimeout(to); resolve(); }, { once: true });
-    audioEl.addEventListener('error', () => { clearTimeout(to); reject(new Error('Audio decode/load error')); }, { once: true });
-    audioEl.load();
-  });
+  // V22.11 — folosește elementul pre-încărcat la selectare dacă e pentru ACELAȘI fișier.
+  let url, audioEl;
+  const pre = audioSourceState.preloadedAudio;
+  if (pre && pre.file === file && pre.audioEl) {
+    url = pre.url;
+    audioEl = pre.audioEl;
+    audioSourceState.preloadedAudio = null;   // consumat
+    if (audioEl.readyState < 3) {
+      await new Promise((resolve) => {
+        const to = setTimeout(resolve, 8000);
+        audioEl.addEventListener('canplay', () => { clearTimeout(to); resolve(); }, { once: true });
+      });
+    }
+  } else {
+    url = URL.createObjectURL(file);
+    audioEl = new Audio();
+    audioEl.src = url;
+    audioEl.crossOrigin = 'anonymous';
+    audioEl.preload = 'auto';
+    await new Promise((resolve, reject) => {
+      const to = setTimeout(() => reject(new Error('Audio load timeout')), 15000);
+      audioEl.addEventListener('canplay', () => { clearTimeout(to); resolve(); }, { once: true });
+      audioEl.addEventListener('error', () => { clearTimeout(to); reject(new Error('Audio decode/load error')); }, { once: true });
+      audioEl.load();
+    });
+  }
   // V22.9 — reutilizează contextul deja dezghețat la tap (primeIosAudioUnlock), nu unul nou.
   const ctx = getSharedAudioContext();
   const sourceNode = ctx.createMediaElementSource(audioEl);
@@ -3031,6 +3062,8 @@ function initAudioSourceUI() {
       audioSourceState.pendingFile = f;
       const nameEl = $('audioSourceFileName');
       if (nameEl) nameEl.textContent = f.name;
+      // V22.11 — pre-încarcă fișierul ACUM (decode în fundal), ca Start-ul să fie instant pe iOS.
+      preloadAudioFile(f);
     });
   }
 }
