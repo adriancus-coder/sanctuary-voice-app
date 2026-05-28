@@ -7230,3 +7230,11 @@ body.live-fullscreen-active .glass-panel {
 .audio-source-detail { font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
 .audio-source-detail.hidden { display: none; }
 .audio-source-status { font-size: 0.85rem; color: var(--muted); min-height: 1.2em; }
+
+/* V22.6 — fade blând la schimbarea textului live */
+#translateText, #translatePrimaryText, #translateSecondaryText {
+  transition: opacity 0.18s ease-in-out;
+}
+#translateText.text-fading, #translatePrimaryText.text-fading, #translateSecondaryText.text-fading {
+  opacity: 0;
+}
