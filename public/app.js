@@ -2928,6 +2928,14 @@ function primeIosAudioUnlock() {
   } catch (_) { /* non-critic */ }
 }
 
+// V22.9 — întoarce contextul iOS partajat (creat/dezghețat la tap), creându-l dacă lipsește.
+function getSharedAudioContext() {
+  if (!_iosUnlockCtx) {
+    _iosUnlockCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return _iosUnlockCtx;
+}
+
 // V22.2 — Acquire audio dintr-un fișier local (orice browser, inclusiv mobile).
 // V22.4 — streaming prin <audio> (RAM mică, suportă predici lungi pe mobile).
 async function acquireFileAudioStream(file) {
@@ -2942,7 +2950,8 @@ async function acquireFileAudioStream(file) {
     audioEl.addEventListener('error', () => { clearTimeout(to); reject(new Error('Audio decode/load error')); }, { once: true });
     audioEl.load();
   });
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  // V22.9 — reutilizează contextul deja dezghețat la tap (primeIosAudioUnlock), nu unul nou.
+  const ctx = getSharedAudioContext();
   const sourceNode = ctx.createMediaElementSource(audioEl);
   const dest = ctx.createMediaStreamDestination();
   sourceNode.connect(dest);
@@ -2968,7 +2977,13 @@ async function acquireFileAudioStream(file) {
   return {
     stream: dest.stream,
     controller: { audioEl, context: ctx, url, file,
-      stop: () => { try { audioEl.pause(); } catch(_){} try { URL.revokeObjectURL(url); } catch(_){} try { ctx.close(); } catch(_){} }
+      // V22.9 — NU închide contextul partajat (refolosit la următoarea pornire); doar deconectează sursa.
+      stop: () => {
+        try { audioEl.pause(); } catch(_){}
+        try { URL.revokeObjectURL(url); } catch(_){}
+        try { sourceNode.disconnect(); } catch(_){}
+        try { dest.disconnect(); } catch(_){}
+      }
     }
   };
 }
