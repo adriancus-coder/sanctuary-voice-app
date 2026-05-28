@@ -2911,17 +2911,35 @@ async function acquireTabAudioStream() {
 }
 
 // V22.2 — Acquire audio dintr-un fișier local (orice browser, inclusiv mobile).
+// V22.4 — streaming prin <audio> (RAM mică, suportă predici lungi pe mobile).
 async function acquireFileAudioStream(file) {
-  const arrayBuffer = await file.arrayBuffer();
-  const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
-  const dest = tempCtx.createMediaStreamDestination();
-  const source = tempCtx.createBufferSource();
-  source.buffer = audioBuffer;
-  source.connect(dest);
-  source.start();
-  source.onended = () => { dest.stream.getTracks().forEach(t => t.stop()); };
-  return { stream: dest.stream, controller: { source, context: tempCtx, file } };
+  const url = URL.createObjectURL(file);
+  const audioEl = new Audio();
+  audioEl.src = url;
+  audioEl.crossOrigin = 'anonymous';
+  audioEl.preload = 'auto';
+  await new Promise((resolve, reject) => {
+    const to = setTimeout(() => reject(new Error('Audio load timeout')), 15000);
+    audioEl.addEventListener('canplay', () => { clearTimeout(to); resolve(); }, { once: true });
+    audioEl.addEventListener('error', () => { clearTimeout(to); reject(new Error('Audio decode/load error')); }, { once: true });
+    audioEl.load();
+  });
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (_) {} }
+  const sourceNode = ctx.createMediaElementSource(audioEl);
+  const dest = ctx.createMediaStreamDestination();
+  sourceNode.connect(dest);
+  // (NU conectăm la ctx.destination → nu se aude dublu în difuzorul admin-ului;
+  //  pipeline-ul primește audio prin dest.stream. Dacă vrei să-l AUZI și local,
+  //  decomentează: sourceNode.connect(ctx.destination);)
+  await audioEl.play();
+  audioEl.addEventListener('ended', () => { dest.stream.getTracks().forEach(t => t.stop()); }, { once: true });
+  return {
+    stream: dest.stream,
+    controller: { audioEl, context: ctx, url, file,
+      stop: () => { try { audioEl.pause(); } catch(_){} try { URL.revokeObjectURL(url); } catch(_){} try { ctx.close(); } catch(_){} }
+    }
+  };
 }
 
 // V22.2 — Audio Source UI
@@ -3416,6 +3434,8 @@ async function stopTranslation() {
   audioState.running = false;
   window.isRecognitionRunning = false;
   audioState.openAiFallbackActive = false;
+  // V22.4 — eliberează resursele file audio
+  if (audioSourceState.controller?.stop) { audioSourceState.controller.stop(); audioSourceState.controller = null; }
   if (audioState.chunkTimer) clearTimeout(audioState.chunkTimer);
   audioState.chunkTimer = null;
   stopBrowserAzureRecognition();
