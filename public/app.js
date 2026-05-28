@@ -2939,6 +2939,11 @@ function getSharedAudioContext() {
 // V22.2 — Acquire audio dintr-un fișier local (orice browser, inclusiv mobile).
 // V22.4 — streaming prin <audio> (RAM mică, suportă predici lungi pe mobile).
 async function acquireFileAudioStream(file) {
+  // V22.10 — curăță orice controller de fișier rămas (Start consecutiv fără cleanup complet)
+  if (audioSourceState.controller?.stop) {
+    try { audioSourceState.controller.stop(); } catch (_) {}
+    audioSourceState.controller = null;
+  }
   const url = URL.createObjectURL(file);
   const audioEl = new Audio();
   audioEl.src = url;
@@ -3493,7 +3498,11 @@ async function stopTranslation() {
   await disableScreenWakeLock();
   if (audioState.recorder && audioState.recorder.state === 'recording') {
     audioState.recorder.stop();
-    setTimeout(() => destroyAudioPipeline().catch(console.error), 100);
+    // V22.10 — așteaptă efectiv cleanup-ul (înainte returna imediat → următorul Start
+    // venea peste un pipeline care încă se dărâma, de unde nevoia de 2-3 cicluri pe iOS)
+    await new Promise(r => setTimeout(r, 120));
+    await destroyAudioPipeline().catch(console.error);
+    setStatus('Stopped.');
     return;
   }
   await destroyAudioPipeline();
