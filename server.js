@@ -1616,8 +1616,10 @@ const AZURE_PARTIAL_FLUSH_THRESHOLD = 8;  // partial flush la 8 cuvinte (era 12 
 // V22.0 — Smooth mode: când true, sărim SMART FLUSH V2 (commit doar pe recognized,
 // adică pe sfârșit-de-propoziție real de la Azure). Reduce „sare prea repede" și
 // scade aglomerarea traducerilor. Default false (no behavior change unless explicit).
-const AZURE_SMOOTH_MODE = String(process.env.AZURE_SMOOTH_MODE || 'false').toLowerCase() === 'true';
-logger.info('[Azure] smooth mode:', AZURE_SMOOTH_MODE ? 'ON (commit only on recognized)' : 'OFF (legacy partial-flush at 8 words)');
+// V22.12 — smooth mode DEFAULT ON (commit pe final, fluiditate). Opozabil: doar
+// AZURE_SMOOTH_MODE=false explicit revine la legacy partial-flush.
+const AZURE_SMOOTH_MODE = String(process.env.AZURE_SMOOTH_MODE || 'true').toLowerCase() !== 'false';
+logger.info('[Azure] smooth mode:', AZURE_SMOOTH_MODE ? 'ON (commit only on recognized) [default]' : 'OFF (legacy partial-flush, AZURE_SMOOTH_MODE=false)');
 
 // Conectori clasici - blochează flush la sfârșit (păstrează în buffer pentru context)
 // ATENȚIE: scoatem 'și', 'si', 'să', 'sa', 'dar', 'iar' - acum sunt FLUSH_BEFORE triggers
