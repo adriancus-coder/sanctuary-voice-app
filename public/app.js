@@ -1,4 +1,12 @@
-const socket = io();
+// V22.40 — reconnect blând pe admin (era io() simplu). Evită furtuna de reconectări.
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  randomizationFactor: 0.5,
+  timeout: 8000
+});
 const $ = (id) => document.getElementById(id);
 
 let currentEvent = null;
@@ -3883,6 +3891,13 @@ async function fallbackToOpenAiFromAzure(payload = {}) {
 
 socket.on('server_error', (payload = {}) => {
   const message = payload.message || 'Server error.';
+  // V22.40 — rate_limited e de la rate-limiter-ul socket propriu, NU o eroare Azure.
+  // NU face fallback (care repornea recunoașterea → azure_audio_start → iar rate_limited → buclă
+  // → „Connecting" blocat). Doar informează; recunoașterea continuă să curgă.
+  if (payload.code === 'rate_limited') {
+    setStatus('Prea multe cereri — se recuperează...');
+    return;
+  }
   setStatus(message);
   fallbackToOpenAiFromAzure(payload).catch((err) => {
     console.error(err);
