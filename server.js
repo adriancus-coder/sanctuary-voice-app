@@ -46,6 +46,9 @@ const upload = multer({
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
+// V22.15 — model de calitate folosit la modul „clear" (TRANSLATION MODE = calitate).
+// Mai bun pe propoziții lungi/complexe. rapid+balanced rămân pe nano (latență).
+const OPENAI_QUALITY_MODEL = process.env.OPENAI_QUALITY_MODEL || 'gpt-4.1-mini';
 const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
 const TRANSCRIBE_RATE_LIMIT_WINDOW_MS = Math.max(1000, Number(process.env.TRANSCRIBE_RATE_LIMIT_WINDOW_MS || 60000) || 60000);
 const TRANSCRIBE_RATE_LIMIT_MAX = Math.max(1, Number(process.env.TRANSCRIBE_RATE_LIMIT_MAX || 120) || 120);
@@ -2987,6 +2990,8 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
     inputMessages.push({ role: 'assistant', content: entry.translations[langCode] });
   }
   inputMessages.push({ role: 'user', content: cleanText });
+  // V22.15 — modul „clear" (calitate) → model mai bun; rapid/balanced → nano (rapid).
+  const translateModel = (event && event.speed === 'clear') ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
   try {
     const onDelta = typeof options.onDelta === 'function' ? options.onDelta : null;
     const TRANSLATE_TIMEOUT_MS = 8000;
@@ -2996,12 +3001,12 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
     });
     const translatePromise = onDelta
       ? translationService.translateWithResponsesStreaming({
-          model: OPENAI_MODEL,
+          model: translateModel,
           input: inputMessages,
           onDelta
         })
       : translationService.translateWithResponsesDetailed({
-          model: OPENAI_MODEL,
+          model: translateModel,
           input: inputMessages
         });
     let result;
@@ -3049,7 +3054,7 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
               ...inputMessages.slice(1)
             ];
             const retryResult = await translationService.translateWithResponsesDetailed({
-              model: OPENAI_MODEL,
+              model: translateModel,
               input: retryMessages
             });
             if (retryResult.tokens) recordTranslationUsage(event, retryResult.tokens);
