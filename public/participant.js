@@ -819,14 +819,19 @@ function clearLoadingDots() {
   el.classList.remove('loading-dots-active');
 }
 
-// SMART FLUSH V1.1: smart display function with chunk merging + display delay
-// V22.19 — afișare simplă: doar propoziția curentă (fără concatenare/merge).
-// Serverul trimite deja propoziții complete (Azure smooth mode). Merge-ul vechi
-// (SMART FLUSH V1.1) lipea propoziții diferite → text dublat/inversat. Eliminat.
+// V22.21 — afișează doar propoziții complete (terminate cu . ! ?). Fragmentele scurte
+// premature (începuturi de propoziție de la Azure) sunt ignorate până se completează.
+// Virgula NU închide propoziția. Păstrează ultima propoziție completă afișată ca fallback.
+let lastCompleteText = '';
 function smartDisplayLiveText(newText, callback) {
   const txt = String(newText || '').trim();
   if (!txt) return;
-  callback(txt);
+  const isSpecial = txt.includes('📖');
+  const looksComplete = /[.!?]["'»)\]]?\s*$/.test(txt);
+  if (isSpecial || looksComplete) {
+    lastCompleteText = txt;
+    callback(txt);
+  }
 }
 
 function renderLiveView({ announce = false } = {}) {
