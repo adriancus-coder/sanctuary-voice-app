@@ -1,11 +1,28 @@
 // V22.13 — AudioWorklet processor pentru captura PCM (Azure path).
-// Rulează pe thread audio separat. Transportă frame-uri raw (Float32) la main thread
-// prin port; gating + downsample + emit se fac în main thread (app.js).
+// V22.16 — tamponează la ~4096 sample-uri înainte de a trimite (ca ScriptProcessor),
+// altfel process() la 128 sample-uri inunda serverul → 429.
 class AzurePcmProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this._buf = new Float32Array(4096);
+    this._fill = 0;
+  }
   process(inputs) {
     const input = inputs[0];
-    if (input && input[0] && input[0].length) {
-      this.port.postMessage(input[0].slice(0));
+    const ch = input && input[0];
+    if (ch && ch.length) {
+      let i = 0;
+      while (i < ch.length) {
+        const space = this._buf.length - this._fill;
+        const take = Math.min(space, ch.length - i);
+        this._buf.set(ch.subarray(i, i + take), this._fill);
+        this._fill += take;
+        i += take;
+        if (this._fill >= this._buf.length) {
+          this.port.postMessage(this._buf.slice(0));
+          this._fill = 0;
+        }
+      }
     }
     return true;
   }
