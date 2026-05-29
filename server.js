@@ -226,6 +226,11 @@ app.use('/worship-sw.js', (req, res, next) => {
   res.setHeader('Service-Worker-Allowed', '/worship');
   next();
 });
+// V22.28 — browserele cer /favicon.ico automat; servim icon.svg ca să nu mai dea 404
+app.get('/favicon.ico', (req, res) => {
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.sendFile(path.join(__dirname, 'public', 'icon.svg'));
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res, next) => {
