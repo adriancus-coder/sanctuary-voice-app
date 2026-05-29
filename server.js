@@ -1,5 +1,5 @@
 // V22.31 DIAGNOSTIC — stack trace complet pentru a localiza "Maximum call stack"
-Error.stackTraceLimit = 100;
+Error.stackTraceLimit = 1000;   // V22.34 — stack complet
 process.on('unhandledRejection', (reason, promise) => {
   try {
     const stack = (reason && reason.stack) ? String(reason.stack) : '(no stack)';
@@ -7,6 +7,13 @@ process.on('unhandledRejection', (reason, promise) => {
   } catch (e) {
     try { process.stderr.write('[V22.31] failed: ' + String(e) + '\n'); } catch (_) {}
   }
+});
+process.on('uncaughtException', (err) => {
+  try {
+    const stack = (err && err.stack) ? String(err.stack) : String(err);
+    process.stderr.write('[V22.34 UNCAUGHT-EXCEPTION]\n' + stack.slice(0, 6000) + '\n');
+  } catch (_) {}
+  // NU exit — lăsăm Node să decidă; doar capturăm
 });
 
 const express = require('express');
@@ -3016,6 +3023,7 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
     // V22.32 — timeout care REZOLVĂ cu sentinel (nu reject), ca să nu rămână promisiuni
     // respinse orfan din Promise.race (cauza unhandledRejection → crash → 429 la repornire).
     const TIMEOUT_SENTINEL = Symbol('translate_timeout');
+    const abortController = new AbortController();   // V22.34
     let timeoutHandle;
     const timeoutPromise = new Promise((resolve) => {
       timeoutHandle = setTimeout(() => resolve(TIMEOUT_SENTINEL), TRANSLATE_TIMEOUT_MS);
@@ -3024,7 +3032,8 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
       ? translationService.translateWithResponsesStreaming({
           model: translateModel,
           input: inputMessages,
-          onDelta
+          onDelta,
+          signal: abortController.signal   // V22.34
         })
       : translationService.translateWithResponsesDetailed({
           model: translateModel,
@@ -3036,6 +3045,7 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
     try {
       const raced = await Promise.race([translatePromise, timeoutPromise]);
       if (raced === TIMEOUT_SENTINEL) {
+        abortController.abort();   // V22.34 — oprește stream-ul orfan
         throw new Error('translate_timeout');
       }
       result = raced;
