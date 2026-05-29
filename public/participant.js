@@ -20,6 +20,52 @@ const displayBuffer = {
   MIN_DISPLAY_MS: 3000       // 3 sec minim între afișări
 };
 
+// V22.18 — diagnostic: înregistrează fiecare decizie de afișare la participant
+const dispLog = { entries: [], startedAt: null };
+function logDisp(scenario, inText, outText) {
+  if (!dispLog.startedAt) dispLog.startedAt = new Date().toISOString();
+  dispLog.entries.push({
+    t: new Date().toISOString(),
+    scenario,
+    in: String(inText || ''),
+    out: String(outText || '')
+  });
+  if (dispLog.entries.length > 3000) dispLog.entries.shift();
+}
+function exportDispLog() {
+  const L = [
+    `Participant display log — ${dispLog.entries.length} events`,
+    `Started: ${dispLog.startedAt || '-'}`,
+    '',
+    'legend: scenario MERGE|BUFFER|REPLACE · in=text primit · out=text afișat',
+    '---',
+    ''
+  ];
+  dispLog.entries.forEach((e, i) => {
+    const tt = e.t.split('T')[1]?.replace('Z', '') || e.t;
+    L.push(`#${i + 1} [${tt}] ${e.scenario}`);
+    L.push(`   in : ${e.in}`);
+    L.push(`   out: ${e.out}`);
+  });
+  const txt = L.join('\n');
+  const onOk = () => { if (typeof setStatus === 'function') setStatus('Display log copied'); else alert('Log copied'); };
+  const onFallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    alert('Log copied');
+  };
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(txt).then(onOk, onFallback);
+  } else {
+    onFallback();
+  }
+}
+window.exportDispLog = exportDispLog;
+
 // BUGFIX V1 - FIX 2: Auto-expire live text dacă nu vine update nou
 const liveTextExpire = {
   timer: null,
@@ -795,6 +841,7 @@ function smartDisplayLiveText(newText, callback) {
 
     if (!isSpecialMessage && currentText) {
       const mergedText = currentText.trim() + ' ' + String(newText).trim();
+      logDisp('MERGE', newText, mergedText);   // V22.18
       callback(mergedText);
       displayBuffer.lastDisplayTime = now;
       displayBuffer.pendingText = null;
@@ -817,6 +864,7 @@ function smartDisplayLiveText(newText, callback) {
     // Programăm afișare în waitMs
     displayBuffer.pendingTimer = setTimeout(() => {
       if (displayBuffer.pendingText) {
+        logDisp('BUFFER', newText, displayBuffer.pendingText);   // V22.18
         callback(displayBuffer.pendingText);
         displayBuffer.lastDisplayTime = Date.now();
         displayBuffer.pendingText = null;
@@ -827,7 +875,9 @@ function smartDisplayLiveText(newText, callback) {
   }
 
   // SCENARIO 3: Mai mult de MIN_DISPLAY_MS de la ultima afișare → afișează instant
-  callback(String(newText).trim());
+  const out3 = String(newText).trim();
+  logDisp('REPLACE', newText, out3);   // V22.18
+  callback(out3);
   displayBuffer.lastDisplayTime = now;
   displayBuffer.pendingText = null;
 }
@@ -1709,3 +1759,6 @@ if ('serviceWorker' in navigator && !state.previewMode) {
 window.addEventListener('beforeunload', async () => {
   await disableWakeLock();
 });
+
+// V22.18 — diagnostic: leagă butonul de export
+document.getElementById('exportDispLogBtn')?.addEventListener('click', exportDispLog);
