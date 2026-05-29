@@ -1,0 +1,77 @@
+/* ============================================================
+   CATHEDRAL-THEME — override izolat peste styles.css (UI redesign)
+   Linkat DUPĂ styles.css. Folosește tokens --ct-* din admin.html.
+   Reversibil: scoate <link> din admin.html ca să dezactivezi.
+   PAS 2a: body/fundal + nav tabs + topbar.
+   ============================================================ */
+
+/* ---- FUNDAL: textură caldă cathedral ---- */
+body {
+  font-family: var(--ct-font-sans) !important;
+  color: var(--ct-parchment) !important;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(207,154,60,0.11), transparent 60%),
+    radial-gradient(80% 60% at 90% 110%, rgba(200,90,43,0.07), transparent 55%),
+    var(--ct-ink) !important;
+  background-attachment: fixed !important;
+}
+/* textură fină de zgomot (overlay) */
+body::after {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.4;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* ---- TITLURI: Fraunces serif ---- */
+h1, h2, .eyebrow, .hero-copy-block h1 {
+  font-family: var(--ct-font-serif) !important;
+  letter-spacing: -0.01em;
+}
+.eyebrow {
+  font-family: var(--ct-font-sans) !important;
+  letter-spacing: 0.28em !important; text-transform: uppercase;
+  color: var(--ct-parchment-d) !important; font-size: 12px !important;
+}
+
+/* ---- NAV TABS ---- */
+.top-nav-tabs {
+  border-bottom: 1px solid var(--ct-line) !important;
+}
+.top-nav-btn {
+  font-family: var(--ct-font-sans) !important;
+  color: var(--ct-parchment-d) !important;
+  border-radius: 999px !important;
+  transition: all .2s ease !important;
+}
+.top-nav-btn:hover {
+  background: rgba(245,236,217,0.05) !important;
+  color: var(--ct-parchment) !important;
+}
+.top-nav-btn.active {
+  background: linear-gradient(180deg, var(--ct-brass-hi), var(--ct-brass)) !important;
+  color: #2a1c08 !important;
+  border-color: transparent !important;
+  font-weight: 600 !important;
+  box-shadow: 0 5px 14px -3px var(--ct-brass-glow) !important;
+}
+.top-nav-logout {
+  color: var(--ct-ember-hi) !important;
+}
+.top-nav-home {
+  color: var(--ct-parchment-d) !important;
+}
+
+/* ---- TOPBAR / HERO ---- */
+.topbar, .hero-topbar, .panel.glass-panel {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%),
+    var(--ct-panel) !important;
+  border: 1px solid var(--ct-line-soft) !important;
+  border-radius: 20px !important;
+  box-shadow: var(--ct-shadow) !important;
+}
+.hero-status-label {
+  font-size: 11px !important; letter-spacing: 0.2em !important;
+  text-transform: uppercase; color: var(--ct-brass) !important;
+}
