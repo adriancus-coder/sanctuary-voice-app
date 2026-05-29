@@ -188,3 +188,19 @@ select:focus {
 #liveSessionTimer.status-pill.active {
   color: var(--ct-live-hi) !important;
 }
+
+/* ---- PAS 2c: comutator limbă interfață ---- */
+.ui-lang-switch {
+  display: inline-flex; gap: 4px; background: var(--ct-ink-2);
+  padding: 4px; border-radius: 999px; border: 1px solid var(--ct-line-soft);
+}
+.ui-lang-switch button {
+  border: none; background: transparent; color: var(--ct-parchment-d);
+  padding: 6px 12px; border-radius: 999px; font-family: var(--ct-font-sans);
+  font-size: 13px; font-weight: 500; cursor: pointer; transition: .2s;
+}
+.ui-lang-switch button:hover { color: var(--ct-parchment); }
+.ui-lang-switch button.on {
+  background: linear-gradient(180deg, var(--ct-brass-hi), var(--ct-brass));
+  color: #2a1c08; font-weight: 600;
+}

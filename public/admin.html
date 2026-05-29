@@ -27,18 +27,23 @@
 </head>
 <body>
   <nav class="top-nav-tabs" role="tablist" aria-label="Main navigation">
-    <a class="top-nav-btn top-nav-home" href="https://sanctuaryvoice.com" target="_blank" rel="noreferrer noopener">🏠 Home</a>
-    <button class="top-nav-btn active" data-tab="events" type="button">Events</button>
-    <button class="top-nav-btn" data-tab="operator-roles" type="button">Operator Roles</button>
-    <button class="top-nav-btn" data-tab="dashboard" type="button">Live Control</button>
-    <button class="top-nav-btn" data-tab="transcript" type="button">Transcript</button>
-    <button class="top-nav-btn" data-tab="mainscreen" type="button">Main Screen</button>
+    <a data-i18n="nav.home" class="top-nav-btn top-nav-home" href="https://sanctuaryvoice.com" target="_blank" rel="noreferrer noopener">🏠 Home</a>
+    <button class="top-nav-btn active" data-tab="events" type="button" data-i18n="nav.events">Events</button>
+    <button class="top-nav-btn" data-tab="operator-roles" type="button" data-i18n="nav.operatorRoles">Operator Roles</button>
+    <button class="top-nav-btn" data-tab="dashboard" type="button" data-i18n="nav.liveControl">Live Control</button>
+    <button class="top-nav-btn" data-tab="transcript" type="button" data-i18n="nav.transcript">Transcript</button>
+    <button class="top-nav-btn" data-tab="mainscreen" type="button" data-i18n="nav.mainScreen">Main Screen</button>
     <button id="adminSongTabBtn" class="top-nav-btn" data-tab="song" type="button">Song<span id="adminSongTabBadge" class="tab-badge hidden" aria-label="cerere worship în așteptare"></span></button>
-    <button class="top-nav-btn" data-tab="glossary" type="button">Glossary</button>
-    <button class="top-nav-btn" data-tab="manual" type="button">Quick Text</button>
-    <button class="top-nav-btn" data-tab="statistics" type="button">Statistics</button>
+    <button class="top-nav-btn" data-tab="glossary" type="button" data-i18n="nav.glossary">Glossary</button>
+    <button class="top-nav-btn" data-tab="manual" type="button" data-i18n="nav.quickText">Quick Text</button>
+    <button class="top-nav-btn" data-tab="statistics" type="button" data-i18n="nav.statistics">Statistics</button>
     <div class="top-nav-spacer" aria-hidden="true"></div>
-    <button id="adminLogoutBtn" class="top-nav-btn top-nav-logout" type="button">Logout</button>
+    <div class="ui-lang-switch" role="group" aria-label="Interface language">
+      <button type="button" data-lang="ro">RO</button>
+      <button type="button" data-lang="en">EN</button>
+      <button type="button" data-lang="no">NO</button>
+    </div>
+    <button id="adminLogoutBtn" class="top-nav-btn top-nav-logout" type="button" data-i18n="nav.logout">Logout</button>
   </nav>
   <div class="app-shell admin-redesign-shell admin-shell-top-tabs">
     <main class="main-content">
@@ -56,91 +61,91 @@
         <div class="dashboard-header-row">
           <div class="dashboard-header-left">
             <div class="hero-copy-block">
-              <div class="eyebrow">Sanctuary Voice</div>
-              <h1>Dashboard</h1>
+              <div data-i18n="hdr.eyebrow" class="eyebrow">Sanctuary Voice</div>
+              <h1 data-i18n="hdr.dashboard">Dashboard</h1>
             </div>
             <div class="dashboard-header-active-event">
-              <span class="hero-status-label">Active event</span>
+              <span data-i18n="hdr.activeEvent2" class="hero-status-label">Active event</span>
               <select id="heroActiveEventSelect" class="hero-active-event-select"></select>
             </div>
           </div>
           <div class="dashboard-header-right">
             <div class="dashboard-status-pill-group">
-              <span class="hero-status-label">Public event</span>
+              <span data-i18n="hdr.publicEvent" class="hero-status-label">Public event</span>
               <div id="activeEventBadge" class="status-pill">No live event</div>
             </div>
             <div class="dashboard-status-pill-group">
-              <span class="hero-status-label">Recognition</span>
+              <span data-i18n="hdr.recognition" class="hero-status-label">Recognition</span>
               <div id="onAirBadge" class="status-pill">Off-Air</div>
             </div>
             <div class="dashboard-status-pill-group">
-              <span class="hero-status-label">Live time</span>
+              <span data-i18n="hdr.liveTime" class="hero-status-label">Live time</span>
               <div id="liveSessionTimer" class="status-pill" style="font-variant-numeric:tabular-nums;font-weight:600">00:00</div>
             </div>
           </div>
         </div>
 
         <div class="dashboard-open-buttons">
-          <button class="btn btn-dark" type="button" data-open-page="/worship">Open Worship</button>
-          <button class="btn btn-dark" type="button" data-open-page="/worship-view">Open Team</button>
-          <button class="btn btn-dark" type="button" data-open-page="/participant">Open Participant</button>
-          <button class="btn btn-dark" type="button" data-open-page="/translate">Open Screen</button>
+          <button class="btn btn-dark" type="button" data-open-page="/worship" data-i18n="btn.openWorship">Open Worship</button>
+          <button class="btn btn-dark" type="button" data-open-page="/worship-view" data-i18n="btn.openTeam">Open Team</button>
+          <button class="btn btn-dark" type="button" data-open-page="/participant" data-i18n="btn.openParticipant">Open Participant</button>
+          <button class="btn btn-dark" type="button" data-open-page="/translate" data-i18n="btn.openScreen">Open Screen</button>
         </div>
 
         <div class="dashboard-live-session">
-          <span class="hero-status-label">Live session</span>
+          <span data-i18n="hdr.liveSession" class="hero-status-label">Live session</span>
           <div class="button-row compact-row">
-            <button id="heroStartRecognitionBtn" class="btn btn-primary" type="button">▶ Start</button>
-            <button id="heroStopRecognitionBtn" class="btn btn-dark" type="button">⏸ Stop</button>
-            <button id="heroEndServiceBtn" class="btn btn-danger" type="button">⏹ End</button>
-            <button id="heroBibleModeBtn" class="btn btn-secondary" type="button">📖 Read from Bible</button>
+            <button id="heroStartRecognitionBtn" class="btn btn-primary" type="button" data-i18n="btn.heroStart">▶ Start</button>
+            <button id="heroStopRecognitionBtn" class="btn btn-dark" type="button" data-i18n="btn.heroStop">⏸ Stop</button>
+            <button id="heroEndServiceBtn" class="btn btn-danger" type="button" data-i18n="btn.heroEnd">⏹ End</button>
+            <button id="heroBibleModeBtn" class="btn btn-secondary" type="button" data-i18n="btn.heroBible">📖 Read from Bible</button>
           </div>
-          <div id="heroBibleModeStatus" class="hero-quick-status muted small">Translation active</div>
+          <div id="heroBibleModeStatus" class="hero-quick-status muted small" data-i18n="hdr.translationActive">Translation active</div>
         </div>
 
         <details class="dashboard-details">
-          <summary>Detalii</summary>
+          <summary data-i18n="hdr.details">Detalii</summary>
           <div class="dashboard-details-content">
             <!-- Worship Live + Operatori online (moved from tab-dashboard, V21.21+V21.23) -->
             <div class="dashboard-info-subcards">
               <div id="adminWorshipPanel" class="panel glass-panel dashboard-subcard">
                 <div class="section-head">
-                  <h3>Worship Live</h3>
-                  <div id="adminWorshipPresence" class="status-pill">Worship inactiv</div>
+                  <h3 data-i18n="worship.title">Worship Live</h3>
+                  <div id="adminWorshipPresence" class="status-pill" data-i18n="worship.presence">Worship inactiv</div>
                 </div>
-                <div id="adminWorshipStatus" class="muted small">Echipa worship nu a pornit Live mode.</div>
-                <div id="adminWorshipMembers" class="muted small">0 membri online.</div>
+                <div id="adminWorshipStatus" class="muted small" data-i18n="worship.status">Echipa worship nu a pornit Live mode.</div>
+                <div id="adminWorshipMembers" class="muted small" data-i18n="worship.members">0 membri online.</div>
                 <div id="adminWorshipRequest" class="worship-sync-toast hidden"></div>
               </div>
               <div id="adminOperatorsPanel" class="panel glass-panel dashboard-subcard">
                 <div class="section-head">
                   <h3>Operatori online <span id="adminOperatorsCount" class="muted small">(0)</span></h3>
-                  <div class="muted small">Nume + permisiuni (volatil)</div>
+                  <div data-i18n="ops.subtitle2" class="muted small">Nume + permisiuni (volatil)</div>
                 </div>
-                <div id="adminOperatorsList" class="muted small">Niciun operator conectat.</div>
+                <div id="adminOperatorsList" class="muted small" data-i18n="ops.empty">Niciun operator conectat.</div>
               </div>
             </div>
 
             <!-- Participant access (moved from hero-status-grid) -->
             <div class="panel glass-panel dashboard-subcard">
               <div class="section-head">
-                <h3>Participant access</h3>
+                <h3 data-i18n="access.participantTitle">Participant access</h3>
               </div>
               <div class="hero-participant-row">
-                <input id="heroParticipantLink" type="text" readonly placeholder="Participant link">
+                <input id="heroParticipantLink" type="text" readonly data-i18n-placeholder="ph.participantLink" placeholder="Participant link">
                 <button id="heroCopyParticipantBtn" class="btn btn-dark" type="button" title="Copy link">📋</button>
-                <button id="heroShowQrBtn" class="btn btn-dark" type="button">📱 Show QR</button>
+                <button id="heroShowQrBtn" class="btn btn-dark" type="button" data-i18n="btn.showQr">📱 Show QR</button>
               </div>
             </div>
 
             <!-- Participant audio (moved from hero-quick-actions — Mute/Panic) -->
             <div class="panel glass-panel dashboard-subcard">
               <div class="section-head">
-                <h3>Participant audio</h3>
+                <h3 data-i18n="audio.participantTitle">Participant audio</h3>
               </div>
               <div class="button-row compact-row">
-                <button id="heroMuteGlobalBtn" class="btn btn-dark" type="button">🔇 Mute</button>
-                <button id="heroPanicBtn" class="btn btn-danger" type="button">🚨 Panic</button>
+                <button id="heroMuteGlobalBtn" class="btn btn-dark" type="button" data-i18n="btn.heroMute">🔇 Mute</button>
+                <button id="heroPanicBtn" class="btn btn-danger" type="button" data-i18n="btn.heroPanic">🚨 Panic</button>
               </div>
             </div>
           </div>
@@ -153,63 +158,63 @@
 
         <div class="metric-card panel glass-panel metrics-combined">
           <div class="metrics-combined-cell">
-            <div class="metric-label">Participants</div>
+            <div data-i18n="m.participants" class="metric-label">Participants</div>
             <div id="participantStatsSummary" class="metric-number">0 unique participants</div>
           </div>
           <div class="metrics-combined-divider" aria-hidden="true"></div>
           <div class="metrics-combined-cell">
-            <div class="metric-label">Participant audio</div>
+            <div data-i18n="m.participantAudio" class="metric-label">Participant audio</div>
             <div id="audioStateLabel" class="metric-text">Global audio active.</div>
           </div>
         </div>
 
         <div class="panel glass-panel section-stack partial-transcript-large-panel">
           <div class="section-head">
-            <h2>Partial transcript</h2>
-            <div class="muted">Live recognition draft</div>
+            <h2 data-i18n="m.partialTranscript">Partial transcript</h2>
+            <div data-i18n="m.liveDraft2" class="muted">Live recognition draft</div>
           </div>
           <div id="partialTranscriptLarge" class="partial-transcript-large"><span class="listening-dots" aria-label="listening"><span></span><span></span><span></span><span></span></span></div>
           <div style="margin-top: 8px; display: flex; gap: 8px;">
-            <button class="btn btn-dark" id="copyPartialsBtn" type="button">Copy partials log</button>
-            <button class="btn btn-dark" id="clearPartialsBtn" type="button">Clear partials log</button>
+            <button class="btn btn-dark" id="copyPartialsBtn" type="button" data-i18n="btn.copyPartials">Copy partials log</button>
+            <button class="btn btn-dark" id="clearPartialsBtn" type="button" data-i18n="btn.clearPartials">Clear partials log</button>
           </div>
         </div>
 
         <div class="cards-grid two dashboard-main-grid">
           <div class="panel glass-panel section-stack control-card">
             <div class="section-head">
-              <h2>Recognition Desk</h2>
-              <div class="muted">Setup before live</div>
+              <h2 data-i18n="rd.title">Recognition Desk</h2>
+              <div data-i18n="rd.setup" class="muted">Setup before live</div>
             </div>
 
-            <label>Translation mode</label>
+            <label data-i18n="rd.translationMode">Translation mode</label>
             <select id="speed">
-              <option value="rapid">Rapid</option>
-              <option value="balanced" selected>Balanced</option>
-              <option value="clear">Clear</option>
+              <option data-i18n="opt.rapid" value="rapid">Rapid</option>
+              <option data-i18n="opt.balanced" value="balanced" selected>Balanced</option>
+              <option data-i18n="opt.clear" value="clear">Clear</option>
             </select>
 
-            <label>Current input language</label>
+            <label data-i18n="rd.inputLang">Current input language</label>
             <select id="currentSourceLang"></select>
-            <div class="muted">This is the spoken language used by live transcription for the opened event.</div>
+            <div data-i18n="rd.inputLangHint" class="muted">This is the spoken language used by live transcription for the opened event.</div>
 
             <div class="info-card soft-card compact-control-card">
               <label class="inline-check"><input type="checkbox" id="dualLanguageToggle"> Afișaj dual limbă</label>
-              <div class="muted">Arată două limbi simultan pe Main Screen când există cel puțin două limbi disponibile.</div>
+              <div data-i18n="rd.dualHint" class="muted">Arată două limbi simultan pe Main Screen când există cel puțin două limbi disponibile.</div>
             </div>
 
-            <label>Audio input</label>
+            <label data-i18n="rd.audioInput">Audio input</label>
             <select id="audioInput"></select>
 
             <!-- V22.2 — Audio Source selector (testing) -->
             <div class="audio-source-panel" id="audioSourcePanel">
-              <label class="audio-source-label">Audio source:</label>
+              <label data-i18n="rd.audioSource" class="audio-source-label">Audio source:</label>
               <div class="audio-source-tabs">
-                <button type="button" class="audio-source-tab is-active" data-source="mic">🎙 Mic</button>
-                <button type="button" class="audio-source-tab" data-source="tab" id="audioSourceTabBtn">📺 Tab audio</button>
-                <button type="button" class="audio-source-tab" data-source="file">📁 File</button>
+                <button type="button" class="audio-source-tab is-active" data-source="mic" data-i18n="src.mic">🎙 Mic</button>
+                <button type="button" class="audio-source-tab" data-source="tab" id="audioSourceTabBtn" data-i18n="src.tab">📺 Tab audio</button>
+                <button type="button" class="audio-source-tab" data-source="file" data-i18n="src.file">📁 File</button>
               </div>
-              <div class="audio-source-detail" id="audioSourceDetailMic">(use mic selector above)</div>
+              <div class="audio-source-detail" id="audioSourceDetailMic" data-i18n="src.micDetail">(use mic selector above)</div>
               <div class="audio-source-detail hidden" id="audioSourceDetailTab">
                 Chrome/Edge desktop only. Pick a tab and check „Share tab audio" in the picker.
               </div>
@@ -222,56 +227,56 @@
 
             <details class="info-card soft-card audio-processing-card">
               <summary>
-                <span class="label">Audio settings</span>
-                <span class="muted">Processing</span>
+                <span data-i18n="audio.settings2" class="label">Audio settings</span>
+                <span data-i18n="audio.processing" class="muted">Processing</span>
               </summary>
               <div class="audio-processing-options">
                 <label class="inline-check"><input type="checkbox" id="echoCancellationBox"> Echo cancellation</label>
                 <label class="inline-check"><input type="checkbox" id="noiseSuppressionBox"> Noise suppression</label>
                 <label class="inline-check"><input type="checkbox" id="autoGainControlBox"> Auto gain control</label>
               </div>
-              <div id="audioProcessingHint" class="muted">Processing is off by default for the most natural speech input.</div>
+              <div data-i18n="audio.hint" id="audioProcessingHint" class="muted">Processing is off by default for the most natural speech input.</div>
             </details>
           </div>
 
           <div class="panel glass-panel section-stack control-card">
             <div class="section-head">
-              <h2>Live Session</h2>
-              <div class="live-chip">Service tools</div>
+              <h2 data-i18n="ls.title">Live Session</h2>
+              <div data-i18n="ls.serviceTools" class="live-chip">Service tools</div>
             </div>
 
             <div class="info-card accent-card live-control-card">
-              <div class="label">Live recognition</div>
-              <div id="recognitionStatus" class="status-text">Idle</div>
+              <div data-i18n="ls.liveRecognition" class="label">Live recognition</div>
+              <div id="recognitionStatus" class="status-text" data-i18n="ls.idle">Idle</div>
               <div class="button-row compact-row">
-                <button id="startRecognitionBtn" class="btn btn-primary">Start live</button>
-                <button id="stopRecognitionBtn" class="btn btn-dark">Stop</button>
-                <button id="endServiceBtn" class="btn btn-danger" type="button">End service</button>
+                <button id="startRecognitionBtn" class="btn btn-primary" data-i18n="btn.startLive">Start live</button>
+                <button id="stopRecognitionBtn" class="btn btn-dark" data-i18n="btn.stop">Stop</button>
+                <button id="endServiceBtn" class="btn btn-danger" type="button" data-i18n="btn.endService">End service</button>
               </div>
             </div>
 
             <div class="info-card accent-card bible-mode-card">
-              <div class="label">📖 Bible Mode</div>
-              <div id="bibleModeStatus" class="status-text">Translation active</div>
+              <div data-i18n="ls.bibleMode" class="label">📖 Bible Mode</div>
+              <div id="bibleModeStatus" class="status-text" data-i18n="ls.bibleStatus">Translation active</div>
               <div class="button-row compact-row">
-                <button id="bibleModeBtn" class="btn btn-secondary" type="button">📖 Read from Bible</button>
+                <button id="bibleModeBtn" class="btn btn-secondary" type="button" data-i18n="btn.bibleRead">📖 Read from Bible</button>
               </div>
-              <div class="bible-mode-hint">Pause translation when reading from a Bible app. Recognition continues so you can verify audio.</div>
+              <div data-i18n="ls.bibleHint" class="bible-mode-hint">Pause translation when reading from a Bible app. Recognition continues so you can verify audio.</div>
             </div>
 
             <div class="info-card accent-card">
-              <div class="label">Signal monitor</div>
+              <div data-i18n="ls.signalMonitor" class="label">Signal monitor</div>
               <progress id="audioLevel" value="0" max="100"></progress>
               <div class="split-2">
                 <div>
-                  <label>Input gain</label>
+                  <label data-i18n="ls.inputGain">Input gain</label>
                   <input id="inputGainRange" class="range" type="range" min="0" max="400" value="100">
                   <div id="inputGainLabel" class="muted">100%</div>
                   <label class="inline-check mute-input-row"><input type="checkbox" id="muteInputBox"> 🔇 Mute Input</label>
-                  <div id="muteInputStatus" class="mute-input-status" hidden>Microphone muted - no transcription</div>
+                  <div id="muteInputStatus" class="mute-input-status" hidden data-i18n="ls.muteInputStatus">Microphone muted - no transcription</div>
                 </div>
                 <div>
-                  <label>Monitor volume</label>
+                  <label data-i18n="ls.monitorVolume">Monitor volume</label>
                   <input id="monitorGainRange" class="range" type="range" min="0" max="400" value="0">
                   <div id="monitorGainLabel" class="muted">0%</div>
                 </div>
@@ -280,22 +285,22 @@
             </div>
 
             <div class="info-card accent-card">
-              <div class="label">Participant audio</div>
+              <div data-i18n="ls.participantAudio" class="label">Participant audio</div>
               <div class="button-row compact-row">
-                <button id="muteGlobalBtn" class="btn btn-dark">Mute global</button>
-                <button id="panicBtn" class="btn btn-danger">Panic stop</button>
+                <button id="muteGlobalBtn" class="btn btn-dark" data-i18n="btn.muteGlobal">Mute global</button>
+                <button id="panicBtn" class="btn btn-danger" data-i18n="btn.panicStop">Panic stop</button>
               </div>
-              <label>General volume</label>
+              <label data-i18n="ls.generalVolume">General volume</label>
               <input id="volumeRange" class="range" type="range" min="0" max="100" value="70">
             </div>
 
             <div class="info-card soft-card">
-              <div class="label">Participant languages</div>
+              <div data-i18n="ls.participantLangs" class="label">Participant languages</div>
               <div id="participantStatsList" class="history-list"><div class="muted">No connected participant.</div></div>
             </div>
 
             <div class="info-card soft-card translation-monitor-card">
-              <div class="label">Translation monitor</div>
+              <div data-i18n="ls.transMonitor" class="label">Translation monitor</div>
               <div class="monitor-grid">
                 <div><span class="muted">Latency</span><strong id="monitorLatency">-</strong></div>
                 <div><span class="muted">Pending</span><strong id="monitorPending">0</strong></div>
@@ -309,10 +314,10 @@
         <div class="panel glass-panel section-stack" id="liveLanguagesPanel">
           <div class="section-head">
             <div>
-              <h2>Event languages</h2>
-              <div class="muted">Add or remove target languages mid-session. Existing participants stay connected; new translations apply on the next transcript line.</div>
+              <h2 data-i18n="el.title">Event languages</h2>
+              <div data-i18n="el.hint" class="muted">Add or remove target languages mid-session. Existing participants stay connected; new translations apply on the next transcript line.</div>
             </div>
-            <button id="saveLiveLanguagesBtn" class="btn btn-primary" type="button">Save languages</button>
+            <button id="saveLiveLanguagesBtn" class="btn btn-primary" type="button" data-i18n="btn.saveLanguages">Save languages</button>
           </div>
           <div id="liveLanguagesGrid" class="checkbox-grid"></div>
           <div id="liveLanguagesStatus" class="muted"></div>
@@ -321,12 +326,12 @@
         <div class="panel glass-panel section-stack" id="selfTestPanel">
           <div class="section-head">
             <div>
-              <h2>System self-test</h2>
-              <div class="muted">Quick check of database, sockets, OpenAI, Azure Speech, web push, backups, and disk.</div>
+              <h2 data-i18n="st.title">System self-test</h2>
+              <div data-i18n="st.hint" class="muted">Quick check of database, sockets, OpenAI, Azure Speech, web push, backups, and disk.</div>
             </div>
             <div class="button-row compact">
               <span id="selfTestSummary" class="muted"></span>
-              <button id="runSelfTestBtn" class="btn btn-primary" type="button">Run self-test</button>
+              <button id="runSelfTestBtn" class="btn btn-primary" type="button" data-i18n="btn.runSelfTest">Run self-test</button>
             </div>
           </div>
           <div id="selfTestResults" class="self-test-results"></div>
@@ -336,12 +341,12 @@
       <section id="tab-transcript" class="tab-panel">
         <div class="panel glass-panel section-stack transcript-shell">
           <div class="section-head">
-            <h2>Transcript and live translations</h2>
+            <h2 data-i18n="tr.title">Transcript and live translations</h2>
             <div class="button-row compact-row">
-              <button id="exportTranscriptBtn" class="btn btn-dark" type="button">Export transcript</button>
-              <button id="copyTranscriptBtn" class="btn btn-dark" type="button">📋 Copiază transcript</button>
-              <button id="clearTranscriptBtn" class="btn btn-danger" type="button">Clear transcript</button>
-              <button id="jumpLiveBtn" class="btn btn-dark" type="button">Jump to latest</button>
+              <button id="exportTranscriptBtn" class="btn btn-dark" type="button" data-i18n="btn.exportTranscript">Export transcript</button>
+              <button id="copyTranscriptBtn" class="btn btn-dark" type="button" data-i18n="btn.copyTranscript">📋 Copiază transcript</button>
+              <button id="clearTranscriptBtn" class="btn btn-danger" type="button" data-i18n="btn.clearTranscript">Clear transcript</button>
+              <button id="jumpLiveBtn" class="btn btn-dark" type="button" data-i18n="btn.jumpLive">Jump to latest</button>
             </div>
           </div>
           <div id="transcriptList" class="transcript-list"></div>
@@ -351,11 +356,11 @@
       <section id="tab-events" class="tab-panel active">
         <div class="panel glass-panel section-stack">
           <div class="section-head">
-            <h2>Create Event</h2>
-            <div class="live-chip">New service</div>
+            <h2 data-i18n="evt.create">Create Event</h2>
+            <div data-i18n="evt.newService" class="live-chip">New service</div>
           </div>
-          <label>Event name</label>
-          <input id="eventName" type="text" placeholder="Sunday service 11:00">
+          <label data-i18n="evt.name">Event name</label>
+          <input id="eventName" type="text" data-i18n-placeholder="ph.eventName" placeholder="Sunday service 11:00">
           <div class="split-2">
             <div>
               <label>Date <span class="required-mark">*</span></label>
@@ -368,70 +373,70 @@
           </div>
           <div class="split-2">
             <div>
-              <label>Timezone</label>
+              <label data-i18n="evt.timezone">Timezone</label>
               <select id="eventTimezone"></select>
             </div>
             <div>
-              <label>Start mode</label>
+              <label data-i18n="evt.startMode">Start mode</label>
               <select id="eventModePreset">
-                <option value="live" selected>Live Translate</option>
-                <option value="song">Song</option>
+                <option data-i18n="opt.liveTranslate" value="live" selected>Live Translate</option>
+                <option data-i18n="opt.song" value="song">Song</option>
               </select>
             </div>
           </div>
-          <div id="eventScheduledPreview" class="muted scheduled-preview">Choose a date and time to schedule this service.</div>
+          <div id="eventScheduledPreview" class="muted scheduled-preview" data-i18n="evt.schedPreview">Choose a date and time to schedule this service.</div>
           <div class="split-2">
             <div>
-              <label>Source language</label>
+              <label data-i18n="evt.sourceLang">Source language</label>
               <select id="sourceLang"></select>
             </div>
             <div></div>
           </div>
-          <label>Target languages</label>
+          <label data-i18n="evt.targetLangs">Target languages</label>
           <div id="targetLangPicker" class="target-lang-picker">
             <div id="targetLangChips" class="target-lang-chips" aria-live="polite"></div>
             <div class="add-event-split target-lang-add">
               <select id="targetLangAddSelect" class="add-event-select" aria-label="Selectează limbă pentru adăugare">
-                <option value="">Adaugă limbă...</option>
+                <option data-i18n="opt.addLang" value="">Adaugă limbă...</option>
               </select>
             </div>
           </div>
-          <button id="createEventBtn" class="btn btn-primary">Create event</button>
+          <button id="createEventBtn" class="btn btn-primary" data-i18n="btn.createEvent">Create event</button>
         </div>
 
         <div class="panel glass-panel section-stack access-shell">
           <div class="section-head">
-            <h2>Event Access</h2>
-            <div class="live-chip">Fast launch</div>
+            <h2 data-i18n="acc.title">Event Access</h2>
+            <div data-i18n="acc.fastLaunch" class="live-chip">Fast launch</div>
           </div>
-          <div class="meta-row access-code-row"><span>Admin code</span><strong id="adminCode">-</strong></div>
-          <div class="meta-row access-code-row"><span>Main operator code</span><strong id="accessScreenOperatorCode">-</strong></div>
+          <div class="meta-row access-code-row"><span data-i18n="acc.adminCode">Admin code</span><strong id="adminCode">-</strong></div>
+          <div class="meta-row access-code-row"><span data-i18n="acc.mainOpCode">Main operator code</span><strong id="accessScreenOperatorCode">-</strong></div>
           <div class="link-stack">
-            <label>Main screen link</label>
+            <label data-i18n="acc.mainScreenLink">Main screen link</label>
             <div class="link-row">
               <input id="translateLink" type="text" readonly>
-              <button id="copyTranslateBtn" class="btn btn-dark">Copy</button>
-              <button id="emailTranslateBtn" class="btn btn-dark" type="button">Email</button>
+              <button id="copyTranslateBtn" class="btn btn-dark" data-i18n="btn.copyTranslate">Copy</button>
+              <button id="emailTranslateBtn" class="btn btn-dark" type="button" data-i18n="btn.emailTranslate">Email</button>
             </div>
           </div>
 
           <div class="link-stack">
-            <label>Permanent main operator link</label>
+            <label data-i18n="acc.permaOpLink">Permanent main operator link</label>
             <div class="link-row">
               <input id="accessRemoteControlLink" type="text" readonly>
-              <button id="copyAccessRemoteBtn" class="btn btn-dark" type="button">Copy</button>
-              <button id="emailAccessRemoteBtn" class="btn btn-dark" type="button">Email</button>
+              <button id="copyAccessRemoteBtn" class="btn btn-dark" type="button" data-i18n="btn.copyAccessRemote">Copy</button>
+              <button id="emailAccessRemoteBtn" class="btn btn-dark" type="button" data-i18n="btn.emailAccessRemote">Email</button>
             </div>
           </div>
           <div class="button-row">
-            <button id="setActiveEventBtn" class="btn btn-primary">Set live event</button>
+            <button id="setActiveEventBtn" class="btn btn-primary" data-i18n="btn.setActiveEvent">Set live event</button>
           </div>
         </div>
 
         <div class="panel glass-panel section-stack">
           <div class="section-head">
-            <h2>Event Library</h2>
-            <button id="refreshEventsBtn" class="btn btn-dark">Refresh</button>
+            <h2 data-i18n="lib.title">Event Library</h2>
+            <button id="refreshEventsBtn" class="btn btn-dark" data-i18n="btn.refreshEvents">Refresh</button>
           </div>
           <div id="eventList" class="event-list"></div>
         </div>
@@ -440,43 +445,43 @@
       <section id="tab-operator-roles" class="tab-panel">
         <div id="eventOperatorPanel" class="panel glass-panel section-stack">
           <div class="section-head">
-            <h2>Operator Roles</h2>
-            <div class="live-chip">After event creation</div>
+            <h2 data-i18n="or.title">Operator Roles</h2>
+            <div data-i18n="or.afterEvent" class="live-chip">After event creation</div>
           </div>
           <div class="info-card soft-card">
-            <div class="label">Main Operator</div>
-            <div class="muted">Permanent link. It automatically connects to the current live event.</div>
+            <div data-i18n="or.mainOperator" class="label">Main Operator</div>
+            <div data-i18n="or.mainOpHint" class="muted">Permanent link. It automatically connects to the current live event.</div>
             <div class="meta-row access-code-row"><span>Main operator code</span><strong id="screenOperatorCode">-</strong></div>
             <div class="link-stack">
-              <label>Permanent remote link</label>
+              <label data-i18n="or.permaRemoteLink">Permanent remote link</label>
               <div class="link-row">
                 <input id="remoteControlLink" type="text" readonly>
-                <button id="copyRemoteControlBtn" class="btn btn-dark" type="button">Copy</button>
+                <button id="copyRemoteControlBtn" class="btn btn-dark" type="button" data-i18n="btn.copyRemoteControl">Copy</button>
               </div>
             </div>
             <div class="button-row compact-row">
-              <button id="openRemoteControlBtn" class="btn btn-primary" type="button">Open remote control</button>
+              <button id="openRemoteControlBtn" class="btn btn-primary" type="button" data-i18n="btn.openRemoteControl">Open remote control</button>
             </div>
           </div>
           <div class="info-card soft-card">
-            <div class="label">Create remote operator</div>
+            <div data-i18n="or.createRemoteOp" class="label">Create remote operator</div>
             <div class="split-2 compact-library-row">
               <div>
-                <label>Name</label>
-                <input id="remoteOperatorName" type="text" placeholder="Projection operator">
+                <label data-i18n="or.name">Name</label>
+                <input id="remoteOperatorName" type="text" data-i18n-placeholder="ph.remoteOpName" placeholder="Projection operator">
               </div>
               <div>
-                <label>Access profile</label>
+                <label data-i18n="or.accessProfile">Access profile</label>
                 <select id="remoteOperatorProfile">
-                  <option value="main_screen">Main Screen only</option>
-                  <option value="song_only">Song only</option>
-                  <option value="main_and_song">Main Screen + Song</option>
-                  <option value="full" selected>Full operator</option>
+                  <option data-i18n="opt.mainScreenOnly" value="main_screen">Main Screen only</option>
+                  <option data-i18n="opt.songOnly" value="song_only">Song only</option>
+                  <option data-i18n="opt.mainAndSong" value="main_and_song">Main Screen + Song</option>
+                  <option data-i18n="opt.full" value="full" selected>Full operator</option>
                 </select>
               </div>
             </div>
             <div class="button-row compact-row">
-              <button id="createRemoteOperatorBtn" class="btn btn-dark" type="button">Create operator</button>
+              <button id="createRemoteOperatorBtn" class="btn btn-dark" type="button" data-i18n="btn.createRemoteOp">Create operator</button>
             </div>
             <div id="remoteOperatorsList" class="history-list">
               <div class="muted">No extra operators yet.</div>
@@ -487,12 +492,12 @@
         <div id="accessRequestsPanel" class="panel glass-panel section-stack" data-anchor="access-requests">
           <div class="section-head">
             <div>
-              <h2>Operator access requests</h2>
-              <div class="muted">Pending requests from operators who don't have a PIN yet.</div>
+              <h2 data-i18n="or.accessReqTitle">Operator access requests</h2>
+              <div data-i18n="or.accessReqHint" class="muted">Pending requests from operators who don't have a PIN yet.</div>
             </div>
             <div class="button-row compact">
-              <button id="enableAdminPushBtn" class="btn btn-dark" type="button" hidden>Enable push alerts</button>
-              <button id="refreshAccessRequestsBtn" class="btn btn-dark" type="button">Refresh</button>
+              <button id="enableAdminPushBtn" class="btn btn-dark" type="button" hidden data-i18n="btn.enablePush">Enable push alerts</button>
+              <button id="refreshAccessRequestsBtn" class="btn btn-dark" type="button" data-i18n="btn.refreshAccessReq">Refresh</button>
             </div>
           </div>
           <div id="accessRequestsList" class="history-list"><div class="muted">No requests yet.</div></div>
@@ -504,10 +509,10 @@
         <div class="cards-grid">
           <div class="panel glass-panel section-stack">
             <div class="section-head">
-              <h2>Main Screen</h2>
+              <h2 data-i18n="ms.title">Main Screen</h2>
               <div id="mainScreenModeMount" class="muted">Main screen: Live follow</div>
             </div>
-            <div class="muted">Choose what the projector shows and adjust readability, theme, and visibility.</div>
+            <div data-i18n="ms.chooseHint" class="muted">Choose what the projector shows and adjust readability, theme, and visibility.</div>
             <div id="mainScreenSettingsMount"></div>
           </div>
         </div>
@@ -515,25 +520,25 @@
         <div class="cards-grid two">
           <div class="panel glass-panel section-stack">
             <div class="section-head">
-              <h2>Usage and Reliability</h2>
-              <div class="live-chip">Live metrics</div>
+              <h2 data-i18n="ms.usageTitle">Usage and Reliability</h2>
+              <div data-i18n="ms.liveMetrics" class="live-chip">Live metrics</div>
             </div>
             <div class="cards-grid three metrics-grid usage-metrics-grid">
               <div class="metric-card panel glass-panel">
-                <div class="metric-label">Participants ever</div>
+                <div data-i18n="ms.participantsEver" class="metric-label">Participants ever</div>
                 <div id="usageUniqueParticipants" class="metric-number">0</div>
               </div>
               <div class="metric-card panel glass-panel">
-                <div class="metric-label">Screen changes</div>
+                <div data-i18n="ms.screenChanges" class="metric-label">Screen changes</div>
                 <div id="usageScreenChanges" class="metric-number">0</div>
               </div>
               <div class="metric-card panel glass-panel">
-                <div class="metric-label">Transcripts</div>
+                <div data-i18n="ms.transcripts" class="metric-label">Transcripts</div>
                 <div id="usageTranscriptCount" class="metric-number">0</div>
               </div>
             </div>
             <details class="usage-details">
-              <summary class="btn btn-dark">Open details</summary>
+              <summary data-i18n="ms.openDetails" class="btn btn-dark">Open details</summary>
               <div id="usageReliabilityList" class="history-list">
                 <div class="muted">No live metrics yet.</div>
               </div>
@@ -547,24 +552,24 @@
         <div class="cards-grid two song-grid">
           <div class="panel glass-panel section-stack">
             <div class="section-head">
-              <h2>Song</h2>
+              <h2 data-i18n="song.title">Song</h2>
               <div id="songModeBadge" class="status-pill">Live</div>
             </div>
             <div id="displayModeLabel" class="muted">Main screen: Live follow</div>
             <div id="songCurrentIndex" class="muted">Saved: 0 · History: 0</div>
             <div class="info-card accent-card song-live-card">
               <div class="section-head admin-subsection-head">
-                <h2>Live Song Control</h2>
-                <div class="muted">Move through the song without touching the editor.</div>
+                <h2 data-i18n="song.liveControl">Live Song Control</h2>
+                <div data-i18n="song.liveControlHint" class="muted">Move through the song without touching the editor.</div>
               </div>
               <div class="button-row compact-row song-control-action-row">
-                <button id="backToLiveTextBtn" class="btn btn-primary back-to-live-btn" type="button">⏎ Back to live text</button>
-                <button id="songBlackScreenBtn" class="btn btn-danger" type="button">⬛ Black screen</button>
-                <button id="songClearBtn" class="btn btn-dark" type="button">🗑 Clear</button>
+                <button id="backToLiveTextBtn" class="btn btn-primary back-to-live-btn" type="button" data-i18n="btn.backToLive">⏎ Back to live text</button>
+                <button id="songBlackScreenBtn" class="btn btn-danger" type="button" data-i18n="btn.songBlack">⬛ Black screen</button>
+                <button id="songClearBtn" class="btn btn-dark" type="button" data-i18n="btn.songClear">🗑 Clear</button>
               </div>
               <div class="split-2 compact-library-row">
                 <div>
-                  <label>Jump to verse or chorus</label>
+                  <label data-i18n="song.jumpVerse">Jump to verse or chorus</label>
                   <select id="songJumpSelect"></select>
                 </div>
               </div>
@@ -579,13 +584,13 @@
             </div>
             <div class="info-card soft-card main-screen-settings-card">
               <div class="section-head admin-subsection-head">
-                <h2>Main Screen Settings</h2>
-                <div class="muted">Theme, readability, preview and blank screen</div>
+                <h2 data-i18n="song.mainSettings">Main Screen Settings</h2>
+                <div data-i18n="song.mainSettingsHint" class="muted">Theme, readability, preview and blank screen</div>
               </div>
               <div class="info-card accent-card main-screen-audit-card">
                 <div class="section-head admin-subsection-head">
-                  <h2>Screen Status</h2>
-                  <div class="muted">See exactly what is live before you change anything.</div>
+                  <h2 data-i18n="song.screenStatus">Screen Status</h2>
+                  <div data-i18n="song.screenStatusHint" class="muted">See exactly what is live before you change anything.</div>
                 </div>
                 <div class="display-audit-grid">
                   <div><span class="label">Scene</span><strong id="displayAuditScene" class="display-audit-value">Live follow</strong></div>
@@ -598,18 +603,18 @@
                 <div id="displayAuditPreview" class="muted display-audit-preview">Waiting for live content.</div>
               </div>
               <div class="button-row compact-row display-restore-row">
-                <button id="displayRestoreBtn" class="btn btn-dark" type="button">Undo last screen change</button>
+                <button id="displayRestoreBtn" class="btn btn-dark" type="button" data-i18n="btn.displayRestore">Undo last screen change</button>
               </div>
               <div class="button-row compact-row">
-                <button id="displayAutoBtn" class="btn btn-dark" type="button">Live follow</button>
-                <button id="displayManualBtn" class="btn btn-primary" type="button">Pinned text</button>
-                <button id="displaySongBtn" class="btn btn-dark" type="button">Song</button>
-                <button id="blankMainScreenBtn" class="btn btn-danger" type="button">Black screen</button>
+                <button id="displayAutoBtn" class="btn btn-dark" type="button" data-i18n="btn.displayAuto">Live follow</button>
+                <button id="displayManualBtn" class="btn btn-primary" type="button" data-i18n="btn.displayManual">Pinned text</button>
+                <button id="displaySongBtn" class="btn btn-dark" type="button" data-i18n="btn.displaySong">Song</button>
+                <button id="blankMainScreenBtn" class="btn btn-danger" type="button" data-i18n="btn.blankMainScreen">Black screen</button>
               </div>
               <div class="info-card soft-card">
                 <div class="section-head admin-subsection-head">
-                  <h2>Quick Language Switch</h2>
-                  <div class="muted">Change projector language in one click.</div>
+                  <h2 data-i18n="song.quickLang">Quick Language Switch</h2>
+                  <div data-i18n="song.quickLangHint" class="muted">Change projector language in one click.</div>
                 </div>
                 <div id="displayLanguageQuickButtons" class="quick-language-row">
                   <div class="muted">Open an event to see available languages.</div>
@@ -617,23 +622,23 @@
               </div>
               <div class="split-2">
                 <div>
-                  <label>Theme</label>
+                  <label data-i18n="song.theme">Theme</label>
                   <select id="displayThemeSelect">
-                    <option value="dark" selected>White on black</option>
-                    <option value="light">Black on white</option>
+                    <option data-i18n="opt.themeDark" value="dark" selected>White on black</option>
+                    <option data-i18n="opt.themeLight" value="light">Black on white</option>
                   </select>
                 </div>
                 <div>
-                  <label>Screen language</label>
+                  <label data-i18n="song.screenLang">Screen language</label>
                   <select id="displayLanguageSelect"></select>
                 </div>
                 <div>
-                  <label>Second language</label>
+                  <label data-i18n="song.secondLang">Second language</label>
                   <select id="displaySecondaryLanguageSelect"></select>
                   <div class="small">Choose "Single language" to keep the current full-screen layout.</div>
                 </div>
                 <div>
-                  <label>Text zoom</label>
+                  <label data-i18n="song.textZoom">Text zoom</label>
                   <div class="button-row compact-row clock-size-row">
                     <button id="textZoomMinusBtn" class="btn btn-dark" type="button">-</button>
                     <span id="displayTextScaleValue" class="status-pill">100%</span>
@@ -645,36 +650,36 @@
               </div>
               <div class="split-2">
                 <div>
-                  <label>Background preset</label>
+                  <label data-i18n="song.bgPreset">Background preset</label>
                   <select id="displayBackgroundPresetSelect">
-                    <option value="none" selected>Solid theme</option>
-                    <option value="warm">Warm glow</option>
-                    <option value="sanctuary">Sanctuary blur</option>
-                    <option value="soft-light">Soft light</option>
+                    <option data-i18n="opt.bgNone" value="none" selected>Solid theme</option>
+                    <option data-i18n="opt.bgWarm" value="warm">Warm glow</option>
+                    <option data-i18n="opt.bgSanctuary" value="sanctuary">Sanctuary blur</option>
+                    <option data-i18n="opt.bgSoft" value="soft-light">Soft light</option>
                   </select>
                 </div>
                 <div>
-                  <label>Text size</label>
+                  <label data-i18n="song.textSize">Text size</label>
                   <select id="displayTextSizeSelect">
-                    <option value="compact">Compact</option>
-                    <option value="large" selected>Large</option>
-                    <option value="xlarge">Extra large</option>
-                    <option value="huge">Huge (sanctuary projector)</option>
+                    <option data-i18n="opt.sizeCompact" value="compact">Compact</option>
+                    <option data-i18n="opt.sizeLarge" value="large" selected>Large</option>
+                    <option data-i18n="opt.sizeXlarge" value="xlarge">Extra large</option>
+                    <option data-i18n="opt.sizeHuge" value="huge">Huge (sanctuary projector)</option>
                   </select>
                 </div>
               </div>
               <div class="split-2">
                 <div>
-                  <label>Text layout</label>
+                  <label data-i18n="song.textLayout">Text layout</label>
                   <select id="displayScreenStyleSelect">
-                    <option value="focus" selected>Focus</option>
-                    <option value="wide">Wide</option>
+                    <option data-i18n="opt.layoutFocus" value="focus" selected>Focus</option>
+                    <option data-i18n="opt.layoutWide" value="wide">Wide</option>
                   </select>
                 </div>
                 <div>
-                  <label>Projector resolution</label>
+                  <label data-i18n="song.projRes">Projector resolution</label>
                   <select id="displayResolutionSelect">
-                    <option value="auto" selected>Auto / current screen</option>
+                    <option data-i18n="opt.resAuto" value="auto" selected>Auto / current screen</option>
                     <option value="16-9">16:9 projector</option>
                     <option value="16-10">16:10 projector</option>
                     <option value="4-3">4:3 projector</option>
@@ -683,12 +688,12 @@
               </div>
               <div class="split-2">
                 <div>
-                  <label>Clock position</label>
+                  <label data-i18n="song.clockPos">Clock position</label>
                   <select id="displayClockPositionSelect">
-                    <option value="top-right">Clock top right</option>
-                    <option value="top-left">Clock top left</option>
-                    <option value="bottom-right" selected>Clock bottom right</option>
-                    <option value="bottom-left">Clock bottom left</option>
+                    <option data-i18n="opt.clockTR" value="top-right">Clock top right</option>
+                    <option data-i18n="opt.clockTL" value="top-left">Clock top left</option>
+                    <option data-i18n="opt.clockBR" value="bottom-right" selected>Clock bottom right</option>
+                    <option data-i18n="opt.clockBL" value="bottom-left">Clock bottom left</option>
                   </select>
                   <label style="margin-top: 12px;">Clock size</label>
                   <div class="button-row compact-row clock-size-row">
@@ -700,19 +705,19 @@
                 </div>
                 <div></div>
               </div>
-              <label>Custom background image URL</label>
-              <input id="displayBackgroundInput" type="text" placeholder="Optional image URL overrides preset">
+              <label data-i18n="song.customBg">Custom background image URL</label>
+              <input id="displayBackgroundInput" type="text" data-i18n-placeholder="ph.customBg" placeholder="Optional image URL overrides preset">
               <label class="inline-check"><input id="displayShowClockBox" type="checkbox"> Show clock</label>
 
               <div class="info-card soft-card">
                 <div class="section-head admin-subsection-head">
-                  <h2>Preview Windows</h2>
-                  <div class="muted">Open previews on another monitor or split them side by side.</div>
+                  <h2 data-i18n="song.previewWindows">Preview Windows</h2>
+                  <div data-i18n="song.previewHint" class="muted">Open previews on another monitor or split them side by side.</div>
                 </div>
                 <div class="button-row compact-row">
-                  <button id="openMainPreviewBtn" class="btn btn-dark" type="button">Open main screen preview</button>
-                  <button id="openParticipantPreviewBtn" class="btn btn-dark" type="button">Open participant preview</button>
-                  <button id="openBothPreviewsBtn" class="btn btn-primary" type="button">Open both previews</button>
+                  <button id="openMainPreviewBtn" class="btn btn-dark" type="button" data-i18n="btn.openMainPreview">Open main screen preview</button>
+                  <button id="openParticipantPreviewBtn" class="btn btn-dark" type="button" data-i18n="btn.openParticipantPreview">Open participant preview</button>
+                  <button id="openBothPreviewsBtn" class="btn btn-primary" type="button" data-i18n="btn.openBothPreviews">Open both previews</button>
                 </div>
                 <div class="muted">Use these windows like live previews for projector and participant phone view.</div>
               </div>
@@ -720,23 +725,23 @@
             <details class="info-card soft-card song-editor-card song-editor-details">
               <summary class="song-editor-summary">
                 <div class="section-head admin-subsection-head">
-                  <h2>Prepare Song</h2>
-                  <div class="muted">Paste lyrics or load a song from Church Library</div>
+                  <h2 data-i18n="song.prepare">Prepare Song</h2>
+                  <div data-i18n="song.prepareHint" class="muted">Paste lyrics or load a song from Church Library</div>
                 </div>
                 <span class="song-editor-toggle">▾</span>
               </summary>
               <div class="song-editor-body">
                 <p class="muted small" style="margin-bottom: 10px;">Tip: use the unified search in Church Library below to find songs in the library or on resursecrestine.ro.</p>
-                <label>Title</label>
-                <input id="songTitle" type="text" placeholder="Amazing Grace">
-                <label>Song language</label>
+                <label data-i18n="song.songTitle">Title</label>
+                <input id="songTitle" type="text" data-i18n-placeholder="ph.songTitle" placeholder="Amazing Grace">
+                <label data-i18n="song.songLang">Song language</label>
                 <select id="songSourceLang"></select>
-                <label>Song text or lyrics</label>
+                <label data-i18n="song.songText">Song text or lyrics</label>
                 <textarea id="songText" class="song-textarea" placeholder="Use markers like 1., 2., R., R2. or R: %repeat note% to create verses and choruses."></textarea>
                 <div class="button-row">
-                  <button id="saveSongBtn" class="btn btn-dark">Save to church library</button>
-                  <button id="sendSongBtn" class="btn btn-primary">Send first verse</button>
-                  <button id="clearSongEditorBtn" class="btn btn-light" type="button">🗑 Clear Editor</button>
+                  <button id="saveSongBtn" class="btn btn-dark" data-i18n="btn.saveSong">Save to church library</button>
+                  <button id="sendSongBtn" class="btn btn-primary" data-i18n="btn.sendSong">Send first verse</button>
+                  <button id="clearSongEditorBtn" class="btn btn-light" type="button" data-i18n="btn.clearSongEditor">🗑 Clear Editor</button>
                 </div>
               </div>
             </details>
@@ -744,27 +749,27 @@
 
           <div class="panel glass-panel section-stack">
             <div class="section-head">
-              <h2>Church Library</h2>
-              <div class="muted">Shared for all events · search resursecrestine.ro too</div>
+              <h2 data-i18n="song.churchLib">Church Library</h2>
+              <div data-i18n="song.churchLibHint" class="muted">Shared for all events · search resursecrestine.ro too</div>
             </div>
             <div class="unified-search">
               <div class="unified-search-input-row">
-                <input id="globalSongLibrarySearch" type="text" class="unified-search-input" placeholder="Caută cântare (Library + Resurse)...">
+                <input id="globalSongLibrarySearch" type="text" class="unified-search-input" data-i18n-placeholder="ph.songSearch" placeholder="Caută cântare (Library + Resurse)...">
                 <select id="globalSongLibrarySort">
-                  <option value="az" selected>Title A-Z</option>
-                  <option value="za">Title Z-A</option>
-                  <option value="recent">Recent first</option>
+                  <option data-i18n="opt.sortAz" value="az" selected>Title A-Z</option>
+                  <option data-i18n="opt.sortZa" value="za">Title Z-A</option>
+                  <option data-i18n="opt.sortRecent" value="recent">Recent first</option>
                 </select>
-                <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button">Caută și pe resurse</button>
+                <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button" data-i18n="btn.searchResurse">Caută și pe resurse</button>
               </div>
               <div id="importUrlStatus" class="muted" style="min-height: 1em;"></div>
               <div class="library-backup-controls">
-                <button id="exportLibraryBtn" class="btn btn-dark btn-sm" type="button">⬇ Export Library</button>
-                <button id="importLibraryBtn" class="btn btn-dark btn-sm" type="button">⬆ Import Library</button>
+                <button id="exportLibraryBtn" class="btn btn-dark btn-sm" type="button" data-i18n="btn.exportLib">⬇ Export Library</button>
+                <button id="importLibraryBtn" class="btn btn-dark btn-sm" type="button" data-i18n="btn.importLib">⬆ Import Library</button>
                 <input id="importLibraryFile" type="file" accept="application/json,.json" class="hidden">
               </div>
               <div class="unified-search-library-section">
-                <div class="unified-search-section-label">Din Library</div>
+                <div data-i18n="song.fromLibrary" class="unified-search-section-label">Din Library</div>
                 <div id="globalSongLibraryList" class="event-list unified-search-library-results"></div>
               </div>
               <div class="unified-search-resurse-section hidden">
@@ -773,15 +778,15 @@
               </div>
             </div>
             <div class="section-head admin-subsection-head">
-              <h2>Songs in this event</h2>
+              <h2 data-i18n="song.inThisEvent">Songs in this event</h2>
               <div class="muted" id="adminEventSongsCount">0 songs</div>
             </div>
             <div id="adminEventSongsList" class="event-songs-list">
               <p class="muted small">Open an event to see its scheduled songs.</p>
             </div>
             <div class="section-head admin-subsection-head">
-              <h2>Recent Sends</h2>
-              <div class="muted">Latest items on screen</div>
+              <h2 data-i18n="song.recentSends">Recent Sends</h2>
+              <div data-i18n="song.recentSendsHint" class="muted">Latest items on screen</div>
             </div>
             <div id="songHistoryList" class="history"></div>
           </div>
@@ -791,35 +796,35 @@
       <section id="tab-glossary" class="tab-panel">
         <div class="panel glass-panel section-stack">
           <div class="section-head">
-            <h2>Glossary and Speech Fixes</h2>
-            <div class="live-chip">Permanent memory</div>
+            <h2 data-i18n="gl.title">Glossary and Speech Fixes</h2>
+            <div data-i18n="gl.permMemory" class="live-chip">Permanent memory</div>
           </div>
-          <label>Type</label>
+          <label data-i18n="gl.type">Type</label>
           <select id="glossaryMode">
-            <option value="translation" selected>Translation glossary</option>
-            <option value="source">Speech correction</option>
+            <option data-i18n="opt.transGlossary" value="translation" selected>Translation glossary</option>
+            <option data-i18n="opt.speechCorrection" value="source">Speech correction</option>
           </select>
 
           <div id="translationGlossaryFields" class="section-stack compact-stack">
             <div class="split-2">
               <div>
-                <label>Language</label>
+                <label data-i18n="gl.language">Language</label>
                 <select id="glossaryLang"></select>
               </div>
               <div>
                 <label class="inline-check"><input id="glossaryPermanent" type="checkbox" checked> Save permanently</label>
               </div>
             </div>
-            <input id="glossarySource" type="text" placeholder="Source word or phrase">
-            <input id="glossaryTarget" type="text" placeholder="Correct target form">
-            <button id="saveGlossaryBtn" class="btn btn-dark">Save translation</button>
+            <input id="glossarySource" type="text" data-i18n-placeholder="ph.glossarySource" placeholder="Source word or phrase">
+            <input id="glossaryTarget" type="text" data-i18n-placeholder="ph.glossaryTarget" placeholder="Correct target form">
+            <button id="saveGlossaryBtn" class="btn btn-dark" data-i18n="btn.saveGlossary">Save translation</button>
           </div>
 
           <div id="sourceCorrectionFields" class="section-stack compact-stack" style="display:none">
             <label class="inline-check"><input id="sourceCorrectionPermanent" type="checkbox" checked> Save permanently</label>
-            <input id="sourceWrong" type="text" placeholder="Wrong heard form">
-            <input id="sourceCorrect" type="text" placeholder="Correct source form">
-            <button id="saveSourceCorrectionBtn" class="btn btn-dark">Save speech correction</button>
+            <input id="sourceWrong" type="text" data-i18n-placeholder="ph.sourceWrong" placeholder="Wrong heard form">
+            <input id="sourceCorrect" type="text" data-i18n-placeholder="ph.sourceCorrect" placeholder="Correct source form">
+            <button id="saveSourceCorrectionBtn" class="btn btn-dark" data-i18n="btn.saveSourceCorrection">Save speech correction</button>
           </div>
         </div>
       </section>
@@ -828,30 +833,30 @@
         <div class="cards-grid two">
           <div class="panel glass-panel section-stack">
             <div class="section-head">
-              <h2>Quick Text Push</h2>
-              <div class="live-chip">Direct publish</div>
+              <h2 data-i18n="qt.title">Quick Text Push</h2>
+              <div data-i18n="qt.directPublish" class="live-chip">Direct publish</div>
             </div>
             <div class="split-2 compact-library-row">
               <div>
                 <label>Title</label>
-                <input id="manualTitle" type="text" placeholder="Welcome">
+                <input id="manualTitle" type="text" data-i18n-placeholder="ph.manualTitle" placeholder="Welcome">
               </div>
               <div>
-                <label>Pinned text language</label>
+                <label data-i18n="qt.pinnedLang">Pinned text language</label>
                 <select id="manualSourceLang"></select>
               </div>
             </div>
-            <textarea id="manualText" placeholder="Write text here"></textarea>
-            <div class="muted">Press Enter twice quickly to send.</div>
+            <textarea id="manualText" data-i18n-placeholder="ph.manualText" placeholder="Write text here"></textarea>
+            <div data-i18n="qt.enterHint" class="muted">Press Enter twice quickly to send.</div>
             <div class="button-row compact-row">
-              <button id="saveManualLibraryBtn" class="btn btn-dark" type="button">Save to library</button>
-              <button id="sendManualLiveBtn" class="btn btn-dark" type="button">Send to live</button>
-              <button id="sendManualDisplayBtn" class="btn btn-primary" type="button">Send to pinned text</button>
+              <button id="saveManualLibraryBtn" class="btn btn-dark" type="button" data-i18n="btn.saveManualLib">Save to library</button>
+              <button id="sendManualLiveBtn" class="btn btn-dark" type="button" data-i18n="btn.sendManualLive">Send to live</button>
+              <button id="sendManualDisplayBtn" class="btn btn-primary" type="button" data-i18n="btn.sendManualDisplay">Send to pinned text</button>
             </div>
             <div class="info-card soft-card">
               <div class="section-head admin-subsection-head">
-                <h2>Pinned Text History</h2>
-                <div class="muted">Resend a recent pinned text quickly</div>
+                <h2 data-i18n="qt.pinnedHistory">Pinned Text History</h2>
+                <div data-i18n="qt.pinnedHistoryHint" class="muted">Resend a recent pinned text quickly</div>
               </div>
               <div id="manualHistoryList" class="history-list">
                 <div class="muted">No pinned texts yet.</div>
@@ -861,11 +866,11 @@
 
           <div class="panel glass-panel section-stack">
             <div class="section-head">
-              <h2>Pinned Text Library</h2>
-              <div class="muted">Reusable text for welcome, prayer, announcements, and verses</div>
+              <h2 data-i18n="qt.pinnedLib">Pinned Text Library</h2>
+              <div data-i18n="qt.pinnedLibHint" class="muted">Reusable text for welcome, prayer, announcements, and verses</div>
             </div>
             <div class="button-row compact-row">
-              <input id="manualLibrarySearch" type="text" placeholder="Search pinned text library">
+              <input id="manualLibrarySearch" type="text" data-i18n-placeholder="ph.manualLibSearch" placeholder="Search pinned text library">
               <select id="manualLibrarySort">
                 <option value="az" selected>Title A-Z</option>
                 <option value="za">Title Z-A</option>
@@ -880,19 +885,19 @@
       <section id="tab-statistics" class="tab-panel">
         <div class="cards-grid four metrics-grid" id="statsOverviewCards">
           <div class="metric-card panel glass-panel">
-            <div class="metric-label">Total events</div>
+            <div data-i18n="stat.totalEvents" class="metric-label">Total events</div>
             <div id="statsOverviewEvents" class="metric-number">—</div>
           </div>
           <div class="metric-card panel glass-panel">
-            <div class="metric-label">Unique participants</div>
+            <div data-i18n="stat.uniqueParticipants" class="metric-label">Unique participants</div>
             <div id="statsOverviewParticipants" class="metric-number">—</div>
           </div>
           <div class="metric-card panel glass-panel">
-            <div class="metric-label">Hours translated</div>
+            <div data-i18n="stat.hoursTranslated" class="metric-label">Hours translated</div>
             <div id="statsOverviewHours" class="metric-number">—</div>
           </div>
           <div class="metric-card panel glass-panel">
-            <div class="metric-label">Estimated API cost</div>
+            <div data-i18n="stat.estCost" class="metric-label">Estimated API cost</div>
             <div id="statsOverviewCost" class="metric-number">—</div>
           </div>
         </div>
@@ -900,21 +905,21 @@
 
         <div class="panel glass-panel section-stack" id="statsEventsPanel">
           <div class="section-head">
-            <h2>Events</h2>
+            <h2 data-i18n="stat.events">Events</h2>
             <div class="button-row compact">
-              <button id="statsRefreshBtn" class="btn btn-dark" type="button">Refresh</button>
+              <button id="statsRefreshBtn" class="btn btn-dark" type="button" data-i18n="btn.statsRefresh">Refresh</button>
             </div>
           </div>
           <div class="stats-events-table-wrap">
             <table class="stats-events-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Date</th>
-                  <th>Duration</th>
-                  <th>Unique participants</th>
-                  <th>Sentences</th>
-                  <th>Cost (USD)</th>
+                  <th data-i18n="stat.thName">Name</th>
+                  <th data-i18n="stat.thDate">Date</th>
+                  <th data-i18n="stat.thDuration">Duration</th>
+                  <th data-i18n="stat.thUnique">Unique participants</th>
+                  <th data-i18n="stat.thSentences">Sentences</th>
+                  <th data-i18n="stat.thCost">Cost (USD)</th>
                 </tr>
               </thead>
               <tbody id="statsEventsTableBody">
@@ -931,31 +936,31 @@
               <div id="statsDetailMeta" class="muted"></div>
             </div>
             <div class="button-row compact">
-              <button id="statsDetailExportCsvBtn" class="btn btn-dark" type="button">Export CSV</button>
-              <button id="statsDetailExportTxtBtn" class="btn btn-dark" type="button">Export Transcript</button>
+              <button id="statsDetailExportCsvBtn" class="btn btn-dark" type="button" data-i18n="btn.statsExportCsv">Export CSV</button>
+              <button id="statsDetailExportTxtBtn" class="btn btn-dark" type="button" data-i18n="btn.statsExportTxt">Export Transcript</button>
               <button id="statsDetailDownloadAudioBtn" class="btn btn-dark" type="button" hidden>Download recording</button>
               <button id="statsDetailSendSummaryBtn" class="btn btn-dark" type="button" hidden>Send summary</button>
-              <button id="statsDetailCloseBtn" class="btn btn-dark" type="button">Close</button>
+              <button id="statsDetailCloseBtn" class="btn btn-dark" type="button" data-i18n="btn.statsClose">Close</button>
             </div>
           </div>
 
           <div class="cards-grid three">
             <div class="info-card soft-card">
-              <div class="label">Audio cost</div>
+              <div data-i18n="stat.audioCost" class="label">Audio cost</div>
               <div id="statsCostAudio" class="metric-text">—</div>
             </div>
             <div class="info-card soft-card">
-              <div class="label">Translation cost</div>
+              <div data-i18n="stat.translationCost" class="label">Translation cost</div>
               <div id="statsCostTranslation" class="metric-text">—</div>
             </div>
             <div class="info-card soft-card">
-              <div class="label">Total cost</div>
+              <div data-i18n="stat.totalCost" class="label">Total cost</div>
               <div id="statsCostTotal" class="metric-text">—</div>
             </div>
           </div>
 
           <div class="info-card soft-card">
-            <div class="label">Participants per language</div>
+            <div data-i18n="stat.participantsPerLang" class="label">Participants per language</div>
             <div id="statsLangChart" class="stats-lang-chart"></div>
           </div>
         </div>
@@ -963,13 +968,13 @@
         <div class="panel glass-panel section-stack" id="statsSearchPanel">
           <div class="section-head">
             <div>
-              <h2>Search transcripts</h2>
-              <div class="muted">Find any line spoken or translated across all events.</div>
+              <h2 data-i18n="stat.searchTranscripts">Search transcripts</h2>
+              <div data-i18n="stat.searchHint" class="muted">Find any line spoken or translated across all events.</div>
             </div>
           </div>
           <form id="statsSearchForm" class="button-row compact-row" novalidate>
-            <input id="statsSearchInput" type="text" placeholder="Type at least 2 characters and press Enter" autocomplete="off" style="flex:1 1 auto">
-            <button type="submit" class="btn btn-primary">Search</button>
+            <input id="statsSearchInput" type="text" data-i18n-placeholder="ph.statsSearch" placeholder="Type at least 2 characters and press Enter" autocomplete="off" style="flex:1 1 auto">
+            <button type="submit" class="btn btn-primary" data-i18n="btn.statsSearch">Search</button>
           </form>
           <div id="statsSearchResults" class="history-list"></div>
         </div>
@@ -977,10 +982,10 @@
         <div class="panel glass-panel section-stack" id="auditLogPanel">
           <div class="section-head">
             <div>
-              <h2>Audit log</h2>
-              <div class="muted">Recent admin actions across the org. Last 100 entries.</div>
+              <h2 data-i18n="stat.auditLog">Audit log</h2>
+              <div data-i18n="stat.auditHint" class="muted">Recent admin actions across the org. Last 100 entries.</div>
             </div>
-            <button id="auditLogRefreshBtn" class="btn btn-dark" type="button">Refresh</button>
+            <button id="auditLogRefreshBtn" class="btn btn-dark" type="button" data-i18n="btn.auditRefresh">Refresh</button>
           </div>
           <div id="auditLogList" class="history-list">
             <div class="muted">Open the tab to load.</div>
@@ -994,15 +999,15 @@
     <div class="qr-modal-backdrop" data-qr-modal-close></div>
     <div class="qr-modal-card">
       <button class="qr-modal-close" data-qr-modal-close type="button" aria-label="Close">×</button>
-      <h2 id="qrModalTitle">Participant QR Code</h2>
-      <p class="qr-modal-subtitle">People scan this QR and choose the live event.</p>
+      <h2 data-i18n="qr.title" id="qrModalTitle">Participant QR Code</h2>
+      <p data-i18n="qr.subtitle" class="qr-modal-subtitle">People scan this QR and choose the live event.</p>
       <img id="qrModalImage" class="qr-modal-image" alt="Participant QR">
       <div class="qr-modal-link-row">
         <input id="qrModalLink" type="text" readonly>
       </div>
       <div class="qr-modal-actions">
-        <button id="qrModalCopyBtn" class="btn btn-dark" type="button">📋 Copy link</button>
-        <button id="qrModalDownloadBtn" class="btn btn-primary" type="button">⬇ Download QR</button>
+        <button id="qrModalCopyBtn" class="btn btn-dark" type="button" data-i18n="btn.qrCopy">📋 Copy link</button>
+        <button id="qrModalDownloadBtn" class="btn btn-primary" type="button" data-i18n="btn.qrDownload">⬇ Download QR</button>
       </div>
     </div>
   </div>
@@ -1012,7 +1017,7 @@
     <div class="edit-verse-backdrop" data-edit-verse-close></div>
     <div class="edit-verse-card">
       <div class="edit-verse-head">
-        <h3 id="editLiveVerseTitle">Edit current verse</h3>
+        <h3 data-i18n="ev.editTitle" id="editLiveVerseTitle">Edit current verse</h3>
         <button class="edit-verse-close" data-edit-verse-close type="button" aria-label="Close">×</button>
       </div>
       <div class="edit-verse-body">
@@ -1020,8 +1025,8 @@
         <textarea id="editLiveVerseText" rows="8" placeholder="Edit verse text..."></textarea>
       </div>
       <div class="edit-verse-foot">
-        <button id="cancelEditVerseBtn" class="btn btn-light" type="button">Cancel</button>
-        <button id="saveEditVerseBtn" class="btn btn-dark" type="button">Save (current only)</button>
+        <button id="cancelEditVerseBtn" class="btn btn-light" type="button" data-i18n="btn.cancelEditVerse">Cancel</button>
+        <button id="saveEditVerseBtn" class="btn btn-dark" type="button" data-i18n="btn.saveEditVerse">Save (current only)</button>
         <button id="saveEditVerseLibraryBtn" class="btn btn-primary" type="button">Save &amp; Update Library</button>
       </div>
     </div>
@@ -1036,8 +1041,8 @@
         <div id="worshipGlobalToastDetail" class="small muted"></div>
       </div>
       <div class="worship-global-toast-actions">
-        <button class="btn btn-primary btn-sm" type="button" data-worship-toast-action="note">Am notat</button>
-        <button class="btn btn-dark btn-sm" type="button" data-worship-toast-action="decline">Refuz</button>
+        <button class="btn btn-primary btn-sm" type="button" data-worship-toast-action="note" data-i18n="wt.note">Am notat</button>
+        <button class="btn btn-dark btn-sm" type="button" data-worship-toast-action="decline" data-i18n="wt.decline">Refuz</button>
       </div>
       <button class="worship-global-toast-close" type="button" data-worship-toast-action="close" aria-label="Închide notificarea">✕</button>
     </div>
@@ -1045,6 +1050,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
+  <script src="/admin-i18n.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
