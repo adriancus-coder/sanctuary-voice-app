@@ -2898,6 +2898,8 @@ function buildPrompt(sourceLangName, targetLangName, speed, glossary) {
     'Translate naturally, smoothly, and conversationally.',
     'Do not translate too literally.',
     'Do not use ellipses.',
+    'Use natural punctuation, including commas where a fluent sentence needs them.',
+    'Only use a question mark if the source is clearly a question; otherwise end with a period.',
     'If the source contains direct vulgar words or crude anatomical terms, use a polite euphemism appropriate for a religious service audience. Keep the meaning intact but soften the wording. This applies only to genuinely crude language; do not over-censor normal words.',
     speedRules[speed] || speedRules.balanced,
     glossaryText ? `Use these glossary replacements exactly:\n${glossaryText}` : ''
