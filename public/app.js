@@ -1131,6 +1131,36 @@ function exportTranscript() {
   setStatus(`Transcript exported: ${filename}`);
 }
 
+// V22.20 — copiază transcript în clipboard cu feedback vizibil
+async function copyTranscript() {
+  if (!currentEvent) return alert('Open or create an event first.');
+  const entries = Array.isArray(currentEvent.transcripts) ? currentEvent.transcripts : [];
+  if (!entries.length) return alert('No transcript to copy yet.');
+  const text = buildTranscriptExportText();
+  const btn = document.getElementById('copyTranscriptBtn');
+  const flash = () => {
+    if (!btn) return;
+    const o = btn.textContent;
+    btn.textContent = '✓ Copiat!';
+    btn.disabled = true;
+    setTimeout(() => { btn.textContent = o; btn.disabled = false; }, 1500);
+  };
+  try {
+    await navigator.clipboard.writeText(text);
+    flash();
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); flash(); }
+    catch (_) { alert('Nu am putut copia. Folosește Export.'); }
+    ta.remove();
+  }
+}
+
 function hydratePermanentParticipantAccess() {
   const origin = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? window.location.origin
@@ -4485,6 +4515,7 @@ $('jumpLiveBtn').addEventListener('click', () => {
   if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 $('exportTranscriptBtn')?.addEventListener('click', exportTranscript);
+document.getElementById('copyTranscriptBtn')?.addEventListener('click', copyTranscript);
 
 async function clearTranscript() {
   if (!currentEvent) return alert('Open an event first.');

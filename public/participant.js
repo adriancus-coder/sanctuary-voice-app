@@ -20,6 +20,53 @@ const displayBuffer = {
   pendingTimer: null
 };
 
+// V22.20 — DIAGNOSTIC: log ce text ajunge efectiv la participant (în #lastText).
+// RĂMÂNE până confirmă utilizatorul că afișarea e ok. NU scoate fără confirmare.
+const partLog = { entries: [], startedAt: null };
+function logPart(text) {
+  if (!partLog.startedAt) partLog.startedAt = new Date().toISOString();
+  partLog.entries.push({ t: new Date().toISOString(), text: String(text || '') });
+  if (partLog.entries.length > 3000) partLog.entries.shift();
+}
+function copyPartLog() {
+  const L = [
+    `Participant display log — ${partLog.entries.length} updates`,
+    `Started: ${partLog.startedAt || '-'}`,
+    '',
+    '---',
+    ''
+  ];
+  partLog.entries.forEach((e, i) => {
+    const tt = e.t.split('T')[1]?.replace('Z', '') || e.t;
+    L.push(`#${i + 1} [${tt}] ${e.text}`);
+  });
+  const txt = L.join('\n');
+  const btn = document.getElementById('copyPartLogBtn');
+  const flash = () => {
+    if (!btn) return;
+    const o = btn.textContent;
+    btn.textContent = '✓ Copiat!';
+    setTimeout(() => { btn.textContent = o; }, 1500);
+  };
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); flash(); }
+    catch (_) { alert('Copy failed'); }
+    ta.remove();
+  };
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(txt).then(flash, fallback);
+  } else {
+    fallback();
+  }
+}
+window.copyPartLog = copyPartLog;
+
 // BUGFIX V1 - FIX 2: Auto-expire live text dacă nu vine update nou
 const liveTextExpire = {
   timer: null,
@@ -806,6 +853,7 @@ function renderLiveView({ announce = false } = {}) {
   state.lastLiveEntryId = visibleEntry?.id || null;
   if (visibleEntry) {
     smartDisplayLiveText(getTextForEntry(visibleEntry), (text) => {
+      logPart(text);   // V22.20 diagnostic
       clearLoadingDots();
       $('lastText').innerHTML = highlightBibleRefs(text);
     });
@@ -1658,3 +1706,6 @@ if ('serviceWorker' in navigator && !state.previewMode) {
 window.addEventListener('beforeunload', async () => {
   await disableWakeLock();
 });
+
+// V22.20 — listener pentru butonul de copiere log diagnostic
+document.getElementById('copyPartLogBtn')?.addEventListener('click', copyPartLog);
