@@ -75,3 +75,116 @@ h1, h2, .eyebrow, .hero-copy-block h1 {
   font-size: 11px !important; letter-spacing: 0.2em !important;
   text-transform: uppercase; color: var(--ct-brass) !important;
 }
+
+/* ============================================================
+   PAS 2b: panouri + butoane + pill-uri + stare On-Air + carduri live
+   ============================================================ */
+
+/* ---- PANOURI ---- */
+.panel, .glass-panel {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%),
+    var(--ct-panel) !important;
+  border: 1px solid var(--ct-line-soft) !important;
+  border-radius: 20px !important;
+  box-shadow: var(--ct-shadow) !important;
+  backdrop-filter: blur(8px) !important;
+}
+/* linie brass subtilă sus pe panouri */
+.panel { position: relative; }
+
+/* ---- BUTOANE: bază ---- */
+.btn {
+  font-family: var(--ct-font-sans) !important;
+  border: 1px solid var(--ct-line) !important;
+  border-radius: 13px !important;
+  background: var(--ct-ink-2) !important;
+  color: var(--ct-parchment) !important;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease !important;
+}
+.btn:hover {
+  transform: translateY(-1px) !important;
+  border-color: var(--ct-brass-deep) !important;
+  box-shadow: 0 0 22px var(--ct-brass-glow) !important;
+}
+
+/* ---- BUTON PRIMARY (brass) ---- */
+.btn-primary {
+  background: linear-gradient(180deg, var(--ct-brass-hi), var(--ct-brass)) !important;
+  color: #2a1c08 !important;
+  border-color: transparent !important;
+  font-weight: 600 !important;
+  box-shadow: 0 8px 20px -6px var(--ct-brass-glow) !important;
+}
+.btn-primary:hover {
+  filter: brightness(1.05) !important;
+  box-shadow: 0 10px 26px -6px var(--ct-brass-glow) !important;
+}
+
+/* ---- BUTON DARK ---- */
+.btn-dark {
+  background: var(--ct-ink-2) !important;
+  color: var(--ct-parchment) !important;
+  border-color: var(--ct-line-soft) !important;
+}
+
+/* ---- BUTON DANGER (ember) ---- */
+.btn-danger {
+  background: linear-gradient(180deg, var(--ct-ember-hi), var(--ct-ember)) !important;
+  color: #fff7ed !important;
+  border-color: transparent !important;
+}
+
+/* ---- PILL-URI / BADGE-uri ---- */
+.status-pill, .live-chip, .mini-badge {
+  border-radius: 999px !important;
+  border: 1px solid var(--ct-line) !important;
+  background: linear-gradient(180deg, var(--ct-panel-hi), var(--ct-panel)) !important;
+  color: var(--ct-parchment-d) !important;
+}
+
+/* ---- STARE ON-AIR: badge Recognition devine VERDE live ---- */
+#onAirBadge.status-pill.active,
+.status-pill.active {
+  background: linear-gradient(180deg, var(--ct-live-hi), var(--ct-live)) !important;
+  color: #0e2a14 !important;
+  border-color: transparent !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 18px var(--ct-live-glow) !important;
+}
+
+/* ---- CARD LIVE SESSION: glow verde când On-Air ---- */
+.dashboard-live-session {
+  background: linear-gradient(180deg, var(--ct-ink-2), rgba(20,15,11,.6)) !important;
+  border: 1px solid var(--ct-line) !important;
+  border-radius: 16px !important;
+  transition: border-color .4s, box-shadow .4s !important;
+}
+.recognition-on-air .dashboard-live-session,
+.recognition-on-air.dashboard-live-session {
+  border-color: rgba(111,179,122,.4) !important;
+  box-shadow: 0 0 40px -16px var(--ct-live-glow) !important;
+}
+
+/* ---- SELECT-uri (dropdown) ---- */
+select, .hero-active-event-select {
+  background: var(--ct-ink-2) !important;
+  color: var(--ct-parchment) !important;
+  border: 1px solid var(--ct-line) !important;
+  border-radius: 13px !important;
+  font-family: var(--ct-font-sans) !important;
+}
+select:focus {
+  outline: none !important;
+  border-color: var(--ct-brass) !important;
+  box-shadow: 0 0 0 4px var(--ct-brass-glow) !important;
+}
+
+/* ---- TIMER Live Session (din V22.42) ---- */
+#liveSessionTimer {
+  font-family: var(--ct-font-sans) !important;
+}
+.recognition-on-air #liveSessionTimer,
+#liveSessionTimer.status-pill.active {
+  color: var(--ct-live-hi) !important;
+}
