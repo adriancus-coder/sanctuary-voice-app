@@ -3013,9 +3013,12 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
   try {
     const onDelta = typeof options.onDelta === 'function' ? options.onDelta : null;
     const TRANSLATE_TIMEOUT_MS = 8000;
+    // V22.32 — timeout care REZOLVĂ cu sentinel (nu reject), ca să nu rămână promisiuni
+    // respinse orfan din Promise.race (cauza unhandledRejection → crash → 429 la repornire).
+    const TIMEOUT_SENTINEL = Symbol('translate_timeout');
     let timeoutHandle;
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutHandle = setTimeout(() => reject(new Error('translate_timeout')), TRANSLATE_TIMEOUT_MS);
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutHandle = setTimeout(() => resolve(TIMEOUT_SENTINEL), TRANSLATE_TIMEOUT_MS);
     });
     const translatePromise = onDelta
       ? translationService.translateWithResponsesStreaming({
@@ -3027,9 +3030,15 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
           model: translateModel,
           input: inputMessages
         });
+    // dacă translatePromise pierde race-ul și se respinge ulterior, nu lăsa rejection neprins
+    translatePromise.catch(() => {});
     let result;
     try {
-      result = await Promise.race([translatePromise, timeoutPromise]);
+      const raced = await Promise.race([translatePromise, timeoutPromise]);
+      if (raced === TIMEOUT_SENTINEL) {
+        throw new Error('translate_timeout');
+      }
+      result = raced;
     } finally {
       clearTimeout(timeoutHandle);
     }
