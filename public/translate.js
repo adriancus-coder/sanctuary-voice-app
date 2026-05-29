@@ -65,6 +65,50 @@ function langLabel(code) {
   return availableEndonyms[code] || availableLanguages[code] || code.toUpperCase();
 }
 
+// V22.17 — diagnostic: înregistrează fiecare display_live_entry primit (text + timp)
+const displayLog = { entries: [], startedAt: null };
+function logDisplayEntry(entry) {
+  if (!displayLog.startedAt) displayLog.startedAt = new Date().toISOString();
+  const langs = entry && entry.translations ? Object.keys(entry.translations) : [];
+  displayLog.entries.push({
+    t: new Date().toISOString(),
+    original: entry?.original || '',
+    sample: langs.length ? entry.translations[langs[0]] : '',
+    id: entry?.id || entry?.entryId || null
+  });
+  if (displayLog.entries.length > 2000) displayLog.entries.shift();
+}
+function exportDisplayLog() {
+  const lines = [
+    `Display log (participant) — ${displayLog.entries.length} updates`,
+    `Started: ${displayLog.startedAt || '-'}`,
+    '', '---', ''
+  ];
+  displayLog.entries.forEach((e, i) => {
+    const tt = e.t.split('T')[1]?.replace('Z', '') || e.t;
+    lines.push(`#${i + 1} [${tt}] id=${e.id ?? '-'} :: ${e.original}`);
+  });
+  const txt = lines.join('\n');
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(txt).then(
+      () => setStatus('Display log copied'),
+      () => fallbackCopy(txt)
+    );
+  } else {
+    fallbackCopy(txt);
+  }
+  function fallbackCopy(t) {
+    const ta = document.createElement('textarea');
+    ta.value = t;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    setStatus('Display log copied');
+  }
+}
+window.exportDisplayLog = exportDisplayLog;
+
 function setStatus(text) {
   const el = $('translateStatus');
   if (el) el.textContent = text;
@@ -594,11 +638,14 @@ socket.on('song_clear', () => {
 });
 
 socket.on('display_live_entry', (entry) => {
+  logDisplayEntry(entry);   // V22.17 diagnostic
   if (state.currentDisplayMode !== 'auto') return;
   if (state.currentEvent) state.currentEvent.latestDisplayEntry = entry;
   state.latestLiveEntry = entry;
   scheduleDisplayRender(45);
 });
+
+document.getElementById('exportDisplayLogBtn')?.addEventListener('click', exportDisplayLog);
 
 socket.on('transcription_state', ({ paused }) => {
   state.transcriptionPaused = !!paused;
