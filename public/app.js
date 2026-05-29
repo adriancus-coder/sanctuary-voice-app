@@ -120,6 +120,35 @@ function setPartialTranscript(text = '') {
   }
 }
 
+// V22.42 — timer Live Session (header). Pornește la On-Air, reset la Stop.
+let liveTimerInterval = null;
+let liveTimerStartMs = 0;
+function formatLiveDuration(totalSec) {
+  const s = totalSec % 60;
+  const m = Math.floor(totalSec / 60) % 60;
+  const h = Math.floor(totalSec / 3600);
+  const pad = (n) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+function updateLiveTimerDisplay() {
+  const el = document.getElementById('liveSessionTimer');
+  if (!el) return;
+  const elapsed = liveTimerStartMs ? Math.floor((Date.now() - liveTimerStartMs) / 1000) : 0;
+  el.textContent = formatLiveDuration(elapsed);
+}
+function startLiveTimer() {
+  liveTimerStartMs = Date.now();
+  updateLiveTimerDisplay();
+  if (liveTimerInterval) clearInterval(liveTimerInterval);
+  liveTimerInterval = setInterval(updateLiveTimerDisplay, 1000);
+}
+function stopLiveTimer() {
+  if (liveTimerInterval) { clearInterval(liveTimerInterval); liveTimerInterval = null; }
+  liveTimerStartMs = 0;
+  const el = document.getElementById('liveSessionTimer');
+  if (el) el.textContent = '00:00';
+}
+
 function setOnAirState(isOn) {
   const badge = $('onAirBadge');
   if (badge) {
@@ -140,6 +169,8 @@ function setOnAirState(isOn) {
   }
   // TASK 35D: butoanele Start/Stop (topbar + tab Dashboard) reflectă starea curentă
   updateRecognitionButtonsState(!!isOn);
+  // V22.42 — pornește/reset timer Live Session
+  if (isOn) startLiveTimer(); else stopLiveTimer();
 }
 
 function updateRecognitionButtonsState(isActive) {
