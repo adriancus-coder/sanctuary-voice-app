@@ -1,19 +1,20 @@
-// V22.31 DIAGNOSTIC — stack trace complet pentru a localiza "Maximum call stack"
-Error.stackTraceLimit = 1000;   // V22.34 — stack complet
-process.on('unhandledRejection', (reason, promise) => {
-  try {
-    const stack = (reason && reason.stack) ? String(reason.stack) : '(no stack)';
-    process.stderr.write('[V22.31 UNHANDLED-REJECTION-STACK]\n' + stack.slice(0, 4000) + '\n');
-  } catch (e) {
-    try { process.stderr.write('[V22.31] failed: ' + String(e) + '\n'); } catch (_) {}
-  }
+// V22.37 — stack trace LIMITAT (1000 pe stivă adâncă putea agrava overflow-ul). Handler-e
+// MINIMALE care NU accesează .stack și rulează pe stivă curată (setImmediate) ca să nu mai
+// fie ocolite de overflow-ul din promiseRejectHandler.
+Error.stackTraceLimit = 30;
+process.on('unhandledRejection', (reason) => {
+  setImmediate(() => {
+    let msg = '';
+    try { msg = (reason && reason.message) ? String(reason.message) : String(reason); } catch (_) { msg = '[unstringifiable]'; }
+    try { process.stderr.write('[V22.37 unhandledRejection] ' + msg.slice(0, 200) + '\n'); } catch (_) {}
+  });
 });
 process.on('uncaughtException', (err) => {
-  try {
-    const stack = (err && err.stack) ? String(err.stack) : String(err);
-    process.stderr.write('[V22.34 UNCAUGHT-EXCEPTION]\n' + stack.slice(0, 6000) + '\n');
-  } catch (_) {}
-  // NU exit — lăsăm Node să decidă; doar capturăm
+  setImmediate(() => {
+    let msg = '';
+    try { msg = (err && err.message) ? String(err.message) : String(err); } catch (_) { msg = '[unstringifiable]'; }
+    try { process.stderr.write('[V22.37 uncaughtException] ' + msg.slice(0, 200) + '\n'); } catch (_) {}
+  });
 });
 
 const express = require('express');
@@ -2977,6 +2978,23 @@ function pushSongHistory(event, item) {
   }
 }
 
+// V22.37 — limitează câte traduceri rulează simultan (stiva nu se mai umflă sub val de chunk-uri)
+const TRANSLATE_MAX_CONCURRENT = 4;
+let translateActive = 0;
+const translateWaitQueue = [];
+function acquireTranslateSlot() {
+  if (translateActive < TRANSLATE_MAX_CONCURRENT) {
+    translateActive++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => translateWaitQueue.push(resolve));
+}
+function releaseTranslateSlot() {
+  translateActive = Math.max(0, translateActive - 1);
+  const next = translateWaitQueue.shift();
+  if (next) { translateActive++; next(); }
+}
+
 async function translateText(text, langCode, event, sourceLangOverride = '', options = {}) {
   const glossary = getGlossaryForLang(langCode, event);
   const cleanText = sanitizeStructuredText(text);
@@ -3030,6 +3048,7 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
   inputMessages.push({ role: 'user', content: cleanText });
   // V22.15 — modul „clear" (calitate) → model mai bun; rapid/balanced → nano (rapid).
   const translateModel = (event && event.speed === 'clear') ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
+  await acquireTranslateSlot();   // V22.37 — limitează concurența traducerilor
   try {
     const onDelta = typeof options.onDelta === 'function' ? options.onDelta : null;
     const TRANSLATE_TIMEOUT_MS = 8000;
@@ -3117,6 +3136,8 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
       lastTargetLang: langCode
     });
     return fallback;
+  } finally {
+    releaseTranslateSlot();   // V22.37 — eliberează slotul pe TOATE căile (return/throw)
   }
 }
 
@@ -4663,6 +4684,7 @@ async function runSelfTestChecks() {
     checks.push({ name: 'OpenAI', status: 'fail', message: 'OPENAI_API_KEY is not configured.' });
   } else {
     try {
+      let selfTestTimeoutHandle;   // V22.37 — clearTimeout ca timeout-ul să nu respingă neprins după ce race-ul s-a decis
       const text = await Promise.race([
         translationService.translateWithResponses({
           model: OPENAI_MODEL,
@@ -4671,8 +4693,8 @@ async function runSelfTestChecks() {
             { role: 'user', content: 'Hello' }
           ]
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out after 8s')), 8000))
-      ]);
+        new Promise((_, reject) => { selfTestTimeoutHandle = setTimeout(() => reject(new Error('Timed out after 8s')), 8000); })
+      ]).finally(() => clearTimeout(selfTestTimeoutHandle));
       const trimmed = String(text || '').trim();
       if (trimmed) {
         checks.push({ name: 'OpenAI translate', status: 'ok', message: `Replied: "${trimmed.slice(0, 60)}".` });
