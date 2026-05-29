@@ -3433,7 +3433,13 @@ function shouldUploadAudioChunk(blob, gateStats = {}) {
 
 function enqueueAudioBlob(blob) {
   if (!blob || blob.size < 3500) return;
+  // V22.41 — plafonează coada ca să NU crească la infinit sub rate-limit (cauza freeze Chrome).
+  // Dacă e plină, aruncăm cele mai VECHI bucăți (păstrăm audio recent — mai relevant).
+  const UPLOAD_QUEUE_MAX = 8;
   audioState.uploadQueue.push(blob);
+  while (audioState.uploadQueue.length > UPLOAD_QUEUE_MAX) {
+    audioState.uploadQueue.shift();   // aruncă cel mai vechi
+  }
   if (!audioState.busy) drainAudioUploadQueue().catch(console.error);
 }
 
@@ -3441,16 +3447,26 @@ async function drainAudioUploadQueue() {
   if (audioState.busy) return;
   audioState.busy = true;
   try {
+    let rateLimitRetries = 0;   // V22.41 — limitează reîncercările ca să nu blocăm drenarea
     while (audioState.uploadQueue.length) {
       const blob = audioState.uploadQueue.shift();
       try {
         await postAudioChunk(blob);
+        rateLimitRetries = 0;
       } catch (err) {
         const msg = err?.message || '';
         const retryAfterMatch = msg.match(/retry-after:(\d+)/i);
         if (msg.includes('Prea multe cereri') || retryAfterMatch) {
-          const waitMs = retryAfterMatch ? Math.min(60000, Number(retryAfterMatch[1]) * 1000) : 1500;
-          audioState.uploadQueue.unshift(blob);
+          rateLimitRetries++;
+          // V22.41 — după 3 reîncercări, renunță la acest blob (nu bloca coada la infinit).
+          if (rateLimitRetries > 3) {
+            setStatus('Audio rate-limited — skipping a chunk to recover.');
+            rateLimitRetries = 0;
+            continue;   // arunci blob-ul curent, treci la următorul
+          }
+          const waitMs = retryAfterMatch ? Math.min(10000, Number(retryAfterMatch[1]) * 1000) : 1500;
+          // pune înapoi DOAR dacă mai e loc (altfel îl pierdem ca să nu umflăm coada)
+          if (audioState.uploadQueue.length < 8) audioState.uploadQueue.unshift(blob);
           setStatus(`Audio rate-limited, retrying in ${Math.ceil(waitMs / 1000)}s.`);
           await new Promise((resolve) => setTimeout(resolve, waitMs));
         } else {
