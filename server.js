@@ -3674,34 +3674,40 @@ function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpe
 
 function closeAzureSpeechSession(socketId) {
   const session = azureSpeechSessions.get(socketId);
-  if (!session) return;
+  if (!session) return Promise.resolve();
   azureSpeechSessions.delete(socketId);
   // TASK 37: Cleanup partial flush tracker pentru acest event
   if (session.eventId) {
     partialFlushTracker.delete(session.eventId);
   }
   try { session.pushStream?.close(); } catch (_) {}
-  try {
-    session.recognizer?.stopContinuousRecognitionAsync(
-      () => session.recognizer?.close?.(),
-      () => session.recognizer?.close?.()
-    );
-  } catch (_) {
-    try { session.recognizer?.close?.(); } catch (__) {}
-  }
+  // V22.25 — așteaptă închiderea COMPLETĂ a recognizer-ului (Azure eliberează conexiunea)
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; try { session.recognizer?.close?.(); } catch (_) {} resolve(); };
+    try {
+      session.recognizer?.stopContinuousRecognitionAsync(finish, finish);
+    } catch (_) { finish(); }
+    // siguranță: nu bloca la nesfârșit dacă Azure nu răspunde
+    setTimeout(finish, 1500);
+  });
 }
 
 function closeAzureSpeechSessionsForEvent(eventId, exceptSocketId = '') {
+  const tasks = [];
   for (const [socketId, session] of azureSpeechSessions.entries()) {
     if (session?.eventId === eventId && socketId !== exceptSocketId) {
-      closeAzureSpeechSession(socketId);
+      tasks.push(closeAzureSpeechSession(socketId));
     }
   }
+  return Promise.all(tasks);
 }
 
-function startAzureSpeechSession(socket, event) {
-  closeAzureSpeechSession(socket.id);
-  closeAzureSpeechSessionsForEvent(event.id, socket.id);
+async function startAzureSpeechSession(socket, event) {
+  // V22.25 — așteaptă închiderea COMPLETĂ a sesiunilor vechi înainte de a deschide una nouă
+  await closeAzureSpeechSession(socket.id);
+  await closeAzureSpeechSessionsForEvent(event.id, socket.id);
+  await new Promise((r) => setTimeout(r, 250));   // răgaz pentru eliberarea conexiunii Azure
   const sdk = loadAzureSpeechSdk();
   if (!sdk || !AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
     socket.emit('server_error', { message: 'Azure Speech nu este configurat pe server.' });
