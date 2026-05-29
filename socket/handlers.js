@@ -105,7 +105,7 @@ function registerSocketHandlers(io, ctx) {
   }
 
   const RATE_LIMITS = {
-    join_event:              { windowMs: 60 * 1000, max: 30 },
+    join_event:              { windowMs: 60 * 1000, max: 60 },
     participant_language:    { windowMs: 60 * 1000, max: 60 },
     submit_text:             { windowMs: 60 * 1000, max: 60 },
     admin_update_source:     { windowMs: 60 * 1000, max: 60 },

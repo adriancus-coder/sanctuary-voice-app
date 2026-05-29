@@ -1,10 +1,11 @@
-// V22.26 — reconectare rapidă (fără backoff lung) pentru revenire instantă în browser
+// V22.39 — reconnect blând (delay mai mare ca să nu genereze furtună de join_event → rate_limited).
 const socket = io({
   reconnection: true,
   reconnectionAttempts: Infinity,
-  reconnectionDelay: 300,
-  reconnectionDelayMax: 1500,
-  timeout: 5000
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  randomizationFactor: 0.5,
+  timeout: 8000
 });
 const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
@@ -1264,6 +1265,8 @@ function handleLanguageChange() {
 
 async function joinParticipantEvent(eventId) {
   if (!eventId) return setStatus('Choose a live event.');
+  // V22.39 — respectă backoff-ul de rate-limit (nu bombarda serverul)
+  if (Date.now() < rateLimitBackoffUntil) return;
   if (!state.previewMode) await enableWakeLock();
   socket.emit('join_event', {
     eventId,
@@ -1281,6 +1284,24 @@ socket.on('connect', async () => {
 
 socket.on('disconnect', () => setStatus('Reconnecting...'));
 socket.on('join_error', ({ message }) => setStatus(message || 'Cannot join event.'));
+
+// V22.39 — tratează rate-limiting de la server. Fără asta, clientul bombarda cu join_event
+// și rămânea blocat (necesita hard-refresh). La rate_limited: pauză scurtă, apoi UN singur retry.
+let rateLimitBackoffUntil = 0;
+socket.on('server_error', (payload) => {
+  const code = payload && payload.code;
+  if (code === 'rate_limited') {
+    rateLimitBackoffUntil = Date.now() + 5000;   // nu mai trimite join 5s
+    setStatus('Reconnecting...');
+    setTimeout(() => {
+      if (socket.connected && state.fixedEventId) {
+        loadParticipantEvents({ joinFixedIfLive: true }).catch(() => {});
+      }
+    }, 5200);
+    return;
+  }
+  if (payload && payload.message) setStatus(payload.message);
+});
 
 function applyTestModeIndicator(event) {
   const badge = $('participantTestBadge');
