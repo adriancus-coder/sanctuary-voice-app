@@ -834,7 +834,9 @@ function smartDisplayLiveText(newText, callback) {
   const txt = String(newText || '').trim();
   if (!txt) return;
   const isSpecial = txt.includes('📖');
-  const looksComplete = /[.!?]["'»)\]]?\s*$/.test(txt);
+  // V22.27 — publică și pe virgulă/pauză (, ; :), nu doar la final de propoziție (. ! ?),
+  // pentru mai puțină întârziere la vorbitori rapizi. Fragmentele fără punctuație rămân blocate.
+  const looksComplete = /[.!?,;:]["'»)\]]?\s*$/.test(txt);
   if (isSpecial || looksComplete) {
     lastCompleteText = txt;
     callback(txt);
