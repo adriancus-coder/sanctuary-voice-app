@@ -2632,6 +2632,7 @@ async function destroyAudioPipeline(options = {}) {
   stopBrowserAzureRecognition();
   if (audioState.context) await audioState.context.close().catch(() => {});
   audioState.context = null;
+  audioState.azureWorkletLoaded = false;   // V22.23 — context nou va reîncărca worklet (fix 429)
   audioState.source = null;
   audioState.rawAnalyser = null;
   audioState.gainNode = null;
