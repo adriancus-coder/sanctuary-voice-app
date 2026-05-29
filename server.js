@@ -1,3 +1,14 @@
+// V22.31 DIAGNOSTIC — stack trace complet pentru a localiza "Maximum call stack"
+Error.stackTraceLimit = 100;
+process.on('unhandledRejection', (reason, promise) => {
+  try {
+    const stack = (reason && reason.stack) ? String(reason.stack) : '(no stack)';
+    process.stderr.write('[V22.31 UNHANDLED-REJECTION-STACK]\n' + stack.slice(0, 4000) + '\n');
+  } catch (e) {
+    try { process.stderr.write('[V22.31] failed: ' + String(e) + '\n'); } catch (_) {}
+  }
+});
+
 const express = require('express');
 const http = require('http');
 const path = require('path');
