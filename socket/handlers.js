@@ -105,7 +105,7 @@ function registerSocketHandlers(io, ctx) {
   }
 
   const RATE_LIMITS = {
-    join_event:              { windowMs: 60 * 1000, max: 30 },
+    join_event:              { windowMs: 60 * 1000, max: 60 },
     participant_language:    { windowMs: 60 * 1000, max: 60 },
     submit_text:             { windowMs: 60 * 1000, max: 60 },
     admin_update_source:     { windowMs: 60 * 1000, max: 60 },
@@ -536,7 +536,10 @@ function registerSocketHandlers(io, ctx) {
       io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
       io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
       emitTranscriptionState(event);
-      startAzureSpeechSession(socket, event);
+      startAzureSpeechSession(socket, event).catch((err) => {
+        socket.emit('server_error', { provider: 'azure_sdk', code: 'azure_start_failed',
+          message: 'Nu am putut porni Azure Speech.', fallbackToOpenAI: true });
+      });
     });
 
     on(socket, 'azure_audio_chunk', (payload) => {

@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sanctuary Voice Admin</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon.svg">
 </head>
 <body>
   <nav class="top-nav-tabs" role="tablist" aria-label="Main navigation">
@@ -53,6 +55,10 @@
             <div class="dashboard-status-pill-group">
               <span class="hero-status-label">Recognition</span>
               <div id="onAirBadge" class="status-pill">Off-Air</div>
+            </div>
+            <div class="dashboard-status-pill-group">
+              <span class="hero-status-label">Live time</span>
+              <div id="liveSessionTimer" class="status-pill" style="font-variant-numeric:tabular-nums;font-weight:600">00:00</div>
             </div>
           </div>
         </div>
@@ -145,7 +151,7 @@
             <h2>Partial transcript</h2>
             <div class="muted">Live recognition draft</div>
           </div>
-          <div id="partialTranscriptLarge" class="partial-transcript-large">Waiting for full sentence...</div>
+          <div id="partialTranscriptLarge" class="partial-transcript-large"><span class="listening-dots" aria-label="listening"><span></span><span></span><span></span><span></span></span></div>
           <div style="margin-top: 8px; display: flex; gap: 8px;">
             <button class="btn btn-dark" id="copyPartialsBtn" type="button">Copy partials log</button>
             <button class="btn btn-dark" id="clearPartialsBtn" type="button">Clear partials log</button>
@@ -177,6 +183,25 @@
 
             <label>Audio input</label>
             <select id="audioInput"></select>
+
+            <!-- V22.2 — Audio Source selector (testing) -->
+            <div class="audio-source-panel" id="audioSourcePanel">
+              <label class="audio-source-label">Audio source:</label>
+              <div class="audio-source-tabs">
+                <button type="button" class="audio-source-tab is-active" data-source="mic">🎙 Mic</button>
+                <button type="button" class="audio-source-tab" data-source="tab" id="audioSourceTabBtn">📺 Tab audio</button>
+                <button type="button" class="audio-source-tab" data-source="file">📁 File</button>
+              </div>
+              <div class="audio-source-detail" id="audioSourceDetailMic">(use mic selector above)</div>
+              <div class="audio-source-detail hidden" id="audioSourceDetailTab">
+                Chrome/Edge desktop only. Pick a tab and check „Share tab audio" in the picker.
+              </div>
+              <div class="audio-source-detail hidden" id="audioSourceDetailFile">
+                <input type="file" id="audioSourceFile" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.opus,.webm">
+                <span id="audioSourceFileName" class="muted"></span>
+              </div>
+              <div class="audio-source-status" id="audioSourceStatus"></div>
+            </div>
 
             <details class="info-card soft-card audio-processing-card">
               <summary>
@@ -297,6 +322,7 @@
             <h2>Transcript and live translations</h2>
             <div class="button-row compact-row">
               <button id="exportTranscriptBtn" class="btn btn-dark" type="button">Export transcript</button>
+              <button id="copyTranscriptBtn" class="btn btn-dark" type="button">📋 Copiază transcript</button>
               <button id="clearTranscriptBtn" class="btn btn-danger" type="button">Clear transcript</button>
               <button id="jumpLiveBtn" class="btn btn-dark" type="button">Jump to latest</button>
             </div>

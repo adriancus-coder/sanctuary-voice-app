@@ -1,3 +1,22 @@
+// V22.37 — stack trace LIMITAT (1000 pe stivă adâncă putea agrava overflow-ul). Handler-e
+// MINIMALE care NU accesează .stack și rulează pe stivă curată (setImmediate) ca să nu mai
+// fie ocolite de overflow-ul din promiseRejectHandler.
+Error.stackTraceLimit = 30;
+process.on('unhandledRejection', (reason) => {
+  setImmediate(() => {
+    let msg = '';
+    try { msg = (reason && reason.message) ? String(reason.message) : String(reason); } catch (_) { msg = '[unstringifiable]'; }
+    try { process.stderr.write('[V22.37 unhandledRejection] ' + msg.slice(0, 200) + '\n'); } catch (_) {}
+  });
+});
+process.on('uncaughtException', (err) => {
+  setImmediate(() => {
+    let msg = '';
+    try { msg = (err && err.message) ? String(err.message) : String(err); } catch (_) { msg = '[unstringifiable]'; }
+    try { process.stderr.write('[V22.37 uncaughtException] ' + msg.slice(0, 200) + '\n'); } catch (_) {}
+  });
+});
+
 const express = require('express');
 const http = require('http');
 const path = require('path');
@@ -46,6 +65,9 @@ const upload = multer({
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
+// V22.15 — model de calitate folosit la modul „clear" (TRANSLATION MODE = calitate).
+// Mai bun pe propoziții lungi/complexe. rapid+balanced rămân pe nano (latență).
+const OPENAI_QUALITY_MODEL = process.env.OPENAI_QUALITY_MODEL || 'gpt-4.1-mini';
 const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
 const TRANSCRIBE_RATE_LIMIT_WINDOW_MS = Math.max(1000, Number(process.env.TRANSCRIBE_RATE_LIMIT_WINDOW_MS || 60000) || 60000);
 const TRANSCRIBE_RATE_LIMIT_MAX = Math.max(1, Number(process.env.TRANSCRIBE_RATE_LIMIT_MAX || 120) || 120);
@@ -222,6 +244,11 @@ app.use('/remote-sw.js', (req, res, next) => {
 app.use('/worship-sw.js', (req, res, next) => {
   res.setHeader('Service-Worker-Allowed', '/worship');
   next();
+});
+// V22.28 — browserele cer /favicon.ico automat; servim icon.svg ca să nu mai dea 404
+app.get('/favicon.ico', (req, res) => {
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.sendFile(path.join(__dirname, 'public', 'icon.svg'));
 });
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -1600,19 +1627,32 @@ const processingLocks = new Map();
 const participantPresence = new Map();
 const azureSpeechSessions = new Map();
 
+// ── Segmentare text live — DOUĂ seturi, per provider (NU redundante) ──────────────
+// Setul LIVE_TEXT_* = calea OpenAI (chunked REST). Chunk-uri mai mari (target 9 / max 16)
+// fiindcă OpenAI primește felii audio, nu stream continuu.
 const LIVE_TEXT_MIN_WORDS = 4;
 const LIVE_TEXT_TARGET_WORDS = 9;
 const LIVE_TEXT_MAX_WORDS = 16;
 const LIVE_TEXT_MAX_CHARS = 160;
 const LIVE_TEXT_SOFT_WAIT_MS = 200;
 const LIVE_TEXT_HARD_WAIT_MS = 1000;
+// Setul AZURE_LIVE_TEXT_* = calea Azure (streaming nativ). Segmente mai mici/rapide
+// (target 6 / max 12) fiindcă Azure dă cuvinte continuu cu latență mică.
 const AZURE_LIVE_TEXT_MIN_WORDS = 3;
 const AZURE_LIVE_TEXT_TARGET_WORDS = 6;
 const AZURE_LIVE_TEXT_MAX_WORDS = 12;
 const AZURE_LIVE_TEXT_SOFT_WAIT_MS = 150;
 const AZURE_LIVE_TEXT_HARD_WAIT_MS = 600;
-// SMART FLUSH V2: threshold pentru proactive flush partial (mai mic decât MAX_WORDS)
-const AZURE_PARTIAL_FLUSH_THRESHOLD = 8;  // partial flush la 8 cuvinte (era 12 prin MAX_WORDS)
+// LEGACY (V22.12+): folosit DOAR când AZURE_SMOOTH_MODE=false (smooth e acum default ON).
+// În smooth mode commitem pe recognized (final), deci partial-flush-ul ăsta nu rulează.
+const AZURE_PARTIAL_FLUSH_THRESHOLD = 8;
+// V22.0 — Smooth mode: când true, sărim SMART FLUSH V2 (commit doar pe recognized,
+// adică pe sfârșit-de-propoziție real de la Azure). Reduce „sare prea repede" și
+// scade aglomerarea traducerilor. Default false (no behavior change unless explicit).
+// V22.12 — smooth mode DEFAULT ON (commit pe final, fluiditate). Opozabil: doar
+// AZURE_SMOOTH_MODE=false explicit revine la legacy partial-flush.
+const AZURE_SMOOTH_MODE = String(process.env.AZURE_SMOOTH_MODE || 'true').toLowerCase() !== 'false';
+logger.info('[Azure] smooth mode:', AZURE_SMOOTH_MODE ? 'ON (commit only on recognized) [default]' : 'OFF (legacy partial-flush, AZURE_SMOOTH_MODE=false)');
 
 // Conectori clasici - blochează flush la sfârșit (păstrează în buffer pentru context)
 // ATENȚIE: scoatem 'și', 'si', 'să', 'sa', 'dar', 'iar' - acum sunt FLUSH_BEFORE triggers
@@ -2691,24 +2731,37 @@ let translationCacheFlushTimer = null;
 const LANG_MISMATCH_LOG_FILE = path.join(DATA_DIR, 'lang-mismatch-log.json');
 const LANG_MISMATCH_LOG_LIMIT = 500;
 
+// V22.35 — log în memorie + flush DEBOUNCED async (nu mai face I/O sincron pe fiecare mismatch)
+let langMismatchBuffer = null;
+let langMismatchFlushTimer = null;
+function flushLangMismatchLog() {
+  langMismatchFlushTimer = null;
+  if (!langMismatchBuffer) return;
+  const toWrite = JSON.stringify(langMismatchBuffer);
+  fs.promises.mkdir(DATA_DIR, { recursive: true })
+    .then(() => fs.promises.writeFile(LANG_MISMATCH_LOG_FILE, toWrite, 'utf8'))
+    .catch((err) => logger.warn('lang-mismatch log write failed:', err?.message || err));
+}
 function logLangMismatch(entry) {
   try {
-    let log = [];
-    if (fs.existsSync(LANG_MISMATCH_LOG_FILE)) {
+    if (langMismatchBuffer === null) {
+      langMismatchBuffer = [];
       try {
-        const raw = fs.readFileSync(LANG_MISMATCH_LOG_FILE, 'utf8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) log = parsed;
-      } catch (parseErr) {
-        logger.warn('lang-mismatch log parse failed, starting fresh:', parseErr?.message || parseErr);
-      }
+        if (fs.existsSync(LANG_MISMATCH_LOG_FILE)) {
+          const parsed = JSON.parse(fs.readFileSync(LANG_MISMATCH_LOG_FILE, 'utf8'));
+          if (Array.isArray(parsed)) langMismatchBuffer = parsed;
+        }
+      } catch (_) { langMismatchBuffer = []; }
     }
-    log.push({ ts: new Date().toISOString(), ...entry });
-    if (log.length > LANG_MISMATCH_LOG_LIMIT) log = log.slice(-LANG_MISMATCH_LOG_LIMIT);
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(LANG_MISMATCH_LOG_FILE, JSON.stringify(log), 'utf8');
+    langMismatchBuffer.push({ ts: new Date().toISOString(), ...entry });
+    if (langMismatchBuffer.length > LANG_MISMATCH_LOG_LIMIT) {
+      langMismatchBuffer = langMismatchBuffer.slice(-LANG_MISMATCH_LOG_LIMIT);
+    }
+    if (!langMismatchFlushTimer) {
+      langMismatchFlushTimer = setTimeout(flushLangMismatchLog, 3000);
+    }
   } catch (err) {
-    logger.warn('lang-mismatch log write failed:', err?.message || err);
+    logger.warn('lang-mismatch log buffer failed:', err?.message || err);
   }
 }
 
@@ -2882,6 +2935,8 @@ function buildPrompt(sourceLangName, targetLangName, speed, glossary) {
     'Translate naturally, smoothly, and conversationally.',
     'Do not translate too literally.',
     'Do not use ellipses.',
+    'Use natural punctuation, including commas where a fluent sentence needs them.',
+    'Only use a question mark if the source is clearly a question; otherwise end with a period.',
     'If the source contains direct vulgar words or crude anatomical terms, use a polite euphemism appropriate for a religious service audience. Keep the meaning intact but soften the wording. This applies only to genuinely crude language; do not over-censor normal words.',
     speedRules[speed] || speedRules.balanced,
     glossaryText ? `Use these glossary replacements exactly:\n${glossaryText}` : ''
@@ -2921,6 +2976,23 @@ function pushSongHistory(event, item) {
   if (event.songHistory.length > 50) {
     event.songHistory = event.songHistory.slice(0, 50);
   }
+}
+
+// V22.37 — limitează câte traduceri rulează simultan (stiva nu se mai umflă sub val de chunk-uri)
+const TRANSLATE_MAX_CONCURRENT = 4;
+let translateActive = 0;
+const translateWaitQueue = [];
+function acquireTranslateSlot() {
+  if (translateActive < TRANSLATE_MAX_CONCURRENT) {
+    translateActive++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => translateWaitQueue.push(resolve));
+}
+function releaseTranslateSlot() {
+  translateActive = Math.max(0, translateActive - 1);
+  const next = translateWaitQueue.shift();
+  if (next) { translateActive++; next(); }
 }
 
 async function translateText(text, langCode, event, sourceLangOverride = '', options = {}) {
@@ -2974,26 +3046,41 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
     inputMessages.push({ role: 'assistant', content: entry.translations[langCode] });
   }
   inputMessages.push({ role: 'user', content: cleanText });
+  // V22.15 — modul „clear" (calitate) → model mai bun; rapid/balanced → nano (rapid).
+  const translateModel = (event && event.speed === 'clear') ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
+  await acquireTranslateSlot();   // V22.37 — limitează concurența traducerilor
   try {
     const onDelta = typeof options.onDelta === 'function' ? options.onDelta : null;
     const TRANSLATE_TIMEOUT_MS = 8000;
+    // V22.32 — timeout care REZOLVĂ cu sentinel (nu reject), ca să nu rămână promisiuni
+    // respinse orfan din Promise.race (cauza unhandledRejection → crash → 429 la repornire).
+    const TIMEOUT_SENTINEL = Symbol('translate_timeout');
+    const abortController = new AbortController();   // V22.34
     let timeoutHandle;
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutHandle = setTimeout(() => reject(new Error('translate_timeout')), TRANSLATE_TIMEOUT_MS);
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutHandle = setTimeout(() => resolve(TIMEOUT_SENTINEL), TRANSLATE_TIMEOUT_MS);
     });
     const translatePromise = onDelta
       ? translationService.translateWithResponsesStreaming({
-          model: OPENAI_MODEL,
+          model: translateModel,
           input: inputMessages,
-          onDelta
+          onDelta,
+          signal: abortController.signal   // V22.34
         })
       : translationService.translateWithResponsesDetailed({
-          model: OPENAI_MODEL,
+          model: translateModel,
           input: inputMessages
         });
+    // dacă translatePromise pierde race-ul și se respinge ulterior, nu lăsa rejection neprins
+    translatePromise.catch(() => {});
     let result;
     try {
-      result = await Promise.race([translatePromise, timeoutPromise]);
+      const raced = await Promise.race([translatePromise, timeoutPromise]);
+      if (raced === TIMEOUT_SENTINEL) {
+        abortController.abort();   // V22.34 — oprește stream-ul orfan
+        throw new Error('translate_timeout');
+      }
+      result = raced;
     } finally {
       clearTimeout(timeoutHandle);
     }
@@ -3001,86 +3088,27 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
     if (result.tokens) recordTranslationUsage(event, result.tokens);
     let translated = sanitizeStructuredText(translatedText);
 
-    // BUGFIX V5: validate target language. On high-confidence mismatch, retry once with explicit
-    // language constraint (non-streaming only — streaming has already pushed deltas to the client).
-    // If retry still wrong → skip cache write so the bad text doesn't poison cache for next requests;
-    // return '' so V3 frontend shows loading dots instead of source-language fallback.
-    let langValidationOk = true;
+    // V22.35 — sursa e mereu setată manual, deci retry-ul „output-ul pare limba sursă?" e inutil
+    // și dăunător (furtună de retry pe nume proprii cu diacritice → crash). Păstrăm DOAR logarea
+    // (async/debounced) pentru vizibilitate; afișăm întotdeauna traducerea.
     if (translated) {
       const detected = detectLanguage(translated);
       if (detected.lang !== 'unknown' && detected.lang !== langCode && detected.confidence === 'high') {
         const targetLangName = LANGUAGES[langCode] || langCode;
-        console.warn(`[LANG_MISMATCH] expected=${langCode} (${targetLangName}) detected=${detected.lang} src="${cleanText.slice(0, 80)}" out="${translated.slice(0, 80)}"`);
+        console.warn(`[LANG_MISMATCH] expected=${langCode} (${targetLangName}) detected=${detected.lang} src="${cleanText.slice(0, 80)}" out="${translated.slice(0, 80)}" (logged, no retry)`);
         logLangMismatch({
-          stage: 'initial',
+          stage: 'observed-no-retry',
           expectedLang: langCode,
           expectedLangName: targetLangName,
           detectedLang: detected.lang,
           detectedConfidence: detected.confidence,
-          sourceLang,
-          sourceText: cleanText.slice(0, 500),
-          badText: translated.slice(0, 500),
-          cacheKey: cacheKey.slice(0, 200),
-          streaming: !!options.onDelta
+          sourceText: cleanText.slice(0, 300),
+          outText: translated.slice(0, 300)
         });
-
-        if (!options.onDelta) {
-          // Non-streaming: retry with explicit language constraint
-          try {
-            const retryMessages = [
-              inputMessages[0],
-              {
-                role: 'system',
-                content: `IMPORTANT: Respond ONLY in ${targetLangName}. Do NOT output any other language. The user explicitly requires ${targetLangName}.`
-              },
-              ...inputMessages.slice(1)
-            ];
-            const retryResult = await translationService.translateWithResponsesDetailed({
-              model: OPENAI_MODEL,
-              input: retryMessages
-            });
-            if (retryResult.tokens) recordTranslationUsage(event, retryResult.tokens);
-            const retryText = sanitizeStructuredText(retryResult.text || '');
-            const retryDetected = retryText ? detectLanguage(retryText) : { lang: 'unknown', confidence: 'low' };
-            if (retryText && (retryDetected.lang === langCode || retryDetected.lang === 'unknown')) {
-              // Retry succeeded (right language, or text too short to validate confidently)
-              translated = retryText;
-              logLangMismatch({
-                stage: 'retry-success',
-                expectedLang: langCode,
-                detectedLang: retryDetected.lang,
-                detectedConfidence: retryDetected.confidence,
-                retriedText: retryText.slice(0, 200)
-              });
-            } else {
-              // Retry still wrong — refuse to cache, return empty
-              langValidationOk = false;
-              logLangMismatch({
-                stage: 'retry-failed',
-                expectedLang: langCode,
-                detectedLang: retryDetected.lang,
-                detectedConfidence: retryDetected.confidence,
-                retriedText: retryText.slice(0, 200)
-              });
-              console.warn(`[LANG_MISMATCH] retry failed for ${langCode}, returning empty (V3 frontend will show loading dots)`);
-            }
-          } catch (retryErr) {
-            langValidationOk = false;
-            logger.warn(`lang-mismatch retry error ${langCode}:`, retryErr?.message || retryErr);
-            logLangMismatch({
-              stage: 'retry-error',
-              expectedLang: langCode,
-              error: String(retryErr?.message || retryErr)
-            });
-          }
-        } else {
-          // Streaming: client already saw bad deltas; skip cache write to prevent poisoning future requests
-          langValidationOk = false;
-        }
       }
     }
 
-    if (translated && langValidationOk) {
+    if (translated) {
       writeTranslationCache(cacheKey, translated);
       updateTranslationMonitor(event, {
         pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 1) - 1),
@@ -3090,27 +3118,12 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
       });
       return translated;
     }
-    if (!langValidationOk) {
-      // BUGFIX V5: bad-language translation refused. Skip cache write, return empty string.
-      // V3 frontend (participant.js / translate.js / remote.js) treats '' as "not yet translated"
-      // and shows loading dots instead of the source-language fallback.
-      updateTranslationMonitor(event, {
-        pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 1) - 1),
-        lastTranslateFinishedAt: new Date().toISOString(),
-        lastTranslateDurationMs: Date.now() - startedAt,
-        lastTargetLang: langCode
-      });
-      return '';
-    }
-    const fallback = applyGlossary(cleanText, glossary);
-    writeTranslationCache(cacheKey, fallback);
     updateTranslationMonitor(event, {
       pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 1) - 1),
       lastTranslateFinishedAt: new Date().toISOString(),
-      lastTranslateDurationMs: Date.now() - startedAt,
       lastTargetLang: langCode
     });
-    return fallback;
+    return '';
   } catch (err) {
     logger.error(`translate error ${langCode}:`, err?.message || err);
     recordServerError(event, `Translate ${langCode} failed.`);
@@ -3123,6 +3136,8 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
       lastTargetLang: langCode
     });
     return fallback;
+  } finally {
+    releaseTranslateSlot();   // V22.37 — eliberează slotul pe TOATE căile (return/throw)
   }
 }
 
@@ -3482,13 +3497,14 @@ async function processText(event, cleanText, { force = false, sourceLang = '' } 
   // and cheap. Protects against any edge case where mixed encoding leaks into the translation pipeline.
   cleanText = normalizeTextInput(cleanText);
 
-  if (processingLocks.get(event.id)) {
-    // Un alt processText rulează pentru acest eveniment - re-introducem textul
-    // în buffer și ieșim. flushSpeechBuffer îl va relua după ce lock-ul scapă.
-    queueSpeechText(event.id, cleanText, sourceLang);
+  const lockId = String(event.id);   // V22.38 — ID primitiv stabil (igienă, sugestie Codex)
+  if (processingLocks.get(lockId)) {
+    // V22.38 — re-queue ASINCRON (setImmediate) ca să nu reintre sincron în lanțul de recursie.
+    const reqText = cleanText, reqSrc = sourceLang;
+    setImmediate(() => queueSpeechText(lockId, reqText, reqSrc));
     return null;
   }
-  processingLocks.set(event.id, true);
+  processingLocks.set(lockId, true);
   try {
     const normalized = normalizeChunkText(cleanText);
     if (!normalized || normalized.length < 2) return null;
@@ -3543,7 +3559,7 @@ async function processText(event, cleanText, { force = false, sourceLang = '' } 
     }
     return lastCreatedEntry;
   } finally {
-    processingLocks.delete(event.id);
+    processingLocks.delete(lockId);
   }
 }
 
@@ -3591,7 +3607,12 @@ async function flushSpeechBuffer(eventId, force = false) {
   }, false);
   io.to(`event:${eventId}:admins`).emit('partial_transcript', { text: '' });
   emitTranslationMonitor(eventId);
-  return processText(event, text, { force: true, sourceLang: buffered.sourceLang || event.sourceLang || 'ro' });
+  // V22.38 — processText ASINCRON (setImmediate) ca să rupem recursia sincronă cu queueSpeechText.
+  const flushSrc = buffered.sourceLang || event.sourceLang || 'ro';
+  setImmediate(() => {
+    Promise.resolve(processText(event, text, { force: true, sourceLang: flushSrc })).catch(logger.error);
+  });
+  return null;
 }
 
 function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpeechProvider()) {
@@ -3608,8 +3629,9 @@ function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpe
   if (FLUSH_BEFORE_WORDS.has(firstNewWord)) {
     const existingBuffer = speechBuffers.get(eventId);
     if (existingBuffer && existingBuffer.text && countWords(existingBuffer.text) >= AZURE_LIVE_TEXT_MIN_WORDS) {
-      // Flush buffer existent - cuvântul nou va începe noul buffer
-      flushSpeechBuffer(eventId, true).catch(logger.error);
+      // V22.38 — flush ASINCRON (setImmediate) ca să NU reintre sincron în
+      // flushSpeechBuffer→processText→queueSpeechText→flushSpeechBuffer (recursie → stack overflow).
+      setImmediate(() => flushSpeechBuffer(eventId, true).catch(logger.error));
     }
   }
 
@@ -3654,34 +3676,41 @@ function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpe
 
 function closeAzureSpeechSession(socketId) {
   const session = azureSpeechSessions.get(socketId);
-  if (!session) return;
+  if (!session) return Promise.resolve();
   azureSpeechSessions.delete(socketId);
+  logger.info('[AZURE-429-DIAG] session closed', { socketId, remaining: azureSpeechSessions.size });   // V22.29
   // TASK 37: Cleanup partial flush tracker pentru acest event
   if (session.eventId) {
     partialFlushTracker.delete(session.eventId);
   }
   try { session.pushStream?.close(); } catch (_) {}
-  try {
-    session.recognizer?.stopContinuousRecognitionAsync(
-      () => session.recognizer?.close?.(),
-      () => session.recognizer?.close?.()
-    );
-  } catch (_) {
-    try { session.recognizer?.close?.(); } catch (__) {}
-  }
+  // V22.25 — așteaptă închiderea COMPLETĂ a recognizer-ului (Azure eliberează conexiunea)
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; try { session.recognizer?.close?.(); } catch (_) {} resolve(); };
+    try {
+      session.recognizer?.stopContinuousRecognitionAsync(finish, finish);
+    } catch (_) { finish(); }
+    // siguranță: nu bloca la nesfârșit dacă Azure nu răspunde
+    setTimeout(finish, 1500);
+  });
 }
 
 function closeAzureSpeechSessionsForEvent(eventId, exceptSocketId = '') {
+  const tasks = [];
   for (const [socketId, session] of azureSpeechSessions.entries()) {
     if (session?.eventId === eventId && socketId !== exceptSocketId) {
-      closeAzureSpeechSession(socketId);
+      tasks.push(closeAzureSpeechSession(socketId));
     }
   }
+  return Promise.all(tasks);
 }
 
-function startAzureSpeechSession(socket, event) {
-  closeAzureSpeechSession(socket.id);
-  closeAzureSpeechSessionsForEvent(event.id, socket.id);
+async function startAzureSpeechSession(socket, event) {
+  // V22.25 — așteaptă închiderea COMPLETĂ a sesiunilor vechi înainte de a deschide una nouă
+  await closeAzureSpeechSession(socket.id);
+  await closeAzureSpeechSessionsForEvent(event.id, socket.id);
+  await new Promise((r) => setTimeout(r, 250));   // răgaz pentru eliberarea conexiunii Azure
   const sdk = loadAzureSpeechSdk();
   if (!sdk || !AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
     socket.emit('server_error', { message: 'Azure Speech nu este configurat pe server.' });
@@ -3741,26 +3770,29 @@ function startAzureSpeechSession(socket, event) {
     // Asta e MARE diferență față de comportamentul vechi care aștepta `recognized`
     const words = countWords(text);
 
-    // SMART FLUSH V2: Trigger la AZURE_PARTIAL_FLUSH_THRESHOLD (8) ȘI nu e duplicat
-    if (words >= AZURE_PARTIAL_FLUSH_THRESHOLD) {
-      // Verific cu tracker dacă deja am flush-uit text similar
-      if (!isPartialFlushDuplicate(event.id, text)) {
-        // Calculez delta - doar partea nouă (după ce am flush-uit ultima oară)
-        const tracker = partialFlushTracker.get(event.id);
-        let deltaText = text;
-        if (tracker && tracker.lastFlushedText) {
-          // Dacă noul text începe exact cu vechiul, ia doar partea nouă
-          const oldLen = tracker.lastFlushedText.length;
-          if (text.length > oldLen && text.startsWith(tracker.lastFlushedText)) {
-            deltaText = text.slice(oldLen).trim();
+    // V22.0 — în smooth mode, sărim partial-flush; comităm doar pe recognized.
+    if (!AZURE_SMOOTH_MODE) {
+      // SMART FLUSH V2: Trigger la AZURE_PARTIAL_FLUSH_THRESHOLD (8) ȘI nu e duplicat
+      if (words >= AZURE_PARTIAL_FLUSH_THRESHOLD) {
+        // Verific cu tracker dacă deja am flush-uit text similar
+        if (!isPartialFlushDuplicate(event.id, text)) {
+          // Calculez delta - doar partea nouă (după ce am flush-uit ultima oară)
+          const tracker = partialFlushTracker.get(event.id);
+          let deltaText = text;
+          if (tracker && tracker.lastFlushedText) {
+            // Dacă noul text începe exact cu vechiul, ia doar partea nouă
+            const oldLen = tracker.lastFlushedText.length;
+            if (text.length > oldLen && text.startsWith(tracker.lastFlushedText)) {
+              deltaText = text.slice(oldLen).trim();
+            }
           }
-        }
 
-        const deltaWords = countWords(deltaText);
-        // Trimite delta DOAR dacă are minim 3 cuvinte (nu propoziții fragmentare)
-        if (deltaWords >= AZURE_LIVE_TEXT_MIN_WORDS) {
-          markPartialFlushed(event.id, text);
-          queueSpeechText(event.id, deltaText, effectiveSourceLang, 'azure_sdk');
+          const deltaWords = countWords(deltaText);
+          // Trimite delta DOAR dacă are minim 3 cuvinte (nu propoziții fragmentare)
+          if (deltaWords >= AZURE_LIVE_TEXT_MIN_WORDS) {
+            markPartialFlushed(event.id, text);
+            queueSpeechText(event.id, deltaText, effectiveSourceLang, 'azure_sdk');
+          }
         }
       }
     }
@@ -3774,6 +3806,14 @@ function startAzureSpeechSession(socket, event) {
     const currentEventBible = db.events[event.id];
     if (currentEventBible?.bibleMode) {
       logger.info('[BIBLE MODE] Skipping translation:', text.slice(0, 60));
+      return;
+    }
+
+    // V22.5 — În smooth mode, recognized e mereu o propoziție completă (nu există
+    // partial-flush de deduplicat). Sărim logica TASK 37 care, la propoziții consecutive
+    // cu început similar, calcula deltas greșite și lipea fragmente. Commit direct, curat.
+    if (AZURE_SMOOTH_MODE) {
+      queueSpeechText(event.id, text, effectiveSourceLang, 'azure_sdk');
       return;
     }
 
@@ -3800,6 +3840,18 @@ function startAzureSpeechSession(socket, event) {
   recognizer.canceled = (_, result) => {
     const details = String(result?.errorDetails || result?.reason || 'unknown');
     const classified = classifyAzureSpeechError(details);
+    // V22.29 DIAGNOSTIC — detaliu brut + nr sesiuni active la momentul erorii
+    logger.error('[AZURE-429-DIAG] canceled', {
+      activeSessions: azureSpeechSessions.size,
+      sessionSocketIds: Array.from(azureSpeechSessions.keys()),
+      eventId: event.id,
+      code: classified.code,
+      rawErrorDetails: String(result?.errorDetails || ''),
+      rawErrorCode: String(result?.errorCode ?? ''),
+      rawReason: String(result?.reason ?? ''),
+      region: AZURE_SPEECH_REGION,
+      locale: getSpeechLocale(effectiveSourceLang)
+    });
     if (classified.code === 'azure_auth_failed') {
       logger.error('AZURE SPEECH AUTH ERROR:', {
         eventId: event.id,
@@ -3826,6 +3878,8 @@ function startAzureSpeechSession(socket, event) {
     pushStream,
     recognizer
   });
+  // V22.29 DIAGNOSTIC
+  logger.info('[AZURE-429-DIAG] session opened', { socketId: socket.id, activeSessions: azureSpeechSessions.size });
 
   recognizer.startContinuousRecognitionAsync(
     () => socket.emit('azure_audio_ready', { ok: true }),
@@ -4637,6 +4691,7 @@ async function runSelfTestChecks() {
     checks.push({ name: 'OpenAI', status: 'fail', message: 'OPENAI_API_KEY is not configured.' });
   } else {
     try {
+      let selfTestTimeoutHandle;   // V22.37 — clearTimeout ca timeout-ul să nu respingă neprins după ce race-ul s-a decis
       const text = await Promise.race([
         translationService.translateWithResponses({
           model: OPENAI_MODEL,
@@ -4645,8 +4700,8 @@ async function runSelfTestChecks() {
             { role: 'user', content: 'Hello' }
           ]
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out after 8s')), 8000))
-      ]);
+        new Promise((_, reject) => { selfTestTimeoutHandle = setTimeout(() => reject(new Error('Timed out after 8s')), 8000); })
+      ]).finally(() => clearTimeout(selfTestTimeoutHandle));
       const trimmed = String(text || '').trim();
       if (trimmed) {
         checks.push({ name: 'OpenAI translate', status: 'ok', message: `Replied: "${trimmed.slice(0, 60)}".` });

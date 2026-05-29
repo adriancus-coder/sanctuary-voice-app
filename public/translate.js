@@ -446,6 +446,20 @@ function autoFitText() {
   }
 }
 
+// V22.6 — setează HTML cu fade blând DOAR când conținutul se schimbă (altfel no-op,
+// ca să nu pâlpâie la fiecare render). Folosește clasa CSS .text-fading.
+function setTextWithFade(el, html) {
+  if (!el) return;
+  if (el.innerHTML === html) return;
+  el.classList.add('text-fading');
+  clearTimeout(el._fadeTimer);
+  el._fadeTimer = setTimeout(() => {
+    el.innerHTML = html;
+    el.classList.remove('text-fading');
+    if (typeof autoFitText === 'function') requestAnimationFrame(autoFitText);
+  }, 120);
+}
+
 function renderDisplay() {
   const languages = getDisplayLanguages();
   const useDual = languages.length === 2;
@@ -453,16 +467,16 @@ function renderDisplay() {
   const dualText = $('translateDualText');
   if (singleText) {
     singleText.hidden = useDual;
-    singleText.innerHTML = highlightBibleRefs(getTextToDisplay(languages[0] || state.currentLanguage));
+    setTextWithFade(singleText, highlightBibleRefs(getTextToDisplay(languages[0] || state.currentLanguage)));
   }
   if (dualText) {
     dualText.hidden = !useDual;
     dualText.dataset.textSize = state.textSize || 'large';
     dualText.dataset.screenStyle = state.screenStyle || 'focus';
     if ($('translatePrimaryLanguageLabel')) $('translatePrimaryLanguageLabel').textContent = langLabel(languages[0] || state.currentLanguage);
-    if ($('translatePrimaryText')) $('translatePrimaryText').innerHTML = highlightBibleRefs(getTextToDisplay(languages[0] || state.currentLanguage));
+    if ($('translatePrimaryText')) setTextWithFade($('translatePrimaryText'), highlightBibleRefs(getTextToDisplay(languages[0] || state.currentLanguage)));
     if ($('translateSecondaryLanguageLabel')) $('translateSecondaryLanguageLabel').textContent = langLabel(languages[1] || '');
-    if ($('translateSecondaryText')) $('translateSecondaryText').innerHTML = highlightBibleRefs(getTextToDisplay(languages[1] || state.currentLanguage));
+    if ($('translateSecondaryText')) setTextWithFade($('translateSecondaryText'), highlightBibleRefs(getTextToDisplay(languages[1] || state.currentLanguage)));
   }
   if ($('translateText')) {
     $('translateText').dataset.textSize = state.textSize || 'large';

@@ -1,4 +1,12 @@
-const socket = io();
+// V22.39 — reconnect blând (delay mai mare ca să nu genereze furtună de join_event → rate_limited).
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  randomizationFactor: 0.5,
+  timeout: 8000
+});
 const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
 // V11.5: endonyms catalog (each language's name in its own language) — preferred over
@@ -11,14 +19,61 @@ const LIVE_ENTRY_MAX_DISPLAY_MS = 9000;
 const LIVE_ENTRY_MAX_QUEUE = 3;
 const LIVE_ENTRY_CATCHUP_MIN_MS = 1100;
 
-// SMART FLUSH V1.1: Display buffer pentru chunk merging + delay
+// V22.19 — displayBuffer reținut DOAR pentru cleanup defensive (clearTimer + null pe pendingText)
+// la lifecycle events (service end, etc.). smartDisplayLiveText nu mai setează aceste câmpuri,
+// deci sunt mereu null/0 — cleanup-ul rămâne ca no-op safe.
 const displayBuffer = {
-  pendingText: null,         // text în așteptare de afișare
-  lastDisplayTime: 0,        // timestamp ultima afișare
-  pendingTimer: null,        // timer pentru afișare amânată
-  MERGE_WINDOW_MS: 2000,     // chunks în 2 sec se combină
-  MIN_DISPLAY_MS: 3000       // 3 sec minim între afișări
+  pendingText: null,
+  lastDisplayTime: 0,
+  pendingTimer: null
 };
+
+// V22.20 — DIAGNOSTIC: log ce text ajunge efectiv la participant (în #lastText).
+// RĂMÂNE până confirmă utilizatorul că afișarea e ok. NU scoate fără confirmare.
+const partLog = { entries: [], startedAt: null };
+function logPart(text) {
+  if (!partLog.startedAt) partLog.startedAt = new Date().toISOString();
+  partLog.entries.push({ t: new Date().toISOString(), text: String(text || '') });
+  if (partLog.entries.length > 3000) partLog.entries.shift();
+}
+function copyPartLog() {
+  const L = [
+    `Participant display log — ${partLog.entries.length} updates`,
+    `Started: ${partLog.startedAt || '-'}`,
+    '',
+    '---',
+    ''
+  ];
+  partLog.entries.forEach((e, i) => {
+    const tt = e.t.split('T')[1]?.replace('Z', '') || e.t;
+    L.push(`#${i + 1} [${tt}] ${e.text}`);
+  });
+  const txt = L.join('\n');
+  const btn = document.getElementById('copyPartLogBtn');
+  const flash = () => {
+    if (!btn) return;
+    const o = btn.textContent;
+    btn.textContent = '✓ Copiat!';
+    setTimeout(() => { btn.textContent = o; }, 1500);
+  };
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); flash(); }
+    catch (_) { alert('Copy failed'); }
+    ta.remove();
+  };
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(txt).then(flash, fallback);
+  } else {
+    fallback();
+  }
+}
+window.copyPartLog = copyPartLog;
 
 // BUGFIX V1 - FIX 2: Auto-expire live text dacă nu vine update nou
 const liveTextExpire = {
@@ -772,64 +827,21 @@ function clearLoadingDots() {
   el.classList.remove('loading-dots-active');
 }
 
-// SMART FLUSH V1.1: smart display function with chunk merging + display delay
+// V22.21 — afișează doar propoziții complete (terminate cu . ! ?). Fragmentele scurte
+// premature (începuturi de propoziție de la Azure) sunt ignorate până se completează.
+// Virgula NU închide propoziția. Păstrează ultima propoziție completă afișată ca fallback.
+let lastCompleteText = '';
 function smartDisplayLiveText(newText, callback) {
-  if (!newText || !String(newText).trim()) return;
-
-  const now = Date.now();
-  const timeSinceLastDisplay = now - displayBuffer.lastDisplayTime;
-
-  // Cancel any pending timer
-  if (displayBuffer.pendingTimer) {
-    clearTimeout(displayBuffer.pendingTimer);
-    displayBuffer.pendingTimer = null;
+  const txt = String(newText || '').trim();
+  if (!txt) return;
+  const isSpecial = txt.includes('📖');
+  // V22.27 — publică și pe virgulă/pauză (, ; :), nu doar la final de propoziție (. ! ?),
+  // pentru mai puțină întârziere la vorbitori rapizi. Fragmentele fără punctuație rămân blocate.
+  const looksComplete = /[.!?,;:]["'»)\]]?\s*$/.test(txt);
+  if (isSpecial || looksComplete) {
+    lastCompleteText = txt;
+    callback(txt);
   }
-
-  // SCENARIO 1: Foarte recent (< MERGE_WINDOW_MS) → merge cu textul curent
-  if (timeSinceLastDisplay < displayBuffer.MERGE_WINDOW_MS) {
-    const lastTextEl = $('lastText');
-    const currentText = lastTextEl?.textContent || '';
-    // Verificăm că nu e un mesaj special (Bible Reading, Service ended, Loading dots, etc.)
-    const isLoading = !!lastTextEl?.classList?.contains('loading-dots-active');
-    const isSpecialMessage = isLoading || currentText.includes('📖') || currentText.includes('Waiting') || currentText.includes('Vă așteptăm');
-
-    if (!isSpecialMessage && currentText) {
-      const mergedText = currentText.trim() + ' ' + String(newText).trim();
-      callback(mergedText);
-      displayBuffer.lastDisplayTime = now;
-      displayBuffer.pendingText = null;
-      return;
-    }
-  }
-
-  // SCENARIO 2: Display delay (între MERGE_WINDOW_MS și MIN_DISPLAY_MS)
-  // → buffer textul, afișează la MIN_DISPLAY_MS de la ultima afișare
-  if (timeSinceLastDisplay < displayBuffer.MIN_DISPLAY_MS) {
-    const waitMs = displayBuffer.MIN_DISPLAY_MS - timeSinceLastDisplay;
-
-    // Dacă deja avem ceva în pending, COMBINĂM (chunks în coadă merg la fel ca merging)
-    if (displayBuffer.pendingText) {
-      displayBuffer.pendingText = displayBuffer.pendingText + ' ' + String(newText).trim();
-    } else {
-      displayBuffer.pendingText = String(newText).trim();
-    }
-
-    // Programăm afișare în waitMs
-    displayBuffer.pendingTimer = setTimeout(() => {
-      if (displayBuffer.pendingText) {
-        callback(displayBuffer.pendingText);
-        displayBuffer.lastDisplayTime = Date.now();
-        displayBuffer.pendingText = null;
-        displayBuffer.pendingTimer = null;
-      }
-    }, waitMs);
-    return;
-  }
-
-  // SCENARIO 3: Mai mult de MIN_DISPLAY_MS de la ultima afișare → afișează instant
-  callback(String(newText).trim());
-  displayBuffer.lastDisplayTime = now;
-  displayBuffer.pendingText = null;
 }
 
 function renderLiveView({ announce = false } = {}) {
@@ -855,8 +867,8 @@ function renderLiveView({ announce = false } = {}) {
   const visibleEntry = state.visibleLiveEntry || (state.allowTranscriptFallback ? getLatestEntry() : null);
   state.lastLiveEntryId = visibleEntry?.id || null;
   if (visibleEntry) {
-    // SMART FLUSH V1.1: wrap with smartDisplayLiveText for chunk merging + display delay
     smartDisplayLiveText(getTextForEntry(visibleEntry), (text) => {
+      logPart(text);   // V22.20 diagnostic
       clearLoadingDots();
       $('lastText').innerHTML = highlightBibleRefs(text);
     });
@@ -1253,6 +1265,8 @@ function handleLanguageChange() {
 
 async function joinParticipantEvent(eventId) {
   if (!eventId) return setStatus('Choose a live event.');
+  // V22.39 — respectă backoff-ul de rate-limit (nu bombarda serverul)
+  if (Date.now() < rateLimitBackoffUntil) return;
   if (!state.previewMode) await enableWakeLock();
   socket.emit('join_event', {
     eventId,
@@ -1270,6 +1284,24 @@ socket.on('connect', async () => {
 
 socket.on('disconnect', () => setStatus('Reconnecting...'));
 socket.on('join_error', ({ message }) => setStatus(message || 'Cannot join event.'));
+
+// V22.39 — tratează rate-limiting de la server. Fără asta, clientul bombarda cu join_event
+// și rămânea blocat (necesita hard-refresh). La rate_limited: pauză scurtă, apoi UN singur retry.
+let rateLimitBackoffUntil = 0;
+socket.on('server_error', (payload) => {
+  const code = payload && payload.code;
+  if (code === 'rate_limited') {
+    rateLimitBackoffUntil = Date.now() + 5000;   // nu mai trimite join 5s
+    setStatus('Reconnecting...');
+    setTimeout(() => {
+      if (socket.connected && state.fixedEventId) {
+        loadParticipantEvents({ joinFixedIfLive: true }).catch(() => {});
+      }
+    }, 5200);
+    return;
+  }
+  if (payload && payload.message) setStatus(payload.message);
+});
 
 function applyTestModeIndicator(event) {
   const badge = $('participantTestBadge');
@@ -1696,8 +1728,14 @@ window.addEventListener('load', async () => {
 
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible') {
+    // V22.26 — reconectare instantă la revenirea în browser
+    if (!socket.connected) socket.connect();
     await enableWakeLock();
   }
+});
+// V22.26 — reconectare și când rețeaua revine
+window.addEventListener('online', () => {
+  if (!socket.connected) socket.connect();
 });
 
 if ('serviceWorker' in navigator && !state.previewMode) {
@@ -1709,3 +1747,6 @@ if ('serviceWorker' in navigator && !state.previewMode) {
 window.addEventListener('beforeunload', async () => {
   await disableWakeLock();
 });
+
+// V22.20 — listener pentru butonul de copiere log diagnostic
+document.getElementById('copyPartLogBtn')?.addEventListener('click', copyPartLog);

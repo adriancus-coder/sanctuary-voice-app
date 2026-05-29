@@ -1,4 +1,12 @@
-const socket = io();
+// V22.40 — reconnect blând pe admin (era io() simplu). Evită furtuna de reconectări.
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  randomizationFactor: 0.5,
+  timeout: 8000
+});
 const $ = (id) => document.getElementById(id);
 
 let currentEvent = null;
@@ -57,7 +65,18 @@ let audioState = {
   openAiFallbackActive: false,
   azureProcessor: null,
   azureSource: null,
-  azureReady: false
+  azureReady: false,
+  azureWorkletNode: null,        // V22.13
+  azureWorkletLoaded: false      // V22.13
+};
+
+// V22.2 — Audio Source state (Mic / Tab audio / File)
+const audioSourceState = {
+  type: 'mic',
+  externalStream: null,
+  controller: null,
+  pendingFile: null,
+  preloadedAudio: null,   // V22.11 — { audioEl, url, file } pre-încărcat la selectare
 };
 
 function langLabel(code) {
@@ -76,8 +95,10 @@ function setStatus(text) {
   if (el) el.textContent = text;
 }
 
+// V22.1 — listening indicator (4 puncte pulsând) când nu există partial.
+const LISTENING_DOTS_HTML = '<span class="listening-dots" aria-label="listening"><span></span><span></span><span></span><span></span></span>';
+
 function setPartialTranscript(text = '') {
-  const value = text || 'Waiting for full sentence...';
   if (text && text.trim() && text.trim() !== lastPartialCaptured) {
     window.partialTranscriptHistory.push({
       timestamp: new Date().toISOString(),
@@ -90,8 +111,42 @@ function setPartialTranscript(text = '') {
   }
   const compact = $('partialTranscript');
   const large = $('partialTranscriptLarge');
-  if (compact) compact.textContent = value;
-  if (large) large.textContent = value;
+  if (text) {
+    if (compact) compact.textContent = text;
+    if (large) large.textContent = text;
+  } else {
+    if (compact) compact.innerHTML = LISTENING_DOTS_HTML;
+    if (large) large.innerHTML = LISTENING_DOTS_HTML;
+  }
+}
+
+// V22.42 — timer Live Session (header). Pornește la On-Air, reset la Stop.
+let liveTimerInterval = null;
+let liveTimerStartMs = 0;
+function formatLiveDuration(totalSec) {
+  const s = totalSec % 60;
+  const m = Math.floor(totalSec / 60) % 60;
+  const h = Math.floor(totalSec / 3600);
+  const pad = (n) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+function updateLiveTimerDisplay() {
+  const el = document.getElementById('liveSessionTimer');
+  if (!el) return;
+  const elapsed = liveTimerStartMs ? Math.floor((Date.now() - liveTimerStartMs) / 1000) : 0;
+  el.textContent = formatLiveDuration(elapsed);
+}
+function startLiveTimer() {
+  liveTimerStartMs = Date.now();
+  updateLiveTimerDisplay();
+  if (liveTimerInterval) clearInterval(liveTimerInterval);
+  liveTimerInterval = setInterval(updateLiveTimerDisplay, 1000);
+}
+function stopLiveTimer() {
+  if (liveTimerInterval) { clearInterval(liveTimerInterval); liveTimerInterval = null; }
+  liveTimerStartMs = 0;
+  const el = document.getElementById('liveSessionTimer');
+  if (el) el.textContent = '00:00';
 }
 
 function setOnAirState(isOn) {
@@ -114,6 +169,8 @@ function setOnAirState(isOn) {
   }
   // TASK 35D: butoanele Start/Stop (topbar + tab Dashboard) reflectă starea curentă
   updateRecognitionButtonsState(!!isOn);
+  // V22.42 — pornește/reset timer Live Session
+  if (isOn) startLiveTimer(); else stopLiveTimer();
 }
 
 function updateRecognitionButtonsState(isActive) {
@@ -1111,6 +1168,36 @@ function exportTranscript() {
   link.remove();
   URL.revokeObjectURL(url);
   setStatus(`Transcript exported: ${filename}`);
+}
+
+// V22.20 — copiază transcript în clipboard cu feedback vizibil
+async function copyTranscript() {
+  if (!currentEvent) return alert('Open or create an event first.');
+  const entries = Array.isArray(currentEvent.transcripts) ? currentEvent.transcripts : [];
+  if (!entries.length) return alert('No transcript to copy yet.');
+  const text = buildTranscriptExportText();
+  const btn = document.getElementById('copyTranscriptBtn');
+  const flash = () => {
+    if (!btn) return;
+    const o = btn.textContent;
+    btn.textContent = '✓ Copiat!';
+    btn.disabled = true;
+    setTimeout(() => { btn.textContent = o; btn.disabled = false; }, 1500);
+  };
+  try {
+    await navigator.clipboard.writeText(text);
+    flash();
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); flash(); }
+    catch (_) { alert('Nu am putut copia. Folosește Export.'); }
+    ta.remove();
+  }
 }
 
 function hydratePermanentParticipantAccess() {
@@ -2584,6 +2671,7 @@ async function destroyAudioPipeline(options = {}) {
   stopBrowserAzureRecognition();
   if (audioState.context) await audioState.context.close().catch(() => {});
   audioState.context = null;
+  audioState.azureWorkletLoaded = false;   // V22.23 — context nou va reîncărca worklet (fix 429)
   audioState.source = null;
   audioState.rawAnalyser = null;
   audioState.gainNode = null;
@@ -2879,10 +2967,190 @@ function startMeterLoop() {
   draw();
 }
 
+// V22.2 — Acquire audio dintr-un tab partajat (Chrome desktop). User trebuie să BIFEZE
+// „Share tab audio" în picker. Pe mobile / fără getDisplayMedia → throw clar.
+async function acquireTabAudioStream() {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    throw new Error('Tab audio not supported in this browser. Use Chrome/Edge desktop.');
+  }
+  const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  const audioTracks = display.getAudioTracks();
+  if (audioTracks.length === 0) {
+    display.getTracks().forEach(t => t.stop());
+    throw new Error('No audio track. Did you bifa „Share tab audio"? Try again and check the box.');
+  }
+  display.getVideoTracks().forEach(t => t.stop());
+  return new MediaStream([audioTracks[0]]);
+}
+
+// V22.8 — iOS audio unlock: rulat SINCRON în gestul de tap (Start), înainte de lanțul async.
+// Creează/reia un AudioContext persistent + un buffer silențios scurt → „dezgheață" audio
+// pe iOS WebKit, ca play()-ul ulterior (oricât de târziu) să nu mai fie blocat.
+let _iosUnlockCtx = null;
+function primeIosAudioUnlock() {
+  try {
+    if (!_iosUnlockCtx) {
+      _iosUnlockCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (_iosUnlockCtx.state === 'suspended') { _iosUnlockCtx.resume().catch(() => {}); }
+    const buf = _iosUnlockCtx.createBuffer(1, 1, 22050);
+    const src = _iosUnlockCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(_iosUnlockCtx.destination);
+    src.start(0);
+  } catch (_) { /* non-critic */ }
+}
+
+// V22.9 — întoarce contextul iOS partajat (creat/dezghețat la tap), creându-l dacă lipsește.
+function getSharedAudioContext() {
+  if (!_iosUnlockCtx) {
+    _iosUnlockCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return _iosUnlockCtx;
+}
+
+// V22.11 — creează + încarcă elementul <audio> la selectare, ca să fie gata la Start.
+function preloadAudioFile(file) {
+  try {
+    if (audioSourceState.preloadedAudio?.url) {
+      try { URL.revokeObjectURL(audioSourceState.preloadedAudio.url); } catch (_) {}
+    }
+    const url = URL.createObjectURL(file);
+    const audioEl = new Audio();
+    audioEl.src = url;
+    audioEl.preload = 'auto';
+    audioEl.load();
+    audioSourceState.preloadedAudio = { audioEl, url, file };
+  } catch (_) { audioSourceState.preloadedAudio = null; }
+}
+
+// V22.2 — Acquire audio dintr-un fișier local (orice browser, inclusiv mobile).
+// V22.4 — streaming prin <audio> (RAM mică, suportă predici lungi pe mobile).
+async function acquireFileAudioStream(file) {
+  // V22.10 — curăță orice controller de fișier rămas (Start consecutiv fără cleanup complet)
+  if (audioSourceState.controller?.stop) {
+    try { audioSourceState.controller.stop(); } catch (_) {}
+    audioSourceState.controller = null;
+  }
+  // V22.11 — folosește elementul pre-încărcat la selectare dacă e pentru ACELAȘI fișier.
+  let url, audioEl;
+  const pre = audioSourceState.preloadedAudio;
+  if (pre && pre.file === file && pre.audioEl) {
+    url = pre.url;
+    audioEl = pre.audioEl;
+    audioSourceState.preloadedAudio = null;   // consumat
+    if (audioEl.readyState < 3) {
+      await new Promise((resolve) => {
+        const to = setTimeout(resolve, 8000);
+        audioEl.addEventListener('canplay', () => { clearTimeout(to); resolve(); }, { once: true });
+      });
+    }
+  } else {
+    url = URL.createObjectURL(file);
+    audioEl = new Audio();
+    audioEl.src = url;
+    audioEl.crossOrigin = 'anonymous';
+    audioEl.preload = 'auto';
+    await new Promise((resolve, reject) => {
+      const to = setTimeout(() => reject(new Error('Audio load timeout')), 15000);
+      audioEl.addEventListener('canplay', () => { clearTimeout(to); resolve(); }, { once: true });
+      audioEl.addEventListener('error', () => { clearTimeout(to); reject(new Error('Audio decode/load error')); }, { once: true });
+      audioEl.load();
+    });
+  }
+  // V22.9 — reutilizează contextul deja dezghețat la tap (primeIosAudioUnlock), nu unul nou.
+  const ctx = getSharedAudioContext();
+  const sourceNode = ctx.createMediaElementSource(audioEl);
+  const dest = ctx.createMediaStreamDestination();
+  sourceNode.connect(dest);
+  // (NU conectăm la ctx.destination → fără dublu-audio local)
+
+  // V22.7 — iOS (WebKit) robust start: resume context + play, cu verificare și retry scurt.
+  async function ensureAudioPlaying() {
+    if (ctx.state === 'suspended') {
+      try { await ctx.resume(); } catch (_) {}
+    }
+    try {
+      await audioEl.play();
+    } catch (err) {
+      try { if (ctx.state === 'suspended') await ctx.resume(); } catch (_) {}
+      await audioEl.play();
+    }
+    if (audioEl.paused) {
+      throw new Error('iOS blocked audio playback — tap Start again.');
+    }
+  }
+  await ensureAudioPlaying();
+  audioEl.addEventListener('ended', () => { dest.stream.getTracks().forEach(t => t.stop()); }, { once: true });
+  return {
+    stream: dest.stream,
+    controller: { audioEl, context: ctx, url, file,
+      // V22.9 — NU închide contextul partajat (refolosit la următoarea pornire); doar deconectează sursa.
+      stop: () => {
+        try { audioEl.pause(); } catch(_){}
+        try { URL.revokeObjectURL(url); } catch(_){}
+        try { sourceNode.disconnect(); } catch(_){}
+        try { dest.disconnect(); } catch(_){}
+      }
+    }
+  };
+}
+
+// V22.2 — Audio Source UI
+function setAudioSourceType(type) {
+  if (audioState.running) {
+    alert('Stop recognition first to change audio source.');
+    return;
+  }
+  audioSourceState.type = type;
+  document.querySelectorAll('.audio-source-tab').forEach(b => {
+    b.classList.toggle('is-active', b.dataset.source === type);
+  });
+  const mic = $('audioSourceDetailMic');
+  const tab = $('audioSourceDetailTab');
+  const file = $('audioSourceDetailFile');
+  if (mic) mic.classList.toggle('hidden', type !== 'mic');
+  if (tab) tab.classList.toggle('hidden', type !== 'tab');
+  if (file) file.classList.toggle('hidden', type !== 'file');
+}
+
+function initAudioSourceUI() {
+  if (!$('audioSourcePanel')) return;
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    const tabBtn = $('audioSourceTabBtn');
+    if (tabBtn) {
+      tabBtn.classList.add('hidden');
+      tabBtn.title = 'Not supported in this browser';
+    }
+  }
+  document.querySelectorAll('.audio-source-tab').forEach(b => {
+    b.addEventListener('click', () => setAudioSourceType(b.dataset.source));
+  });
+  const fileInput = $('audioSourceFile');
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      audioSourceState.pendingFile = f;
+      const nameEl = $('audioSourceFileName');
+      if (nameEl) nameEl.textContent = f.name;
+      // V22.11 — pre-încarcă fișierul ACUM (decode în fundal), ca Start-ul să fie instant pe iOS.
+      preloadAudioFile(f);
+    });
+  }
+}
+
 async function createAudioPipeline(options = {}) {
-  const deviceId = $('audioInput').value;
   await destroyAudioPipeline({ preserveRunState: !!options.preserveRunState });
-  audioState.stream = await navigator.mediaDevices.getUserMedia(getAudioConstraints(deviceId));
+  // V22.2: sursa audio poate fi externă (tab audio / file). Default rămâne mic.
+  if (options.externalStream) {
+    audioState.stream = options.externalStream;
+    audioState.externalSourceType = options.externalSourceType || 'external';
+  } else {
+    const deviceId = $('audioInput').value;
+    audioState.stream = await navigator.mediaDevices.getUserMedia(getAudioConstraints(deviceId));
+    audioState.externalSourceType = null;
+  }
   audioState.context = new (window.AudioContext || window.webkitAudioContext)();
   await audioState.context.resume();
   audioState.source = audioState.context.createMediaStreamSource(audioState.stream);
@@ -3086,22 +3354,55 @@ async function startAzureAudioStream() {
   if (!currentEvent || !audioState.context || !audioState.preampNode) return false;
   audioState.azureReady = false;
   socket.emit('azure_audio_start', { eventId: currentEvent.id });
-
   audioState.azureSource = audioState.preampNode;
-  audioState.azureProcessor = audioState.context.createScriptProcessor(4096, 1, 1);
-  audioState.azureProcessor.onaudioprocess = (event) => {
+
+  // V22.13 — preferă AudioWorklet (thread separat); fallback la ScriptProcessor.
+  const emitPcm = (float32) => {
     if (!audioState.running || !isAzureSpeechProvider()) return;
     if (getInputGainPercent() <= 0) return;
-    const pcm = downsampleTo16kPcm(event.inputBuffer.getChannelData(0), audioState.context.sampleRate);
+    const pcm = downsampleTo16kPcm(float32, audioState.context.sampleRate);
     if (pcm.byteLength) socket.emit('azure_audio_chunk', { eventId: currentEvent.id, audio: pcm });
   };
-  audioState.azureSource.connect(audioState.azureProcessor);
-  audioState.azureProcessor.connect(audioState.context.destination);
+
+  let workletOk = false;
+  if (audioState.context.audioWorklet) {
+    try {
+      if (!audioState.azureWorkletLoaded) {
+        await audioState.context.audioWorklet.addModule('/azure-pcm-worklet.js');
+        audioState.azureWorkletLoaded = true;
+      }
+      const node = new AudioWorkletNode(audioState.context, 'azure-pcm-processor', { numberOfOutputs: 0 });
+      node.port.onmessage = (e) => emitPcm(e.data);
+      audioState.azureSource.connect(node);
+      audioState.azureWorkletNode = node;
+      workletOk = true;
+      console.info('[Azure] using AudioWorklet');
+    } catch (err) {
+      console.warn('[Azure] AudioWorklet failed, fallback to ScriptProcessor:', err);
+      workletOk = false;
+    }
+  }
+
+  if (!workletOk) {
+    audioState.azureProcessor = audioState.context.createScriptProcessor(4096, 1, 1);
+    audioState.azureProcessor.onaudioprocess = (event) => {
+      emitPcm(event.inputBuffer.getChannelData(0));
+    };
+    audioState.azureSource.connect(audioState.azureProcessor);
+    audioState.azureProcessor.connect(audioState.context.destination);
+  }
   return true;
 }
 
 function stopAzureAudioStream() {
   if (currentEvent) socket.emit('azure_audio_stop', { eventId: currentEvent.id });
+  // V22.13 — curăță worklet node dacă există
+  if (audioState.azureWorkletNode) {
+    try { audioState.azureSource?.disconnect(audioState.azureWorkletNode); } catch (_) {}
+    try { audioState.azureWorkletNode.port.onmessage = null; } catch (_) {}
+    try { audioState.azureWorkletNode.disconnect(); } catch (_) {}
+    audioState.azureWorkletNode = null;
+  }
   if (audioState.azureSource && audioState.azureProcessor) {
     try { audioState.azureSource.disconnect(audioState.azureProcessor); } catch (_) {}
   }
@@ -3163,7 +3464,13 @@ function shouldUploadAudioChunk(blob, gateStats = {}) {
 
 function enqueueAudioBlob(blob) {
   if (!blob || blob.size < 3500) return;
+  // V22.41 — plafonează coada ca să NU crească la infinit sub rate-limit (cauza freeze Chrome).
+  // Dacă e plină, aruncăm cele mai VECHI bucăți (păstrăm audio recent — mai relevant).
+  const UPLOAD_QUEUE_MAX = 8;
   audioState.uploadQueue.push(blob);
+  while (audioState.uploadQueue.length > UPLOAD_QUEUE_MAX) {
+    audioState.uploadQueue.shift();   // aruncă cel mai vechi
+  }
   if (!audioState.busy) drainAudioUploadQueue().catch(console.error);
 }
 
@@ -3171,16 +3478,26 @@ async function drainAudioUploadQueue() {
   if (audioState.busy) return;
   audioState.busy = true;
   try {
+    let rateLimitRetries = 0;   // V22.41 — limitează reîncercările ca să nu blocăm drenarea
     while (audioState.uploadQueue.length) {
       const blob = audioState.uploadQueue.shift();
       try {
         await postAudioChunk(blob);
+        rateLimitRetries = 0;
       } catch (err) {
         const msg = err?.message || '';
         const retryAfterMatch = msg.match(/retry-after:(\d+)/i);
         if (msg.includes('Prea multe cereri') || retryAfterMatch) {
-          const waitMs = retryAfterMatch ? Math.min(60000, Number(retryAfterMatch[1]) * 1000) : 1500;
-          audioState.uploadQueue.unshift(blob);
+          rateLimitRetries++;
+          // V22.41 — după 3 reîncercări, renunță la acest blob (nu bloca coada la infinit).
+          if (rateLimitRetries > 3) {
+            setStatus('Audio rate-limited — skipping a chunk to recover.');
+            rateLimitRetries = 0;
+            continue;   // arunci blob-ul curent, treci la următorul
+          }
+          const waitMs = retryAfterMatch ? Math.min(10000, Number(retryAfterMatch[1]) * 1000) : 1500;
+          // pune înapoi DOAR dacă mai e loc (altfel îl pierdem ca să nu umflăm coada)
+          if (audioState.uploadQueue.length < 8) audioState.uploadQueue.unshift(blob);
           setStatus(`Audio rate-limited, retrying in ${Math.ceil(waitMs / 1000)}s.`);
           await new Promise((resolve) => setTimeout(resolve, waitMs));
         } else {
@@ -3207,6 +3524,41 @@ async function startTranslation(options = {}) {
     audioState.openAiFallbackActive = false;
   }
   await setEventMode('live');
+  // V22.2 — dacă source != mic, acquiește external stream înainte de a porni pipeline-ul.
+  let externalStream = null;
+  let externalSourceType = null;
+  if (audioSourceState.type === 'tab') {
+    try {
+      externalStream = await acquireTabAudioStream();
+      externalSourceType = 'tab';
+      const statusEl = $('audioSourceStatus');
+      if (statusEl) statusEl.textContent = '📺 Tab audio active';
+    } catch (err) {
+      alert(err.message);
+      return;
+    }
+  } else if (audioSourceState.type === 'file') {
+    if (!audioSourceState.pendingFile) { alert('Pick a file first.'); return; }
+    try {
+      const { stream, controller } = await acquireFileAudioStream(audioSourceState.pendingFile);
+      externalStream = stream;
+      externalSourceType = 'file';
+      audioSourceState.controller = controller;
+      const statusEl = $('audioSourceStatus');
+      if (statusEl) statusEl.textContent = `📁 ${audioSourceState.pendingFile.name} playing`;
+    } catch (err) {
+      // V22.7 — pe iOS, dacă play e blocat, mesaj clar + revenim la mic ca să nu blocăm
+      setStatus('File audio: ' + (err.message || 'could not start') + ' — tap Start again or use Mic.');
+      audioState.running = false; window.isRecognitionRunning = false; setOnAirState(false);
+      return;
+    }
+  }
+  if (externalStream) {
+    externalStream.getTracks()[0]?.addEventListener('ended', () => {
+      const statusEl = $('audioSourceStatus');
+      if (statusEl) statusEl.textContent = '⚠️ Audio source ended — stop & restart to continue';
+    });
+  }
   audioState.running = true;
   window.isRecognitionRunning = true;
   setOnAirState(true);
@@ -3214,7 +3566,7 @@ async function startTranslation(options = {}) {
   await enableScreenWakeLock();
   if (isAzureSpeechProvider()) {
     try {
-      await createAudioPipeline({ preserveRunState: true });
+      await createAudioPipeline({ preserveRunState: true, externalStream, externalSourceType });
     } catch (err) {
       console.error(err);
       audioState.running = false;
@@ -3239,7 +3591,7 @@ async function startTranslation(options = {}) {
     if (started) return;
   }
   if (!window.MediaRecorder) return alert('Use Chrome or Edge.');
-  try { await createAudioPipeline({ preserveRunState: true }); } catch (_) {
+  try { await createAudioPipeline({ preserveRunState: true, externalStream, externalSourceType }); } catch (_) {
     audioState.running = false;
     window.isRecognitionRunning = false;
     setOnAirState(false);
@@ -3289,6 +3641,8 @@ async function stopTranslation() {
   audioState.running = false;
   window.isRecognitionRunning = false;
   audioState.openAiFallbackActive = false;
+  // V22.4 — eliberează resursele file audio
+  if (audioSourceState.controller?.stop) { audioSourceState.controller.stop(); audioSourceState.controller = null; }
   if (audioState.chunkTimer) clearTimeout(audioState.chunkTimer);
   audioState.chunkTimer = null;
   stopBrowserAzureRecognition();
@@ -3298,7 +3652,11 @@ async function stopTranslation() {
   await disableScreenWakeLock();
   if (audioState.recorder && audioState.recorder.state === 'recording') {
     audioState.recorder.stop();
-    setTimeout(() => destroyAudioPipeline().catch(console.error), 100);
+    // V22.10 — așteaptă efectiv cleanup-ul (înainte returna imediat → următorul Start
+    // venea peste un pipeline care încă se dărâma, de unde nevoia de 2-3 cicluri pe iOS)
+    await new Promise(r => setTimeout(r, 120));
+    await destroyAudioPipeline().catch(console.error);
+    setStatus('Stopped.');
     return;
   }
   await destroyAudioPipeline();
@@ -3580,6 +3938,13 @@ async function fallbackToOpenAiFromAzure(payload = {}) {
 
 socket.on('server_error', (payload = {}) => {
   const message = payload.message || 'Server error.';
+  // V22.40 — rate_limited e de la rate-limiter-ul socket propriu, NU o eroare Azure.
+  // NU face fallback (care repornea recunoașterea → azure_audio_start → iar rate_limited → buclă
+  // → „Connecting" blocat). Doar informează; recunoașterea continuă să curgă.
+  if (payload.code === 'rate_limited') {
+    setStatus('Prea multe cereri — se recuperează...');
+    return;
+  }
   setStatus(message);
   fallbackToOpenAiFromAzure(payload).catch((err) => {
     console.error(err);
@@ -3941,7 +4306,10 @@ $('audioInput').addEventListener('change', async () => {
   }
   else { try { await createAudioPipeline(); setStatus('Audio source changed.'); } catch (_) { setStatus('Selected source failed.'); } }
 });
-$('startRecognitionBtn').addEventListener('click', startTranslation);
+$('startRecognitionBtn').addEventListener('click', () => {
+  primeIosAudioUnlock();   // V22.8 — dezgheață audio iOS în gestul direct
+  startTranslation();
+});
 $('stopRecognitionBtn').addEventListener('click', stopTranslation);
 
 // BIBLE MODE: toggle button
@@ -4210,6 +4578,7 @@ $('jumpLiveBtn').addEventListener('click', () => {
   if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 $('exportTranscriptBtn')?.addEventListener('click', exportTranscript);
+document.getElementById('copyTranscriptBtn')?.addEventListener('click', copyTranscript);
 
 async function clearTranscript() {
   if (!currentEvent) return alert('Open an event first.');
@@ -5052,6 +5421,7 @@ window.addEventListener('load', async () => {
   await refreshEventList();
   await refreshAccessRequests();
   initCodeMasking();
+  initAudioSourceUI();
   initAdminPush().catch(() => {});
   try {
     const res = await fetch('/api/events/active');
