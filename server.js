@@ -2730,24 +2730,37 @@ let translationCacheFlushTimer = null;
 const LANG_MISMATCH_LOG_FILE = path.join(DATA_DIR, 'lang-mismatch-log.json');
 const LANG_MISMATCH_LOG_LIMIT = 500;
 
+// V22.35 — log în memorie + flush DEBOUNCED async (nu mai face I/O sincron pe fiecare mismatch)
+let langMismatchBuffer = null;
+let langMismatchFlushTimer = null;
+function flushLangMismatchLog() {
+  langMismatchFlushTimer = null;
+  if (!langMismatchBuffer) return;
+  const toWrite = JSON.stringify(langMismatchBuffer);
+  fs.promises.mkdir(DATA_DIR, { recursive: true })
+    .then(() => fs.promises.writeFile(LANG_MISMATCH_LOG_FILE, toWrite, 'utf8'))
+    .catch((err) => logger.warn('lang-mismatch log write failed:', err?.message || err));
+}
 function logLangMismatch(entry) {
   try {
-    let log = [];
-    if (fs.existsSync(LANG_MISMATCH_LOG_FILE)) {
+    if (langMismatchBuffer === null) {
+      langMismatchBuffer = [];
       try {
-        const raw = fs.readFileSync(LANG_MISMATCH_LOG_FILE, 'utf8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) log = parsed;
-      } catch (parseErr) {
-        logger.warn('lang-mismatch log parse failed, starting fresh:', parseErr?.message || parseErr);
-      }
+        if (fs.existsSync(LANG_MISMATCH_LOG_FILE)) {
+          const parsed = JSON.parse(fs.readFileSync(LANG_MISMATCH_LOG_FILE, 'utf8'));
+          if (Array.isArray(parsed)) langMismatchBuffer = parsed;
+        }
+      } catch (_) { langMismatchBuffer = []; }
     }
-    log.push({ ts: new Date().toISOString(), ...entry });
-    if (log.length > LANG_MISMATCH_LOG_LIMIT) log = log.slice(-LANG_MISMATCH_LOG_LIMIT);
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(LANG_MISMATCH_LOG_FILE, JSON.stringify(log), 'utf8');
+    langMismatchBuffer.push({ ts: new Date().toISOString(), ...entry });
+    if (langMismatchBuffer.length > LANG_MISMATCH_LOG_LIMIT) {
+      langMismatchBuffer = langMismatchBuffer.slice(-LANG_MISMATCH_LOG_LIMIT);
+    }
+    if (!langMismatchFlushTimer) {
+      langMismatchFlushTimer = setTimeout(flushLangMismatchLog, 3000);
+    }
   } catch (err) {
-    logger.warn('lang-mismatch log write failed:', err?.message || err);
+    logger.warn('lang-mismatch log buffer failed:', err?.message || err);
   }
 }
 
@@ -3056,86 +3069,27 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
     if (result.tokens) recordTranslationUsage(event, result.tokens);
     let translated = sanitizeStructuredText(translatedText);
 
-    // BUGFIX V5: validate target language. On high-confidence mismatch, retry once with explicit
-    // language constraint (non-streaming only — streaming has already pushed deltas to the client).
-    // If retry still wrong → skip cache write so the bad text doesn't poison cache for next requests;
-    // return '' so V3 frontend shows loading dots instead of source-language fallback.
-    let langValidationOk = true;
+    // V22.35 — sursa e mereu setată manual, deci retry-ul „output-ul pare limba sursă?" e inutil
+    // și dăunător (furtună de retry pe nume proprii cu diacritice → crash). Păstrăm DOAR logarea
+    // (async/debounced) pentru vizibilitate; afișăm întotdeauna traducerea.
     if (translated) {
       const detected = detectLanguage(translated);
       if (detected.lang !== 'unknown' && detected.lang !== langCode && detected.confidence === 'high') {
         const targetLangName = LANGUAGES[langCode] || langCode;
-        console.warn(`[LANG_MISMATCH] expected=${langCode} (${targetLangName}) detected=${detected.lang} src="${cleanText.slice(0, 80)}" out="${translated.slice(0, 80)}"`);
+        console.warn(`[LANG_MISMATCH] expected=${langCode} (${targetLangName}) detected=${detected.lang} src="${cleanText.slice(0, 80)}" out="${translated.slice(0, 80)}" (logged, no retry)`);
         logLangMismatch({
-          stage: 'initial',
+          stage: 'observed-no-retry',
           expectedLang: langCode,
           expectedLangName: targetLangName,
           detectedLang: detected.lang,
           detectedConfidence: detected.confidence,
-          sourceLang,
-          sourceText: cleanText.slice(0, 500),
-          badText: translated.slice(0, 500),
-          cacheKey: cacheKey.slice(0, 200),
-          streaming: !!options.onDelta
+          sourceText: cleanText.slice(0, 300),
+          outText: translated.slice(0, 300)
         });
-
-        if (!options.onDelta) {
-          // Non-streaming: retry with explicit language constraint
-          try {
-            const retryMessages = [
-              inputMessages[0],
-              {
-                role: 'system',
-                content: `IMPORTANT: Respond ONLY in ${targetLangName}. Do NOT output any other language. The user explicitly requires ${targetLangName}.`
-              },
-              ...inputMessages.slice(1)
-            ];
-            const retryResult = await translationService.translateWithResponsesDetailed({
-              model: translateModel,
-              input: retryMessages
-            });
-            if (retryResult.tokens) recordTranslationUsage(event, retryResult.tokens);
-            const retryText = sanitizeStructuredText(retryResult.text || '');
-            const retryDetected = retryText ? detectLanguage(retryText) : { lang: 'unknown', confidence: 'low' };
-            if (retryText && (retryDetected.lang === langCode || retryDetected.lang === 'unknown')) {
-              // Retry succeeded (right language, or text too short to validate confidently)
-              translated = retryText;
-              logLangMismatch({
-                stage: 'retry-success',
-                expectedLang: langCode,
-                detectedLang: retryDetected.lang,
-                detectedConfidence: retryDetected.confidence,
-                retriedText: retryText.slice(0, 200)
-              });
-            } else {
-              // Retry still wrong — refuse to cache, return empty
-              langValidationOk = false;
-              logLangMismatch({
-                stage: 'retry-failed',
-                expectedLang: langCode,
-                detectedLang: retryDetected.lang,
-                detectedConfidence: retryDetected.confidence,
-                retriedText: retryText.slice(0, 200)
-              });
-              console.warn(`[LANG_MISMATCH] retry failed for ${langCode}, returning empty (V3 frontend will show loading dots)`);
-            }
-          } catch (retryErr) {
-            langValidationOk = false;
-            logger.warn(`lang-mismatch retry error ${langCode}:`, retryErr?.message || retryErr);
-            logLangMismatch({
-              stage: 'retry-error',
-              expectedLang: langCode,
-              error: String(retryErr?.message || retryErr)
-            });
-          }
-        } else {
-          // Streaming: client already saw bad deltas; skip cache write to prevent poisoning future requests
-          langValidationOk = false;
-        }
       }
     }
 
-    if (translated && langValidationOk) {
+    if (translated) {
       writeTranslationCache(cacheKey, translated);
       updateTranslationMonitor(event, {
         pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 1) - 1),
@@ -3145,27 +3099,12 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
       });
       return translated;
     }
-    if (!langValidationOk) {
-      // BUGFIX V5: bad-language translation refused. Skip cache write, return empty string.
-      // V3 frontend (participant.js / translate.js / remote.js) treats '' as "not yet translated"
-      // and shows loading dots instead of the source-language fallback.
-      updateTranslationMonitor(event, {
-        pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 1) - 1),
-        lastTranslateFinishedAt: new Date().toISOString(),
-        lastTranslateDurationMs: Date.now() - startedAt,
-        lastTargetLang: langCode
-      });
-      return '';
-    }
-    const fallback = applyGlossary(cleanText, glossary);
-    writeTranslationCache(cacheKey, fallback);
     updateTranslationMonitor(event, {
       pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 1) - 1),
       lastTranslateFinishedAt: new Date().toISOString(),
-      lastTranslateDurationMs: Date.now() - startedAt,
       lastTargetLang: langCode
     });
-    return fallback;
+    return '';
   } catch (err) {
     logger.error(`translate error ${langCode}:`, err?.message || err);
     recordServerError(event, `Translate ${langCode} failed.`);
