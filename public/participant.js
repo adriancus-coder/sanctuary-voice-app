@@ -1,4 +1,11 @@
-const socket = io();
+// V22.26 — reconectare rapidă (fără backoff lung) pentru revenire instantă în browser
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 300,
+  reconnectionDelayMax: 1500,
+  timeout: 5000
+});
 const $ = (id) => document.getElementById(id);
 let availableLanguages = {};
 // V11.5: endonyms catalog (each language's name in its own language) — preferred over
@@ -1698,8 +1705,14 @@ window.addEventListener('load', async () => {
 
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible') {
+    // V22.26 — reconectare instantă la revenirea în browser
+    if (!socket.connected) socket.connect();
     await enableWakeLock();
   }
+});
+// V22.26 — reconectare și când rețeaua revine
+window.addEventListener('online', () => {
+  if (!socket.connected) socket.connect();
 });
 
 if ('serviceWorker' in navigator && !state.previewMode) {
