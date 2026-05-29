@@ -3497,13 +3497,14 @@ async function processText(event, cleanText, { force = false, sourceLang = '' } 
   // and cheap. Protects against any edge case where mixed encoding leaks into the translation pipeline.
   cleanText = normalizeTextInput(cleanText);
 
-  if (processingLocks.get(event.id)) {
-    // Un alt processText rulează pentru acest eveniment - re-introducem textul
-    // în buffer și ieșim. flushSpeechBuffer îl va relua după ce lock-ul scapă.
-    queueSpeechText(event.id, cleanText, sourceLang);
+  const lockId = String(event.id);   // V22.38 — ID primitiv stabil (igienă, sugestie Codex)
+  if (processingLocks.get(lockId)) {
+    // V22.38 — re-queue ASINCRON (setImmediate) ca să nu reintre sincron în lanțul de recursie.
+    const reqText = cleanText, reqSrc = sourceLang;
+    setImmediate(() => queueSpeechText(lockId, reqText, reqSrc));
     return null;
   }
-  processingLocks.set(event.id, true);
+  processingLocks.set(lockId, true);
   try {
     const normalized = normalizeChunkText(cleanText);
     if (!normalized || normalized.length < 2) return null;
@@ -3558,7 +3559,7 @@ async function processText(event, cleanText, { force = false, sourceLang = '' } 
     }
     return lastCreatedEntry;
   } finally {
-    processingLocks.delete(event.id);
+    processingLocks.delete(lockId);
   }
 }
 
@@ -3606,7 +3607,12 @@ async function flushSpeechBuffer(eventId, force = false) {
   }, false);
   io.to(`event:${eventId}:admins`).emit('partial_transcript', { text: '' });
   emitTranslationMonitor(eventId);
-  return processText(event, text, { force: true, sourceLang: buffered.sourceLang || event.sourceLang || 'ro' });
+  // V22.38 — processText ASINCRON (setImmediate) ca să rupem recursia sincronă cu queueSpeechText.
+  const flushSrc = buffered.sourceLang || event.sourceLang || 'ro';
+  setImmediate(() => {
+    Promise.resolve(processText(event, text, { force: true, sourceLang: flushSrc })).catch(logger.error);
+  });
+  return null;
 }
 
 function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpeechProvider()) {
@@ -3623,8 +3629,9 @@ function queueSpeechText(eventId, text, sourceLang = '', provider = getActiveSpe
   if (FLUSH_BEFORE_WORDS.has(firstNewWord)) {
     const existingBuffer = speechBuffers.get(eventId);
     if (existingBuffer && existingBuffer.text && countWords(existingBuffer.text) >= AZURE_LIVE_TEXT_MIN_WORDS) {
-      // Flush buffer existent - cuvântul nou va începe noul buffer
-      flushSpeechBuffer(eventId, true).catch(logger.error);
+      // V22.38 — flush ASINCRON (setImmediate) ca să NU reintre sincron în
+      // flushSpeechBuffer→processText→queueSpeechText→flushSpeechBuffer (recursie → stack overflow).
+      setImmediate(() => flushSpeechBuffer(eventId, true).catch(logger.error));
     }
   }
 
