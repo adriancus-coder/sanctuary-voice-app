@@ -3681,6 +3681,7 @@ function closeAzureSpeechSession(socketId) {
   const session = azureSpeechSessions.get(socketId);
   if (!session) return Promise.resolve();
   azureSpeechSessions.delete(socketId);
+  logger.info('[AZURE-429-DIAG] session closed', { socketId, remaining: azureSpeechSessions.size });   // V22.29
   // TASK 37: Cleanup partial flush tracker pentru acest event
   if (session.eventId) {
     partialFlushTracker.delete(session.eventId);
@@ -3842,6 +3843,18 @@ async function startAzureSpeechSession(socket, event) {
   recognizer.canceled = (_, result) => {
     const details = String(result?.errorDetails || result?.reason || 'unknown');
     const classified = classifyAzureSpeechError(details);
+    // V22.29 DIAGNOSTIC — detaliu brut + nr sesiuni active la momentul erorii
+    logger.error('[AZURE-429-DIAG] canceled', {
+      activeSessions: azureSpeechSessions.size,
+      sessionSocketIds: Array.from(azureSpeechSessions.keys()),
+      eventId: event.id,
+      code: classified.code,
+      rawErrorDetails: String(result?.errorDetails || ''),
+      rawErrorCode: String(result?.errorCode ?? ''),
+      rawReason: String(result?.reason ?? ''),
+      region: AZURE_SPEECH_REGION,
+      locale: getSpeechLocale(effectiveSourceLang)
+    });
     if (classified.code === 'azure_auth_failed') {
       logger.error('AZURE SPEECH AUTH ERROR:', {
         eventId: event.id,
@@ -3868,6 +3881,8 @@ async function startAzureSpeechSession(socket, event) {
     pushStream,
     recognizer
   });
+  // V22.29 DIAGNOSTIC
+  logger.info('[AZURE-429-DIAG] session opened', { socketId: socket.id, activeSessions: azureSpeechSessions.size });
 
   recognizer.startContinuousRecognitionAsync(
     () => socket.emit('azure_audio_ready', { ok: true }),
