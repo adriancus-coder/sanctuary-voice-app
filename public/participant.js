@@ -11,60 +11,14 @@ const LIVE_ENTRY_MAX_DISPLAY_MS = 9000;
 const LIVE_ENTRY_MAX_QUEUE = 3;
 const LIVE_ENTRY_CATCHUP_MIN_MS = 1100;
 
-// SMART FLUSH V1.1: Display buffer pentru chunk merging + delay
+// V22.19 — displayBuffer reținut DOAR pentru cleanup defensive (clearTimer + null pe pendingText)
+// la lifecycle events (service end, etc.). smartDisplayLiveText nu mai setează aceste câmpuri,
+// deci sunt mereu null/0 — cleanup-ul rămâne ca no-op safe.
 const displayBuffer = {
-  pendingText: null,         // text în așteptare de afișare
-  lastDisplayTime: 0,        // timestamp ultima afișare
-  pendingTimer: null,        // timer pentru afișare amânată
-  MERGE_WINDOW_MS: 2000,     // chunks în 2 sec se combină
-  MIN_DISPLAY_MS: 3000       // 3 sec minim între afișări
+  pendingText: null,
+  lastDisplayTime: 0,
+  pendingTimer: null
 };
-
-// V22.18 — diagnostic: înregistrează fiecare decizie de afișare la participant
-const dispLog = { entries: [], startedAt: null };
-function logDisp(scenario, inText, outText) {
-  if (!dispLog.startedAt) dispLog.startedAt = new Date().toISOString();
-  dispLog.entries.push({
-    t: new Date().toISOString(),
-    scenario,
-    in: String(inText || ''),
-    out: String(outText || '')
-  });
-  if (dispLog.entries.length > 3000) dispLog.entries.shift();
-}
-function exportDispLog() {
-  const L = [
-    `Participant display log — ${dispLog.entries.length} events`,
-    `Started: ${dispLog.startedAt || '-'}`,
-    '',
-    'legend: scenario MERGE|BUFFER|REPLACE · in=text primit · out=text afișat',
-    '---',
-    ''
-  ];
-  dispLog.entries.forEach((e, i) => {
-    const tt = e.t.split('T')[1]?.replace('Z', '') || e.t;
-    L.push(`#${i + 1} [${tt}] ${e.scenario}`);
-    L.push(`   in : ${e.in}`);
-    L.push(`   out: ${e.out}`);
-  });
-  const txt = L.join('\n');
-  const onOk = () => { if (typeof setStatus === 'function') setStatus('Display log copied'); else alert('Log copied'); };
-  const onFallback = () => {
-    const ta = document.createElement('textarea');
-    ta.value = txt;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    ta.remove();
-    alert('Log copied');
-  };
-  if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(txt).then(onOk, onFallback);
-  } else {
-    onFallback();
-  }
-}
-window.exportDispLog = exportDispLog;
 
 // BUGFIX V1 - FIX 2: Auto-expire live text dacă nu vine update nou
 const liveTextExpire = {
@@ -819,67 +773,13 @@ function clearLoadingDots() {
 }
 
 // SMART FLUSH V1.1: smart display function with chunk merging + display delay
+// V22.19 — afișare simplă: doar propoziția curentă (fără concatenare/merge).
+// Serverul trimite deja propoziții complete (Azure smooth mode). Merge-ul vechi
+// (SMART FLUSH V1.1) lipea propoziții diferite → text dublat/inversat. Eliminat.
 function smartDisplayLiveText(newText, callback) {
-  if (!newText || !String(newText).trim()) return;
-
-  const now = Date.now();
-  const timeSinceLastDisplay = now - displayBuffer.lastDisplayTime;
-
-  // Cancel any pending timer
-  if (displayBuffer.pendingTimer) {
-    clearTimeout(displayBuffer.pendingTimer);
-    displayBuffer.pendingTimer = null;
-  }
-
-  // SCENARIO 1: Foarte recent (< MERGE_WINDOW_MS) → merge cu textul curent
-  if (timeSinceLastDisplay < displayBuffer.MERGE_WINDOW_MS) {
-    const lastTextEl = $('lastText');
-    const currentText = lastTextEl?.textContent || '';
-    // Verificăm că nu e un mesaj special (Bible Reading, Service ended, Loading dots, etc.)
-    const isLoading = !!lastTextEl?.classList?.contains('loading-dots-active');
-    const isSpecialMessage = isLoading || currentText.includes('📖') || currentText.includes('Waiting') || currentText.includes('Vă așteptăm');
-
-    if (!isSpecialMessage && currentText) {
-      const mergedText = currentText.trim() + ' ' + String(newText).trim();
-      logDisp('MERGE', newText, mergedText);   // V22.18
-      callback(mergedText);
-      displayBuffer.lastDisplayTime = now;
-      displayBuffer.pendingText = null;
-      return;
-    }
-  }
-
-  // SCENARIO 2: Display delay (între MERGE_WINDOW_MS și MIN_DISPLAY_MS)
-  // → buffer textul, afișează la MIN_DISPLAY_MS de la ultima afișare
-  if (timeSinceLastDisplay < displayBuffer.MIN_DISPLAY_MS) {
-    const waitMs = displayBuffer.MIN_DISPLAY_MS - timeSinceLastDisplay;
-
-    // Dacă deja avem ceva în pending, COMBINĂM (chunks în coadă merg la fel ca merging)
-    if (displayBuffer.pendingText) {
-      displayBuffer.pendingText = displayBuffer.pendingText + ' ' + String(newText).trim();
-    } else {
-      displayBuffer.pendingText = String(newText).trim();
-    }
-
-    // Programăm afișare în waitMs
-    displayBuffer.pendingTimer = setTimeout(() => {
-      if (displayBuffer.pendingText) {
-        logDisp('BUFFER', newText, displayBuffer.pendingText);   // V22.18
-        callback(displayBuffer.pendingText);
-        displayBuffer.lastDisplayTime = Date.now();
-        displayBuffer.pendingText = null;
-        displayBuffer.pendingTimer = null;
-      }
-    }, waitMs);
-    return;
-  }
-
-  // SCENARIO 3: Mai mult de MIN_DISPLAY_MS de la ultima afișare → afișează instant
-  const out3 = String(newText).trim();
-  logDisp('REPLACE', newText, out3);   // V22.18
-  callback(out3);
-  displayBuffer.lastDisplayTime = now;
-  displayBuffer.pendingText = null;
+  const txt = String(newText || '').trim();
+  if (!txt) return;
+  callback(txt);
 }
 
 function renderLiveView({ announce = false } = {}) {
@@ -905,7 +805,6 @@ function renderLiveView({ announce = false } = {}) {
   const visibleEntry = state.visibleLiveEntry || (state.allowTranscriptFallback ? getLatestEntry() : null);
   state.lastLiveEntryId = visibleEntry?.id || null;
   if (visibleEntry) {
-    // SMART FLUSH V1.1: wrap with smartDisplayLiveText for chunk merging + display delay
     smartDisplayLiveText(getTextForEntry(visibleEntry), (text) => {
       clearLoadingDots();
       $('lastText').innerHTML = highlightBibleRefs(text);
@@ -1759,6 +1658,3 @@ if ('serviceWorker' in navigator && !state.previewMode) {
 window.addEventListener('beforeunload', async () => {
   await disableWakeLock();
 });
-
-// V22.18 — diagnostic: leagă butonul de export
-document.getElementById('exportDispLogBtn')?.addEventListener('click', exportDispLog);
