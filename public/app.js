@@ -3945,14 +3945,30 @@ async function fallbackToOpenAiFromAzure(payload = {}) {
   return true;
 }
 
+let _rateLimitRecoveryTimer = null;
 socket.on('server_error', (payload = {}) => {
   console.info('[DIAG-RC] server_error:', payload && payload.code, '|', payload && payload.message, '| socket.connected=', socket.connected);
   const message = payload.message || 'Server error.';
-  // V22.40 — rate_limited e de la rate-limiter-ul socket propriu, NU o eroare Azure.
-  // NU face fallback (care repornea recunoașterea → azure_audio_start → iar rate_limited → buclă
-  // → „Connecting" blocat). Doar informează; recunoașterea continuă să curgă.
+  // FIX-RATE-RECOVERY — rate_limited e de la rate-limiter-ul socket propriu. NU face fallback.
+  // Recuperare REALĂ: dacă recunoașterea ar trebui să ruleze dar a fost rate-limited (ex. după
+  // reconectare/suspendare), reîncearcă automat azure_audio_start după o pauză scurtă — o singură
+  // dată per eveniment de rate-limit (timer resetabil), ca să nu rămână blocat „se recuperează".
   if (payload.code === 'rate_limited') {
-    setStatus('Prea multe cereri — se recuperează...');
+    setStatus('Prea multe cereri — se recuperează automat...');
+    if (_rateLimitRecoveryTimer) clearTimeout(_rateLimitRecoveryTimer);
+    _rateLimitRecoveryTimer = setTimeout(() => {
+      _rateLimitRecoveryTimer = null;
+      // doar dacă suntem (încă) în starea de recunoaștere activă pe Azure
+      if (window.isRecognitionRunning && currentEvent && socket.connected && isAzureSpeechProvider()) {
+        if (!audioState.azureReady) {
+          console.info('[RATE-RECOVERY] reîncerc azure_audio_start după rate-limit');
+          socket.emit('azure_audio_start', { eventId: currentEvent.id });
+          setStatus('On-Air. Reconnecting Azure Speech...');
+        } else {
+          setStatus('On-Air.');
+        }
+      }
+    }, 4000);   // pauză 4s ca fereastra de rate-limit să se elibereze, apoi reîncearcă
     return;
   }
   setStatus(message);
