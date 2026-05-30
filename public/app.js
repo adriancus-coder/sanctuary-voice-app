@@ -4615,6 +4615,9 @@ function renderLiveLanguagesGrid() {
     return;
   }
   const sourceLang = String(currentEvent.sourceLang || 'ro').toLowerCase();
+  // DIAG-LANGS temporar
+  console.info('[DIAG-LANGS] availableLanguages keys:', Object.keys(availableLanguages || {}), '| count:', Object.keys(availableLanguages || {}).length);
+  console.info('[DIAG-LANGS] currentEvent.targetLangs:', currentEvent && currentEvent.targetLangs, '| sourceLang:', sourceLang);
   const selected = new Set((currentEvent.targetLangs || []).map((l) => String(l).toLowerCase()));
   const selectedNames = Object.entries(availableLanguages || {})
     .filter(([code]) => selected.has(code) && code !== sourceLang)
