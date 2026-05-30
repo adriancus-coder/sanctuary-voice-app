@@ -3354,6 +3354,8 @@ async function startAzureAudioStream() {
   if (!currentEvent || !audioState.context || !audioState.preampNode) return false;
   audioState.azureReady = false;
   socket.emit('azure_audio_start', { eventId: currentEvent.id });
+  // DIAG-RECONNECT temporar
+  console.info('[DIAG-RC] azure_audio_start emis | socket.connected=', socket.connected, '| socket.id=', socket.id);
   audioState.azureSource = audioState.preampNode;
 
   // V22.13 — preferă AudioWorklet (thread separat); fallback la ScriptProcessor.
@@ -3883,6 +3885,7 @@ socket.on('audio_state', ({ audioMuted, audioVolume }) => {
 });
 socket.on('partial_transcript', ({ text }) => { setPartialTranscript(text); });
 socket.on('azure_audio_ready', () => {
+  console.info('[DIAG-RC] azure_audio_ready PRIMIT — Azure conectat OK');
   audioState.azureReady = true;
   if (audioState.running && isAzureSpeechProvider()) setStatus('On-Air. Azure Speech connected.');
 });
@@ -3943,6 +3946,7 @@ async function fallbackToOpenAiFromAzure(payload = {}) {
 }
 
 socket.on('server_error', (payload = {}) => {
+  console.info('[DIAG-RC] server_error:', payload && payload.code, '|', payload && payload.message, '| socket.connected=', socket.connected);
   const message = payload.message || 'Server error.';
   // V22.40 — rate_limited e de la rate-limiter-ul socket propriu, NU o eroare Azure.
   // NU face fallback (care repornea recunoașterea → azure_audio_start → iar rate_limited → buclă
@@ -3956,6 +3960,13 @@ socket.on('server_error', (payload = {}) => {
     console.error(err);
     setStatus('Azure failed and OpenAI backup could not start.');
   });
+});
+// DIAG-RECONNECT temporar — stare conexiune socket
+socket.on('connect', () => {
+  console.info('[DIAG-RC] socket CONNECT | id=', socket.id);
+});
+socket.on('disconnect', () => {
+  console.info('[DIAG-RC] socket DISCONNECT');
 });
 socket.on('active_event_changed', async ({ eventId }) => {
   if (currentEvent) {
