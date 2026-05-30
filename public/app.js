@@ -3589,6 +3589,12 @@ async function startTranslation(options = {}) {
       return false;
     });
     if (started) return;
+    // FIX-AZURE-FALLBACK — ambele metode Azure au eșuat. NU cădea pe /transcribe (OpenAI),
+    // care e cale moartă și ar genera "Too many requests" fără să transcrie. Oprește cu eroare clară.
+    audioState.running = false;
+    window.isRecognitionRunning = false;
+    setOnAirState(false);
+    return setStatus('Azure Speech indisponibil. Verifică conexiunea/cheile Azure și reîncearcă (Stop apoi Start live).');
   }
   if (!window.MediaRecorder) return alert('Use Chrome or Edge.');
   try { await createAudioPipeline({ preserveRunState: true, externalStream, externalSourceType }); } catch (_) {
