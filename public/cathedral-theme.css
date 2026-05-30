@@ -273,3 +273,17 @@ select:focus {
   }
   * { transition-duration: .01ms !important; }
 }
+
+/* ============================================================
+   UI-V2e: FIX suprapunere carduri Live Control pe mobil
+   #tab-dashboard .dashboard-main-grid forțează 2 coloane (min 340px)
+   care nu încap pe mobil → 1 coloană sub 768px. Specificitate cu
+   #tab-dashboard ca să învingă regula din styles.css:2556.
+   ============================================================ */
+@media (max-width: 768px) {
+  #tab-dashboard .dashboard-main-grid,
+  #tab-dashboard .cards-grid.two,
+  #tab-dashboard .cards-grid.three {
+    grid-template-columns: 1fr !important;
+  }
+}
