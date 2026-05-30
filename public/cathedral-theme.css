@@ -204,3 +204,72 @@ select:focus {
   background: linear-gradient(180deg, var(--ct-brass-hi), var(--ct-brass));
   color: #2a1c08; font-weight: 600;
 }
+
+/* ============================================================
+   PAS 2d: animații + polish (subtile, reduced-motion safe)
+   Keyframes prefixate ct- ca să nu intre în conflict cu styles.css
+   ============================================================ */
+
+/* ---- Panouri apar lin la încărcare ---- */
+@keyframes ctRiseFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.panel, .glass-panel, .dashboard-live-session {
+  animation: ctRiseFade .5s cubic-bezier(.2,.7,.2,1) both !important;
+}
+/* mic stagger pe panouri consecutive (efect cascadă blând) */
+.panel:nth-of-type(2), .glass-panel:nth-of-type(2) { animation-delay: .06s !important; }
+.panel:nth-of-type(3), .glass-panel:nth-of-type(3) { animation-delay: .12s !important; }
+.panel:nth-of-type(4), .glass-panel:nth-of-type(4) { animation-delay: .18s !important; }
+
+/* ---- Badge On-Air: puls verde subtil când e live ---- */
+@keyframes ctLivePulse {
+  0%, 100% { box-shadow: 0 0 14px var(--ct-live-glow); }
+  50%      { box-shadow: 0 0 22px 2px var(--ct-live-glow); }
+}
+#onAirBadge.status-pill.active,
+.status-pill.active {
+  animation: ctLivePulse 2.4s ease-in-out infinite !important;
+}
+
+/* ---- Card Live Session: respirație blândă a glow-ului când On-Air ---- */
+@keyframes ctSessionBreathe {
+  0%, 100% { box-shadow: 0 0 40px -16px var(--ct-live-glow); }
+  50%      { box-shadow: 0 0 56px -14px var(--ct-live-glow); }
+}
+.recognition-on-air .dashboard-live-session,
+.recognition-on-air.dashboard-live-session {
+  animation: ctSessionBreathe 3.2s ease-in-out infinite !important;
+}
+
+/* ---- Timer Live: apariție lină ---- */
+#liveSessionTimer { transition: color .4s ease !important; }
+
+/* ---- Tabs: tranziție lină la activare ---- */
+.top-nav-btn { transition: background .25s ease, color .25s ease, box-shadow .25s ease !important; }
+
+/* ---- Butoane: micro-feedback la apăsare ---- */
+.btn:active, .btn-primary:active { transform: translateY(0) scale(.985) !important; }
+
+/* ---- Glow rafinat pe panouri la hover (subtil) ---- */
+.panel:hover, .glass-panel:hover {
+  border-color: var(--ct-line) !important;
+  box-shadow: var(--ct-shadow), 0 0 30px -20px var(--ct-brass-glow) !important;
+}
+
+/* ---- Comutator limbă: tranziție lină ---- */
+.ui-lang-switch button { transition: background .2s ease, color .2s ease !important; }
+
+/* ============================================================
+   REDUCED MOTION: oprește animațiile pt utilizatori sensibili
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .panel, .glass-panel, .dashboard-live-session,
+  #onAirBadge.status-pill.active, .status-pill.active,
+  .recognition-on-air .dashboard-live-session,
+  .recognition-on-air.dashboard-live-session {
+    animation: none !important;
+  }
+  * { transition-duration: .01ms !important; }
+}
