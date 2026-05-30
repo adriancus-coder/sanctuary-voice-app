@@ -306,14 +306,22 @@ select:focus {
 .lang-multiselect.open .lang-ms-caret { transform: rotate(180deg); }
 .lang-ms-menu {
   display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
-  max-height: 280px; overflow-y: auto;
+  max-height: min(70vh, 520px); overflow-y: auto;   /* FIX-LANG-DROPDOWN-2: mai înalt: până la 70% din ecran sau 520px */
   background: var(--ct-panel); border: 1px solid var(--ct-line); border-radius: 14px;
   box-shadow: var(--ct-shadow); padding: 6px;
+  -webkit-overflow-scrolling: touch;                 /* scroll lin pe iOS */
 }
 .lang-multiselect.open .lang-ms-menu { display: block; }
 .ms-option {
-  display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 9px;
-  cursor: pointer; color: var(--ct-parchment); font-size: 14px;
+  display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-radius: 10px;
+  cursor: pointer; color: var(--ct-parchment); font-size: 15px;   /* mai mare, touch-friendly */
+}
+
+/* FIX-LANG-DROPDOWN-2 — pe mobil: opțiuni și mai generoase + meniu mai înalt */
+@media (max-width: 768px) {
+  .lang-ms-menu { max-height: 75vh; }
+  .ms-option { padding: 15px 14px; font-size: 16px; }
+  .ms-option input { width: 20px; height: 20px; }
 }
 .ms-option:hover { background: rgba(245,236,217,0.05); }
 .ms-option input { accent-color: var(--ct-brass); width: 16px; height: 16px; }
