@@ -4610,16 +4610,59 @@ function renderLiveLanguagesGrid() {
   }
   const sourceLang = String(currentEvent.sourceLang || 'ro').toLowerCase();
   const selected = new Set((currentEvent.targetLangs || []).map((l) => String(l).toLowerCase()));
-  grid.innerHTML = Object.entries(availableLanguages || {}).map(([code, name]) => {
+  const selectedNames = Object.entries(availableLanguages || {})
+    .filter(([code]) => selected.has(code) && code !== sourceLang)
+    .map(([, name]) => name);
+  const summary = selectedNames.length
+    ? selectedNames.join(', ')
+    : 'Select languages…';
+  const items = Object.entries(availableLanguages || {}).map(([code, name]) => {
     const isSource = code === sourceLang;
     const checked = selected.has(code);
     return `
-      <label class="checkbox-item${isSource ? ' is-source' : ''}">
+      <label class="ms-option${isSource ? ' is-source' : ''}">
         <input type="checkbox" class="live-lang-checkbox" value="${escapeHtml(code)}" ${checked ? 'checked' : ''} ${isSource ? 'disabled' : ''}>
         <span>${escapeHtml(name || code.toUpperCase())}${isSource ? ' (source)' : ''}</span>
       </label>
     `;
   }).join('');
+  grid.innerHTML = `
+    <div class="lang-multiselect" id="liveLangMultiselect">
+      <button type="button" class="lang-ms-trigger" id="liveLangMsTrigger" aria-haspopup="true" aria-expanded="false">
+        <span class="lang-ms-summary">${escapeHtml(summary)}</span>
+        <span class="lang-ms-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="lang-ms-menu" id="liveLangMsMenu" role="group" aria-label="Event languages">
+        ${items}
+      </div>
+    </div>
+  `;
+  const wrap = document.getElementById('liveLangMultiselect');
+  const trigger = document.getElementById('liveLangMsTrigger');
+  const menu = document.getElementById('liveLangMsMenu');
+  if (trigger && menu && wrap) {
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = wrap.classList.toggle('open');
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    menu.addEventListener('change', () => {
+      const names = Array.from(menu.querySelectorAll('.live-lang-checkbox'))
+        .filter((cb) => cb.checked && !cb.disabled)
+        .map((cb) => {
+          const code = cb.value;
+          return (availableLanguages && availableLanguages[code]) || code.toUpperCase();
+        });
+      const sum = wrap.querySelector('.lang-ms-summary');
+      if (sum) sum.textContent = names.length ? names.join(', ') : 'Select languages…';
+    });
+    document.addEventListener('click', (e) => {
+      if (!wrap.contains(e.target)) {
+        wrap.classList.remove('open');
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
 }
 
 async function saveLiveLanguages() {
