@@ -4615,9 +4615,6 @@ function renderLiveLanguagesGrid() {
     return;
   }
   const sourceLang = String(currentEvent.sourceLang || 'ro').toLowerCase();
-  // DIAG-LANGS temporar
-  console.info('[DIAG-LANGS] availableLanguages keys:', Object.keys(availableLanguages || {}), '| count:', Object.keys(availableLanguages || {}).length);
-  console.info('[DIAG-LANGS] currentEvent.targetLangs:', currentEvent && currentEvent.targetLangs, '| sourceLang:', sourceLang);
   const selected = new Set((currentEvent.targetLangs || []).map((l) => String(l).toLowerCase()));
   const selectedNames = Object.entries(availableLanguages || {})
     .filter(([code]) => selected.has(code) && code !== sourceLang)
@@ -4650,25 +4647,34 @@ function renderLiveLanguagesGrid() {
   const trigger = document.getElementById('liveLangMsTrigger');
   const menu = document.getElementById('liveLangMsMenu');
   if (trigger && menu && wrap) {
-    trigger.addEventListener('click', (e) => {
+    // toggle deschidere — pointerdown prinde și touch și mouse fără întârziere; oprește propagarea
+    trigger.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
       e.stopPropagation();
-      const open = wrap.classList.toggle('open');
+      const open = !wrap.classList.contains('open');
+      wrap.classList.toggle('open', open);
       trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
+    // bifare → update summary, FĂRĂ re-render (nu închide). stopPropagation ca să nu ajungă la închidere globală.
+    menu.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
     menu.addEventListener('change', () => {
       const names = Array.from(menu.querySelectorAll('.live-lang-checkbox'))
         .filter((cb) => cb.checked && !cb.disabled)
-        .map((cb) => {
-          const code = cb.value;
-          return (availableLanguages && availableLanguages[code]) || code.toUpperCase();
-        });
+        .map((cb) => (availableLanguages && availableLanguages[cb.value]) || cb.value.toUpperCase());
       const sum = wrap.querySelector('.lang-ms-summary');
       if (sum) sum.textContent = names.length ? names.join(', ') : 'Select languages…';
     });
-    document.addEventListener('click', (e) => {
-      if (!wrap.contains(e.target)) {
-        wrap.classList.remove('open');
-        trigger.setAttribute('aria-expanded', 'false');
+  }
+  // închidere la interacțiune în afară — UN SINGUR listener global delegat (idempotent),
+  // nu se mai acumulează la fiecare render.
+  if (!window._langMsCloserBound) {
+    window._langMsCloserBound = true;
+    document.addEventListener('pointerdown', (e) => {
+      const openWrap = document.getElementById('liveLangMultiselect');
+      if (openWrap && openWrap.classList.contains('open') && !openWrap.contains(e.target)) {
+        openWrap.classList.remove('open');
+        const t = document.getElementById('liveLangMsTrigger');
+        if (t) t.setAttribute('aria-expanded', 'false');
       }
     });
   }
