@@ -55,6 +55,8 @@ let audioState = {
   chunkTimer: null,
   mimeType: '',
   monitorGainNode: null,
+  keepAliveOsc: null,
+  keepAliveGain: null,
   monitorEnabled: false,
   currentLevel: 0,
   chunkPeakLevel: 0,
@@ -2669,6 +2671,13 @@ async function destroyAudioPipeline(options = {}) {
   if (audioState.stream) audioState.stream.getTracks().forEach((t) => t.stop());
   audioState.stream = null;
   stopBrowserAzureRecognition();
+  // FIX-FREEZE-A — oprește keep-alive osc înainte de a închide contextul
+  try {
+    if (audioState.keepAliveOsc) { audioState.keepAliveOsc.stop(); audioState.keepAliveOsc.disconnect(); }
+    if (audioState.keepAliveGain) audioState.keepAliveGain.disconnect();
+  } catch (_) {}
+  audioState.keepAliveOsc = null;
+  audioState.keepAliveGain = null;
   if (audioState.context) await audioState.context.close().catch(() => {});
   audioState.context = null;
   audioState.azureWorkletLoaded = false;   // V22.23 — context nou va reîncărca worklet (fix 429)
@@ -3170,6 +3179,20 @@ async function createAudioPipeline(options = {}) {
   audioState.monitorGainNode.gain.value = 0;
   audioState.preampNode.connect(audioState.monitorGainNode);
   audioState.monitorGainNode.connect(audioState.context.destination);
+  // FIX-FREEZE-A — keep-alive audio inaudibil: face tab-ul "audible" ca Chrome să NU-l înghețe
+  // pe fundal (cauza freeze + socket disconnect + reconnect race). Volum ~0.0001 = inaudibil dar
+  // suficient ca browserul să marcheze tab-ul ca producând sunet.
+  try {
+    audioState.keepAliveOsc = audioState.context.createOscillator();
+    audioState.keepAliveGain = audioState.context.createGain();
+    audioState.keepAliveGain.gain.value = 0.0001;   // practic inaudibil
+    audioState.keepAliveOsc.frequency.value = 20;    // sub pragul perceptibil
+    audioState.keepAliveOsc.connect(audioState.keepAliveGain);
+    audioState.keepAliveGain.connect(audioState.context.destination);
+    audioState.keepAliveOsc.start();
+  } catch (err) {
+    console.warn('keep-alive osc failed:', err && err.message);
+  }
   audioState.gainNode.gain.value = 1;
   // MUTE INPUT V3: dacă era setat mute înainte de crearea pipeline-ului, aplicăm
   if (muteInputState.isMuted && audioState.preampNode) {
