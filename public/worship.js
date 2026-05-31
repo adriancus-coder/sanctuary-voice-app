@@ -1210,6 +1210,9 @@
   // A single fixed banner overlay. A new hint replaces the text in place; the
   // banner stays until the × is pressed. textContent (not innerHTML) keeps
   // free-text hints inert against injection.
+  // Banner de hint: poziționat SUS, deasupra strofei (nu o acoperă), calculat dinamic față de
+  // #liveVerseText. Dispare automat după 5s; butonul × închide mai devreme. textContent = inert la injection.
+  let _hintBannerTimer = null;
   function showWorshipHintBanner(hint) {
     const text = worshipHintText(hint);
     if (!text) return;
@@ -1224,12 +1227,34 @@
       close.className = 'whb-close';
       close.setAttribute('aria-label', 'Închide');
       close.textContent = '×';
-      close.addEventListener('click', () => banner.remove());
+      close.addEventListener('click', () => {
+        if (_hintBannerTimer) { clearTimeout(_hintBannerTimer); _hintBannerTimer = null; }
+        banner.remove();
+      });
       banner.appendChild(span);
       banner.appendChild(close);
       document.body.appendChild(banner);
     }
     banner.querySelector('.whb-text').textContent = text;
+    positionHintBannerAboveVerse(banner);
+    if (_hintBannerTimer) clearTimeout(_hintBannerTimer);
+    _hintBannerTimer = setTimeout(() => { _hintBannerTimer = null; if (banner) banner.remove(); }, 5000);
+  }
+
+  // Calculează poziția banner-ului ca să stea DEASUPRA marginii de sus a strofei (#liveVerseText),
+  // fără s-o acopere. Dacă nu încape, rămâne lipit de marginea de sus a ecranului.
+  function positionHintBannerAboveVerse(banner) {
+    const verse = document.getElementById('liveVerseText');
+    banner.style.top = '12px';
+    banner.style.bottom = 'auto';
+    if (!verse) return;
+    requestAnimationFrame(() => {
+      const vRect = verse.getBoundingClientRect();
+      const bH = banner.offsetHeight || 80;
+      let top = vRect.top - bH - 12;
+      if (top < 8) top = 8;
+      banner.style.top = top + 'px';
+    });
   }
 
   // Reflect the leader role in the toolbar: when leader, show the hint panel
