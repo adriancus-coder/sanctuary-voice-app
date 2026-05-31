@@ -349,6 +349,9 @@
         const s = (currentEvent.songs || []).find((x) => String(x.id) === String(songId));
         if (s) s.key = data.song ? data.song.key : key;
         renderEventSongs();
+        // WORSHIP-KEY-LIVE-REFRESH — dacă suntem în modul live, actualizează și acolo gama afișată
+        // (lângă strofă + pe mini-carduri), ca transpunerea instant SAU programată să se reflecte imediat.
+        if (liveMode === 'live') refreshLiveMode();
       }
     } catch (err) { console.warn('save key failed', err); }
   }
