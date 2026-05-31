@@ -49,6 +49,12 @@
     </nav>
 
     <section id="worshipSetlistMode" class="worship-mode-panel worship-song-panel">
+      <!-- Songs already in the selected event -->
+      <div class="event-songs-section panel glass-panel">
+        <h3>În acest event (<span id="eventSongsCount">0</span>)</h3>
+        <div id="eventSongsList" class="event-songs-list"></div>
+      </div>
+
       <!-- Unified search: Library (instant) + Resurse (on demand) -->
       <div class="library-section panel glass-panel">
         <h3>Caută cântare</h3>
@@ -79,12 +85,6 @@
           <button id="songSaveBtn" class="btn btn-primary" type="button">Salvează în Library</button>
           <button id="songClearBtn" class="btn btn-dark" type="button">Curăță</button>
         </div>
-      </div>
-
-      <!-- Songs already in the selected event -->
-      <div class="event-songs-section panel glass-panel">
-        <h3>În acest event (<span id="eventSongsCount">0</span>)</h3>
-        <div id="eventSongsList" class="event-songs-list"></div>
       </div>
     </section>
 
