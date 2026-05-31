@@ -865,6 +865,7 @@
     liveCurrentVerseIndex = clamped;
     liveEnded = ended;
     renderLiveMode();
+    checkPendingHints(liveCurrentVerseIndex);   // FAZA C
     try {
       const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) + '/verse', {
         method: 'POST',
@@ -921,6 +922,8 @@
     liveCurrentVerseIndex = 0;
     // V21.22: switching songs always exits END.
     liveEnded = false;
+    // FAZA C — curăță hinturile programate pentru cântarea veche (structura sections nouă)
+    if (_pendingHints.length) { _pendingHints = []; renderPendingHints(); }
     if (liveCurrentSongId) {
       setLiveVerse(0);
     } else {
@@ -1145,6 +1148,7 @@
       // picker + verse view, so a song switch by another master shows too. When
       // not in Live mode the mirror above is enough; entering Live mode applies it.
       if (liveMode === 'live') refreshLiveMode();
+      checkPendingHints(liveCurrentVerseIndex);   // FAZA C — declanșare și prin sync de la alt master
     });
     // V21.8: operator suggested a song. Show the accept/decline modal —
     // the master picks. Decline marks the request declined; Accept moves
@@ -1432,6 +1436,37 @@
         _pendingHints = _pendingHints.filter((x) => x.id !== id);
         renderPendingHints();
       }));
+  }
+
+  // FAZA C — motor de aplicare: hinturile programate se declanșează când se ajunge
+  // la versul-țintă (next_verse = orice schimbare; next_strofa/refren/pod = match pe
+  // sections[newVerseIndex] din WORSHIP-SECTIONS-A). Re-entry guard pentru cazul în care
+  // o acțiune declanșată (ex. liveNext) provoacă un nou setLiveVerse → checkPendingHints.
+  let _checkingPending = false;
+  function checkPendingHints(newVerseIndex) {
+    if (_checkingPending) return;
+    if (!_pendingHints.length) return;
+    _checkingPending = true;
+    try {
+      const song = getLiveSong();
+      const sections = (song && Array.isArray(song.sections)) ? song.sections : [];
+      const sectionAtNew = sections[newVerseIndex] || 'verse';
+      let applied = false;
+      _pendingHints = _pendingHints.filter((p) => {
+        const isVerseTrigger = (p.when === 'next_verse');
+        const targetSection = WHEN_SECTION[p.when];   // undefined pt next_verse
+        const matches = isVerseTrigger || (targetSection && sectionAtNew === targetSection);
+        if (!matches) return true;   // încă nu — păstrează în coadă
+        try { if (typeof p.action === 'function') p.action(); }
+        catch (e) { console.warn('pending action failed', e); }
+        sendHint(p.hint);
+        applied = true;
+        return false;   // scoate din coadă
+      });
+      if (applied) renderPendingHints();
+    } finally {
+      _checkingPending = false;
+    }
   }
 
   // --- V21.4-FIX: FULLSCREEN ---
