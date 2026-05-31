@@ -7379,3 +7379,59 @@ body.live-fullscreen-active .glass-panel {
 .pending-when { color: var(--accent, #cf9a3c); font-weight: 700; font-size: 13px; white-space: nowrap; }
 .pending-text { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pending-cancel { background: rgba(0,0,0,0.2); border: none; color: inherit; cursor: pointer; flex: none; }
+
+/* WORSHIP-LEADER-UI-D — mod lider: optimizat pentru control, nu pentru citit.
+   Aplicat prin clasa .leader-mode pe #worshipLiveMode (toggle în renderLeaderUI). */
+
+/* Ascunde strofa uriașă separată (display-ul mare + label-ul de strofă) */
+.leader-mode .live-lyrics-display,
+.leader-mode #liveVerseText,
+.leader-mode .live-verse-text,
+.leader-mode .live-verse-label { display: none !important; }
+
+/* Blocurile preview mai MARI, cu text vizibil */
+.leader-mode .verse-mini-item {
+  padding: 16px 18px !important;
+  font-size: 1.15rem !important;
+}
+.leader-mode .verse-mini-label { font-size: 1rem !important; }
+.leader-mode .verse-mini-text {
+  font-size: 1.05rem !important;
+  line-height: 1.4 !important;
+  white-space: normal !important;
+  display: block !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+.leader-mode .verse-mini-item.current { outline: 2px solid var(--accent, #cf9a3c); }
+
+/* Toate controalele de dirijor MARI (touch-friendly) */
+.leader-mode .worship-leader-controls .btn {
+  font-size: 1.05rem !important;
+  padding: 14px 16px !important;
+  min-height: 52px !important;
+}
+.leader-mode .worship-leader-controls .worship-hint-select {
+  font-size: 1.05rem !important;
+  padding: 12px !important;
+  min-height: 50px !important;
+}
+.leader-mode .worship-key-step {
+  min-width: 64px !important;
+  min-height: 52px !important;
+  font-size: 1.2rem !important;
+}
+.leader-mode .worship-hint-row {
+  gap: 10px !important;
+  margin-bottom: 10px !important;
+}
+
+/* Lista pending mai vizibilă (taps mai mari pe mobil) */
+.leader-mode .pending-hint-row {
+  padding: 12px !important;
+  font-size: 1rem !important;
+}
+.leader-mode .pending-cancel {
+  min-width: 40px !important;
+  min-height: 40px !important;
+}

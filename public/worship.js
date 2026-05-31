@@ -1344,17 +1344,20 @@
     const btn = $('worshipLeaderToggleBtn');
     const status = $('worshipLeaderStatus');
     const controls = $('worshipLeaderControls');
+    const livePanel = $('worshipLiveMode');   // FAZA D — container pentru clasa leader-mode
     if (!btn || !controls) return;
     if (isWorshipLeader) {
       btn.textContent = '🎹 Ești lider (eliberează)';
       btn.classList.add('btn-confirmed');
       controls.classList.remove('hidden');
+      if (livePanel) livePanel.classList.add('leader-mode');   // FAZA D — UI optimizat pt control
       if (status) status.textContent = 'Trimiți hinturi echipei și pe proiector.';
       populateLeaderSelects();
     } else {
       btn.textContent = '🎹 Sunt lider';
       btn.classList.remove('btn-confirmed');
       controls.classList.add('hidden');
+      if (livePanel) livePanel.classList.remove('leader-mode');   // FAZA D — revine la normal
       if (status) status.textContent = currentLeaderId ? 'Lider activ: altcineva (apasă pentru a prelua)' : '';
     }
   }
