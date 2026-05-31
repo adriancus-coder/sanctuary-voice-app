@@ -6305,6 +6305,16 @@ button[disabled]:active {
   color: var(--accent, #e8c477);
 }
 
+/* WORSHIP-SONGS: gamă (key) + reorder (drag handle, arrows) on the worship setlist rows.
+   Reuses the existing .event-song-row flex/gap/wrap base above. */
+.event-song-row.dragging { opacity: .5; }
+.event-song-row.drag-over { outline: 2px dashed var(--accent, #e8c477); outline-offset: 2px; }
+.song-drag-handle { cursor: grab; color: var(--muted, #9a8f78); font-size: 18px; user-select: none; flex-shrink: 0; }
+.event-song-arrows { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.event-song-arrows .btn { padding: 2px 6px; line-height: 1; font-size: 11px; min-height: 0; }
+.song-key-wrap { margin-left: auto; flex-shrink: 0; }
+.song-key-select { min-width: 92px; }
+
 #globalSongLibrarySearch {
   width: 100%;
   font-size: 14px;

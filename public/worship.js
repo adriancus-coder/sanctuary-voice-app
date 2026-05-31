@@ -199,6 +199,10 @@
     }
   }
 
+  // WORSHIP-SONGS: predefined keys (major + minor) for the gamă selector.
+  const SONG_KEYS = ['C','C#','Db','D','D#','Eb','E','F','F#','Gb','G','G#','Ab','A','A#','Bb','B',
+                     'Cm','C#m','Dm','D#m','Ebm','Em','Fm','F#m','Gm','G#m','Am','A#m','Bbm','Bm'];
+
   function renderEventSongs() {
     const list = $('eventSongsList');
     const songs = (currentEvent && Array.isArray(currentEvent.songs)) ? currentEvent.songs : [];
@@ -209,17 +213,123 @@
       return;
     }
 
-    list.innerHTML = songs.map((s) =>
-      '<div class="event-song-row" data-event-song-id="' + escapeHtml(s.id) + '">' +
-        '<div class="event-song-meta">' +
-          '<strong>' + escapeHtml(s.title || 'Fără titlu') + '</strong>' +
-          (s.addedByWorship ? '<span class="worship-tag">adăugat de tine</span>' : '') +
-        '</div>' +
-        (s.addedByWorship
-          ? '<button class="btn btn-danger btn-sm" type="button" data-event-song-delete="' + escapeHtml(s.id) + '">Șterge</button>'
-          : '') +
-      '</div>'
-    ).join('');
+    list.innerHTML = songs.map((s, idx) => {
+      const keyVal = s.key ? escapeHtml(s.key) : '';
+      const opts = SONG_KEYS.map((k) =>
+        '<option value="' + k + '"' + (s.key === k ? ' selected' : '') + '>' + k + '</option>').join('');
+      const customOpt = (keyVal && !SONG_KEYS.includes(s.key))
+        ? '<option value="' + keyVal + '" selected>' + keyVal + '</option>' : '';
+      return (
+        '<div class="event-song-row" draggable="true" data-event-song-id="' + escapeHtml(s.id) + '" data-idx="' + idx + '">' +
+          '<span class="song-drag-handle" title="Trage pentru reordonare">⠿</span>' +
+          '<div class="event-song-arrows">' +
+            '<button class="btn btn-sm song-move-up" type="button" data-song-up="' + escapeHtml(s.id) + '"' + (idx === 0 ? ' disabled' : '') + '>▲</button>' +
+            '<button class="btn btn-sm song-move-down" type="button" data-song-down="' + escapeHtml(s.id) + '"' + (idx === songs.length - 1 ? ' disabled' : '') + '>▼</button>' +
+          '</div>' +
+          '<div class="event-song-meta">' +
+            '<strong>' + escapeHtml(s.title || 'Fără titlu') + '</strong>' +
+            (s.addedByWorship ? '<span class="worship-tag">adăugat de tine</span>' : '') +
+          '</div>' +
+          '<div class="song-key-wrap" title="Gamă (dublu-click pt valoare custom)">' +
+            '<select class="song-key-select" data-song-key="' + escapeHtml(s.id) + '">' +
+              '<option value="">— gamă —</option>' + opts + customOpt +
+            '</select>' +
+          '</div>' +
+          (s.addedByWorship
+            ? '<button class="btn btn-danger btn-sm" type="button" data-event-song-delete="' + escapeHtml(s.id) + '">Șterge</button>'
+            : '') +
+        '</div>'
+      );
+    }).join('');
+    bindSongRowEvents();
+  }
+
+  // WORSHIP-SONGS: bind gamă (change + dblclick custom), arrows, and drag&drop after each render.
+  // Delete keeps using the pre-existing delegated listener on #eventSongsList (do not duplicate it).
+  function bindSongRowEvents() {
+    document.querySelectorAll('#eventSongsList .song-key-select').forEach((sel) => {
+      sel.addEventListener('change', () => saveSongKey(sel.getAttribute('data-song-key'), sel.value));
+      sel.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        const custom = prompt('Gamă personalizată (ex. D/F#, Bb7):', sel.value || '');
+        if (custom !== null) saveSongKey(sel.getAttribute('data-song-key'), custom.trim());
+      });
+    });
+    document.querySelectorAll('#eventSongsList [data-song-up]').forEach((b) =>
+      b.addEventListener('click', () => moveSong(b.getAttribute('data-song-up'), -1)));
+    document.querySelectorAll('#eventSongsList [data-song-down]').forEach((b) =>
+      b.addEventListener('click', () => moveSong(b.getAttribute('data-song-down'), +1)));
+    bindSongDragDrop();
+  }
+
+  async function saveSongKey(songId, key) {
+    if (!currentEvent || !songId) return;
+    try {
+      const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) +
+        '/songs/' + encodeURIComponent(songId) + '/key',
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        const s = (currentEvent.songs || []).find((x) => String(x.id) === String(songId));
+        if (s) s.key = data.song ? data.song.key : key;
+        renderEventSongs();
+      }
+    } catch (err) { console.warn('save key failed', err); }
+  }
+
+  async function persistOrder(order) {
+    if (!currentEvent) return;
+    try {
+      const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) + '/songs/reorder',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        // server confirmed; reflect the new order locally then re-render
+        const byId = new Map((currentEvent.songs || []).map((s) => [String(s.id), s]));
+        const next = [];
+        order.forEach((id) => { if (byId.has(id)) { next.push(byId.get(id)); byId.delete(id); } });
+        byId.forEach((v) => next.push(v));
+        currentEvent.songs = next;
+        renderEventSongs();
+      }
+    } catch (err) { console.warn('reorder failed', err); }
+  }
+
+  async function moveSong(songId, dir) {
+    const songs = currentEvent && Array.isArray(currentEvent.songs) ? currentEvent.songs.slice() : [];
+    const i = songs.findIndex((s) => String(s.id) === String(songId));
+    if (i < 0) return;
+    const j = i + dir;
+    if (j < 0 || j >= songs.length) return;
+    const tmp = songs[i]; songs[i] = songs[j]; songs[j] = tmp;
+    await persistOrder(songs.map((s) => String(s.id)));
+  }
+
+  let _dragSongId = null;
+  function bindSongDragDrop() {
+    document.querySelectorAll('#eventSongsList .event-song-row').forEach((row) => {
+      row.addEventListener('dragstart', (e) => {
+        _dragSongId = row.getAttribute('data-event-song-id');
+        row.classList.add('dragging');
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+      });
+      row.addEventListener('dragend', () => { row.classList.remove('dragging'); _dragSongId = null; });
+      row.addEventListener('dragover', (e) => { e.preventDefault(); row.classList.add('drag-over'); });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        const targetId = row.getAttribute('data-event-song-id');
+        if (!_dragSongId || _dragSongId === targetId) return;
+        const songs = (currentEvent.songs || []).slice();
+        const from = songs.findIndex((s) => String(s.id) === String(_dragSongId));
+        const to = songs.findIndex((s) => String(s.id) === String(targetId));
+        if (from < 0 || to < 0) return;
+        const moved = songs.splice(from, 1)[0];
+        songs.splice(to, 0, moved);
+        persistOrder(songs.map((s) => String(s.id)));
+      });
+    });
   }
 
   // --- LIBRARY ---

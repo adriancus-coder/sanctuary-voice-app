@@ -5516,6 +5516,8 @@ app.get('/api/worship/events/:id', (req, res) => {
           // V21.1: lyrics are needed by Live mode to render verses.
           text: song.text || '',
           labels: Array.isArray(song.labels) ? song.labels : [],
+          // WORSHIP-SONGS: gama (tonalitate) per cântare, editabilă de echipa worship.
+          key: typeof song.key === 'string' ? song.key : '',
           addedByWorship: session.addedSongs.includes(song.id)
         }))
       }
@@ -5617,6 +5619,74 @@ app.delete('/api/worship/events/:id/songs/:itemId', (req, res) => {
     return res.json({ ok: true });
   } catch (err) {
     logger.error('[worship/delete-song] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+// WORSHIP-SONGS: set the key/tonality of a song in the event's setlist. Worship may set
+// it on any accessible event (upcoming or live), mirroring songs/add gating. Empty = no key.
+app.patch('/api/worship/events/:id/songs/:itemId/key', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  try {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Event not found' });
+    if (!isWorshipAccessibleEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Cannot modify this event' });
+    }
+    ensureEventUiState(event);
+    const itemId = String(req.params.itemId || '').trim();
+    const song = (event.songLibrary || []).find((s) => s && String(s.id) === itemId);
+    if (!song) return res.status(404).json({ ok: false, error: 'Song not found in event' });
+    song.key = typeof req.body?.key === 'string' ? req.body.key.trim().slice(0, 12) : '';
+    saveDb();
+    setWorshipSessionCookie(req, res, session);
+    // V21.6: live-sync event songLibrary across admin / operator / worship.
+    io.to(`event:${event.id}`).to(`worship:${event.id}`).emit('event:songlibrary_changed', {
+      eventId: event.id,
+      songLibrary: event.songLibrary
+    });
+    logger.info(`[worship/song-key] event=${event.id} itemId=${itemId} key="${song.key}"`);
+    return res.json({ ok: true, song: { id: song.id, key: song.key } });
+  } catch (err) {
+    logger.error('[worship/song-key] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+// WORSHIP-SONGS: reorder the event setlist. Body { order: [id, ...] } — songs are rebuilt
+// in that order; any id missing from `order` is kept at the tail (safety). Same gating as add.
+app.post('/api/worship/events/:id/songs/reorder', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  try {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Event not found' });
+    if (!isWorshipAccessibleEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Cannot modify this event' });
+    }
+    ensureEventUiState(event);
+    const order = Array.isArray(req.body?.order) ? req.body.order.map(String) : [];
+    if (!order.length) return res.status(400).json({ ok: false, error: 'No order provided' });
+    const songs = Array.isArray(event.songLibrary) ? event.songLibrary : [];
+    const byId = new Map(songs.map((s) => [String(s.id), s]));
+    const reordered = [];
+    for (const id of order) {
+      if (byId.has(id)) { reordered.push(byId.get(id)); byId.delete(id); }
+    }
+    for (const leftover of byId.values()) reordered.push(leftover);
+    event.songLibrary = reordered;
+    saveDb();
+    setWorshipSessionCookie(req, res, session);
+    // V21.6: live-sync event songLibrary across admin / operator / worship.
+    io.to(`event:${event.id}`).to(`worship:${event.id}`).emit('event:songlibrary_changed', {
+      eventId: event.id,
+      songLibrary: event.songLibrary
+    });
+    logger.info(`[worship/song-reorder] event=${event.id} count=${event.songLibrary.length}`);
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error('[worship/song-reorder] Failed:', err);
     return res.status(500).json({ ok: false, error: 'Server error' });
   }
 });
