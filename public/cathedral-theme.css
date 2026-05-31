@@ -1,0 +1,328 @@
+/* ============================================================
+   CATHEDRAL-THEME — override izolat peste styles.css (UI redesign)
+   Linkat DUPĂ styles.css. Folosește tokens --ct-* din admin.html.
+   Reversibil: scoate <link> din admin.html ca să dezactivezi.
+   PAS 2a: body/fundal + nav tabs + topbar.
+   ============================================================ */
+
+/* ---- FUNDAL: textură caldă cathedral ---- */
+body {
+  font-family: var(--ct-font-sans) !important;
+  color: var(--ct-parchment) !important;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(207,154,60,0.11), transparent 60%),
+    radial-gradient(80% 60% at 90% 110%, rgba(200,90,43,0.07), transparent 55%),
+    var(--ct-ink) !important;
+  background-attachment: fixed !important;
+}
+/* textură fină de zgomot (overlay) */
+body::after {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.4;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* ---- TITLURI: Fraunces serif ---- */
+h1, h2, .eyebrow, .hero-copy-block h1 {
+  font-family: var(--ct-font-serif) !important;
+  letter-spacing: -0.01em;
+}
+.eyebrow {
+  font-family: var(--ct-font-sans) !important;
+  letter-spacing: 0.28em !important; text-transform: uppercase;
+  color: var(--ct-parchment-d) !important; font-size: 12px !important;
+}
+
+/* ---- NAV TABS ---- */
+.top-nav-tabs {
+  border-bottom: 1px solid var(--ct-line) !important;
+}
+.top-nav-btn {
+  font-family: var(--ct-font-sans) !important;
+  color: var(--ct-parchment-d) !important;
+  border-radius: 999px !important;
+  transition: all .2s ease !important;
+}
+.top-nav-btn:hover {
+  background: rgba(245,236,217,0.05) !important;
+  color: var(--ct-parchment) !important;
+}
+.top-nav-btn.active {
+  background: linear-gradient(180deg, var(--ct-brass-hi), var(--ct-brass)) !important;
+  color: #2a1c08 !important;
+  border-color: transparent !important;
+  font-weight: 600 !important;
+  box-shadow: 0 5px 14px -3px var(--ct-brass-glow) !important;
+}
+.top-nav-logout {
+  color: var(--ct-ember-hi) !important;
+}
+.top-nav-home {
+  color: var(--ct-parchment-d) !important;
+}
+
+/* ---- TOPBAR / HERO ---- */
+.topbar, .hero-topbar, .panel.glass-panel {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%),
+    var(--ct-panel) !important;
+  border: 1px solid var(--ct-line-soft) !important;
+  border-radius: 20px !important;
+  box-shadow: var(--ct-shadow) !important;
+}
+.hero-status-label {
+  font-size: 11px !important; letter-spacing: 0.2em !important;
+  text-transform: uppercase; color: var(--ct-brass) !important;
+}
+
+/* ============================================================
+   PAS 2b: panouri + butoane + pill-uri + stare On-Air + carduri live
+   ============================================================ */
+
+/* ---- PANOURI ---- */
+.panel, .glass-panel {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%),
+    var(--ct-panel) !important;
+  border: 1px solid var(--ct-line-soft) !important;
+  border-radius: 20px !important;
+  box-shadow: var(--ct-shadow) !important;
+  backdrop-filter: blur(8px) !important;
+}
+/* linie brass subtilă sus pe panouri */
+.panel { position: relative; }
+
+/* ---- BUTOANE: bază ---- */
+.btn {
+  font-family: var(--ct-font-sans) !important;
+  border: 1px solid var(--ct-line) !important;
+  border-radius: 13px !important;
+  background: var(--ct-ink-2) !important;
+  color: var(--ct-parchment) !important;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease !important;
+}
+.btn:hover {
+  transform: translateY(-1px) !important;
+  border-color: var(--ct-brass-deep) !important;
+  box-shadow: 0 0 22px var(--ct-brass-glow) !important;
+}
+
+/* ---- BUTON PRIMARY (brass) ---- */
+.btn-primary {
+  background: linear-gradient(180deg, var(--ct-brass-hi), var(--ct-brass)) !important;
+  color: #2a1c08 !important;
+  border-color: transparent !important;
+  font-weight: 600 !important;
+  box-shadow: 0 8px 20px -6px var(--ct-brass-glow) !important;
+}
+.btn-primary:hover {
+  filter: brightness(1.05) !important;
+  box-shadow: 0 10px 26px -6px var(--ct-brass-glow) !important;
+}
+
+/* ---- BUTON DARK ---- */
+.btn-dark {
+  background: var(--ct-ink-2) !important;
+  color: var(--ct-parchment) !important;
+  border-color: var(--ct-line-soft) !important;
+}
+
+/* ---- BUTON DANGER (ember) ---- */
+.btn-danger {
+  background: linear-gradient(180deg, var(--ct-ember-hi), var(--ct-ember)) !important;
+  color: #fff7ed !important;
+  border-color: transparent !important;
+}
+
+/* ---- PILL-URI / BADGE-uri ---- */
+.status-pill, .live-chip, .mini-badge {
+  border-radius: 999px !important;
+  border: 1px solid var(--ct-line) !important;
+  background: linear-gradient(180deg, var(--ct-panel-hi), var(--ct-panel)) !important;
+  color: var(--ct-parchment-d) !important;
+}
+
+/* ---- STARE ON-AIR: badge Recognition devine VERDE live ---- */
+#onAirBadge.status-pill.active,
+.status-pill.active {
+  background: linear-gradient(180deg, var(--ct-live-hi), var(--ct-live)) !important;
+  color: #0e2a14 !important;
+  border-color: transparent !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 18px var(--ct-live-glow) !important;
+}
+
+/* ---- CARD LIVE SESSION: glow verde când On-Air ---- */
+.dashboard-live-session {
+  background: linear-gradient(180deg, var(--ct-ink-2), rgba(20,15,11,.6)) !important;
+  border: 1px solid var(--ct-line) !important;
+  border-radius: 16px !important;
+  transition: border-color .4s, box-shadow .4s !important;
+}
+.recognition-on-air .dashboard-live-session,
+.recognition-on-air.dashboard-live-session {
+  border-color: rgba(111,179,122,.4) !important;
+  box-shadow: 0 0 40px -16px var(--ct-live-glow) !important;
+}
+
+/* ---- SELECT-uri (dropdown) ---- */
+select, .hero-active-event-select {
+  background: var(--ct-ink-2) !important;
+  color: var(--ct-parchment) !important;
+  border: 1px solid var(--ct-line) !important;
+  border-radius: 13px !important;
+  font-family: var(--ct-font-sans) !important;
+}
+select:focus {
+  outline: none !important;
+  border-color: var(--ct-brass) !important;
+  box-shadow: 0 0 0 4px var(--ct-brass-glow) !important;
+}
+
+/* ---- TIMER Live Session (din V22.42) ---- */
+#liveSessionTimer {
+  font-family: var(--ct-font-sans) !important;
+}
+.recognition-on-air #liveSessionTimer,
+#liveSessionTimer.status-pill.active {
+  color: var(--ct-live-hi) !important;
+}
+
+/* ---- PAS 2c: comutator limbă interfață ---- */
+.ui-lang-switch {
+  display: inline-flex; gap: 4px; background: var(--ct-ink-2);
+  padding: 4px; border-radius: 999px; border: 1px solid var(--ct-line-soft);
+}
+.ui-lang-switch button {
+  border: none; background: transparent; color: var(--ct-parchment-d);
+  padding: 6px 12px; border-radius: 999px; font-family: var(--ct-font-sans);
+  font-size: 13px; font-weight: 500; cursor: pointer; transition: .2s;
+}
+.ui-lang-switch button:hover { color: var(--ct-parchment); }
+.ui-lang-switch button.on {
+  background: linear-gradient(180deg, var(--ct-brass-hi), var(--ct-brass));
+  color: #2a1c08; font-weight: 600;
+}
+
+/* ============================================================
+   PAS 2d: animații + polish (subtile, reduced-motion safe)
+   Keyframes prefixate ct- ca să nu intre în conflict cu styles.css
+   ============================================================ */
+
+/* ---- Panouri apar lin la încărcare ---- */
+@keyframes ctRiseFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.panel, .glass-panel, .dashboard-live-session {
+  animation: ctRiseFade .5s cubic-bezier(.2,.7,.2,1) both !important;
+}
+/* mic stagger pe panouri consecutive (efect cascadă blând) */
+.panel:nth-of-type(2), .glass-panel:nth-of-type(2) { animation-delay: .06s !important; }
+.panel:nth-of-type(3), .glass-panel:nth-of-type(3) { animation-delay: .12s !important; }
+.panel:nth-of-type(4), .glass-panel:nth-of-type(4) { animation-delay: .18s !important; }
+
+/* ---- Badge On-Air: puls verde subtil când e live ---- */
+@keyframes ctLivePulse {
+  0%, 100% { box-shadow: 0 0 14px var(--ct-live-glow); }
+  50%      { box-shadow: 0 0 22px 2px var(--ct-live-glow); }
+}
+#onAirBadge.status-pill.active,
+.status-pill.active {
+  animation: ctLivePulse 2.4s ease-in-out infinite !important;
+}
+
+/* ---- Card Live Session: respirație blândă a glow-ului când On-Air ---- */
+@keyframes ctSessionBreathe {
+  0%, 100% { box-shadow: 0 0 40px -16px var(--ct-live-glow); }
+  50%      { box-shadow: 0 0 56px -14px var(--ct-live-glow); }
+}
+.recognition-on-air .dashboard-live-session,
+.recognition-on-air.dashboard-live-session {
+  animation: ctSessionBreathe 3.2s ease-in-out infinite !important;
+}
+
+/* ---- Timer Live: apariție lină ---- */
+#liveSessionTimer { transition: color .4s ease !important; }
+
+/* ---- Tabs: tranziție lină la activare ---- */
+.top-nav-btn { transition: background .25s ease, color .25s ease, box-shadow .25s ease !important; }
+
+/* ---- Butoane: micro-feedback la apăsare ---- */
+.btn:active, .btn-primary:active { transform: translateY(0) scale(.985) !important; }
+
+/* ---- Glow rafinat pe panouri la hover (subtil) ---- */
+.panel:hover, .glass-panel:hover {
+  border-color: var(--ct-line) !important;
+  box-shadow: var(--ct-shadow), 0 0 30px -20px var(--ct-brass-glow) !important;
+}
+
+/* ---- Comutator limbă: tranziție lină ---- */
+.ui-lang-switch button { transition: background .2s ease, color .2s ease !important; }
+
+/* ============================================================
+   REDUCED MOTION: oprește animațiile pt utilizatori sensibili
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .panel, .glass-panel, .dashboard-live-session,
+  #onAirBadge.status-pill.active, .status-pill.active,
+  .recognition-on-air .dashboard-live-session,
+  .recognition-on-air.dashboard-live-session {
+    animation: none !important;
+  }
+  * { transition-duration: .01ms !important; }
+}
+
+/* ============================================================
+   UI-V2e: FIX suprapunere carduri Live Control pe mobil
+   #tab-dashboard .dashboard-main-grid forțează 2 coloane (min 340px)
+   care nu încap pe mobil → 1 coloană sub 768px. Specificitate cu
+   #tab-dashboard ca să învingă regula din styles.css:2556.
+   ============================================================ */
+@media (max-width: 768px) {
+  #tab-dashboard .dashboard-main-grid,
+  #tab-dashboard .cards-grid.two,
+  #tab-dashboard .cards-grid.three {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ---- UI-V2h: Event languages dropdown multi-select ---- */
+.lang-multiselect { position: relative; width: 100%; max-width: 420px; }
+.lang-ms-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--ct-ink-2); color: var(--ct-parchment);
+  border: 1px solid var(--ct-line); border-radius: 13px;
+  padding: 11px 14px; font-family: var(--ct-font-sans); font-size: 14px; cursor: pointer;
+  transition: border-color .2s, box-shadow .2s;
+}
+.lang-ms-trigger:hover { border-color: var(--ct-brass-deep); }
+.lang-multiselect.open .lang-ms-trigger {
+  border-color: var(--ct-brass); box-shadow: 0 0 0 4px var(--ct-brass-glow);
+}
+.lang-ms-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.lang-ms-caret { color: var(--ct-brass); transition: transform .2s; }
+.lang-multiselect.open .lang-ms-caret { transform: rotate(180deg); }
+.lang-ms-menu {
+  display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
+  max-height: min(70vh, 520px); overflow-y: auto;   /* FIX-LANG-DROPDOWN-2: mai înalt: până la 70% din ecran sau 520px */
+  background: var(--ct-panel); border: 1px solid var(--ct-line); border-radius: 14px;
+  box-shadow: var(--ct-shadow); padding: 6px;
+  -webkit-overflow-scrolling: touch;                 /* scroll lin pe iOS */
+}
+.lang-multiselect.open .lang-ms-menu { display: block; }
+.ms-option {
+  display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-radius: 10px;
+  cursor: pointer; color: var(--ct-parchment); font-size: 15px;   /* mai mare, touch-friendly */
+}
+
+/* FIX-LANG-DROPDOWN-2 — pe mobil: opțiuni și mai generoase + meniu mai înalt */
+@media (max-width: 768px) {
+  .lang-ms-menu { max-height: 75vh; }
+  .ms-option { padding: 15px 14px; font-size: 16px; }
+  .ms-option input { width: 20px; height: 20px; }
+}
+.ms-option:hover { background: rgba(245,236,217,0.05); }
+.ms-option input { accent-color: var(--ct-brass); width: 16px; height: 16px; }
+.ms-option.is-source { opacity: .6; cursor: default; }

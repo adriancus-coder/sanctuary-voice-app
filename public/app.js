@@ -3354,6 +3354,8 @@ async function startAzureAudioStream() {
   if (!currentEvent || !audioState.context || !audioState.preampNode) return false;
   audioState.azureReady = false;
   socket.emit('azure_audio_start', { eventId: currentEvent.id });
+  // DIAG-RECONNECT temporar
+  console.info('[DIAG-RC] azure_audio_start emis | socket.connected=', socket.connected, '| socket.id=', socket.id);
   audioState.azureSource = audioState.preampNode;
 
   // V22.13 — preferă AudioWorklet (thread separat); fallback la ScriptProcessor.
@@ -3589,6 +3591,12 @@ async function startTranslation(options = {}) {
       return false;
     });
     if (started) return;
+    // FIX-AZURE-FALLBACK — ambele metode Azure au eșuat. NU cădea pe /transcribe (OpenAI),
+    // care e cale moartă și ar genera "Too many requests" fără să transcrie. Oprește cu eroare clară.
+    audioState.running = false;
+    window.isRecognitionRunning = false;
+    setOnAirState(false);
+    return setStatus('Azure Speech indisponibil. Verifică conexiunea/cheile Azure și reîncearcă (Stop apoi Start live).');
   }
   if (!window.MediaRecorder) return alert('Use Chrome or Edge.');
   try { await createAudioPipeline({ preserveRunState: true, externalStream, externalSourceType }); } catch (_) {
@@ -3877,6 +3885,7 @@ socket.on('audio_state', ({ audioMuted, audioVolume }) => {
 });
 socket.on('partial_transcript', ({ text }) => { setPartialTranscript(text); });
 socket.on('azure_audio_ready', () => {
+  console.info('[DIAG-RC] azure_audio_ready PRIMIT — Azure conectat OK');
   audioState.azureReady = true;
   if (audioState.running && isAzureSpeechProvider()) setStatus('On-Air. Azure Speech connected.');
 });
@@ -3936,13 +3945,30 @@ async function fallbackToOpenAiFromAzure(payload = {}) {
   return true;
 }
 
+let _rateLimitRecoveryTimer = null;
 socket.on('server_error', (payload = {}) => {
+  console.info('[DIAG-RC] server_error:', payload && payload.code, '|', payload && payload.message, '| socket.connected=', socket.connected);
   const message = payload.message || 'Server error.';
-  // V22.40 — rate_limited e de la rate-limiter-ul socket propriu, NU o eroare Azure.
-  // NU face fallback (care repornea recunoașterea → azure_audio_start → iar rate_limited → buclă
-  // → „Connecting" blocat). Doar informează; recunoașterea continuă să curgă.
+  // FIX-RATE-RECOVERY — rate_limited e de la rate-limiter-ul socket propriu. NU face fallback.
+  // Recuperare REALĂ: dacă recunoașterea ar trebui să ruleze dar a fost rate-limited (ex. după
+  // reconectare/suspendare), reîncearcă automat azure_audio_start după o pauză scurtă — o singură
+  // dată per eveniment de rate-limit (timer resetabil), ca să nu rămână blocat „se recuperează".
   if (payload.code === 'rate_limited') {
-    setStatus('Prea multe cereri — se recuperează...');
+    setStatus('Prea multe cereri — se recuperează automat...');
+    if (_rateLimitRecoveryTimer) clearTimeout(_rateLimitRecoveryTimer);
+    _rateLimitRecoveryTimer = setTimeout(() => {
+      _rateLimitRecoveryTimer = null;
+      // doar dacă suntem (încă) în starea de recunoaștere activă pe Azure
+      if (window.isRecognitionRunning && currentEvent && socket.connected && isAzureSpeechProvider()) {
+        if (!audioState.azureReady) {
+          console.info('[RATE-RECOVERY] reîncerc azure_audio_start după rate-limit');
+          socket.emit('azure_audio_start', { eventId: currentEvent.id });
+          setStatus('On-Air. Reconnecting Azure Speech...');
+        } else {
+          setStatus('On-Air.');
+        }
+      }
+    }, 4000);   // pauză 4s ca fereastra de rate-limit să se elibereze, apoi reîncearcă
     return;
   }
   setStatus(message);
@@ -3950,6 +3976,13 @@ socket.on('server_error', (payload = {}) => {
     console.error(err);
     setStatus('Azure failed and OpenAI backup could not start.');
   });
+});
+// DIAG-RECONNECT temporar — stare conexiune socket
+socket.on('connect', () => {
+  console.info('[DIAG-RC] socket CONNECT | id=', socket.id);
+});
+socket.on('disconnect', () => {
+  console.info('[DIAG-RC] socket DISCONNECT');
 });
 socket.on('active_event_changed', async ({ eventId }) => {
   if (currentEvent) {
@@ -4502,6 +4535,23 @@ document.addEventListener('keydown', (e) => {
 });
 $('qrModalCopyBtn')?.addEventListener('click', () => copyField('qrModalLink', 'qrModalCopyBtn'));
 $('qrModalDownloadBtn')?.addEventListener('click', () => downloadQrFromImage('qrModalImage', 'sanctuary-voice-participant-qr'));
+
+// Worship QR modal (mirror al QR-ului participant, pentru pagina /worship)
+$('worshipShowQrBtn')?.addEventListener('click', () => {
+  const modal = $('worshipQrModal');
+  if (!modal) return;
+  const link = `${location.origin}/worship`;
+  if ($('worshipQrModalLink')) $('worshipQrModalLink').value = link;
+  const img = $('worshipQrModalImage');
+  if (img) img.src = `/api/worship-qr.png?ts=${Date.now()}`;
+  modal.hidden = false;
+});
+document.querySelectorAll('[data-worship-qr-close]').forEach((el) => {
+  el.addEventListener('click', () => { const m = $('worshipQrModal'); if (m) m.hidden = true; });
+});
+$('worshipQrModalCopyBtn')?.addEventListener('click', () => copyField('worshipQrModalLink', 'worshipQrModalCopyBtn'));
+$('worshipQrModalDownloadBtn')?.addEventListener('click', () => downloadQrFromImage('worshipQrModalImage', 'sanctuary-voice-worship-qr'));
+
 $('copyQrBtn')?.addEventListener('click', copyQrImage);
 $('downloadQrBtn')?.addEventListener('click', downloadQr);
 $('openRemoteControlBtn').addEventListener('click', () => {
@@ -4610,16 +4660,68 @@ function renderLiveLanguagesGrid() {
   }
   const sourceLang = String(currentEvent.sourceLang || 'ro').toLowerCase();
   const selected = new Set((currentEvent.targetLangs || []).map((l) => String(l).toLowerCase()));
-  grid.innerHTML = Object.entries(availableLanguages || {}).map(([code, name]) => {
+  const selectedNames = Object.entries(availableLanguages || {})
+    .filter(([code]) => selected.has(code) && code !== sourceLang)
+    .map(([, name]) => name);
+  const summary = selectedNames.length
+    ? selectedNames.join(', ')
+    : 'Select languages…';
+  const items = Object.entries(availableLanguages || {}).map(([code, name]) => {
     const isSource = code === sourceLang;
     const checked = selected.has(code);
     return `
-      <label class="checkbox-item${isSource ? ' is-source' : ''}">
+      <label class="ms-option${isSource ? ' is-source' : ''}">
         <input type="checkbox" class="live-lang-checkbox" value="${escapeHtml(code)}" ${checked ? 'checked' : ''} ${isSource ? 'disabled' : ''}>
         <span>${escapeHtml(name || code.toUpperCase())}${isSource ? ' (source)' : ''}</span>
       </label>
     `;
   }).join('');
+  grid.innerHTML = `
+    <div class="lang-multiselect" id="liveLangMultiselect">
+      <button type="button" class="lang-ms-trigger" id="liveLangMsTrigger" aria-haspopup="true" aria-expanded="false">
+        <span class="lang-ms-summary">${escapeHtml(summary)}</span>
+        <span class="lang-ms-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="lang-ms-menu" id="liveLangMsMenu" role="group" aria-label="Event languages">
+        ${items}
+      </div>
+    </div>
+  `;
+  const wrap = document.getElementById('liveLangMultiselect');
+  const trigger = document.getElementById('liveLangMsTrigger');
+  const menu = document.getElementById('liveLangMsMenu');
+  if (trigger && menu && wrap) {
+    // toggle deschidere — pointerdown prinde și touch și mouse fără întârziere; oprește propagarea
+    trigger.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const open = !wrap.classList.contains('open');
+      wrap.classList.toggle('open', open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    // bifare → update summary, FĂRĂ re-render (nu închide). stopPropagation ca să nu ajungă la închidere globală.
+    menu.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+    menu.addEventListener('change', () => {
+      const names = Array.from(menu.querySelectorAll('.live-lang-checkbox'))
+        .filter((cb) => cb.checked && !cb.disabled)
+        .map((cb) => (availableLanguages && availableLanguages[cb.value]) || cb.value.toUpperCase());
+      const sum = wrap.querySelector('.lang-ms-summary');
+      if (sum) sum.textContent = names.length ? names.join(', ') : 'Select languages…';
+    });
+  }
+  // închidere la interacțiune în afară — UN SINGUR listener global delegat (idempotent),
+  // nu se mai acumulează la fiecare render.
+  if (!window._langMsCloserBound) {
+    window._langMsCloserBound = true;
+    document.addEventListener('pointerdown', (e) => {
+      const openWrap = document.getElementById('liveLangMultiselect');
+      if (openWrap && openWrap.classList.contains('open') && !openWrap.contains(e.target)) {
+        openWrap.classList.remove('open');
+        const t = document.getElementById('liveLangMsTrigger');
+        if (t) t.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
 }
 
 async function saveLiveLanguages() {
