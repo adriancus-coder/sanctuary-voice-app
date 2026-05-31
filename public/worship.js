@@ -1556,12 +1556,37 @@
   }
 
   // --- LISTENERS ---
+  // WORSHIP-DRAFT-2 — worship creează un eveniment draft (nume minim); admin îl aprobă ulterior
+  async function createWorshipDraft() {
+    const name = prompt('Nume eveniment nou (ex. „Repetiție duminică"):', '');
+    if (name === null) return;
+    const trimmed = String(name).trim();
+    if (!trimmed) { alert('Numele e obligatoriu.'); return; }
+    try {
+      const res = await fetch('/api/worship/events/create-draft', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({ name: trimmed })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Creare eșuată.');
+      pickerEventsLoaded = false;
+      await loadEventDetail(data.eventId);
+      const setlistBtn = document.querySelector('[data-worship-mode="setlist"]');
+      if (setlistBtn) setlistBtn.click();
+      alert('Eveniment creat: „' + data.name + '". Adaugă cântări; un admin îl va aproba și pune live.');
+    } catch (err) {
+      alert('Eroare: ' + err.message);
+    }
+  }
+
   function attachListeners() {
     $('worshipLoginBtn').addEventListener('click', doLogin);
     $('worshipPinInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); doLogin(); }
     });
     $('worshipLogoutBtn').addEventListener('click', doLogout);
+    // WORSHIP-DRAFT-2 — buton de creare draft (one-time bind, lângă Logout)
+    $('worshipCreateDraftBtn')?.addEventListener('click', createWorshipDraft);
 
     // V21.5: dropdown removed — header now shows the live event read-only.
     // No change-listener needed; loadLiveEvent owns the single event source.
