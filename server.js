@@ -2262,6 +2262,10 @@ function upsertLibraryItem(list, { title, text, labels, sourceLang }, maxItems =
     text: safeText,
     labels: safeLabels,
     sourceLang: String(sourceLang || existingItem?.sourceLang || 'ro').trim() || 'ro',
+    // FIX-KEY-PRESERVE — propagă key (gama) existent al cântării ca să nu se piardă la
+    // re-editarea titlului/textului. WORSHIP-SONGS setează key direct prin PATCH /key,
+    // dar upsertLibraryItem (re-edit) reconstruia payload-ul fără să-l propage → key dispărea.
+    key: typeof existingItem?.key === 'string' ? existingItem.key : '',
     // Păstrăm cache-ul de traduceri per strofă; per-block hash invalidation
     // ține automat cache-ul valid pentru strofele neschimbate, indiferent dacă
     // alte strofe s-au editat (vor avea hash nou = cache miss controlat).
