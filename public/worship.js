@@ -1391,6 +1391,49 @@
     masterSocket.emit('worship:hint', Object.assign({}, p, { eventId: currentEvent.id }));
   }
 
+  // WORSHIP-SCHEDULE-B — hinturi programate (selector „Când")
+  // Aplicarea efectivă la moment = FAZA C; aici doar coada + UI.
+  let _pendingHints = [];   // { id, hint, when, label, action }
+  const WHEN_LABELS = { now: 'Acum', next_verse: 'Următorul vers',
+                        next_strofa: 'Următoarea strofă', next_refren: 'Următorul refren',
+                        next_pod: 'Următorul pod' };
+  const WHEN_SECTION = { next_strofa: 'verse', next_refren: 'chorus', next_pod: 'bridge' };
+  function getWhenValue() {
+    const sel = $('worshipHintWhen');
+    return sel ? sel.value : 'now';
+  }
+  // dispatchHint(hint, action?): la 'now', cheamă action() + sendHint(hint); altfel, doar
+  // queue (action e păstrat pt FAZA C, ca să-l execute la trigger).
+  function dispatchHint(hint, action) {
+    const when = getWhenValue();
+    if (when === 'now') {
+      if (typeof action === 'function') { try { action(); } catch (_) {} }
+      sendHint(hint);
+      return;
+    }
+    const id = 'ph_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    _pendingHints.push({ id, hint, when, label: WHEN_LABELS[when] || when, action: action || null });
+    renderPendingHints();
+    setStatus($('liveStatus'), 'Hint programat: ' + (WHEN_LABELS[when] || when), 'ok');
+  }
+  function renderPendingHints() {
+    const box = $('worshipPendingHints');
+    if (!box) return;
+    if (!_pendingHints.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="pending-title">În așteptare:</div>' + _pendingHints.map((p) =>
+      '<div class="pending-hint-row" data-pending-id="' + p.id + '">' +
+        '<span class="pending-when">⏱ ' + escapeHtml(p.label) + '</span>' +
+        '<span class="pending-text">' + escapeHtml(worshipHintText(p.hint) || '') + '</span>' +
+        '<button class="btn btn-sm pending-cancel" type="button" data-cancel-pending="' + p.id + '">✕</button>' +
+      '</div>').join('');
+    box.querySelectorAll('[data-cancel-pending]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const id = b.getAttribute('data-cancel-pending');
+        _pendingHints = _pendingHints.filter((x) => x.id !== id);
+        renderPendingHints();
+      }));
+  }
+
   // --- V21.4-FIX: FULLSCREEN ---
   // Native Fullscreen API where supported; CSS fallback for iOS Safari which
   // does not expose requestFullscreen on arbitrary elements.
@@ -1582,19 +1625,37 @@
     document.querySelectorAll('#worshipLeaderControls [data-hint]').forEach((b) => {
       b.addEventListener('click', () => {
         const t = b.getAttribute('data-hint');
-        if (t === 'next') { liveNext(); sendHint({ type: 'next' }); }
-        else if (t === 'repeat') { sendHint({ type: 'repeat' }); setLiveVerse(liveCurrentVerseIndex); }
-        else if (t === 'chorus') { sendHint({ type: 'chorus' }); }
+        if (t === 'next') dispatchHint({ type: 'next' }, () => liveNext());
+        else if (t === 'repeat') dispatchHint({ type: 'repeat' }, () => setLiveVerse(liveCurrentVerseIndex));
+        else if (t === 'chorus') dispatchHint({ type: 'chorus' });
       });
     });
     $('worshipHintKeySelect').addEventListener('change', (e) => {
       const key = e.target.value;
-      if (key) sendHint({ type: 'change_key', key });
+      if (key) dispatchHint({ type: 'change_key', key });
     });
     // WORSHIP-KEY-TRANSPOSE — +/− semiton din gama cântării curente, cumulativ
     let _keyStepAccum = 0;
     let _keyStepTimer = null;
+    // Acțiunea pură de transpunere (folosită + la „now" cumulativ, + la apply în FAZA C)
+    function _applyTranspose(direction) {
+      const song = getLiveSong();
+      if (!song || !song.key) return;
+      const newKey = transposeKey(song.key, direction);
+      if (newKey && newKey !== song.key) saveSongKey(song.id, newKey);
+    }
     function stepKey(direction) {
+      // WORSHIP-SCHEDULE-B — pe „nu acum" doar queue (aplicare la FAZA C, fără cumulativ)
+      if (getWhenValue() !== 'now') {
+        const arrow = direction > 0 ? '↑' : '↓';
+        const sign = direction > 0 ? '+' : '';
+        dispatchHint(
+          { type: 'transpose', text: `${arrow} ${sign}${direction} semiton (programat)` },
+          () => _applyTranspose(direction)
+        );
+        return;
+      }
+      // path „now" — comportament existent (cumulativ + banner cu „acum: <newKey>")
       const song = getLiveSong();
       if (!song) { setStatus($('liveStatus'), 'Selectează o cântare întâi.', 'warn'); return; }
       const currentKey = song.key || '';
@@ -1617,14 +1678,14 @@
       const songId = e.target.value;
       if (!songId) return;
       const song = (currentEvent && currentEvent.songs || []).find((s) => String(s.id) === String(songId));
-      changeLiveSong(songId);
-      sendHint({ type: 'jump_song', songId, text: song ? (song.title || 'Cântare') : 'Cântare' });
+      const hint = { type: 'jump_song', songId, text: song ? (song.title || 'Cântare') : 'Cântare' };
+      dispatchHint(hint, () => changeLiveSong(songId));
     });
     $('worshipHintFreeBtn').addEventListener('click', () => {
       const inp = $('worshipHintFreeInput');
       const text = (inp.value || '').trim();
       if (!text) return;
-      sendHint({ type: 'free', text });
+      dispatchHint({ type: 'free', text });
       inp.value = '';
     });
 
