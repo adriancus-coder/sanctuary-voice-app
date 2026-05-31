@@ -1019,6 +1019,57 @@
     masterSocket.on('active_event_changed', () => {
       loadLiveEvent();
     });
+    // WORSHIP-SYNC — every worship master reflects live verse/song changes made
+    // by ANOTHER master, so everyone with control sees the same live state
+    // instantly. The server already broadcasts worship:state_change to the
+    // worship:<id> room on every POST /verse; worship.js just wasn't listening.
+    // (Hints stay single-leader — this is ONLY shared live state.)
+    //
+    // Echo handling: the payload's only source field is state.lastUpdatedBy, a
+    // COARSE role ('worship'/'operator'/null) — every worship master writes
+    // 'worship', so it can't tell my change from another master's, and the
+    // client has no access to its own session id. So we suppress the echo by
+    // value: if the incoming state already equals my live state (the usual case
+    // right after I changed it), it's a no-op → skip, avoiding any visual jump
+    // on my own change. A genuine change from another master differs → applied.
+    //
+    // This handler only READS + re-renders; it never calls setLiveVerse/
+    // changeLiveSong, so it can't POST or loop the broadcast between masters.
+    masterSocket.on('worship:state_change', (payload) => {
+      if (!payload || !payload.state || !currentEvent) return;
+      if (payload.eventId && payload.eventId !== currentEvent.id) return;
+      const st = payload.state;
+      const incomingSong = st.currentSongId || null;
+      const incomingVerse = Number.isInteger(st.currentVerseIndex) ? st.currentVerseIndex : 0;
+      const incomingEnded = st.ended === true;
+      // Echo / no-op suppression (see note above).
+      if (incomingSong === liveCurrentSongId &&
+          incomingVerse === liveCurrentVerseIndex &&
+          incomingEnded === liveEnded) {
+        return;
+      }
+      // Mirror into the local event state so a later refreshLiveMode (e.g. when
+      // entering Live mode) restores THIS state, not a stale one.
+      if (currentEvent.worshipState && typeof currentEvent.worshipState === 'object') {
+        currentEvent.worshipState.currentSongId = incomingSong;
+        currentEvent.worshipState.currentVerseIndex = incomingVerse;
+        currentEvent.worshipState.ended = incomingEnded;
+      } else {
+        currentEvent.worshipState = {
+          currentSongId: incomingSong,
+          currentVerseIndex: incomingVerse,
+          ended: incomingEnded
+        };
+      }
+      // Apply to the live module state.
+      liveCurrentSongId = incomingSong;
+      liveCurrentVerseIndex = incomingVerse;
+      liveEnded = incomingEnded;
+      // Re-render only when in Live mode — refreshLiveMode re-populates the song
+      // picker + verse view, so a song switch by another master shows too. When
+      // not in Live mode the mirror above is enough; entering Live mode applies it.
+      if (liveMode === 'live') refreshLiveMode();
+    });
     // V21.8: operator suggested a song. Show the accept/decline modal —
     // the master picks. Decline marks the request declined; Accept moves
     // worshipState via the sync-response endpoint, which broadcasts to
