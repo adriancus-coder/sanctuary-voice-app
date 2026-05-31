@@ -115,6 +115,39 @@
         </div>
         <div id="liveStatus" class="status-line" role="status"></div>
       </div>
+
+      <!-- WORSHIP-LEADER: designated leader + hints to team + projector. -->
+      <div class="panel glass-panel worship-leader-panel">
+        <div class="worship-leader-bar">
+          <button id="worshipLeaderToggleBtn" class="btn btn-dark" type="button">🎹 Sunt lider</button>
+          <span id="worshipLeaderStatus" class="small muted"></span>
+        </div>
+        <div id="worshipLeaderControls" class="worship-leader-controls hidden">
+          <p class="small muted">Trimite hinturi echipei și pe proiector. Cele cu acțiune mișcă și versetul live.</p>
+          <div class="worship-hint-row">
+            <button class="btn btn-dark btn-sm" type="button" data-hint="repeat">🔁 Repetă strofa</button>
+            <button class="btn btn-dark btn-sm" type="button" data-hint="next">⏭ Strofa următoare</button>
+            <button class="btn btn-dark btn-sm" type="button" data-hint="chorus">🎶 Refren</button>
+          </div>
+          <div class="worship-hint-row">
+            <label class="small" for="worshipHintVerseInput">Sari la strofa</label>
+            <input id="worshipHintVerseInput" type="number" min="1" inputmode="numeric" class="worship-hint-num">
+            <button id="worshipHintVerseBtn" class="btn btn-primary btn-sm" type="button">Sari</button>
+          </div>
+          <div class="worship-hint-row">
+            <label class="small" for="worshipHintKeySelect">Schimbă gama</label>
+            <select id="worshipHintKeySelect" class="worship-hint-select"></select>
+          </div>
+          <div class="worship-hint-row">
+            <label class="small" for="worshipHintSongSelect">Sari la cântare</label>
+            <select id="worshipHintSongSelect" class="worship-hint-select"></select>
+          </div>
+          <div class="worship-hint-row">
+            <input id="worshipHintFreeInput" type="text" maxlength="200" class="worship-hint-free" placeholder="Mesaj liber pentru echipă...">
+            <button id="worshipHintFreeBtn" class="btn btn-primary btn-sm" type="button">Trimite</button>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 

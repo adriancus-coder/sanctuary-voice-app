@@ -118,8 +118,18 @@ function registerSocketHandlers(io, ctx) {
     'worship:view:join':     { windowMs: 60 * 1000, max: 30 },
     'worship:view:join_permanent': { windowMs: 60 * 1000, max: 30 },
     'worship:master:join':   { windowMs: 60 * 1000, max: 30 },
-    'worship:master:heartbeat': { windowMs: 60 * 1000, max: 12 }
+    'worship:master:heartbeat': { windowMs: 60 * 1000, max: 12 },
+    // WORSHIP-LEADER: designated worship leader + hint channel.
+    'worship:leader:claim':   { windowMs: 60 * 1000, max: 30 },
+    'worship:leader:release': { windowMs: 60 * 1000, max: 30 },
+    'worship:hint':           { windowMs: 60 * 1000, max: 60 }
   };
+
+  // WORSHIP-LEADER: volatile designated-leader registry, eventId -> socket.id.
+  // One leader per event; a fresh claim preempts the previous holder. Not
+  // persisted (like operatorPresence / worshipDisconnectTimers) — leadership
+  // is a live, in-the-moment role that resets cleanly on restart.
+  const worshipLeaders = new Map();
 
   // V21.20: anti-flicker grace before declaring a worship master offline on
   // socket disconnect. Browsers drop sockets on micro-net-hiccups and tab
@@ -307,6 +317,67 @@ function registerSocketHandlers(io, ctx) {
         saveDb();
         io.to(`worship:${eventId}`).emit('worship:master_presence', { eventId, online: true });
       }
+    });
+
+    // WORSHIP-LEADER: a worship master claims the designated-leader slot for an
+    // event. Auth mirrors worship:master:join (valid worship session + worship-
+    // accessible event). A fresh claim preempts any previous leader; the
+    // `worship:leader` broadcast is the single source of truth the clients use
+    // to decide who is leader, so we never optimistically set it on the client.
+    on(socket, 'worship:leader:claim', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return;
+      const session = getWorshipSessionFromSocket(socket);
+      if (!session) {
+        return socket.emit('worship:master:denied', { message: 'Sesiune worship invalidă.' });
+      }
+      const event = db.events[eventId];
+      if (!event || !isWorshipAccessibleEvent(event)) {
+        return socket.emit('worship:master:denied', { message: 'Eveniment indisponibil.' });
+      }
+      // Ensure room membership so this claimant also receives the broadcast
+      // below (a master that toggled into Live mode is already joined, but a
+      // claim from any other state must not silently miss its own confirmation).
+      socket.join(`worship:${eventId}`);
+      worshipLeaders.set(eventId, socket.id);
+      socket.data.worshipLeaderEventId = eventId;
+      io.to(`worship:${eventId}`).emit('worship:leader', { eventId, leaderId: socket.id, active: true });
+    });
+
+    // WORSHIP-LEADER: the current leader releases the slot. Only the holder can
+    // release (guards against a stale ex-leader clearing the active one).
+    on(socket, 'worship:leader:release', (payload) => {
+      const eventId = asEventId(payload?.eventId) || socket.data.worshipLeaderEventId;
+      if (!eventId) return;
+      if (worshipLeaders.get(eventId) === socket.id) {
+        worshipLeaders.delete(eventId);
+        if (socket.data.worshipLeaderEventId === eventId) socket.data.worshipLeaderEventId = '';
+        io.to(`worship:${eventId}`).emit('worship:leader', { eventId, leaderId: null, active: false });
+      }
+    });
+
+    // WORSHIP-LEADER: only the designated leader may emit hints. Hints are
+    // banner-only signals — the actual live action (verse/song change) travels
+    // the existing POST /verse + changeLiveSong path on the client, so this
+    // handler never touches worshipState. Fan out to the event room (members,
+    // master, token projectors, operators) and the permanent-projector room.
+    on(socket, 'worship:hint', (payload) => {
+      const eventId = asEventId(payload?.eventId);
+      if (!eventId) return;
+      if (worshipLeaders.get(eventId) !== socket.id) return; // only the leader
+      const HINT_TYPES = ['repeat', 'next', 'chorus', 'jump_verse', 'change_key', 'jump_song', 'free'];
+      const type = HINT_TYPES.includes(payload?.type) ? payload.type : null;
+      if (!type) return;
+      const hint = { type, eventId, ts: Date.now() };
+      const text = asString(payload?.text, 200).trim();
+      if (text) hint.text = text;
+      if (type === 'jump_verse') {
+        const vi = asNumberInRange(payload?.verseIndex, 0, 9999);
+        hint.verseIndex = vi == null ? 0 : Math.round(vi);
+      }
+      if (type === 'change_key') hint.key = asString(payload?.key, 16).trim();
+      if (type === 'jump_song') hint.songId = asString(payload?.songId, 128);
+      io.to(`worship:${eventId}`).to('worship-view:permanent').emit('worship:hint', hint);
     });
 
     on(socket, 'join_event', (payload) => {
@@ -624,6 +695,14 @@ function registerSocketHandlers(io, ctx) {
           }, WORSHIP_DISCONNECT_GRACE_MS);
           worshipDisconnectTimers.set(key, timer);
         }
+      }
+      // WORSHIP-LEADER: release the leader slot immediately on disconnect (no
+      // grace — leadership is an active, hands-on role). Only clear it if this
+      // socket still holds it, so a preempted ex-leader can't drop the current.
+      const leaderEventId = socket.data && socket.data.worshipLeaderEventId;
+      if (leaderEventId && worshipLeaders.get(leaderEventId) === socket.id) {
+        worshipLeaders.delete(leaderEventId);
+        io.to(`worship:${leaderEventId}`).emit('worship:leader', { eventId: leaderEventId, leaderId: null, active: false });
       }
       cleanupSocketPresence(socket);
     });

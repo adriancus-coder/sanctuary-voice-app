@@ -24,6 +24,46 @@
     if (el) el.textContent = text || '';
   }
 
+  // WORSHIP-LEADER: hint banner on the projector. The mapping mirrors
+  // worship.js#worshipHintText (duplicated — no bundler). The projector ALWAYS
+  // shows the banner; it stays until the × is pressed, replaced in place by any
+  // newer hint. textContent keeps free-text hints inert against injection.
+  function worshipHintText(h) {
+    if (!h || typeof h !== 'object') return '';
+    switch (h.type) {
+      case 'repeat': return '🔁 Repetăm strofa';
+      case 'next': return '⏭ Strofa următoare';
+      case 'chorus': return '🎶 Refren';
+      case 'jump_verse': return '➡ Strofa ' + (Number(h.verseIndex) + 1);
+      case 'change_key': return '🎵 Gama: ' + (h.key || '');
+      case 'jump_song': return '🎶 ' + (h.text || 'Altă cântare');
+      case 'free': return h.text || '';
+      default: return h.text || '';
+    }
+  }
+
+  function showWorshipHintBanner(hint) {
+    const text = worshipHintText(hint);
+    if (!text) return;
+    let banner = document.querySelector('.worship-hint-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.className = 'worship-hint-banner';
+      const span = document.createElement('span');
+      span.className = 'whb-text';
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'whb-close';
+      close.setAttribute('aria-label', 'Închide');
+      close.textContent = '×';
+      close.addEventListener('click', () => banner.remove());
+      banner.appendChild(span);
+      banner.appendChild(close);
+      document.body.appendChild(banner);
+    }
+    banner.querySelector('.whb-text').textContent = text;
+  }
+
   function show(id) {
     const el = $(id);
     if (el) el.classList.remove('hidden');
@@ -123,6 +163,8 @@
       if (!data || data.eventId !== eventId) return;
       applyState(data.state, data.song);
     });
+    // WORSHIP-LEADER: leader hint banner (token-flow projector).
+    socket.on('worship:hint', (h) => showWorshipHintBanner(h));
   }
 
   // ---- V21.18 permanent-link flow ----
@@ -228,6 +270,8 @@
       currentEventName = '';
       showWaiting();
     });
+    // WORSHIP-LEADER: leader hint banner (permanent-link projector).
+    socket.on('worship:hint', (h) => showWorshipHintBanner(h));
   }
 
   async function enterPermanent() {

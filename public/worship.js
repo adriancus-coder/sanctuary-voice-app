@@ -691,6 +691,9 @@
     }
     select.value = liveCurrentSongId || '';
     renderLiveMode();
+    // WORSHIP-LEADER: keep the leader's jump-song dropdown in step with the
+    // event's song list (function-declaration hoisting makes the forward call safe).
+    populateLeaderSelects();
   }
 
   function renderLiveMode() {
@@ -942,6 +945,11 @@
   let pendingSyncId = null;
   // V21.8: incoming operator->worship push awaiting accept/decline.
   let pendingOperatorPush = null;
+  // WORSHIP-LEADER: am I the designated leader for the live event, and who is
+  // (if anyone)? Both are driven by the server's `worship:leader` broadcast —
+  // never set optimistically — so a single source of truth decides the role.
+  let isWorshipLeader = false;
+  let currentLeaderId = null;
 
   function joinMasterRoom() {
     if (masterSocket && masterSocket.connected) {
@@ -962,6 +970,12 @@
     // would otherwise be lost — loadLiveEvent's loadEventDetail
     // refetches the event detail to recover.
     masterSocket.on('connect', () => {
+      // WORSHIP-LEADER: a (re)connect means a new socket id. The server drops
+      // leadership on the old socket's disconnect, so reset locally to avoid a
+      // stale "you are leader" — the master re-claims explicitly if desired.
+      isWorshipLeader = false;
+      currentLeaderId = null;
+      renderLeaderUI();
       joinMasterRoom();
       loadLiveEvent();
     });
@@ -1029,6 +1043,20 @@
           refreshLiveMode();
         }
       } catch (err) { /* render stale state is fine */ }
+    });
+    // WORSHIP-LEADER: leadership changes for the event. The broadcast is the
+    // single source of truth — set isWorshipLeader by comparing the announced
+    // leaderId to my own socket id.
+    masterSocket.on('worship:leader', (d) => {
+      if (!d) return;
+      currentLeaderId = d.active ? d.leaderId : null;
+      isWorshipLeader = !!(d.active && d.leaderId && d.leaderId === masterSocket.id);
+      renderLeaderUI();
+    });
+    // WORSHIP-LEADER: a hint from the leader. The leader doesn't need a banner
+    // of their own hint (they triggered it), so only non-leaders show it.
+    masterSocket.on('worship:hint', (h) => {
+      if (!isWorshipLeader) showWorshipHintBanner(h);
     });
     masterHeartbeatTimer = setInterval(() => {
       if (masterSocket && masterSocket.connected && currentEvent) {
@@ -1098,6 +1126,102 @@
     } finally {
       if (btn) btn.disabled = false;
     }
+  }
+
+  // --- WORSHIP-LEADER: designated leader + hints ---
+  // Map a hint object to its banner text. Shared shape with worship-view.js
+  // (no bundler here, so the mapping is intentionally duplicated there).
+  function worshipHintText(h) {
+    if (!h || typeof h !== 'object') return '';
+    switch (h.type) {
+      case 'repeat': return '🔁 Repetăm strofa';
+      case 'next': return '⏭ Strofa următoare';
+      case 'chorus': return '🎶 Refren';
+      case 'jump_verse': return '➡ Strofa ' + (Number(h.verseIndex) + 1);
+      case 'change_key': return '🎵 Gama: ' + (h.key || '');
+      case 'jump_song': return '🎶 ' + (h.text || 'Altă cântare');
+      case 'free': return h.text || '';
+      default: return h.text || '';
+    }
+  }
+
+  // A single fixed banner overlay. A new hint replaces the text in place; the
+  // banner stays until the × is pressed. textContent (not innerHTML) keeps
+  // free-text hints inert against injection.
+  function showWorshipHintBanner(hint) {
+    const text = worshipHintText(hint);
+    if (!text) return;
+    let banner = document.querySelector('.worship-hint-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.className = 'worship-hint-banner';
+      const span = document.createElement('span');
+      span.className = 'whb-text';
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'whb-close';
+      close.setAttribute('aria-label', 'Închide');
+      close.textContent = '×';
+      close.addEventListener('click', () => banner.remove());
+      banner.appendChild(span);
+      banner.appendChild(close);
+      document.body.appendChild(banner);
+    }
+    banner.querySelector('.whb-text').textContent = text;
+  }
+
+  // Reflect the leader role in the toolbar: when leader, show the hint panel
+  // and refresh its dynamic selects; otherwise hide it and note who's leading.
+  function renderLeaderUI() {
+    const btn = $('worshipLeaderToggleBtn');
+    const status = $('worshipLeaderStatus');
+    const controls = $('worshipLeaderControls');
+    if (!btn || !controls) return;
+    if (isWorshipLeader) {
+      btn.textContent = '🎹 Ești lider (eliberează)';
+      btn.classList.add('btn-confirmed');
+      controls.classList.remove('hidden');
+      if (status) status.textContent = 'Trimiți hinturi echipei și pe proiector.';
+      populateLeaderSelects();
+    } else {
+      btn.textContent = '🎹 Sunt lider';
+      btn.classList.remove('btn-confirmed');
+      controls.classList.add('hidden');
+      if (status) status.textContent = currentLeaderId ? 'Lider activ: altcineva (apasă pentru a prelua)' : '';
+    }
+  }
+
+  // Fill the gamă select (predefined keys) and the jump-song select (current
+  // event songs). Cheap; safe to call on every live-mode refresh.
+  function populateLeaderSelects() {
+    const keySel = $('worshipHintKeySelect');
+    if (keySel) {
+      keySel.innerHTML = '<option value="">— gamă —</option>' +
+        SONG_KEYS.map((k) => '<option value="' + k + '">' + k + '</option>').join('');
+    }
+    const songSel = $('worshipHintSongSelect');
+    if (songSel) {
+      const songs = (currentEvent && Array.isArray(currentEvent.songs)) ? currentEvent.songs : [];
+      songSel.innerHTML = '<option value="">— cântare —</option>' +
+        songs.map((s) => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.title || 'Fără titlu') + '</option>').join('');
+    }
+  }
+
+  function toggleLeader() {
+    if (!currentEvent || !masterSocket) return;
+    if (isWorshipLeader) {
+      masterSocket.emit('worship:leader:release', { eventId: currentEvent.id });
+    } else {
+      // Make sure we're in the worship room first so we receive our own
+      // confirming `worship:leader` broadcast.
+      joinMasterRoom();
+      masterSocket.emit('worship:leader:claim', { eventId: currentEvent.id });
+    }
+  }
+
+  function sendHint(p) {
+    if (!isWorshipLeader || !currentEvent || !masterSocket) return;
+    masterSocket.emit('worship:hint', Object.assign({}, p, { eventId: currentEvent.id }));
   }
 
   // --- V21.4-FIX: FULLSCREEN ---
@@ -1282,6 +1406,44 @@
     $('liveFontDecrease').addEventListener('click', () => changeLiveFontSize(-2));
     $('liveFontIncrease').addEventListener('click', () => changeLiveFontSize(2));
     applyLiveFontSize();
+
+    // WORSHIP-LEADER: claim/release + hint controls. Action hints reuse the
+    // existing live navigation (liveNext / setLiveVerse / changeLiveSong) so
+    // the live worship state moves through the one canonical path; the hint
+    // itself is only the banner signal.
+    $('worshipLeaderToggleBtn').addEventListener('click', toggleLeader);
+    document.querySelectorAll('#worshipLeaderControls [data-hint]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const t = b.getAttribute('data-hint');
+        if (t === 'next') { liveNext(); sendHint({ type: 'next' }); }
+        else if (t === 'repeat') { sendHint({ type: 'repeat' }); setLiveVerse(liveCurrentVerseIndex); }
+        else if (t === 'chorus') { sendHint({ type: 'chorus' }); }
+      });
+    });
+    $('worshipHintVerseBtn').addEventListener('click', () => {
+      const n = parseInt($('worshipHintVerseInput').value, 10);
+      if (!Number.isFinite(n) || n < 1) return;
+      setLiveVerse(n - 1);
+      sendHint({ type: 'jump_verse', verseIndex: n - 1 });
+    });
+    $('worshipHintKeySelect').addEventListener('change', (e) => {
+      const key = e.target.value;
+      if (key) sendHint({ type: 'change_key', key });
+    });
+    $('worshipHintSongSelect').addEventListener('change', (e) => {
+      const songId = e.target.value;
+      if (!songId) return;
+      const song = (currentEvent && currentEvent.songs || []).find((s) => String(s.id) === String(songId));
+      changeLiveSong(songId);
+      sendHint({ type: 'jump_song', songId, text: song ? (song.title || 'Cântare') : 'Cântare' });
+    });
+    $('worshipHintFreeBtn').addEventListener('click', () => {
+      const inp = $('worshipHintFreeInput');
+      const text = (inp.value || '').trim();
+      if (!text) return;
+      sendHint({ type: 'free', text });
+      inp.value = '';
+    });
 
     $('importUrlResults').addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-import-result-url]');

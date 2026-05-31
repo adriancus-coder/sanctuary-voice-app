@@ -6515,6 +6515,70 @@ button[disabled]:active {
 }
 .live-toolbar select { flex: 1; min-width: 160px; }
 
+/* WORSHIP-LEADER: leader controls + hint panel (worship master tablet). */
+.worship-leader-panel { margin-top: 12px; }
+.worship-leader-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.worship-leader-bar #worshipLeaderStatus { flex: 1; min-width: 120px; }
+.worship-leader-controls {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.worship-hint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.worship-hint-row label { flex: none; opacity: 0.85; }
+.worship-hint-num { width: 84px; }
+.worship-hint-select { flex: 1; min-width: 160px; }
+.worship-hint-free { flex: 1; min-width: 180px; }
+
+/* WORSHIP-LEADER: hint banner shown on worship masters/members + projector.
+   Fixed overlay, stays until dismissed; a newer hint replaces the text. */
+.worship-hint-banner {
+  position: fixed;
+  left: 50%;
+  top: 18%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  max-width: 90vw;
+  background: var(--accent, #cf9a3c);
+  color: #1a1206;
+  padding: 18px 26px;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  font-size: clamp(20px, 4vw, 40px);
+  font-weight: 700;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  animation: worshipHintIn 0.25s ease;
+}
+.worship-hint-banner .whb-close {
+  background: rgba(0, 0, 0, 0.2);
+  border: none;
+  color: #1a1206;
+  border-radius: 8px;
+  font-size: 22px;
+  width: 38px;
+  height: 38px;
+  cursor: pointer;
+  flex: none;
+}
+@keyframes worshipHintIn {
+  from { opacity: 0; transform: translate(-50%, -12px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+
 .live-lyrics-display {
   background: rgba(255, 255, 255, 0.04);
   border-left: 3px solid var(--gold-strong, #ffe4b3);
