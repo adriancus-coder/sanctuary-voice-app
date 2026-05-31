@@ -4535,6 +4535,23 @@ document.addEventListener('keydown', (e) => {
 });
 $('qrModalCopyBtn')?.addEventListener('click', () => copyField('qrModalLink', 'qrModalCopyBtn'));
 $('qrModalDownloadBtn')?.addEventListener('click', () => downloadQrFromImage('qrModalImage', 'sanctuary-voice-participant-qr'));
+
+// Worship QR modal (mirror al QR-ului participant, pentru pagina /worship)
+$('worshipShowQrBtn')?.addEventListener('click', () => {
+  const modal = $('worshipQrModal');
+  if (!modal) return;
+  const link = `${location.origin}/worship`;
+  if ($('worshipQrModalLink')) $('worshipQrModalLink').value = link;
+  const img = $('worshipQrModalImage');
+  if (img) img.src = `/api/worship-qr.png?ts=${Date.now()}`;
+  modal.hidden = false;
+});
+document.querySelectorAll('[data-worship-qr-close]').forEach((el) => {
+  el.addEventListener('click', () => { const m = $('worshipQrModal'); if (m) m.hidden = true; });
+});
+$('worshipQrModalCopyBtn')?.addEventListener('click', () => copyField('worshipQrModalLink', 'worshipQrModalCopyBtn'));
+$('worshipQrModalDownloadBtn')?.addEventListener('click', () => downloadQrFromImage('worshipQrModalImage', 'sanctuary-voice-worship-qr'));
+
 $('copyQrBtn')?.addEventListener('click', copyQrImage);
 $('downloadQrBtn')?.addEventListener('click', downloadQr);
 $('openRemoteControlBtn').addEventListener('click', () => {

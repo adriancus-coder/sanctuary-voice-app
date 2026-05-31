@@ -77,6 +77,20 @@ function registerOrgRoutes(app, ctx) {
     }
   });
 
+  // QR pentru pagina worship (echipa worship se loghează). Mirror exact al rutei participant-qr.
+  app.get('/api/worship-qr.png', async (req, res) => {
+    try {
+      const worshipUrl = `${buildBaseUrl(req)}/worship`;
+      const buffer = await QRCode.toBuffer(worshipUrl, { type: 'png', margin: 2, width: 720 });
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(buffer);
+    } catch (err) {
+      logger.error('worship qr error:', err);
+      res.status(500).send('QR error');
+    }
+  });
+
   app.get('/api/push/public-key', (req, res) => {
     res.json({
       ok: WEB_PUSH_ENABLED,

@@ -114,6 +114,9 @@
                 </div>
                 <div id="adminWorshipStatus" class="muted small" data-i18n="worship.status">Echipa worship nu a pornit Live mode.</div>
                 <div id="adminWorshipMembers" class="muted small" data-i18n="worship.members">0 membri online.</div>
+                <div class="hero-participant-row" style="margin-top:10px">
+                  <button id="worshipShowQrBtn" class="btn btn-dark" type="button" data-i18n="btn.worshipShowQr">📱 Worship QR</button>
+                </div>
                 <div id="adminWorshipRequest" class="worship-sync-toast hidden"></div>
               </div>
               <div id="adminOperatorsPanel" class="panel glass-panel dashboard-subcard">
@@ -1007,6 +1010,23 @@
       <div class="qr-modal-actions">
         <button id="qrModalCopyBtn" class="btn btn-dark" type="button" data-i18n="btn.qrCopy">📋 Copy link</button>
         <button id="qrModalDownloadBtn" class="btn btn-primary" type="button" data-i18n="btn.qrDownload">⬇ Download QR</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="worshipQrModal" class="qr-modal" hidden role="dialog" aria-labelledby="worshipQrModalTitle" aria-modal="true">
+    <div class="qr-modal-backdrop" data-worship-qr-close></div>
+    <div class="qr-modal-card">
+      <button class="qr-modal-close" data-worship-qr-close type="button" aria-label="Close">×</button>
+      <h2 data-i18n="qr.worshipTitle" id="worshipQrModalTitle">Worship QR Code</h2>
+      <p data-i18n="qr.worshipSubtitle" class="qr-modal-subtitle">Echipa worship scanează și ajunge la pagina de control.</p>
+      <img id="worshipQrModalImage" class="qr-modal-image" alt="Worship QR">
+      <div class="qr-modal-link-row">
+        <input id="worshipQrModalLink" type="text" readonly>
+      </div>
+      <div class="qr-modal-actions">
+        <button id="worshipQrModalCopyBtn" class="btn btn-dark" type="button" data-i18n="btn.qrCopy">📋 Copy link</button>
+        <button id="worshipQrModalDownloadBtn" class="btn btn-primary" type="button" data-i18n="btn.qrDownload">⬇ Download QR</button>
       </div>
     </div>
   </div>
