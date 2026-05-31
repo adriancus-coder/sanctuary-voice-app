@@ -559,6 +559,14 @@ function registerEventRoutes(app, ctx) {
     // Doar dacă evenimentul NU era deja active (real "start service", nu re-activare în timpul serviciului).
     const wasAlreadyActive = getActiveEventIdForOrg(orgId) === event.id;
     setActiveEventIdForOrg(orgId, event.id);
+    // FIX-ACTIVE-EVENT-3 — start instant la skip countdown. NU punem null: ensureEventAccessLinks()
+    // (apelat la fiecare /api/events/public) ar re-deriva scheduledTimestamp din scheduledAt și
+    // countdown-ul ar reveni la participanți. În schimb forțăm timestamp-ul ÎN TRECUT → countdown
+    // gata (isScheduledInFuture=false → participantul face join), iar valoarea fiind 'number'
+    // ensureEventAccessLinks NU o mai regenerează. Păstrăm scheduledAt (ora originală în afișaj/istoric).
+    if (req.body && req.body.skipCountdown === true && typeof event.scheduledTimestamp === 'number') {
+      event.scheduledTimestamp = Date.now() - 60 * 1000;
+    }
     if (!wasAlreadyActive) {
       ensureEventUiState(event);
       rememberDisplayState(event);
