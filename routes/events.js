@@ -559,11 +559,6 @@ function registerEventRoutes(app, ctx) {
     // Doar dacă evenimentul NU era deja active (real "start service", nu re-activare în timpul serviciului).
     const wasAlreadyActive = getActiveEventIdForOrg(orgId) === event.id;
     setActiveEventIdForOrg(orgId, event.id);
-    // FIX-ACTIVE-EVENT-2 — start instant: dacă clientul cere skip countdown, ștergem timestamp-ul
-    // programat ca participantul să pornească ACUM (altfel rămâne pe countdown deși e activ).
-    if (req.body && req.body.skipCountdown === true && typeof event.scheduledTimestamp === 'number') {
-      event.scheduledTimestamp = null;
-    }
     if (!wasAlreadyActive) {
       ensureEventUiState(event);
       rememberDisplayState(event);
