@@ -253,13 +253,56 @@
               '<option value="">— gamă —</option>' + opts + customOpt +
             '</select>' +
           '</div>' +
+          // WORSHIP-SECTIONS-A — toggle pt marcaje secțiune (Strofă/Refren/Pod) per bloc
+          '<button class="btn btn-dark btn-sm song-sections-toggle" type="button" data-sections-toggle="' + escapeHtml(s.id) + '" title="Marchează secțiuni">🏷 Secțiuni</button>' +
           (s.addedByWorship
             ? '<button class="btn btn-danger btn-sm" type="button" data-event-song-delete="' + escapeHtml(s.id) + '">Șterge</button>'
             : '') +
+          '<div class="song-sections-panel hidden" data-song-sections="' + escapeHtml(s.id) + '">' +
+            renderSongSections(s) +
+          '</div>' +
         '</div>'
       );
     }).join('');
     bindSongRowEvents();
+  }
+
+  // WORSHIP-SECTIONS-A — generează rândurile cu select Strofă/Refren/Pod per bloc parseVerses.
+  const SECTION_LABELS = { verse: 'Strofă', chorus: 'Refren', bridge: 'Pod' };
+  function renderSongSections(song) {
+    const verses = parseVerses(song.text || '');
+    if (!verses.length) return '<p class="muted small">Cântarea n-are blocuri (text gol).</p>';
+    const sections = Array.isArray(song.sections) ? song.sections : [];
+    return verses.map(function (v, i) {
+      const type = sections[i] || 'verse';
+      const preview = (v.split('\n')[0] || '').slice(0, 40);
+      const opts = ['verse', 'chorus', 'bridge'].map(function (t) {
+        return '<option value="' + t + '"' + (t === type ? ' selected' : '') + '>' + SECTION_LABELS[t] + '</option>';
+      }).join('');
+      return '<div class="song-section-row">' +
+        '<span class="song-section-num">' + (i + 1) + '</span>' +
+        '<select class="song-section-select" data-section-idx="' + i + '">' + opts + '</select>' +
+        '<span class="song-section-preview">' + escapeHtml(preview) + '…</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  async function saveSongSections(songId) {
+    if (!currentEvent || !songId) return;
+    const wrap = document.querySelector('[data-song-sections="' + songId + '"]');
+    if (!wrap) return;
+    const sections = Array.from(wrap.querySelectorAll('.song-section-select')).map((sel) => sel.value);
+    try {
+      const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) +
+        '/songs/' + encodeURIComponent(songId) + '/sections',
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ sections }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        const s = (currentEvent.songs || []).find((x) => String(x.id) === String(songId));
+        if (s) s.sections = data.song && Array.isArray(data.song.sections) ? data.song.sections : sections;
+      }
+    } catch (err) { console.warn('save sections failed', err); }
   }
 
   // WORSHIP-SONGS: bind gamă (change + dblclick custom), arrows, and drag&drop after each render.
@@ -277,6 +320,21 @@
       b.addEventListener('click', () => moveSong(b.getAttribute('data-song-up'), -1)));
     document.querySelectorAll('#eventSongsList [data-song-down]').forEach((b) =>
       b.addEventListener('click', () => moveSong(b.getAttribute('data-song-down'), +1)));
+    // WORSHIP-SECTIONS-A — toggle panel + save la change pe select
+    document.querySelectorAll('#eventSongsList [data-sections-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-sections-toggle');
+        const panel = document.querySelector('[data-song-sections="' + id + '"]');
+        if (panel) panel.classList.toggle('hidden');
+      });
+    });
+    document.querySelectorAll('#eventSongsList .song-section-select').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        const panel = sel.closest('[data-song-sections]');
+        const id = panel && panel.getAttribute('data-song-sections');
+        if (id) saveSongSections(id);
+      });
+    });
     bindSongDragDrop();
   }
 

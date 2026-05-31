@@ -7362,3 +7362,11 @@ body.live-fullscreen-active .glass-panel {
 /* WORSHIP-KEY-TRANSPOSE — butoane +/− semiton lângă selectorul de gamă */
 .worship-key-step { min-width: 52px; font-weight: 700; }
 .worship-key-step + .worship-key-step { margin-left: 4px; }
+
+/* WORSHIP-SECTIONS-A — marcaje secțiune (Strofă/Refren/Pod) per bloc */
+.song-sections-panel { margin: 8px 0 4px; padding: 8px; border: 1px dashed var(--ct-line, #333); border-radius: 8px; flex-basis: 100%; }
+.song-section-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.song-section-num { min-width: 22px; text-align: center; color: var(--accent, #cf9a3c); font-weight: 700; }
+.song-section-select { min-width: 90px; }
+.song-section-preview { color: var(--ct-parchment-d, #888); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.song-sections-toggle { font-size: 12px; }
