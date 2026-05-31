@@ -42,6 +42,35 @@
     }
   }
 
+  // WORSHIP-COUNTDOWN — overlay 3-2-1-GO pe proiector
+  let _countdownTimer = null;
+  function showCountdownOverlay() {
+    let ov = document.getElementById('worshipCountdownOverlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'worshipCountdownOverlay';
+      ov.className = 'worship-countdown-overlay';
+      document.body.appendChild(ov);
+    }
+    const steps = ['3', '2', '1', 'GO'];
+    let i = 0;
+    if (_countdownTimer) clearInterval(_countdownTimer);
+    const tick = () => {
+      if (i >= steps.length) {
+        clearInterval(_countdownTimer); _countdownTimer = null;
+        ov.style.display = 'none';
+        return;
+      }
+      ov.textContent = steps[i];
+      ov.classList.remove('cd-pulse'); void ov.offsetWidth; ov.classList.add('cd-pulse');
+      ov.classList.toggle('cd-go', steps[i] === 'GO');
+      ov.style.display = 'flex';
+      i++;
+    };
+    tick();
+    _countdownTimer = setInterval(tick, 700);
+  }
+
   function showWorshipHintBanner(hint) {
     const text = worshipHintText(hint);
     if (!text) return;
@@ -164,7 +193,11 @@
       applyState(data.state, data.song);
     });
     // WORSHIP-LEADER: leader hint banner (token-flow projector).
-    socket.on('worship:hint', (h) => showWorshipHintBanner(h));
+    socket.on('worship:hint', (h) => {
+      // WORSHIP-COUNTDOWN — countdown e separat de banner
+      if (h && h.type === 'countdown') { showCountdownOverlay(); return; }
+      showWorshipHintBanner(h);
+    });
   }
 
   // ---- V21.18 permanent-link flow ----
@@ -271,7 +304,11 @@
       showWaiting();
     });
     // WORSHIP-LEADER: leader hint banner (permanent-link projector).
-    socket.on('worship:hint', (h) => showWorshipHintBanner(h));
+    socket.on('worship:hint', (h) => {
+      // WORSHIP-COUNTDOWN — countdown e separat de banner
+      if (h && h.type === 'countdown') { showCountdownOverlay(); return; }
+      showWorshipHintBanner(h);
+    });
   }
 
   async function enterPermanent() {

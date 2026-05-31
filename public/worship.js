@@ -1201,6 +1201,8 @@
     // WORSHIP-LEADER: a hint from the leader. The leader doesn't need a banner
     // of their own hint (they triggered it), so only non-leaders show it.
     masterSocket.on('worship:hint', (h) => {
+      // WORSHIP-COUNTDOWN — countdown e văzut de TOȚI (inclusiv liderul), banner separat de hint
+      if (h && h.type === 'countdown') { showCountdownOverlay(); return; }
       if (!isWorshipLeader) showWorshipHintBanner(h);
     });
     masterHeartbeatTimer = setInterval(() => {
@@ -1396,6 +1398,35 @@
     }
   }
 
+  // WORSHIP-COUNTDOWN — overlay 3-2-1-GO afișat la toți (lider + echipă + proiector)
+  let _countdownTimer = null;
+  function showCountdownOverlay() {
+    let ov = document.getElementById('worshipCountdownOverlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'worshipCountdownOverlay';
+      ov.className = 'worship-countdown-overlay';
+      document.body.appendChild(ov);
+    }
+    const steps = ['3', '2', '1', 'GO'];
+    let i = 0;
+    if (_countdownTimer) clearInterval(_countdownTimer);
+    const tick = () => {
+      if (i >= steps.length) {
+        clearInterval(_countdownTimer); _countdownTimer = null;
+        ov.style.display = 'none';
+        return;
+      }
+      ov.textContent = steps[i];
+      ov.classList.remove('cd-pulse'); void ov.offsetWidth; ov.classList.add('cd-pulse');
+      ov.classList.toggle('cd-go', steps[i] === 'GO');
+      ov.style.display = 'flex';
+      i++;
+    };
+    tick();
+    _countdownTimer = setInterval(tick, 700);
+  }
+
   function sendHint(p) {
     if (!isWorshipLeader || !currentEvent || !masterSocket) return;
     masterSocket.emit('worship:hint', Object.assign({}, p, { eventId: currentEvent.id }));
@@ -1408,14 +1439,19 @@
                         next_strofa: 'Următoarea strofă', next_refren: 'Următorul refren',
                         next_pod: 'Următorul pod' };
   const WHEN_SECTION = { next_strofa: 'verse', next_refren: 'chorus', next_pod: 'bridge' };
-  // WORSHIP-WHEN-CARD — momentul selectat din card-ul de pastile (default 'now').
+  // WORSHIP-COUNTDOWN — nimic selectat default; liderul alege conștient (pastila „Acum" inclusă).
   // Persistă între dispatch-uri (nu reset) — liderul poate programa mai multe la același moment.
-  let _whenValue = 'now';
+  let _whenValue = null;
   function getWhenValue() { return _whenValue; }
   // dispatchHint(hint, action?): la 'now', cheamă action() + sendHint(hint); altfel, doar
   // queue (action e păstrat pt FAZA C, ca să-l execute la trigger).
   function dispatchHint(hint, action) {
     const when = getWhenValue();
+    // WORSHIP-COUNTDOWN — gardă: liderul trebuie să aleagă conștient un moment înainte să trimită hint
+    if (!when) {
+      setStatus($('liveStatus'), 'Alege momentul („Când se aplică") întâi.', 'warn');
+      return;
+    }
     if (when === 'now') {
       if (typeof action === 'function') { try { action(); } catch (_) {} }
       sendHint(hint);
@@ -1463,9 +1499,16 @@
         const targetSection = WHEN_SECTION[p.when];   // undefined pt next_verse
         const matches = isVerseTrigger || (targetSection && sectionAtNew === targetSection);
         if (!matches) return true;   // încă nu — păstrează în coadă
-        try { if (typeof p.action === 'function') p.action(); }
-        catch (e) { console.warn('pending action failed', e); }
-        sendHint(p.hint);
+        // WORSHIP-COUNTDOWN (A) — anunță schimbarea cu 3-2-1-GO la toți, apoi aplică pe GO
+        showCountdownOverlay();
+        sendHint({ type: 'countdown' });
+        const act = p.action;
+        const hintPayload = p.hint;
+        setTimeout(() => {
+          try { if (typeof act === 'function') act(); }
+          catch (e) { console.warn('pending action failed', e); }
+          sendHint(hintPayload);
+        }, 2100);   // după 3-2-1 (3×700ms), pe „GO"
         applied = true;
         return false;   // scoate din coadă
       });
@@ -1761,6 +1804,11 @@
       if (!text) return;
       dispatchHint({ type: 'free', text });
       inp.value = '';
+    });
+    // WORSHIP-COUNTDOWN — buton manual: instant pt toți (lider+echipă+proiector), NU trece prin „Când"
+    $('worshipCountdownBtn')?.addEventListener('click', () => {
+      showCountdownOverlay();
+      sendHint({ type: 'countdown' });
     });
 
     $('importUrlResults').addEventListener('click', async (e) => {
