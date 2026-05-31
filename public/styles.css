@@ -7435,3 +7435,43 @@ body.live-fullscreen-active .glass-panel {
   min-width: 40px !important;
   min-height: 40px !important;
 }
+
+/* WORSHIP-WHEN-CARD — card cu pastile one-touch (înlocuiește dropdown-ul „Când") */
+.worship-when-card {
+  background: var(--panel-2, #2e2416);
+  border: 1px solid var(--line, #4a3a22);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.worship-when-label {
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ct-parchment-d, #b8a888);
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.worship-when-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.when-pill {
+  flex: 1 1 auto; min-width: 80px;
+  padding: 12px 10px;
+  border-radius: 10px;
+  background: var(--panel, #261d12);
+  border: 1px solid var(--line, #4a3a22);
+  color: var(--parchment, #f5ecd9);
+  font-weight: 600; font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s ease;
+  text-align: center;
+}
+.when-pill:hover { border-color: var(--accent, #cf9a3c); }
+.when-pill.active {
+  background: linear-gradient(150deg, var(--accent, #cf9a3c), var(--brass-deep, #9a6f25));
+  color: #1a1206;
+  border-color: var(--accent, #cf9a3c);
+  box-shadow: 0 4px 14px -4px rgba(207, 154, 60, .5);
+}
+/* În leader-mode (FAZA D), pastilele mai mari pentru touch */
+.leader-mode .when-pill { padding: 16px 12px; font-size: 15px; min-height: 52px; }

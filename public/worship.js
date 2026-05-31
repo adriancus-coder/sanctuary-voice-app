@@ -1405,10 +1405,10 @@
                         next_strofa: 'Următoarea strofă', next_refren: 'Următorul refren',
                         next_pod: 'Următorul pod' };
   const WHEN_SECTION = { next_strofa: 'verse', next_refren: 'chorus', next_pod: 'bridge' };
-  function getWhenValue() {
-    const sel = $('worshipHintWhen');
-    return sel ? sel.value : 'now';
-  }
+  // WORSHIP-WHEN-CARD — momentul selectat din card-ul de pastile (default 'now').
+  // Persistă între dispatch-uri (nu reset) — liderul poate programa mai multe la același moment.
+  let _whenValue = 'now';
+  function getWhenValue() { return _whenValue; }
   // dispatchHint(hint, action?): la 'now', cheamă action() + sendHint(hint); altfel, doar
   // queue (action e păstrat pt FAZA C, ca să-l execute la trigger).
   function dispatchHint(hint, action) {
@@ -1666,6 +1666,14 @@
         if (t === 'next') dispatchHint({ type: 'next' }, () => liveNext());
         else if (t === 'repeat') dispatchHint({ type: 'repeat' }, () => setLiveVerse(liveCurrentVerseIndex));
         else if (t === 'chorus') dispatchHint({ type: 'chorus' });
+      });
+    });
+    // WORSHIP-WHEN-CARD — selectează momentul (one-touch), evidențiază butonul activ
+    document.querySelectorAll('#worshipWhenOptions .when-pill').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        _whenValue = btn.getAttribute('data-when') || 'now';
+        document.querySelectorAll('#worshipWhenOptions .when-pill').forEach((b) =>
+          b.classList.toggle('active', b === btn));
       });
     });
     $('worshipHintKeySelect').addEventListener('change', (e) => {

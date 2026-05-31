@@ -126,15 +126,15 @@
         </div>
         <div id="worshipLeaderControls" class="worship-leader-controls hidden">
           <p class="small muted">Trimite hinturi echipei și pe proiector. Cele cu acțiune mișcă și versetul live.</p>
-          <div class="worship-hint-row worship-when-row">
-            <label class="small" for="worshipHintWhen">Când se aplică</label>
-            <select id="worshipHintWhen" class="worship-hint-select">
-              <option value="now">Acum</option>
-              <option value="next_verse">Următorul vers</option>
-              <option value="next_strofa">Următoarea strofă</option>
-              <option value="next_refren">Următorul refren</option>
-              <option value="next_pod">Următorul pod</option>
-            </select>
+          <div class="worship-when-card">
+            <div class="worship-when-label">Când se aplică</div>
+            <div class="worship-when-options" id="worshipWhenOptions">
+              <button type="button" class="when-pill active" data-when="now">Acum</button>
+              <button type="button" class="when-pill" data-when="next_verse">Vers următor</button>
+              <button type="button" class="when-pill" data-when="next_strofa">Strofă următoare</button>
+              <button type="button" class="when-pill" data-when="next_refren">Refren următor</button>
+              <button type="button" class="when-pill" data-when="next_pod">Pod următor</button>
+            </div>
           </div>
           <div class="worship-hint-row">
             <button class="btn btn-dark btn-sm" type="button" data-hint="repeat">🔁 Repetă strofa</button>
