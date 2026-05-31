@@ -1538,6 +1538,9 @@ function fireScheduledReminder(event, minutes) {
 function renderHeroActiveEventSelect(activeEventId) {
   const select = $('heroActiveEventSelect');
   if (!select) return;
+  // FIX-ACTIVE-EVENT-2 — selectăm evenimentul DESCHIS (currentEvent) ca să nu "sară" înapoi la
+  // cel activ după Open. Fallback la activeEventId dacă nu e nimic deschis.
+  const selectedId = (currentEvent && currentEvent.id) || activeEventId || '';
   select.innerHTML = '';
   const placeholder = document.createElement('option');
   placeholder.value = '';
@@ -1547,7 +1550,7 @@ function renderHeroActiveEventSelect(activeEventId) {
     const opt = document.createElement('option');
     opt.value = event.id;
     opt.textContent = event.name || 'Service';
-    if (event.id === activeEventId) opt.selected = true;
+    if (event.id === selectedId) opt.selected = true;
     select.appendChild(opt);
   }
 }
@@ -2615,14 +2618,15 @@ async function returnToLiveText() {
   setStatus('Participants are back on live text. Main screen unchanged.');
 }
 
-async function setActiveEvent() {
+async function setActiveEvent(skipCountdown = false) {
   if (!currentEvent) return;
-  const res = await fetch(`/api/events/${currentEvent.id}/activate`, adminJsonOptions('POST'));
+  const res = await fetch(`/api/events/${currentEvent.id}/activate`,
+    adminJsonOptions('POST', { skipCountdown }));
   const data = await res.json();
   if (data.ok) {
     currentEvent = data.event;
     renderActiveEventBadge(currentEvent);
-    setStatus('Event is live now.');
+    setStatus(skipCountdown ? 'Live acum (countdown anulat).' : 'Event is live now.');
   }
 }
 
@@ -2643,9 +2647,15 @@ function updateGoLiveButtonState() {
 }
 document.getElementById('heroGoLiveBtn')?.addEventListener('click', async () => {
   if (!currentEvent) return;
-  // dacă e deja live, nu face nimic; altfel activează pentru public
   if (currentEvent.isActive) { setStatus('Evenimentul e deja live.'); return; }
-  await setActiveEvent();                // funcția existentă: POST /activate
+  // FIX-ACTIVE-EVENT-2 — dacă e programat în viitor, întreabă dacă pornim instant
+  const ts = Number(currentEvent.scheduledTimestamp || 0);
+  let skip = false;
+  if (ts && ts > Date.now()) {
+    skip = confirm('Acest eveniment are countdown programat. Pornești ACUM (skip countdown)?\n\nOK = pornește instant · Anulează = păstrează countdown-ul');
+    // dacă userul anulează, tot îl activăm dar păstrăm countdown-ul (participanții îl văd la oră)
+  }
+  await setActiveEvent(skip);
   await refreshEventList();
   updateGoLiveButtonState();
 });
