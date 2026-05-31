@@ -6604,6 +6604,41 @@ button[disabled]:active {
   text-align: center;
 }
 
+/* WORSHIP-LIVE-KEY: song key (gamă) badges in LIVE mode + song order numbers.
+   Uses --accent (the codebase brass var; --ct-brass is not defined) with the
+   same #cf9a3c fallback. text-transform/letter-spacing are reset because the
+   host labels (.live-verse-label, .verse-mini-label) uppercase + space text,
+   which would otherwise mangle keys like "Am" / "F#m". */
+.live-song-key {
+  display: inline-block;
+  margin-left: 12px;
+  padding: 2px 12px;
+  background: var(--accent, #cf9a3c);
+  color: #1a1206;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+.verse-mini-key {
+  margin-left: 6px;
+  padding: 1px 7px;
+  background: rgba(207, 154, 60, 0.25);
+  color: var(--accent, #cf9a3c);
+  border-radius: 7px;
+  font-size: 0.8em;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.song-order-num {
+  color: var(--accent, #cf9a3c);
+  font-weight: 700;
+  margin-right: 2px;
+}
+
 .live-controls {
   display: flex;
   align-items: center;

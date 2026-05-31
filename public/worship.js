@@ -227,7 +227,7 @@
             '<button class="btn btn-sm song-move-down" type="button" data-song-down="' + escapeHtml(s.id) + '"' + (idx === songs.length - 1 ? ' disabled' : '') + '>▼</button>' +
           '</div>' +
           '<div class="event-song-meta">' +
-            '<strong>' + escapeHtml(s.title || 'Fără titlu') + '</strong>' +
+            '<strong><span class="song-order-num">' + (idx + 1) + '.</span> ' + escapeHtml(s.title || 'Fără titlu') + '</strong>' +
             (s.addedByWorship ? '<span class="worship-tag">adăugat de tine</span>' : '') +
           '</div>' +
           '<div class="song-key-wrap" title="Gamă (dublu-click pt valoare custom)">' +
@@ -677,8 +677,12 @@
       select.disabled = true;
     } else {
       select.disabled = false;
+      // WORSHIP-LIVE-KEY: number each song (1., 2., …) and surface its key in
+      // the LIVE picker so the leader sees order + tonality at a glance.
       select.innerHTML = '<option value="">Alege cântarea…</option>' +
-        songs.map((s) => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.title || 'Fără titlu') + '</option>').join('');
+        songs.map((s, idx) => '<option value="' + escapeHtml(s.id) + '">' +
+          (idx + 1) + '. ' + escapeHtml(s.title || 'Fără titlu') +
+          (s.key ? ' [' + escapeHtml(s.key) + ']' : '') + '</option>').join('');
     }
     // Restore from the server-side worshipState if it points at a known song.
     const ws = currentEvent && currentEvent.worshipState;
@@ -703,6 +707,10 @@
     const listEl = $('liveVerseList');
     if (!labelEl || !textEl || !posEl || !listEl) return;
     const song = getLiveSong();
+    // WORSHIP-LIVE-KEY: current song's key (gamă), surfaced in LIVE mode next to
+    // the verse label and on every verse mini-card so the team always sees the
+    // tonality. Read-only — does not touch the live control path.
+    const songKey = song && song.key ? song.key : '';
     if (!song) {
       labelEl.textContent = '—';
       textEl.textContent = 'Selectează o cântare.';
@@ -722,12 +730,13 @@
     liveCurrentVerseIndex = idx;
     // V21.22: when in END state, show a clear "paused" view while keeping
     // the verse list highlighted so the master can step back.
+    const keyBadge = songKey ? ' <span class="live-song-key">🎵 ' + escapeHtml(songKey) + '</span>' : '';
     if (liveEnded) {
-      labelEl.textContent = 'END';
+      labelEl.innerHTML = 'END' + keyBadge;
       textEl.textContent = 'Ecran golit pentru membri.';
       posEl.textContent = 'END · ' + verses.length + ' / ' + verses.length;
     } else {
-      labelEl.textContent = 'Strofa ' + (idx + 1);
+      labelEl.innerHTML = 'Strofa ' + (idx + 1) + keyBadge;
       textEl.textContent = verses[idx];
       posEl.textContent = (idx + 1) + ' / ' + verses.length;
     }
@@ -737,7 +746,9 @@
     listEl.innerHTML = verses.map((v, i) =>
       '<button type="button" class="verse-mini-item' + (i === idx && !liveEnded ? ' current' : '') +
       '" data-verse-index="' + i + '">' +
-        '<div class="verse-mini-label">Strofa ' + (i + 1) + '</div>' +
+        '<div class="verse-mini-label">Strofa ' + (i + 1) +
+          (songKey ? ' <span class="verse-mini-key">🎵 ' + escapeHtml(songKey) + '</span>' : '') +
+        '</div>' +
         '<div class="verse-mini-text">' + escapeHtml(v) + '</div>' +
       '</button>'
     ).join('');
@@ -1202,8 +1213,11 @@
     const songSel = $('worshipHintSongSelect');
     if (songSel) {
       const songs = (currentEvent && Array.isArray(currentEvent.songs)) ? currentEvent.songs : [];
+      // WORSHIP-LIVE-KEY: same number + key treatment as the main live picker.
       songSel.innerHTML = '<option value="">— cântare —</option>' +
-        songs.map((s) => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.title || 'Fără titlu') + '</option>').join('');
+        songs.map((s, idx) => '<option value="' + escapeHtml(s.id) + '">' +
+          (idx + 1) + '. ' + escapeHtml(s.title || 'Fără titlu') +
+          (s.key ? ' [' + escapeHtml(s.key) + ']' : '') + '</option>').join('');
     }
   }
 
