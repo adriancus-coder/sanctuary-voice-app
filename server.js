@@ -2248,7 +2248,7 @@ function hashBlock(text) {
   return createHash('sha256').update(String(text || '').trim()).digest('hex').slice(0, 16);
 }
 
-function upsertLibraryItem(list, { title, text, labels, sourceLang }, maxItems = 100) {
+function upsertLibraryItem(list, { title, text, labels, sourceLang, key }, maxItems = 100) {
   const safeTitle = String(title || '').trim();
   const safeText = sanitizeStructuredText(text || '');
   const parsedSong = splitSongBlocksWithLabels(safeText, labels || []);
@@ -2256,16 +2256,18 @@ function upsertLibraryItem(list, { title, text, labels, sourceLang }, maxItems =
   const normalizedTitle = normalizeLibraryTitle(safeTitle);
   const existingIndex = list.findIndex((item) => normalizeLibraryTitle(item.title) === normalizedTitle);
   const existingItem = existingIndex >= 0 ? list[existingIndex] : null;
+  // FIX-KEY-PRESERVE + LIBRARY-KEY-GLOBAL — păstrează key existent la re-edit; dacă apelantul
+  // pasează un key (ex. seed din biblioteca globală la songs/add), îl preferă (ca punct de start).
+  const resolvedKey = typeof key === 'string' && key
+    ? key.slice(0, 12)
+    : (typeof existingItem?.key === 'string' ? existingItem.key : '');
   const payload = {
     id: existingItem ? existingItem.id : randomUUID(),
     title: safeTitle,
     text: safeText,
     labels: safeLabels,
     sourceLang: String(sourceLang || existingItem?.sourceLang || 'ro').trim() || 'ro',
-    // FIX-KEY-PRESERVE — propagă key (gama) existent al cântării ca să nu se piardă la
-    // re-editarea titlului/textului. WORSHIP-SONGS setează key direct prin PATCH /key,
-    // dar upsertLibraryItem (re-edit) reconstruia payload-ul fără să-l propage → key dispărea.
-    key: typeof existingItem?.key === 'string' ? existingItem.key : '',
+    key: resolvedKey,
     // Păstrăm cache-ul de traduceri per strofă; per-block hash invalidation
     // ține automat cache-ul valid pentru strofele neschimbate, indiferent dacă
     // alte strofe s-au editat (vor avea hash nou = cache miss controlat).
@@ -5560,7 +5562,9 @@ app.post('/api/worship/events/:id/songs/add', (req, res) => {
       title: librarySong.title,
       text: librarySong.text,
       labels: librarySong.labels || [],
-      sourceLang: librarySong.sourceLang || event.sourceLang || 'ro'
+      sourceLang: librarySong.sourceLang || event.sourceLang || 'ro',
+      // LIBRARY-KEY-GLOBAL — seed key din biblioteca globală (punct de start)
+      key: typeof librarySong.key === 'string' ? librarySong.key : ''
     }, 100);
     // upsertLibraryItem dedupes by title: it may have overwritten an existing
     // (admin-added) song instead of creating one. Worship may only delete songs
@@ -5643,6 +5647,16 @@ app.patch('/api/worship/events/:id/songs/:itemId/key', (req, res) => {
     const song = (event.songLibrary || []).find((s) => s && String(s.id) === itemId);
     if (!song) return res.status(404).json({ ok: false, error: 'Song not found in event' });
     song.key = typeof req.body?.key === 'string' ? req.body.key.trim().slice(0, 12) : '';
+    // LIBRARY-KEY-GLOBAL — salvează gama și în biblioteca globală (după title normalizat),
+    // ca data viitoare când se adaugă cântarea (songs/add), să vină cu key ca punct de start.
+    try {
+      const globalLib = getOrganizationSongLibrary(getEventOrgId(event));
+      if (Array.isArray(globalLib) && song && song.title) {
+        const targetTitle = normalizeLibraryTitle(song.title);
+        const globalSong = globalLib.find((g) => g && normalizeLibraryTitle(g.title) === targetTitle);
+        if (globalSong) globalSong.key = song.key;
+      }
+    } catch (e) { logger.warn('[key-global] propagation failed:', e && e.message); }
     saveDb();
     setWorshipSessionCookie(req, res, session);
     // V21.6: live-sync event songLibrary across admin / operator / worship.
