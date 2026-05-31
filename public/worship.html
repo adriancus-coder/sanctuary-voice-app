@@ -57,23 +57,25 @@
 
       <!-- Unified search: Library (instant) + Resurse (on demand) -->
       <div class="library-section panel glass-panel">
-        <h3>Caută cântare</h3>
-        <div class="unified-search">
-          <div class="unified-search-input-row">
-            <input id="globalSongLibrarySearch" type="search" class="unified-search-input" placeholder="Caută cântare (Library + Resurse)...">
-            <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button">Caută și pe resurse</button>
+        <details class="library-dropdown" open>
+          <summary class="library-dropdown-summary">📚 Caută cântare</summary>
+          <div class="unified-search">
+            <div class="unified-search-input-row">
+              <input id="globalSongLibrarySearch" type="search" class="unified-search-input" placeholder="Caută cântare (Library + Resurse)...">
+              <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button">Caută și pe resurse</button>
+            </div>
+            <div id="importUrlStatus" class="status-line"></div>
+            <div class="unified-search-library-section">
+              <div class="unified-search-section-label">Din Library</div>
+              <div id="globalSongLibraryStatus" class="status-line"></div>
+              <div id="globalSongLibraryList" class="library-list unified-search-library-results"></div>
+            </div>
+            <div class="unified-search-resurse-section hidden">
+              <div class="unified-search-section-label">De pe Resurse <span class="unified-search-spinner hidden">⏳</span></div>
+              <div id="importUrlResults" class="import-results unified-search-resurse-results"></div>
+            </div>
           </div>
-          <div id="importUrlStatus" class="status-line"></div>
-          <div class="unified-search-library-section">
-            <div class="unified-search-section-label">Din Library</div>
-            <div id="globalSongLibraryStatus" class="status-line"></div>
-            <div id="globalSongLibraryList" class="library-list unified-search-library-results"></div>
-          </div>
-          <div class="unified-search-resurse-section hidden">
-            <div class="unified-search-section-label">De pe Resurse <span class="unified-search-spinner hidden">⏳</span></div>
-            <div id="importUrlResults" class="import-results unified-search-resurse-results"></div>
-          </div>
-        </div>
+        </details>
       </div>
 
       <!-- New song editor -->

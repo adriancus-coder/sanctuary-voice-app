@@ -163,32 +163,32 @@
            Row 3: Worship Live (full-width)
            Collapsibles below stay full-width. -->
       <div class="panel glass-panel section-stack" data-remote-song-section>
-        <div class="section-head">
-          <h2>Church Library</h2>
+        <details class="library-dropdown" open>
+          <summary class="library-dropdown-summary">📚 Church Library</summary>
           <div class="muted">Shared for all events · search resursecrestine.ro too</div>
-        </div>
-        <div class="unified-search">
-          <div class="unified-search-input-row">
-            <input id="remoteSongLibrarySearch" type="text" class="unified-search-input" placeholder="Caută cântare (Library + Resurse)...">
-            <select id="remoteSongLibrarySort">
-              <option value="az" selected>Title A-Z</option>
-              <option value="za">Title Z-A</option>
-              <option value="recent">Recent first</option>
-            </select>
-            <button id="remoteImportUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button">Caută și pe resurse</button>
-          </div>
-          <div id="remoteImportUrlStatus" class="muted" style="min-height:1em;"></div>
-          <div class="unified-search-library-section">
-            <div class="unified-search-section-label">Din Library</div>
-            <div id="remoteSongLibraryList" class="event-list unified-search-library-results">
-              <div class="muted">Loading church library...</div>
+          <div class="unified-search">
+            <div class="unified-search-input-row">
+              <input id="remoteSongLibrarySearch" type="text" class="unified-search-input" placeholder="Caută cântare (Library + Resurse)...">
+              <select id="remoteSongLibrarySort">
+                <option value="az" selected>Title A-Z</option>
+                <option value="za">Title Z-A</option>
+                <option value="recent">Recent first</option>
+              </select>
+              <button id="remoteImportUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button">Caută și pe resurse</button>
+            </div>
+            <div id="remoteImportUrlStatus" class="muted" style="min-height:1em;"></div>
+            <div class="unified-search-library-section">
+              <div class="unified-search-section-label">Din Library</div>
+              <div id="remoteSongLibraryList" class="event-list unified-search-library-results">
+                <div class="muted">Loading church library...</div>
+              </div>
+            </div>
+            <div class="unified-search-resurse-section hidden">
+              <div class="unified-search-section-label">De pe Resurse <span class="unified-search-spinner hidden">⏳</span></div>
+              <div id="remoteImportUrlResults" class="import-url-results unified-search-resurse-results"></div>
             </div>
           </div>
-          <div class="unified-search-resurse-section hidden">
-            <div class="unified-search-section-label">De pe Resurse <span class="unified-search-spinner hidden">⏳</span></div>
-            <div id="remoteImportUrlResults" class="import-url-results unified-search-resurse-results"></div>
-          </div>
-        </div>
+        </details>
       </div>
 
       <div id="remoteSongEditorPanel" class="panel glass-panel section-stack" data-remote-song-section>
