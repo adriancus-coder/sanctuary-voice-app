@@ -1741,8 +1741,10 @@
     });
     // WORSHIP-WHEN-CARD — selectează momentul (one-touch), evidențiază butonul activ
     document.querySelectorAll('#worshipWhenOptions .when-pill').forEach((btn) => {
+      // WORSHIP-COUNTDOWN-MOVE — exclude butonul de acțiune (fără data-when) din selecția de momente
+      if (!btn.getAttribute('data-when')) return;
       btn.addEventListener('click', () => {
-        _whenValue = btn.getAttribute('data-when') || 'now';
+        _whenValue = btn.getAttribute('data-when');
         document.querySelectorAll('#worshipWhenOptions .when-pill').forEach((b) =>
           b.classList.toggle('active', b === btn));
       });

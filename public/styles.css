@@ -7492,3 +7492,18 @@ body.live-fullscreen-active .glass-panel {
   40%  { transform: scale(1.1); opacity: 1; }
   100% { transform: scale(1);   opacity: 1; }
 }
+
+/* WORSHIP-COUNTDOWN-MOVE — pastila de ACȚIUNE (countdown) în cardul „Când", distinctă de momente */
+.when-pill-action {
+  flex-basis: 100%;
+  background: var(--panel, #261d12);
+  border: 1px dashed var(--accent, #cf9a3c) !important;
+  color: var(--accent, #cf9a3c);
+  margin-top: 4px;
+}
+.when-pill-action:hover { background: rgba(207, 154, 60, 0.12); }
+/* Anulează aspectul .active moștenit — pastila de acțiune nu se „selectează" */
+.when-pill-action.active {
+  background: var(--panel, #261d12);
+  color: var(--accent, #cf9a3c);
+}
