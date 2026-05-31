@@ -1562,7 +1562,11 @@ function setActiveEventIdForOrg(orgId = DEFAULT_ORG_ID, eventId = null) {
 }
 
 function isEventActive(event) {
-  return !!event?.id && getActiveEventIdForOrg(getEventOrgId(event)) === event.id;
+  if (!event?.id) return false;
+  // WORSHIP-DRAFT-1: un draft neaprobat NU e niciodată „live" pentru participanți/public.
+  // Worship îl poate edita prin isWorshipEditableEvent (scheduled în viitor) — independent.
+  if (event.approved === false) return false;
+  return getActiveEventIdForOrg(getEventOrgId(event)) === event.id;
 }
 
 function getOrganizationEvents(orgId = DEFAULT_ORG_ID) {
@@ -1690,6 +1694,10 @@ function summarizeEvent(event) {
     organizationName: org.name,
     hidden: !!event.hidden,
     testMode: !!event.testMode,
+    // WORSHIP-DRAFT-1: flag-uri pentru admin UI (filtrare „de aprobat")
+    worshipDraft: !!event.worshipDraft,
+    approved: event.approved !== false,
+    createdByWorship: !!event.createdByWorship,
     name: event.name,
     createdAt: event.createdAt || null,
     scheduledAt: event.scheduledAt || null,
@@ -2071,6 +2079,10 @@ function normalizeEvent(event, options = {}) {
     organization: buildPublicOrganization(org),
     hidden: !!event.hidden,
     testMode: !!event.testMode,
+    // WORSHIP-DRAFT-1: flag-uri pentru admin UI (filtrare „de aprobat")
+    worshipDraft: !!event.worshipDraft,
+    approved: event.approved !== false,
+    createdByWorship: !!event.createdByWorship,
     name: event.name,
     sourceLang: event.sourceLang || 'ro',
     liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
@@ -2625,7 +2637,7 @@ function deriveScheduledFields({ scheduledDate, scheduledTime, timezone, schedul
   };
 }
 
-async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt, scheduledDate, scheduledTime, timezone, hidden = false, testMode = false, organizationId = DEFAULT_ORG_ID }) {
+async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, scheduledAt, scheduledDate, scheduledTime, timezone, hidden = false, testMode = false, organizationId = DEFAULT_ORG_ID, worshipDraft = false, approved = true, createdByWorship = false }) {
   const organization = ensureOrganization(organizationId);
   const id = randomUUID();
   const adminCode = generateSecureCode('SV-ADMIN');
@@ -2645,6 +2657,10 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     organizationId: organization.id,
     hidden: !!hidden,
     testMode: !!testMode,
+    // WORSHIP-DRAFT-1: draft worship neaprobat — invizibil participanților + nu poate merge live
+    worshipDraft: !!worshipDraft,
+    approved: approved !== false,
+    createdByWorship: !!createdByWorship,
     name: name || 'Eveniment nou',
     sourceLang: sourceLang || 'ro',
     liveSourceLang: sourceLang || 'ro',
@@ -2690,10 +2706,13 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
   };
 
   db.events[id] = event;
-  setActiveEventIdForOrg(organization.id, id);
+  // WORSHIP-DRAFT-1: draft-urile NU se auto-activează (admin le aprobă + activează ulterior)
+  if (!worshipDraft) {
+    setActiveEventIdForOrg(organization.id, id);
+  }
   saveDb();
   setImmediate(() => {
-    io.emit('active_event_changed', { eventId: id });
+    if (!worshipDraft) io.emit('active_event_changed', { eventId: id });
     // V21.18: refresh permanent worship-view subscribers.
     broadcastPermanentWorshipView();
   });
@@ -5463,6 +5482,36 @@ app.get('/api/worship-view/live', (req, res) => {
   if (!event) return res.json({ ok: true, live: false });
   const payload = buildWorshipStatePayload(event);
   return res.json({ ok: true, live: true, eventId: event.id, eventName: event.name || '', state: payload.state, song: payload.song });
+});
+
+// WORSHIP-DRAFT-1: worship creates a draft event (worshipDraft + approved:false, minimal name).
+// Invisible to participants until admin approves. Worship can edit it (scheduled future = editable).
+// Admin sets the real date/details on approval.
+app.post('/api/worship/events/create-draft', async (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  try {
+    const name = String(req.body?.name || '').trim().slice(0, 120);
+    if (!name) return res.status(400).json({ ok: false, error: 'Numele e obligatoriu.' });
+    const baseUrl = buildBaseUrl(req);
+    const event = await createEvent({
+      name, baseUrl,
+      organizationId: DEFAULT_ORG_ID,
+      worshipDraft: true,
+      approved: false,
+      createdByWorship: true,
+      // Implicit „mâine" → scheduledTimestamp > Date.now() face draft-ul editabil (isWorshipEditableEvent).
+      scheduledAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+    });
+    event.worshipDraftCreatedAt = Date.now();
+    saveDb();
+    setWorshipSessionCookie(req, res, session);
+    logger.info('[worship] draft event created:', event.id, 'name=', name);
+    return res.json({ ok: true, eventId: event.id, name });
+  } catch (err) {
+    logger.error('[worship/create-draft] failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
 });
 
 app.get('/api/worship/events', (req, res) => {

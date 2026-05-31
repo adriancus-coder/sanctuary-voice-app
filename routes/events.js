@@ -554,6 +554,10 @@ function registerEventRoutes(app, ctx) {
     const event = db.events[req.params.id];
     if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
     if (!requireEventAdmin(req, res, event)) return;
+    // WORSHIP-DRAFT-1: draft neaprobat NU poate merge live. Admin trebuie să aprobe întâi.
+    if (event.approved === false) {
+      return res.status(403).json({ ok: false, error: 'Eveniment draft — trebuie aprobat înainte de a merge live.' });
+    }
     const orgId = getEventOrgId(event);
     // FEATURE 2: Default Black Screen pe pornire serviciu.
     // Doar dacă evenimentul NU era deja active (real "start service", nu re-activare în timpul serviciului).
