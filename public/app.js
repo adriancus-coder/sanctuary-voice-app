@@ -540,6 +540,7 @@ function renderActiveEventBadge(event) {
   $('songModeBadge').textContent = isSongMode ? 'Song live' : (event.displayState?.mode === 'manual' ? 'Pinned text live' : 'Live follow');
   $('songModeBadge').className = (isSongMode || event.displayState?.mode === 'manual') ? 'status-pill active' : 'status-pill';
   renderAdminEventSongLibrary();
+  updateGoLiveButtonState();
 }
 
 // V21.4-FIX: render the per-event "Songs in this event" panel from
@@ -2625,6 +2626,30 @@ async function setActiveEvent() {
   }
 }
 
+// FIX-ACTIVE-EVENT — buton Go Live (toggle): arată dacă evenimentul deschis e live sau nu
+function updateGoLiveButtonState() {
+  const btn = document.getElementById('heroGoLiveBtn');
+  if (!btn) return;
+  if (!currentEvent) {
+    btn.textContent = 'Set live';
+    btn.disabled = true;
+    btn.classList.remove('btn-confirmed');
+    return;
+  }
+  btn.disabled = false;
+  const isLive = !!currentEvent.isActive;
+  btn.textContent = isLive ? '🔴 Live now' : 'Set live';
+  btn.classList.toggle('btn-confirmed', isLive);
+}
+document.getElementById('heroGoLiveBtn')?.addEventListener('click', async () => {
+  if (!currentEvent) return;
+  // dacă e deja live, nu face nimic; altfel activează pentru public
+  if (currentEvent.isActive) { setStatus('Evenimentul e deja live.'); return; }
+  await setActiveEvent();                // funcția existentă: POST /activate
+  await refreshEventList();
+  updateGoLiveButtonState();
+});
+
 async function loadAudioInputs(keepValue = true) {
   const select = $('audioInput');
   const previous = keepValue ? select.value : '';
@@ -4582,19 +4607,13 @@ $('heroActiveEventSelect')?.addEventListener('change', async (e) => {
   const eventId = e.target.value;
   if (!eventId) return;
   try {
+    // FIX-ACTIVE-EVENT — selectarea DOAR deschide evenimentul (mod test/pregătire).
+    // Activarea pentru public se face explicit din butonul "Set live" (toggle).
     await openEventById(eventId);
-    if (currentEvent?.id === eventId) {
-      const res = await fetch(`/api/events/${eventId}/activate`, adminJsonOptions('POST'));
-      const data = await res.json();
-      if (data.ok) {
-        currentEvent = data.event;
-        renderActiveEventBadge(currentEvent);
-        await refreshEventList();
-        setStatus('Active event switched.');
-      }
-    }
+    setStatus('Eveniment deschis (test). Apasă „Set live" ca să-l faci public.');
+    updateGoLiveButtonState();
   } catch (err) {
-    console.warn('hero active event change failed:', err);
+    console.warn('hero active event open failed:', err);
   }
 });
 
