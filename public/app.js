@@ -1456,6 +1456,8 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
     if (event.id === activeEventId) badges.push('<div class="mini-badge mini-badge-active">Live</div>');
     if (event.hidden) badges.push('<div class="mini-badge mini-badge-warn" title="Hidden from participants">Hidden</div>');
     if (event.testMode) badges.push('<div class="mini-badge mini-badge-test" title="Test mode — participants see a TEST banner">Test</div>');
+    // WORSHIP-DRAFT-34 — badge pentru draft worship neaprobat
+    if (event.worshipDraft && !event.approved) badges.push('<div class="mini-badge mini-badge-warn" title="Draft creat de echipa worship — necesită aprobare">📝 Draft</div>');
     const visibilityLabel = event.hidden ? 'Show to participants' : 'Hide from participants';
     const visibilityTitle = event.hidden
       ? 'Make this event visible in the participant chooser. Useful for live testing.'
@@ -1480,7 +1482,8 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
         <div class="muted">Texts: ${event.transcriptCount || 0}</div>
         <div class="button-row compact">
           <button class="btn btn-dark" data-action="open" data-id="${event.id}" title="Load this event in Live Control to edit transcript, glossary, songs, and main screen.">Open</button>
-          <button class="btn btn-primary" data-action="activate" data-id="${event.id}" title="Make this the active event for participants and the main screen. Only one event can be live at a time."${event.id === activeEventId ? ' disabled' : ''}>${event.id === activeEventId ? 'Live now' : 'Set live'}</button>
+          ${(event.worshipDraft && !event.approved) ? `<button class="btn btn-confirmed" data-action="approve" data-id="${event.id}" title="Aprobă acest eveniment draft creat de worship — devine eveniment normal și poate merge live.">✓ Aprobă</button>` : ''}
+          <button class="btn btn-primary" data-action="activate" data-id="${event.id}" title="Make this the active event for participants and the main screen. Only one event can be live at a time."${(event.id === activeEventId || (event.worshipDraft && !event.approved)) ? ' disabled' : ''}>${event.id === activeEventId ? 'Live now' : 'Set live'}</button>
           <button class="btn btn-dark" data-action="duplicate" data-id="${event.id}" title="Create a new event with the same languages, glossary, and song library — clean transcript and stats.">Duplicate</button>
           <button class="btn btn-dark" data-action="visibility" data-id="${event.id}" title="${escapeHtml(visibilityTitle)}">${visibilityLabel}</button>
           <button class="btn btn-danger" data-action="delete" data-id="${event.id}">Delete</button>
@@ -5516,6 +5519,27 @@ $('eventList').addEventListener('click', async (e) => {
     });
     const data = await res.json();
     if (data.ok) { if (currentEvent && currentEvent.id === id) currentEvent = data.event; await refreshEventList(); renderActiveEventBadge(currentEvent); }
+    return;
+  }
+  // WORSHIP-DRAFT-34 — admin aprobă un draft worship → devine eveniment normal (poate merge live)
+  if (action === 'approve') {
+    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event to approve it:') || '').trim();
+    if (!adminCode) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/events/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: adminCode })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) { alert(data.error || 'Aprobare eșuată.'); return; }
+      await refreshEventList();
+    } catch (err) {
+      alert('Eroare la aprobare: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
     return;
   }
   if (action === 'delete') {

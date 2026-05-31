@@ -550,6 +550,23 @@ function registerEventRoutes(app, ctx) {
     res.json({ ok: true, event: normalizeEventForAccess(req, event) });
   });
 
+  // WORSHIP-DRAFT-34: admin approves a worship draft event → becomes a normal event (can go live).
+  // Same admin-code gate as /activate, for consistency. worshipDraft remains true (audit trail);
+  // only `approved` controls visibility/live-eligibility.
+  app.post('/api/events/:id/approve', (req, res) => {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+    if (!requireEventAdmin(req, res, event)) return;
+    event.approved = true;
+    if (typeof req.body?.name === 'string' && req.body.name.trim()) {
+      event.name = req.body.name.trim().slice(0, 120);
+    }
+    saveDb();
+    setImmediate(() => io.emit('active_event_changed', { eventId: event.id }));
+    logger.info('[admin] approved worship draft:', event.id, 'name=', event.name);
+    return res.json({ ok: true, eventId: event.id });
+  });
+
   app.post('/api/events/:id/activate', (req, res) => {
     const event = db.events[req.params.id];
     if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
