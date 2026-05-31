@@ -1510,12 +1510,6 @@
         else if (t === 'chorus') { sendHint({ type: 'chorus' }); }
       });
     });
-    $('worshipHintVerseBtn').addEventListener('click', () => {
-      const n = parseInt($('worshipHintVerseInput').value, 10);
-      if (!Number.isFinite(n) || n < 1) return;
-      setLiveVerse(n - 1);
-      sendHint({ type: 'jump_verse', verseIndex: n - 1 });
-    });
     $('worshipHintKeySelect').addEventListener('change', (e) => {
       const key = e.target.value;
       if (key) sendHint({ type: 'change_key', key });
