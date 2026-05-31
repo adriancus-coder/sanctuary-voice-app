@@ -203,6 +203,24 @@
   const SONG_KEYS = ['C','C#','Db','D','D#','Eb','E','F','F#','Gb','G','G#','Ab','A','A#','Bb','B',
                      'Cm','C#m','Dm','D#m','Ebm','Em','Fm','F#m','Gm','G#m','Am','A#m','Bbm','Bm'];
 
+  // WORSHIP-KEY-TRANSPOSE: scară cromatică curată (12 semitoni, sharp-only) + mapping
+  // enharmonic. Folosită DOAR pentru transpunere ±1 semiton, separat de SONG_KEYS care
+  // amestecă enharmonice + major/minor pentru selector.
+  const CHROMATIC = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const ENHARMONIC = { 'Db':'C#','Eb':'D#','Gb':'F#','Ab':'G#','Bb':'A#',
+                       'Dbm':'C#m','Ebm':'D#m','Gbm':'F#m','Abm':'G#m','Bbm':'A#m' };
+  function transposeKey(key, semitones) {
+    if (!key) return key;
+    let k = String(key).trim();
+    if (ENHARMONIC[k]) k = ENHARMONIC[k];
+    const isMinor = /m$/.test(k);
+    const root = isMinor ? k.slice(0, -1) : k;
+    let idx = CHROMATIC.indexOf(root);
+    if (idx < 0) return key;   // gamă custom (ex. "D/F#") — nu transpune
+    idx = (idx + (semitones % 12) + 12) % 12;
+    return CHROMATIC[idx] + (isMinor ? 'm' : '');
+  }
+
   function renderEventSongs() {
     const list = $('eventSongsList');
     const songs = (currentEvent && Array.isArray(currentEvent.songs)) ? currentEvent.songs : [];
@@ -1201,6 +1219,7 @@
       case 'chorus': return '🎶 Refren';
       case 'jump_verse': return '➡ Strofa ' + (Number(h.verseIndex) + 1);
       case 'change_key': return '🎵 Gama: ' + (h.key || '');
+      case 'transpose': return h.text || '🎵 Transpunere gamă';
       case 'jump_song': return '🎶 ' + (h.text || 'Altă cântare');
       case 'free': return h.text || '';
       default: return h.text || '';
@@ -1514,6 +1533,28 @@
       const key = e.target.value;
       if (key) sendHint({ type: 'change_key', key });
     });
+    // WORSHIP-KEY-TRANSPOSE — +/− semiton din gama cântării curente, cumulativ
+    let _keyStepAccum = 0;
+    let _keyStepTimer = null;
+    function stepKey(direction) {
+      const song = getLiveSong();
+      if (!song) { setStatus($('liveStatus'), 'Selectează o cântare întâi.', 'warn'); return; }
+      const currentKey = song.key || '';
+      if (!currentKey) { setStatus($('liveStatus'), 'Cântarea nu are gamă setată.', 'warn'); return; }
+      const newKey = transposeKey(currentKey, direction);
+      if (newKey === currentKey) { setStatus($('liveStatus'), 'Gamă custom — nu pot transpune.', 'warn'); return; }
+      saveSongKey(song.id, newKey);   // mută gama real (re-randează din WORSHIP-SONGS)
+      _keyStepAccum += direction;
+      if (_keyStepTimer) clearTimeout(_keyStepTimer);
+      _keyStepTimer = setTimeout(() => { _keyStepAccum = 0; }, 1500);
+      const n = _keyStepAccum;
+      const arrow = n > 0 ? '↑' : (n < 0 ? '↓' : '↔');
+      const sign = n > 0 ? '+' : '';
+      const word = (Math.abs(n) === 1) ? 'semiton' : 'semitoni';
+      sendHint({ type: 'transpose', text: `${arrow} ${sign}${n} ${word} (acum: ${newKey})` });
+    }
+    $('worshipKeyUpBtn')?.addEventListener('click', () => stepKey(1));
+    $('worshipKeyDownBtn')?.addEventListener('click', () => stepKey(-1));
     $('worshipHintSongSelect').addEventListener('change', (e) => {
       const songId = e.target.value;
       if (!songId) return;

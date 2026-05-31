@@ -7358,3 +7358,7 @@ body.live-fullscreen-active .glass-panel {
 .library-dropdown-summary::after { content: '▾'; margin-left: auto; transition: transform .2s; color: var(--accent, #cf9a3c); }
 .library-dropdown[open] .library-dropdown-summary::after { transform: rotate(180deg); }
 .library-dropdown > *:not(summary) { padding: 0 16px 14px; }
+
+/* WORSHIP-KEY-TRANSPOSE — butoane +/− semiton lângă selectorul de gamă */
+.worship-key-step { min-width: 52px; font-weight: 700; }
+.worship-key-step + .worship-key-step { margin-left: 4px; }
