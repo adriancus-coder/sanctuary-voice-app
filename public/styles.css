@@ -7637,3 +7637,20 @@ body.live-fullscreen-active .glass-panel {
 
 /* Summary-uri dropdown: hover cald subtil */
 .library-dropdown-summary:hover { color: var(--accent, #cf9a3c); }
+
+/* WORSHIP-NEXT-PREVIEW — următorul bloc (preview) galben, doar la lider.
+   Curentul rămâne brass (FAZA D L7406); next-ul e cald-galben, vizibil distinct. */
+.leader-mode .verse-mini-item.next {
+  border-color: #e8c24a !important;
+  box-shadow: 0 0 0 2px rgba(232, 194, 74, 0.35),
+              0 4px 14px -6px rgba(232, 194, 74, 0.4) !important;
+}
+.leader-mode .verse-mini-item.next .verse-mini-label { color: #e8c24a; }
+/* Mic indiciu „urmează" pe blocul next */
+.leader-mode .verse-mini-item.next .verse-mini-label::after {
+  content: ' • urmează';
+  font-size: 0.75em;
+  color: #e8c24a;
+  font-weight: 600;
+  opacity: 0.85;
+}

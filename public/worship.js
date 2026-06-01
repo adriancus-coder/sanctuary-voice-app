@@ -841,15 +841,19 @@
     // V21.4-FIX: mini-cards with full verse preview so the master sees
     // upcoming text at a glance. Horizontal scroll; current item auto-scrolls
     // into view after render.
-    listEl.innerHTML = verses.map((v, i) =>
-      '<button type="button" class="verse-mini-item' + (i === idx && !liveEnded ? ' current' : '') +
-      '" data-verse-index="' + i + '">' +
-        '<div class="verse-mini-label">Strofa ' + (i + 1) +
-          (songKey ? ' <span class="verse-mini-key">🎵 ' + escapeHtml(songKey) + '</span>' : '') +
-        '</div>' +
-        '<div class="verse-mini-text">' + escapeHtml(v) + '</div>' +
-      '</button>'
-    ).join('');
+    listEl.innerHTML = verses.map((v, i) => {
+      // WORSHIP-NEXT-PREVIEW — current pe idx, next (preview) pe idx+1 (doar dacă nu suntem END)
+      const cls = (i === idx && !liveEnded) ? ' current'
+                : (i === idx + 1 && !liveEnded) ? ' next'
+                : '';
+      return '<button type="button" class="verse-mini-item' + cls +
+        '" data-verse-index="' + i + '">' +
+          '<div class="verse-mini-label">Strofa ' + (i + 1) +
+            (songKey ? ' <span class="verse-mini-key">🎵 ' + escapeHtml(songKey) + '</span>' : '') +
+          '</div>' +
+          '<div class="verse-mini-text">' + escapeHtml(v) + '</div>' +
+        '</button>';
+    }).join('');
     const currentEl = listEl.querySelector('.verse-mini-item.current');
     if (currentEl && typeof currentEl.scrollIntoView === 'function') {
       currentEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
