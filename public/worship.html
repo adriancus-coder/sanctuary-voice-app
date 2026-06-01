@@ -38,7 +38,7 @@
           <span id="worshipLiveEventNoActive" class="muted small">Nu există event live</span>
         </div>
       </div>
-      <button id="worshipCreateDraftBtn" class="btn btn-primary btn-sm" type="button">➕ Eveniment nou</button>
+      <button id="worshipCreateDraftBtn" class="btn btn-primary btn-sm" type="button">➕ Nou</button>
       <button id="worshipLogoutBtn" class="btn btn-dark btn-sm" type="button">Logout</button>
     </header>
 
@@ -58,13 +58,14 @@
 
       <!-- Unified search: Library (instant) + Resurse (on demand) -->
       <div class="library-section panel glass-panel">
-        <details class="library-dropdown" open>
-          <summary class="library-dropdown-summary">📚 Caută cântare</summary>
+        <div class="library-search-bar">
+          <span class="library-search-label">📚 Caută cântare</span>
+          <input id="globalSongLibrarySearch" type="search" class="unified-search-input" placeholder="Caută cântare...">
+          <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button">Caută și pe resurse</button>
+        </div>
+        <details class="library-dropdown" id="libraryResultsDropdown">
+          <summary class="library-dropdown-summary">Rezultate</summary>
           <div class="unified-search">
-            <div class="unified-search-input-row">
-              <input id="globalSongLibrarySearch" type="search" class="unified-search-input" placeholder="Caută cântare (Library + Resurse)...">
-              <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button">Caută și pe resurse</button>
-            </div>
             <div id="importUrlStatus" class="status-line"></div>
             <div class="unified-search-library-section">
               <div class="unified-search-section-label">Din Library</div>
@@ -81,13 +82,15 @@
 
       <!-- New song editor -->
       <div class="song-editor panel glass-panel">
-        <h3>Cântare nouă</h3>
-        <input id="songTitle" type="text" placeholder="Titlu cântare">
-        <textarea id="songText" rows="6" placeholder="Versuri..."></textarea>
-        <div class="song-editor-actions">
-          <button id="songSaveBtn" class="btn btn-primary" type="button">Salvează în Library</button>
-          <button id="songClearBtn" class="btn btn-dark" type="button">Curăță</button>
-        </div>
+        <details class="library-dropdown">
+          <summary class="library-dropdown-summary">➕ Cântare nouă</summary>
+          <input id="songTitle" type="text" placeholder="Titlu cântare">
+          <textarea id="songText" rows="6" placeholder="Versuri..."></textarea>
+          <div class="song-editor-actions">
+            <button id="songSaveBtn" class="btn btn-primary" type="button">Salvează în Library</button>
+            <button id="songClearBtn" class="btn btn-dark" type="button">Curăță</button>
+          </div>
+        </details>
       </div>
     </section>
 

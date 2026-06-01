@@ -7576,3 +7576,12 @@ body.live-fullscreen-active .glass-panel {
   /* Panoul de secțiuni rămâne full-width sub tot */
   .event-song-row .song-sections-panel { order: 6; flex: 0 0 100%; }
 }
+
+/* WORSHIP-UI-TWEAKS-A — bara de căutare Library mereu vizibilă (afară din details) */
+.library-search-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.library-search-label { font-weight: 700; font-size: 14px; color: var(--accent, #cf9a3c); white-space: nowrap; }
+.library-search-bar .unified-search-input { flex: 1 1 140px; min-width: 0; }
+@media (max-width: 640px) {
+  .library-search-bar { gap: 6px; }
+  .library-search-bar .library-search-label { flex: 0 0 100%; }
+}

@@ -686,6 +686,12 @@
     } finally {
       btn.disabled = false;
       if (spinner) spinner.classList.add('hidden');
+      // WORSHIP-UI-TWEAKS-A — deschide rezultatele + golește inputul după căutare.
+      // Setarea programatică a .value NU declanșează listenerul 'input' (doar tastarea o face),
+      // deci nu se re-render-uiește lista locală și nu se ascunde secțiunea Resurse.
+      const resultsDd = document.getElementById('libraryResultsDropdown');
+      if (resultsDd) resultsDd.open = true;
+      if (input) input.value = '';
     }
   }
 
