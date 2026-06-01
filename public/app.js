@@ -239,6 +239,10 @@ function switchTab(tabName) {
     // WORSHIP-ROLES-1: re-fetch rolurile worship la fiecare deschidere a tabului
     loadWorshipRoles();
   }
+  if (tabName === 'dashboard') {
+    // WORSHIP-ROLES-3 — populează dropdown-ul „Mesaj către echipa worship" în Live Control
+    loadWorshipRoles();
+  }
 }
 
 // WORSHIP-ROLES-1: roluri worship (etichete globale, gestionate de admin)
@@ -246,8 +250,20 @@ async function loadWorshipRoles() {
   try {
     const res = await fetch('/api/admin/worship-roles', { credentials: 'include' });
     const data = await res.json().catch(() => ({}));
-    renderWorshipRoles((data && data.ok && Array.isArray(data.roles)) ? data.roles : []);
-  } catch (_) { renderWorshipRoles([]); }
+    const roles = (data && data.ok && Array.isArray(data.roles)) ? data.roles : [];
+    renderWorshipRoles(roles);
+    populateWorshipMsgRoles(roles);   // WORSHIP-ROLES-3 — populează și dropdown-ul din Live Control
+  } catch (_) { renderWorshipRoles([]); populateWorshipMsgRoles([]); }
+}
+// WORSHIP-ROLES-3 — populează dropdown-ul de roluri din cardul „Mesaj către echipa worship"
+function populateWorshipMsgRoles(roles) {
+  const sel = document.getElementById('worshipMsgRole');
+  if (!sel) return;
+  sel.innerHTML = '<option value="__all__">Toți</option>' +
+    (Array.isArray(roles) ? roles : []).map((r) =>
+      '<option value="' + escapeHtml(r.name) + '">' +
+      (r.emoji ? escapeHtml(r.emoji) + ' ' : '') + escapeHtml(r.name) +
+      '</option>').join('');
 }
 function renderWorshipRoles(roles) {
   const el = document.getElementById('worshipRolesList');
@@ -4681,6 +4697,26 @@ document.getElementById('worshipEmojiPicker')?.addEventListener('click', (e) => 
   if (!b) return;
   const inp = document.getElementById('worshipRoleEmoji');
   if (inp) inp.value = b.getAttribute('data-emoji') || '';
+});
+// WORSHIP-ROLES-3 — trimite mesaj țintit către un rol worship (sau Toți)
+document.getElementById('worshipMsgSendBtn')?.addEventListener('click', async () => {
+  const role = document.getElementById('worshipMsgRole')?.value || '__all__';
+  const textEl = document.getElementById('worshipMsgText');
+  const text = (textEl?.value || '').trim();
+  const statusEl = document.getElementById('worshipMsgStatus');
+  if (!text) return;
+  if (!currentEvent?.id) { if (statusEl) statusEl.textContent = 'Deschide un eveniment activ.'; return; }
+  try {
+    const res = await fetch('/api/events/' + encodeURIComponent(currentEvent.id) + '/worship/role-message',
+      adminJsonOptions('POST', { role, text }));
+    const data = await res.json().catch(() => ({}));
+    if (data.ok) {
+      if (textEl) textEl.value = '';
+      if (statusEl) statusEl.textContent = 'Trimis către ' + (data.delivered || 0) + ' dispozitiv(e).';
+    } else if (statusEl) {
+      statusEl.textContent = data.error || 'Eroare.';
+    }
+  } catch (err) { if (statusEl) statusEl.textContent = 'Eroare: ' + err.message; }
 });
 document.getElementById('worshipRolesList')?.addEventListener('click', async (e) => {
   // Ștergere

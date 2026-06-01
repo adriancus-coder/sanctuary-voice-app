@@ -7739,3 +7739,9 @@ body.live-fullscreen-active .glass-panel {
 }
 .emoji-pick:hover { border-color: var(--accent, #cf9a3c); background: rgba(207, 154, 60, 0.12); }
 .worship-role-emoji-input { width: 60px; text-align: center; font-size: 18px; flex: 0 0 60px !important; }
+
+/* WORSHIP-ROLES-3 — mesaj țintit (Live Control): select + input + buton pe un rând */
+.worship-role-msg-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.worship-role-msg-row select { flex: 0 0 auto; min-width: 120px; }
+.worship-role-msg-row input[type="text"] { flex: 1 1 160px; min-width: 0; }
+.worship-role-msg-row button { flex: 0 0 auto; }

@@ -6146,6 +6146,33 @@ app.post('/api/events/:id/worship/sync-request/:reqId/resolve', (req, res) => {
 // useful as-is ("start this song"). The master gets a modal; on accept
 // the response endpoint moves worshipState which broadcasts to members
 // and the operator's panel via the existing worship:state_change.
+// WORSHIP-ROLES-3 — admin trimite un mesaj liber către un rol worship specific (sau „Toți").
+// Server iterează socket-urile din camera worship:eventId și filtrează după socket.data.worshipRole.
+app.post('/api/events/:id/worship/role-message', (req, res) => {
+  const event = db.events[req.params.id];
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  if (!requireEventRole(req, res, event, ['admin', 'screen'])) return;
+  const role = String(req.body?.role || '').trim();    // '' sau '__all__' = toți
+  const text = String(req.body?.text || '').trim().slice(0, 200);
+  if (!text) return res.status(400).json({ ok: false, error: 'Mesaj gol.' });
+  const room = io.sockets.adapter.rooms.get(`worship:${event.id}`);
+  const hint = { type: 'admin_msg', text, eventId: event.id, ts: Date.now(), role: role || '__all__' };
+  let delivered = 0;
+  if (room) {
+    room.forEach((socketId) => {
+      const s = io.sockets.sockets.get(socketId);
+      if (!s) return;
+      const sRole = s.data?.worshipRole || '';
+      if (!role || role === '__all__' || sRole === role) {
+        s.emit('worship:hint', hint);
+        delivered++;
+      }
+    });
+  }
+  logger.info('[worship/role-message] event=' + event.id + ' role=' + (role || '__all__') + ' delivered=' + delivered);
+  return res.json({ ok: true, delivered });
+});
+
 app.post('/api/events/:id/worship/push', (req, res) => {
   const event = db.events[req.params.id];
   if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });

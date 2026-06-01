@@ -198,6 +198,8 @@
       if (h && h.type === 'countdown') { showCountdownOverlay(); return; }
       // WORSHIP-NOTES-2 — nota de interpretare NU se afișează în sală (proiector ignoră)
       if (h && h.type === 'note') return;
+      // WORSHIP-ROLES-3 — mesajele admin țintite pe rol NU se afișează în sală
+      if (h && h.type === 'admin_msg') return;
       showWorshipHintBanner(h);
     });
   }
@@ -311,6 +313,8 @@
       if (h && h.type === 'countdown') { showCountdownOverlay(); return; }
       // WORSHIP-NOTES-2 — nota de interpretare NU se afișează în sală (proiector ignoră)
       if (h && h.type === 'note') return;
+      // WORSHIP-ROLES-3 — mesajele admin țintite pe rol NU se afișează în sală
+      if (h && h.type === 'admin_msg') return;
       showWorshipHintBanner(h);
     });
   }

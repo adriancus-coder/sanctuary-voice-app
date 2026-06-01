@@ -1272,6 +1272,8 @@
       if (h && h.type === 'countdown') { showCountdownOverlay(); return; }
       // WORSHIP-NOTES-FIX — nota e văzută de TOȚI (inclusiv liderul, ca referință)
       if (h && h.type === 'note') { showWorshipHintBanner(h); return; }
+      // WORSHIP-ROLES-3 — mesaj de la admin țintit pe rol (deja filtrat server-side); toți primitorii îl arată
+      if (h && h.type === 'admin_msg') { showWorshipHintBanner(h); return; }
       if (!isWorshipLeader) showWorshipHintBanner(h);
     });
     masterHeartbeatTimer = setInterval(() => {
@@ -1358,6 +1360,7 @@
       case 'transpose': return h.text || '🎵 Transpunere gamă';
       case 'jump_song': return '🎶 ' + (h.text || 'Altă cântare');
       case 'note': return '📝 ' + (h.text || '');
+      case 'admin_msg': return '📢 ' + (h.text || '');
       case 'free': return h.text || '';
       default: return h.text || '';
     }

@@ -291,6 +291,10 @@ function registerSocketHandlers(io, ctx) {
       socket.join(`worship:${eventId}`);
       socket.data.worshipMasterEventId = eventId;
       socket.data.worshipMasterSid = session.sid || null;
+      // WORSHIP-ROLES-3 — salvează rolul + capabilitățile pe socket pentru push țintit pe rol.
+      socket.data.worshipRole = String(session.worshipRole || '');
+      socket.data.worshipCanLead = !!session.canLead;
+      socket.data.worshipCanAdmin = !!session.canAdmin;
       ensureWorshipState(event);
       event.worshipState.masterSessionId = session.sid || null;
       event.worshipState.masterLastSeen = Date.now();
