@@ -235,6 +235,31 @@ function switchTab(tabName) {
   if (tabName === 'statistics') {
     renderStatisticsTab();
   }
+  if (tabName === 'operator-roles') {
+    // WORSHIP-ROLES-1: re-fetch rolurile worship la fiecare deschidere a tabului
+    loadWorshipRoles();
+  }
+}
+
+// WORSHIP-ROLES-1: roluri worship (etichete globale, gestionate de admin)
+async function loadWorshipRoles() {
+  try {
+    const res = await fetch('/api/admin/worship-roles', { credentials: 'include' });
+    const data = await res.json().catch(() => ({}));
+    renderWorshipRoles((data && data.ok && Array.isArray(data.roles)) ? data.roles : []);
+  } catch (_) { renderWorshipRoles([]); }
+}
+function renderWorshipRoles(roles) {
+  const el = document.getElementById('worshipRolesList');
+  if (!el) return;
+  if (!roles.length) {
+    el.innerHTML = '<div class="muted">Niciun rol definit.</div>';
+    return;
+  }
+  el.innerHTML = roles.map((r) =>
+    '<div class="history-item"><span>' + escapeHtml(r) + '</span>' +
+    '<button class="btn btn-dark btn-sm" data-worship-role-delete="' + escapeHtml(r) + '" type="button">Șterge</button></div>'
+  ).join('');
 }
 
 function relocateMainScreenControls() {
@@ -4620,6 +4645,37 @@ $('openRemoteControlBtn').addEventListener('click', () => {
   const url = $('remoteControlLink')?.value || '';
   if (url) window.open(url, '_blank');
 });
+// WORSHIP-ROLES-1: add/delete bindings (operator-roles tab)
+document.getElementById('addWorshipRoleBtn')?.addEventListener('click', async () => {
+  const inp = document.getElementById('worshipRoleName');
+  const name = (inp?.value || '').trim();
+  if (!name) return;
+  try {
+    const res = await fetch('/api/admin/worship-roles', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok) { alert(data.error || 'Eroare la adăugare rol.'); return; }
+    if (inp) inp.value = '';
+    renderWorshipRoles(data.roles);
+  } catch (err) { alert('Eroare: ' + err.message); }
+});
+document.getElementById('worshipRolesList')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-worship-role-delete]');
+  if (!btn) return;
+  const name = btn.getAttribute('data-worship-role-delete');
+  if (!confirm('Ștergi rolul „' + name + '"?')) return;
+  try {
+    const res = await fetch('/api/admin/worship-roles', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data.ok) renderWorshipRoles(data.roles);
+  } catch (_) {}
+});
+
 $('createRemoteOperatorBtn')?.addEventListener('click', async () => {
   if (!currentEvent) return alert('Open or create an event first.');
   const name = $('remoteOperatorName')?.value.trim() || 'Remote operator';

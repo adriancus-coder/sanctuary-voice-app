@@ -1404,6 +1404,10 @@ if (!Array.isArray(db.globalSongLibrary)) {
 if (!Array.isArray(db.pinnedTextLibrary)) {
   db.pinnedTextLibrary = defaultPinnedTextLibrary();
 }
+// WORSHIP-ROLES-1: listă globală de etichete de rol worship (ex. „Chitară 1", „Voce").
+if (!Array.isArray(db.worshipRoles)) {
+  db.worshipRoles = [];
+}
 if (!db.globalAccess || typeof db.globalAccess !== 'object') {
   db.globalAccess = {};
 }
@@ -4540,6 +4544,33 @@ app.get('/api/operator/request-status/:id', (req, res) => {
     }
   }
   res.json(payload);
+});
+
+// WORSHIP-ROLES-1: editable list of worship role labels (e.g. „Chitară 1", „Voce") managed by admin
+// in the Operator Roles tab. Global (not per-event). No code/permissions — just labels.
+app.get('/api/admin/worship-roles', (req, res) => {
+  if (!requireAdminApiSession(req, res)) return;
+  return res.json({ ok: true, roles: Array.isArray(db.worshipRoles) ? db.worshipRoles : [] });
+});
+app.post('/api/admin/worship-roles', (req, res) => {
+  if (!requireAdminApiSession(req, res)) return;
+  const name = String(req.body?.name || '').trim().slice(0, 40);
+  if (!name) return res.status(400).json({ ok: false, error: 'Nume rol gol.' });
+  if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
+  if (db.worshipRoles.some((r) => r.toLowerCase() === name.toLowerCase())) {
+    return res.status(409).json({ ok: false, error: 'Rol deja existent.' });
+  }
+  db.worshipRoles.push(name);
+  saveDb();
+  return res.json({ ok: true, roles: db.worshipRoles });
+});
+app.delete('/api/admin/worship-roles', (req, res) => {
+  if (!requireAdminApiSession(req, res)) return;
+  const name = String(req.body?.name || '').trim();
+  if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
+  db.worshipRoles = db.worshipRoles.filter((r) => r !== name);
+  saveDb();
+  return res.json({ ok: true, roles: db.worshipRoles });
 });
 
 app.get('/api/admin/access-requests', (req, res) => {
