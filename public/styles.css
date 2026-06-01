@@ -7585,3 +7585,20 @@ body.live-fullscreen-active .glass-panel {
   .library-search-bar { gap: 6px; }
   .library-search-bar .library-search-label { flex: 0 0 100%; }
 }
+
+/* WORSHIP-EVENT-DROPDOWN-B — select de evenimente în header */
+.worship-event-dropdown {
+  background: var(--panel-2, #2e2416);
+  color: var(--parchment, #f5ecd9);
+  border: 1px solid var(--line, #4a3a22);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 15px; font-weight: 600;
+  font-family: inherit;
+  max-width: 200px;
+  text-overflow: ellipsis;
+}
+.worship-event-dropdown:focus { border-color: var(--accent, #cf9a3c); outline: none; }
+@media (max-width: 640px) {
+  .worship-event-dropdown { max-width: 150px; font-size: 14px; }
+}

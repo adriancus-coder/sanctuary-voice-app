@@ -32,11 +32,10 @@
   <main id="worshipApp" class="worship-app hidden">
     <header class="worship-header panel glass-panel">
       <div class="worship-event-selector">
-        <label class="small">Event LIVE</label>
-        <div id="worshipLiveEventDisplay" class="event-display-readonly">
-          <span id="worshipLiveEventName" class="hidden">—</span>
-          <span id="worshipLiveEventNoActive" class="muted small">Nu există event live</span>
-        </div>
+        <label class="small" for="worshipEventDropdown">Eveniment</label>
+        <select id="worshipEventDropdown" class="worship-event-dropdown">
+          <option value="">Se încarcă…</option>
+        </select>
       </div>
       <button id="worshipCreateDraftBtn" class="btn btn-primary btn-sm" type="button">➕ Nou</button>
       <button id="worshipLogoutBtn" class="btn btn-dark btn-sm" type="button">Logout</button>

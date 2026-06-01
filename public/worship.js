@@ -141,18 +141,30 @@
     }
   }
 
-  function renderLiveEventDisplay() {
-    const nameEl = $('worshipLiveEventName');
-    const noneEl = $('worshipLiveEventNoActive');
-    if (!nameEl || !noneEl) return;
-    if (liveEvent) {
-      nameEl.textContent = liveEvent.name || 'Event live';
-      nameEl.classList.remove('hidden');
-      noneEl.classList.add('hidden');
-    } else {
-      nameEl.classList.add('hidden');
-      noneEl.classList.remove('hidden');
+  // WORSHIP-EVENT-DROPDOWN-B — populează select-ul din header cu evenimentele în lucru
+  // (pickerEvents = future + live), marchează currentEvent ca selectat.
+  async function renderEventDropdown() {
+    const sel = $('worshipEventDropdown');
+    if (!sel) return;
+    await ensurePickerEvents();
+    const evs = Array.isArray(pickerEvents) ? pickerEvents : [];
+    if (!evs.length) {
+      sel.innerHTML = '<option value="">Niciun eveniment</option>';
+      return;
     }
+    const curId = currentEvent ? currentEvent.id : (liveEvent ? liveEvent.id : '');
+    sel.innerHTML = evs.map((e) => {
+      const live = (liveEvent && e.id === liveEvent.id) ? ' • LIVE' : '';
+      const draft = (e.worshipDraft && !e.approved) ? ' • draft' : '';
+      return '<option value="' + escapeHtml(e.id) + '"' + (e.id === curId ? ' selected' : '') + '>' +
+        escapeHtml(e.name || 'Eveniment') + live + draft + '</option>';
+    }).join('');
+  }
+
+  // WORSHIP-EVENT-DROPDOWN-B — elementele read-only au fost înlocuite cu dropdown-ul;
+  // această funcție rămâne ca shim pentru caller-ii existenți (loadLiveEvent etc.).
+  function renderLiveEventDisplay() {
+    renderEventDropdown();
   }
 
   function renderEmptyEventInfo(message) {
@@ -193,6 +205,7 @@
       renderEventSongs();
       loadLibrary();
       resetLiveForEvent();
+      renderEventDropdown();   // WORSHIP-EVENT-DROPDOWN-B — reflectă currentEvent în select
     } catch (err) {
       $('worshipEventInfo').innerHTML =
         '<p class="muted">Eroare: ' + escapeHtml(err.message) + '</p>';
@@ -1639,6 +1652,11 @@
     $('worshipLogoutBtn').addEventListener('click', doLogout);
     // WORSHIP-DRAFT-2 — buton de creare draft (one-time bind, lângă Logout)
     $('worshipCreateDraftBtn')?.addEventListener('click', createWorshipDraft);
+    // WORSHIP-EVENT-DROPDOWN-B — schimbarea selecției încarcă evenimentul
+    $('worshipEventDropdown')?.addEventListener('change', async (e) => {
+      const id = e.target.value;
+      if (id) await loadEventDetail(id);
+    });
 
     // V21.5: dropdown removed — header now shows the live event read-only.
     // No change-listener needed; loadLiveEvent owns the single event source.
