@@ -2260,7 +2260,7 @@ function hashBlock(text) {
   return createHash('sha256').update(String(text || '').trim()).digest('hex').slice(0, 16);
 }
 
-function upsertLibraryItem(list, { title, text, labels, sourceLang, key, sections }, maxItems = 100) {
+function upsertLibraryItem(list, { title, text, labels, sourceLang, key, sections, sectionNotes }, maxItems = 100) {
   const safeTitle = String(title || '').trim();
   const safeText = sanitizeStructuredText(text || '');
   const parsedSong = splitSongBlocksWithLabels(safeText, labels || []);
@@ -2282,6 +2282,14 @@ function upsertLibraryItem(list, { title, text, labels, sourceLang, key, section
   const resolvedSections = validateSections(sections)
     || validateSections(existingItem?.sections)
     || [];
+  // WORSHIP-NOTES-1 — păstrează note de interpretare per-bloc (paralele cu sections);
+  // dacă apelantul pasează (seed din global la songs/add), preferă. Slice 200 chars max.
+  const validateNotes = (arr) => Array.isArray(arr)
+    ? arr.map((n) => String(n == null ? '' : n).slice(0, 200))
+    : null;
+  const resolvedSectionNotes = validateNotes(sectionNotes)
+    || validateNotes(existingItem?.sectionNotes)
+    || [];
   const payload = {
     id: existingItem ? existingItem.id : randomUUID(),
     title: safeTitle,
@@ -2290,6 +2298,7 @@ function upsertLibraryItem(list, { title, text, labels, sourceLang, key, section
     sourceLang: String(sourceLang || existingItem?.sourceLang || 'ro').trim() || 'ro',
     key: resolvedKey,
     sections: resolvedSections,
+    sectionNotes: resolvedSectionNotes,
     // Păstrăm cache-ul de traduceri per strofă; per-block hash invalidation
     // ține automat cache-ul valid pentru strofele neschimbate, indiferent dacă
     // alte strofe s-au editat (vor avea hash nou = cache miss controlat).
@@ -5585,6 +5594,8 @@ app.get('/api/worship/events/:id', (req, res) => {
           key: typeof song.key === 'string' ? song.key : '',
           // WORSHIP-SECTIONS-A: tipuri secțiune per bloc (verse/chorus/bridge), array paralel.
           sections: Array.isArray(song.sections) ? song.sections : [],
+          // WORSHIP-NOTES-1: note de interpretare per-bloc (paralel cu sections).
+          sectionNotes: Array.isArray(song.sectionNotes) ? song.sectionNotes : [],
           addedByWorship: session.addedSongs.includes(song.id)
         }))
       }
@@ -5627,7 +5638,9 @@ app.post('/api/worship/events/:id/songs/add', (req, res) => {
       // LIBRARY-KEY-GLOBAL — seed key din biblioteca globală (punct de start)
       key: typeof librarySong.key === 'string' ? librarySong.key : '',
       // WORSHIP-SECTIONS-A — seed sections (verse/chorus/bridge per bloc) din global
-      sections: Array.isArray(librarySong.sections) ? librarySong.sections : []
+      sections: Array.isArray(librarySong.sections) ? librarySong.sections : [],
+      // WORSHIP-NOTES-1 — seed note de interpretare per-bloc din global
+      sectionNotes: Array.isArray(librarySong.sectionNotes) ? librarySong.sectionNotes : []
     }, 100);
     // upsertLibraryItem dedupes by title: it may have overwritten an existing
     // (admin-added) song instead of creating one. Worship may only delete songs
@@ -5774,6 +5787,48 @@ app.patch('/api/worship/events/:id/songs/:itemId/sections', (req, res) => {
     return res.json({ ok: true, song: { id: song.id, sections: song.sections } });
   } catch (err) {
     logger.error('[worship/song-sections] Failed:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+// WORSHIP-NOTES-1: set per-block interpretation notes (free text, parallel to sections).
+// Same access gating + global propagation pattern as /sections.
+app.patch('/api/worship/events/:id/songs/:itemId/section-notes', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  try {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Event not found' });
+    if (!isWorshipAccessibleEvent(event)) {
+      return res.status(403).json({ ok: false, error: 'Cannot modify this event' });
+    }
+    ensureEventUiState(event);
+    const itemId = String(req.params.itemId || '').trim();
+    const song = (event.songLibrary || []).find((s) => s && String(s.id) === itemId);
+    if (!song) return res.status(404).json({ ok: false, error: 'Song not found in event' });
+    const sectionNotes = Array.isArray(req.body?.sectionNotes)
+      ? req.body.sectionNotes.map((n) => String(n == null ? '' : n).slice(0, 200))
+      : [];
+    song.sectionNotes = sectionNotes;
+    // Propagate to global library (after normalized title) — same pattern as sections.
+    try {
+      const globalLib = getOrganizationSongLibrary(getEventOrgId(event));
+      if (Array.isArray(globalLib) && song.title) {
+        const targetTitle = normalizeLibraryTitle(song.title);
+        const globalSong = globalLib.find((g) => g && normalizeLibraryTitle(g.title) === targetTitle);
+        if (globalSong) globalSong.sectionNotes = sectionNotes.slice();
+      }
+    } catch (e) { logger.warn('[section-notes-global] propagation failed:', e && e.message); }
+    saveDb();
+    setWorshipSessionCookie(req, res, session);
+    io.to(`event:${event.id}`).to(`worship:${event.id}`).emit('event:songlibrary_changed', {
+      eventId: event.id,
+      songLibrary: event.songLibrary
+    });
+    logger.info(`[worship/song-section-notes] event=${event.id} itemId=${itemId} count=${sectionNotes.length}`);
+    return res.json({ ok: true, song: { id: song.id, sectionNotes: song.sectionNotes } });
+  } catch (err) {
+    logger.error('[worship/song-section-notes] Failed:', err);
     return res.status(500).json({ ok: false, error: 'Server error' });
   }
 });

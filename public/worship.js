@@ -286,8 +286,10 @@
     const verses = parseVerses(song.text || '');
     if (!verses.length) return '<p class="muted small">Cântarea n-are blocuri (text gol).</p>';
     const sections = Array.isArray(song.sections) ? song.sections : [];
+    const notes = Array.isArray(song.sectionNotes) ? song.sectionNotes : [];
     return verses.map(function (v, i) {
       const type = sections[i] || 'verse';
+      const note = notes[i] || '';
       const preview = (v.split('\n')[0] || '').slice(0, 40);
       const opts = ['verse', 'chorus', 'bridge'].map(function (t) {
         return '<option value="' + t + '"' + (t === type ? ' selected' : '') + '>' + SECTION_LABELS[t] + '</option>';
@@ -296,6 +298,7 @@
         '<span class="song-section-num">' + (i + 1) + '</span>' +
         '<select class="song-section-select" data-section-idx="' + i + '">' + opts + '</select>' +
         '<span class="song-section-preview">' + escapeHtml(preview) + '…</span>' +
+        '<input type="text" class="song-section-note" data-note-idx="' + i + '" value="' + escapeHtml(note) + '" placeholder="cine cântă (ex. doar fetele, X solo)" maxlength="200">' +
       '</div>';
     }).join('');
   }
@@ -316,6 +319,25 @@
         if (s) s.sections = data.song && Array.isArray(data.song.sections) ? data.song.sections : sections;
       }
     } catch (err) { console.warn('save sections failed', err); }
+  }
+
+  // WORSHIP-NOTES-1 — salvează note de interpretare per-bloc (paralel cu sections)
+  async function saveSongNotes(songId) {
+    if (!currentEvent || !songId) return;
+    const wrap = document.querySelector('[data-song-sections="' + songId + '"]');
+    if (!wrap) return;
+    const sectionNotes = Array.from(wrap.querySelectorAll('.song-section-note')).map((inp) => inp.value);
+    try {
+      const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) +
+        '/songs/' + encodeURIComponent(songId) + '/section-notes',
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ sectionNotes }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        const s = (currentEvent.songs || []).find((x) => String(x.id) === String(songId));
+        if (s) s.sectionNotes = (data.song && Array.isArray(data.song.sectionNotes)) ? data.song.sectionNotes : sectionNotes;
+      }
+    } catch (err) { console.warn('save section notes failed', err); }
   }
 
   // WORSHIP-SONGS: bind gamă (change + dblclick custom), arrows, and drag&drop after each render.
@@ -346,6 +368,15 @@
         const panel = sel.closest('[data-song-sections]');
         const id = panel && panel.getAttribute('data-song-sections');
         if (id) saveSongSections(id);
+      });
+    });
+    // WORSHIP-NOTES-1 — salvează note la blur (mai discret decât change pe input;
+    // schimbarea fiecărei litere nu generează request)
+    document.querySelectorAll('#eventSongsList .song-section-note').forEach((inp) => {
+      inp.addEventListener('change', () => {
+        const panel = inp.closest('[data-song-sections]');
+        const id = panel && panel.getAttribute('data-song-sections');
+        if (id) saveSongNotes(id);
       });
     });
     bindSongDragDrop();

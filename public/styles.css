@@ -7683,3 +7683,18 @@ body.live-fullscreen-active .glass-panel {
 
 /* Tranziție fină pe butoanele lider (feedback smooth) */
 .worship-leader-controls .btn { transition: transform .12s, filter .12s, background .2s, box-shadow .2s; }
+
+/* WORSHIP-NOTES-1 — input notă interpretare per-bloc (sub fiecare bloc în panoul Secțiuni) */
+.song-section-note {
+  flex: 1 1 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--panel-strong, rgba(18, 20, 26, 0.92));
+  color: var(--text, #f6f0e6);
+  border: 1px solid var(--line, rgba(255, 241, 214, 0.12));
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.song-section-note::placeholder { color: var(--muted, rgba(228, 219, 204, 0.5)); }
+.song-section-note:focus { border-color: var(--accent, #cf9a3c); outline: none; }
