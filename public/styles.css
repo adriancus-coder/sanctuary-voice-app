@@ -7349,7 +7349,7 @@ body.live-fullscreen-active .glass-panel {
 }
 
 /* LIBRARY-DROPDOWN — colapsabil consecvent în worship/admin/operator */
-.library-dropdown { border: 1px solid var(--ct-line, #2a2a2a); border-radius: 12px; margin-bottom: 12px; }
+.library-dropdown { border: 1px solid var(--line, rgba(255,241,214,0.12)); border-radius: 12px; margin-bottom: 12px; }
 .library-dropdown-summary {
   cursor: pointer; padding: 12px 16px; font-weight: 700; list-style: none;
   display: flex; align-items: center; gap: 8px; user-select: none;
@@ -7364,17 +7364,17 @@ body.live-fullscreen-active .glass-panel {
 .worship-key-step + .worship-key-step { margin-left: 4px; }
 
 /* WORSHIP-SECTIONS-A — marcaje secțiune (Strofă/Refren/Pod) per bloc */
-.song-sections-panel { margin: 8px 0 4px; padding: 8px; border: 1px dashed var(--ct-line, #333); border-radius: 8px; flex-basis: 100%; }
+.song-sections-panel { margin: 8px 0 4px; padding: 8px; border: 1px dashed var(--line, rgba(255,241,214,0.12)); border-radius: 8px; flex-basis: 100%; }
 .song-section-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .song-section-num { min-width: 22px; text-align: center; color: var(--accent, #cf9a3c); font-weight: 700; }
 .song-section-select { min-width: 90px; }
-.song-section-preview { color: var(--ct-parchment-d, #888); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.song-section-preview { color: var(--muted, rgba(228,219,204,0.7)); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .song-sections-toggle { font-size: 12px; }
 
 /* WORSHIP-SCHEDULE-B — selector „Când" + listă hinturi în așteptare */
-.worship-when-row { border-bottom: 1px solid var(--ct-line, #333); padding-bottom: 10px; margin-bottom: 6px; }
+.worship-when-row { border-bottom: 1px solid var(--line, rgba(255,241,214,0.12)); padding-bottom: 10px; margin-bottom: 6px; }
 .worship-pending-hints { margin-top: 10px; }
-.pending-title { font-size: 12px; color: var(--ct-parchment-d, #888); margin-bottom: 4px; }
+.pending-title { font-size: 12px; color: var(--muted, rgba(228,219,204,0.7)); margin-bottom: 4px; }
 .pending-hint-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: rgba(207,154,60,0.10); border-radius: 8px; margin-bottom: 4px; }
 .pending-when { color: var(--accent, #cf9a3c); font-weight: 700; font-size: 13px; white-space: nowrap; }
 .pending-text { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -7438,7 +7438,7 @@ body.live-fullscreen-active .glass-panel {
 
 /* WORSHIP-WHEN-CARD — card cu pastile one-touch (înlocuiește dropdown-ul „Când") */
 .worship-when-card {
-  background: var(--panel-2, #2e2416);
+  background: var(--panel-strong, rgba(18,20,26,0.92));
   border: 1px solid var(--line, #4a3a22);
   border-radius: 14px;
   padding: 12px 14px;
@@ -7448,7 +7448,7 @@ body.live-fullscreen-active .glass-panel {
   font-size: 11px;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: var(--ct-parchment-d, #b8a888);
+  color: var(--muted, rgba(228,219,204,0.7));
   font-weight: 600;
   margin-bottom: 10px;
 }
@@ -7588,7 +7588,7 @@ body.live-fullscreen-active .glass-panel {
 
 /* WORSHIP-EVENT-DROPDOWN-B — select de evenimente în header */
 .worship-event-dropdown {
-  background: var(--panel-2, #2e2416);
+  background: var(--panel-strong, rgba(18,20,26,0.92));
   color: var(--parchment, #f5ecd9);
   border: 1px solid var(--line, #4a3a22);
   border-radius: 10px;
@@ -7602,3 +7602,38 @@ body.live-fullscreen-active .glass-panel {
 @media (max-width: 640px) {
   .worship-event-dropdown { max-width: 150px; font-size: 14px; }
 }
+
+/* WORSHIP-CATHEDRAL-POLISH — umbre + glow subtile, în spiritul cathedral */
+
+/* Panouri: adâncime subtilă (cold shadow + inset parchment hint) */
+.worship-when-card,
+.library-section,
+.song-sections-panel {
+  box-shadow: 0 4px 18px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 241, 214, 0.04);
+}
+
+/* Pastile/butoane active: glow brass cald */
+.when-pill.active {
+  box-shadow: 0 4px 16px -4px rgba(207, 154, 60, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Dropdown eveniment din header: prezență discretă */
+.worship-event-dropdown { box-shadow: 0 2px 10px -6px rgba(0, 0, 0, 0.5); }
+.worship-event-dropdown:focus { box-shadow: 0 0 0 3px rgba(207, 154, 60, 0.18); }
+
+/* Banner hint: glow brass mai cald (momentul cheie) */
+.worship-hint-banner {
+  box-shadow: 0 14px 44px -12px rgba(207, 154, 60, 0.5), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Countdown overlay: glow dramatic pe text (momentul de vârf) */
+.worship-countdown-overlay { text-shadow: 0 8px 50px rgba(207, 154, 60, 0.55), 0 2px 8px rgba(0, 0, 0, 0.6); }
+.worship-countdown-overlay.cd-go { text-shadow: 0 8px 60px rgba(91, 163, 91, 0.65), 0 2px 8px rgba(0, 0, 0, 0.6); }
+
+/* Tranziții fine pe interactive (eleganță cathedral) */
+.when-pill, .worship-event-dropdown, .library-dropdown-summary, .event-song-arrows .btn {
+  transition: all .18s ease;
+}
+
+/* Summary-uri dropdown: hover cald subtil */
+.library-dropdown-summary:hover { color: var(--accent, #cf9a3c); }
