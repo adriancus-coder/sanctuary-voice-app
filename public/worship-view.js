@@ -196,6 +196,8 @@
     socket.on('worship:hint', (h) => {
       // WORSHIP-COUNTDOWN — countdown e separat de banner
       if (h && h.type === 'countdown') { showCountdownOverlay(); return; }
+      // WORSHIP-NOTES-2 — nota de interpretare NU se afișează în sală (proiector ignoră)
+      if (h && h.type === 'note') return;
       showWorshipHintBanner(h);
     });
   }
@@ -307,6 +309,8 @@
     socket.on('worship:hint', (h) => {
       // WORSHIP-COUNTDOWN — countdown e separat de banner
       if (h && h.type === 'countdown') { showCountdownOverlay(); return; }
+      // WORSHIP-NOTES-2 — nota de interpretare NU se afișează în sală (proiector ignoră)
+      if (h && h.type === 'note') return;
       showWorshipHintBanner(h);
     });
   }

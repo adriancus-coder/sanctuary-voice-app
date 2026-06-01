@@ -922,6 +922,7 @@
     liveCurrentVerseIndex = clamped;
     liveEnded = ended;
     renderLiveMode();
+    renderLiveSectionNote();   // WORSHIP-NOTES-2 — reflectă nota blocului curent
     checkPendingHints(liveCurrentVerseIndex);   // FAZA C
     try {
       const res = await fetch('/api/worship/events/' + encodeURIComponent(currentEvent.id) + '/verse', {
@@ -1342,8 +1343,25 @@
       case 'change_key': return '🎵 Gama: ' + (h.key || '');
       case 'transpose': return h.text || '🎵 Transpunere gamă';
       case 'jump_song': return '🎶 ' + (h.text || 'Altă cântare');
+      case 'note': return '📝 ' + (h.text || '');
       case 'free': return h.text || '';
       default: return h.text || '';
+    }
+  }
+
+  // WORSHIP-NOTES-2 — afișează nota de interpretare a blocului curent (doar la lider, în live)
+  function renderLiveSectionNote() {
+    const el = document.getElementById('liveSectionNote');
+    if (!el) return;
+    const song = getLiveSong();
+    const notes = (song && Array.isArray(song.sectionNotes)) ? song.sectionNotes : [];
+    const note = notes[liveCurrentVerseIndex] || '';
+    if (note && isWorshipLeader) {
+      el.textContent = '📝 ' + note;
+      el.classList.remove('hidden');
+    } else {
+      el.textContent = '';
+      el.classList.add('hidden');
     }
   }
 
@@ -1422,6 +1440,7 @@
       if (appRoot) appRoot.classList.remove('leader-mode');       // WORSHIP-LEADER-MOBILE — revine la normal
       if (status) status.textContent = currentLeaderId ? 'Lider activ: altcineva (apasă pentru a prelua)' : '';
     }
+    renderLiveSectionNote();   // WORSHIP-NOTES-2 — show/hide nota când se schimbă rolul
   }
 
   // Fill the gamă select (predefined keys) and the jump-song select (current
@@ -1897,6 +1916,16 @@
       if (!text) return;
       dispatchHint({ type: 'free', text });
       inp.value = '';
+    });
+    // WORSHIP-NOTES-2 — buton manual: trimite nota blocului curent DOAR la echipă (proiectorul ignoră)
+    $('worshipSendNoteBtn')?.addEventListener('click', (e) => {
+      const song = getLiveSong();
+      const notes = (song && Array.isArray(song.sectionNotes)) ? song.sectionNotes : [];
+      const note = notes[liveCurrentVerseIndex] || '';
+      if (!note) { setStatus($('liveStatus'), 'Nicio notă pe blocul curent.', 'warn'); return; }
+      pressFeedback(e.currentTarget);
+      sendHint({ type: 'note', text: note });
+      flashButtonSent(e.currentTarget);
     });
     // WORSHIP-COUNTDOWN — buton manual: instant pt toți (lider+echipă+proiector), NU trece prin „Când"
     $('worshipCountdownBtn')?.addEventListener('click', (e) => {

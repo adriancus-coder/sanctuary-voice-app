@@ -7698,3 +7698,17 @@ body.live-fullscreen-active .glass-panel {
 }
 .song-section-note::placeholder { color: var(--muted, rgba(228, 219, 204, 0.5)); }
 .song-section-note:focus { border-color: var(--accent, #cf9a3c); outline: none; }
+
+/* WORSHIP-NOTES-2 — nota de interpretare în live (la lider), discretă, NU acoperă versul */
+.live-section-note {
+  margin: 8px 0 4px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(207, 154, 60, 0.12);
+  border: 1px solid var(--accent, #cf9a3c);
+  color: var(--accent, #cf9a3c);
+  font-weight: 600;
+  font-size: 15px;
+  text-align: center;
+}
+.leader-mode .live-section-note { font-size: 16px; }
