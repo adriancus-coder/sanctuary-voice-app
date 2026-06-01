@@ -1405,8 +1405,15 @@ if (!Array.isArray(db.pinnedTextLibrary)) {
   db.pinnedTextLibrary = defaultPinnedTextLibrary();
 }
 // WORSHIP-ROLES-1: listă globală de etichete de rol worship (ex. „Chitară 1", „Voce").
+// WORSHIP-ROLES-1B: rolurile devin obiecte {name, code, canLead, canAdmin}; migrare safe.
 if (!Array.isArray(db.worshipRoles)) {
   db.worshipRoles = [];
+} else {
+  db.worshipRoles = db.worshipRoles.map((r) =>
+    (typeof r === 'string')
+      ? { name: r, code: '', canLead: false, canAdmin: false }
+      : { name: String(r?.name || ''), code: String(r?.code || ''), canLead: !!r?.canLead, canAdmin: !!r?.canAdmin }
+  ).filter((r) => r.name);
 }
 if (!db.globalAccess || typeof db.globalAccess !== 'object') {
   db.globalAccess = {};
@@ -4546,8 +4553,9 @@ app.get('/api/operator/request-status/:id', (req, res) => {
   res.json(payload);
 });
 
-// WORSHIP-ROLES-1: editable list of worship role labels (e.g. „Chitară 1", „Voce") managed by admin
-// in the Operator Roles tab. Global (not per-event). No code/permissions — just labels.
+// WORSHIP-ROLES-1: editable list of worship roles managed by admin in the Operator Roles tab.
+// Global (not per-event). WORSHIP-ROLES-1B: roles are now objects {name, code, canLead, canAdmin}.
+// `Member` is the implicit base — canLead/canAdmin are extra capabilities. Code used for login (ETAPA 2).
 app.get('/api/admin/worship-roles', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;
   return res.json({ ok: true, roles: Array.isArray(db.worshipRoles) ? db.worshipRoles : [] });
@@ -4555,12 +4563,19 @@ app.get('/api/admin/worship-roles', (req, res) => {
 app.post('/api/admin/worship-roles', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;
   const name = String(req.body?.name || '').trim().slice(0, 40);
+  const code = String(req.body?.code || '').trim().slice(0, 40);
+  const canLead = !!req.body?.canLead;
+  const canAdmin = !!req.body?.canAdmin;
   if (!name) return res.status(400).json({ ok: false, error: 'Nume rol gol.' });
   if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
-  if (db.worshipRoles.some((r) => r.toLowerCase() === name.toLowerCase())) {
-    return res.status(409).json({ ok: false, error: 'Rol deja existent.' });
+  // Cod unic (dacă e dat) — două roluri nu pot folosi același cod, indiferent de nume.
+  if (code && db.worshipRoles.some((r) => r.code && r.code === code && r.name.toLowerCase() !== name.toLowerCase())) {
+    return res.status(409).json({ ok: false, error: 'Cod deja folosit de alt rol.' });
   }
-  db.worshipRoles.push(name);
+  const role = { name, code, canLead, canAdmin };
+  const idx = db.worshipRoles.findIndex((r) => r.name.toLowerCase() === name.toLowerCase());
+  if (idx >= 0) db.worshipRoles[idx] = role;   // editare dacă numele există
+  else db.worshipRoles.push(role);             // altfel creare
   saveDb();
   return res.json({ ok: true, roles: db.worshipRoles });
 });
@@ -4568,7 +4583,7 @@ app.delete('/api/admin/worship-roles', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;
   const name = String(req.body?.name || '').trim();
   if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
-  db.worshipRoles = db.worshipRoles.filter((r) => r !== name);
+  db.worshipRoles = db.worshipRoles.filter((r) => r.name !== name);
   saveDb();
   return res.json({ ok: true, roles: db.worshipRoles });
 });

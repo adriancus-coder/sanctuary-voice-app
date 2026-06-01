@@ -7717,3 +7717,14 @@ body.live-fullscreen-active .glass-panel {
 
 /* WORSHIP-ROLES-1 — rândurile cu rol + buton șterge */
 #worshipRolesList .history-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; }
+
+/* WORSHIP-ROLES-1B — formular rol cu nume + cod + bife (Lider / Worship admin) */
+.worship-role-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.worship-role-form input[type="text"] { width: 100%; }
+.worship-role-cap { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text, #f6f0e6); cursor: pointer; }
+.worship-role-item { cursor: pointer; }
+.worship-role-item:hover { background: rgba(255, 241, 214, 0.04); }
+@media (min-width: 600px) {
+  .worship-role-form { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .worship-role-form input[type="text"] { flex: 1 1 140px; width: auto; }
+}

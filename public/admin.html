@@ -490,18 +490,16 @@
               <div class="muted">No extra operators yet.</div>
             </div>
           </div>
-          <!-- WORSHIP-ROLES-1: listă globală de etichete de rol worship (separată de operatori) -->
+          <!-- WORSHIP-ROLES-1B: roluri worship cu cod + capabilități (Lider / Worship admin). Membru = baza implicită. -->
           <div class="info-card soft-card">
             <div class="label">Roluri worship</div>
-            <div class="muted">Etichete pe care membrii echipei worship și le aleg (ex. Chitară 1, Voce). Folosite pentru mesaje țintite.</div>
-            <div class="split-2 compact-library-row">
-              <div>
-                <label for="worshipRoleName">Rol nou</label>
-                <input id="worshipRoleName" type="text" placeholder="ex. Chitară 1" maxlength="40">
-              </div>
-              <div style="display:flex;align-items:flex-end">
-                <button id="addWorshipRoleBtn" class="btn btn-dark" type="button">Adaugă rol</button>
-              </div>
+            <div class="muted">Roluri pentru echipa worship. Codul îl folosesc membrii la conectare. „Membru" o au toți; bifează doar capabilitățile în plus.</div>
+            <div class="worship-role-form">
+              <input id="worshipRoleName" type="text" placeholder="Nume (ex. Pian)" maxlength="40">
+              <input id="worshipRoleCode" type="text" placeholder="Cod (ex. 4821)" maxlength="40">
+              <label class="worship-role-cap"><input type="checkbox" id="worshipRoleCanLead"> Poate fi lider</label>
+              <label class="worship-role-cap"><input type="checkbox" id="worshipRoleCanAdmin"> Poate fi worship admin</label>
+              <button id="addWorshipRoleBtn" class="btn btn-dark" type="button">Adaugă / actualizează rol</button>
             </div>
             <div id="worshipRolesList" class="history-list">
               <div class="muted">Niciun rol definit.</div>
