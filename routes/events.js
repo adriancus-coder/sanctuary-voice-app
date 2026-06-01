@@ -567,6 +567,21 @@ function registerEventRoutes(app, ctx) {
     return res.json({ ok: true, eventId: event.id });
   });
 
+  // WORSHIP-DRAFT-RENAME: admin can rename any event (draft or normal) anytime.
+  // Same admin-code gate as /approve.
+  app.post('/api/events/:id/rename', (req, res) => {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+    if (!requireEventAdmin(req, res, event)) return;
+    const name = String(req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ ok: false, error: 'Numele e obligatoriu.' });
+    event.name = name.slice(0, 120);
+    saveDb();
+    setImmediate(() => io.emit('active_event_changed', { eventId: event.id }));
+    logger.info('[admin] renamed event:', event.id, '→', event.name);
+    return res.json({ ok: true, eventId: event.id, name: event.name });
+  });
+
   app.post('/api/events/:id/activate', (req, res) => {
     const event = db.events[req.params.id];
     if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
