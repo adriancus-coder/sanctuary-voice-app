@@ -7654,3 +7654,32 @@ body.live-fullscreen-active .glass-panel {
   font-weight: 600;
   opacity: 0.85;
 }
+
+/* WORSHIP-BTN-FEEDBACK — feedback vizibil pe butoanele liderului care trimit la echipă */
+
+/* Flash la atingere (orice buton de acțiune lider) */
+.worship-leader-controls .btn.btn-pressed,
+.when-pill.btn-pressed,
+#worshipCountdownBtn.btn-pressed {
+  transform: scale(0.96);
+  filter: brightness(1.25);
+}
+
+/* Confirmare „trimis" — verde scurt */
+.worship-leader-controls .btn.btn-sent,
+.when-pill.btn-sent,
+#worshipCountdownBtn.btn-sent {
+  background: var(--success, #5ba35b) !important;
+  color: #07140a !important;
+  border-color: var(--success, #5ba35b) !important;
+  box-shadow: 0 0 0 3px rgba(91, 163, 91, 0.3),
+              0 4px 16px -4px rgba(91, 163, 91, 0.5) !important;
+  animation: btnSentPulse 0.9s ease-out;
+}
+@keyframes btnSentPulse {
+  0%   { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+/* Tranziție fină pe butoanele lider (feedback smooth) */
+.worship-leader-controls .btn { transition: transform .12s, filter .12s, background .2s, box-shadow .2s; }

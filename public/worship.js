@@ -1458,6 +1458,19 @@
     masterSocket.emit('worship:hint', Object.assign({}, p, { eventId: currentEvent.id }));
   }
 
+  // WORSHIP-BTN-FEEDBACK — feedback vizual pe butonul care a declanșat o trimitere la echipă
+  function flashButtonSent(btn) {
+    if (!btn) return;
+    btn.classList.remove('btn-sent'); void btn.offsetWidth;   // reset animație
+    btn.classList.add('btn-sent');
+    setTimeout(() => btn.classList.remove('btn-sent'), 900);
+  }
+  function pressFeedback(btn) {
+    if (!btn) return;
+    btn.classList.add('btn-pressed');
+    setTimeout(() => btn.classList.remove('btn-pressed'), 180);
+  }
+
   // WORSHIP-SCHEDULE-B — hinturi programate (selector „Când")
   // Aplicarea efectivă la moment = FAZA C; aici doar coada + UI.
   let _pendingHints = [];   // { id, hint, when, label, action }
@@ -1767,10 +1780,13 @@
     $('worshipLeaderToggleBtn').addEventListener('click', toggleLeader);
     document.querySelectorAll('#worshipLeaderControls [data-hint]').forEach((b) => {
       b.addEventListener('click', () => {
+        pressFeedback(b);
+        const wasNow = getWhenValue() === 'now';
         const t = b.getAttribute('data-hint');
         if (t === 'next') dispatchHint({ type: 'next' }, () => liveNext());
         else if (t === 'repeat') dispatchHint({ type: 'repeat' }, () => setLiveVerse(liveCurrentVerseIndex));
         else if (t === 'chorus') dispatchHint({ type: 'chorus' });
+        if (wasNow) flashButtonSent(b);
       });
     });
     // WORSHIP-WHEN-CARD — selectează momentul (one-touch), evidențiază butonul activ
@@ -1825,8 +1841,18 @@
       const word = (Math.abs(n) === 1) ? 'semiton' : 'semitoni';
       sendHint({ type: 'transpose', text: `${arrow} ${sign}${n} ${word} (acum: ${newKey})` });
     }
-    $('worshipKeyUpBtn')?.addEventListener('click', () => stepKey(1));
-    $('worshipKeyDownBtn')?.addEventListener('click', () => stepKey(-1));
+    $('worshipKeyUpBtn')?.addEventListener('click', (e) => {
+      pressFeedback(e.currentTarget);
+      const wasNow = getWhenValue() === 'now';
+      stepKey(1);
+      if (wasNow) flashButtonSent(e.currentTarget);
+    });
+    $('worshipKeyDownBtn')?.addEventListener('click', (e) => {
+      pressFeedback(e.currentTarget);
+      const wasNow = getWhenValue() === 'now';
+      stepKey(-1);
+      if (wasNow) flashButtonSent(e.currentTarget);
+    });
     $('worshipHintSongSelect').addEventListener('change', (e) => {
       const songId = e.target.value;
       if (!songId) return;
@@ -1842,9 +1868,11 @@
       inp.value = '';
     });
     // WORSHIP-COUNTDOWN — buton manual: instant pt toți (lider+echipă+proiector), NU trece prin „Când"
-    $('worshipCountdownBtn')?.addEventListener('click', () => {
+    $('worshipCountdownBtn')?.addEventListener('click', (e) => {
+      pressFeedback(e.currentTarget);
       showCountdownOverlay();
       sendHint({ type: 'countdown' });
+      flashButtonSent(e.currentTarget);
     });
 
     $('importUrlResults').addEventListener('click', async (e) => {
