@@ -5445,22 +5445,50 @@ app.post('/api/auth/worship', (req, res) => {
   if (!rateCheck.allowed) {
     return res.status(429).json({ ok: false, error: `Too many attempts. Try again in ${rateCheck.retryAfter}s.` });
   }
-  if (!WORSHIP_PIN) {
-    logger.warn('[worship/login] WORSHIP_PIN not configured');
+  // WORSHIP-ROLES-2: dacă NU e configurat nici PIN global, nici coduri de rol → 503.
+  // Altfel, login-ul merge prin PIN global (păstrat ca plasă de siguranță) SAU prin codul unui rol.
+  const roles = Array.isArray(db.worshipRoles) ? db.worshipRoles : [];
+  const hasRoleCodes = roles.some((r) => r && r.code);
+  if (!WORSHIP_PIN && !hasRoleCodes) {
+    logger.warn('[worship/login] Nor WORSHIP_PIN nor role codes configured');
     return res.status(503).json({ ok: false, error: 'Worship role not configured on this server.' });
   }
   const pin = String(req.body?.pin || '').trim();
-  if (!pin || !safeStringEqual(pin, WORSHIP_PIN)) {
-    logger.info('[worship/login] Invalid PIN attempt');
+  let roleInfo = null;   // null = membru de bază
+  let authed = false;
+  // (a) PIN global — păstrat exact ca înainte (membru de bază, fără rol special)
+  if (WORSHIP_PIN && pin && safeStringEqual(pin, WORSHIP_PIN)) {
+    authed = true;
+  }
+  // (b) cod de rol — dacă nu a trecut PIN-ul, încearcă codurile de rol
+  if (!authed && pin) {
+    const matched = roles.find((r) => r && r.code && safeStringEqual(pin, r.code));
+    if (matched) {
+      authed = true;
+      roleInfo = { name: matched.name, canLead: !!matched.canLead, canAdmin: !!matched.canAdmin };
+    }
+  }
+  if (!authed) {
+    logger.info('[worship/login] Invalid PIN/code attempt');
     return res.status(401).json({ ok: false, error: 'Invalid PIN.' });
   }
   const now = Date.now();
   // V21.1: sid gives the worship session a stable identity (offline detection
   // and master tracking in later V21 stages key on it).
-  const session = { role: 'worship', sid: randomBytes(8).toString('hex'), addedSongs: [], iat: now, exp: now + WORSHIP_SESSION_MAX_AGE_MS };
+  // WORSHIP-ROLES-2: salvăm rolul + capabilități în sesiune (null/false = membru de bază).
+  const session = {
+    role: 'worship',
+    sid: randomBytes(8).toString('hex'),
+    addedSongs: [],
+    iat: now,
+    exp: now + WORSHIP_SESSION_MAX_AGE_MS,
+    worshipRole: roleInfo ? roleInfo.name : '',
+    canLead: roleInfo ? roleInfo.canLead : false,
+    canAdmin: roleInfo ? roleInfo.canAdmin : false
+  };
   setWorshipSessionCookie(req, res, session);
-  logger.info('[worship/login] Worship session created');
-  return res.json({ ok: true });
+  logger.info('[worship/login] Worship session created', roleInfo ? '(role=' + roleInfo.name + ')' : '(base member via PIN)');
+  return res.json({ ok: true, role: session.worshipRole, canLead: session.canLead, canAdmin: session.canAdmin });
 });
 
 app.post('/api/auth/worship/logout', (req, res) => {
@@ -5596,7 +5624,13 @@ app.get('/api/worship/events', (req, res) => {
         isActive: isEventActive(event),
         songsCount: Array.isArray(event.songLibrary) ? event.songLibrary.length : 0
       }));
-    return res.json({ ok: true, events });
+    // WORSHIP-ROLES-2: expune capabilitățile sesiunii (FĂRĂ coduri) ca clientul să gate-uiască UI.
+    const currentUser = {
+      role: session.worshipRole || '',
+      canLead: !!session.canLead,
+      canAdmin: !!session.canAdmin
+    };
+    return res.json({ ok: true, events, currentUser });
   } catch (err) {
     logger.error('[worship/events] Failed:', err);
     return res.status(500).json({ ok: false, error: 'Server error' });
@@ -5618,6 +5652,12 @@ app.get('/api/worship/events/:id', (req, res) => {
     ensureWorshipState(event);
     return res.json({
       ok: true,
+      // WORSHIP-ROLES-2: capabilitățile sesiunii curente (gate UI client-side)
+      currentUser: {
+        role: session.worshipRole || '',
+        canLead: !!session.canLead,
+        canAdmin: !!session.canAdmin
+      },
       event: {
         id: event.id,
         name: event.name || 'Untitled event',

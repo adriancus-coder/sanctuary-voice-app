@@ -4,6 +4,15 @@
   const $ = (id) => document.getElementById(id);
 
   let currentEvent = null;
+  // WORSHIP-ROLES-2 — capabilitățile sesiunii curente (din /api/worship/events* response).
+  // Membru de bază (login cu PIN global SAU rol fără bife) = role gol + canLead/canAdmin false.
+  let _myRole = '', _myCanLead = false, _myCanAdmin = false;
+  function applyCurrentUser(u) {
+    if (!u) return;
+    _myRole = String(u.role || '');
+    _myCanLead = !!u.canLead;
+    _myCanAdmin = !!u.canAdmin;
+  }
   // V21.5: split into liveEvent (the read-only header — the sync source with
   // admin/operator) and pickerEvents (future + live, used by the per-card
   // "Add to event" picker). pickerEvents loads lazily on first picker open.
@@ -124,6 +133,7 @@
         return;
       }
       liveEvent = Array.isArray(data.events) && data.events.length ? data.events[0] : null;
+      if (data.currentUser) applyCurrentUser(data.currentUser);   // WORSHIP-ROLES-2
       renderLiveEventDisplay();
       if (liveEvent) {
         await loadEventDetail(liveEvent.id);
@@ -179,6 +189,7 @@
       const res = await fetch('/api/worship/events?mode=picker');
       const data = await res.json().catch(() => ({}));
       pickerEvents = (res.ok && data && data.ok && Array.isArray(data.events)) ? data.events : [];
+      if (data && data.currentUser) applyCurrentUser(data.currentUser);   // WORSHIP-ROLES-2
     } catch (err) {
       pickerEvents = [];
     }
@@ -197,6 +208,7 @@
         return;
       }
       currentEvent = data.event;
+      if (data.currentUser) applyCurrentUser(data.currentUser);   // WORSHIP-ROLES-2
       $('worshipEventInfo').innerHTML =
         '<div class="event-info-card">' +
         '<strong>' + escapeHtml(currentEvent.name) + '</strong>' +
@@ -1359,7 +1371,10 @@
     const song = getLiveSong();
     const notes = (song && Array.isArray(song.sectionNotes)) ? song.sectionNotes : [];
     const note = notes[liveCurrentVerseIndex] || '';
-    const showForAdmin = !!(note && !isWorshipLeader);
+    // WORSHIP-ROLES-2 — gate canAdmin DOAR pentru sesiuni cu rol; PIN global (_myRole='') = compat
+    // (vede & poate trimite ca înainte). Liderul (worship master cu role activ) NU vede aici (vezi banner).
+    const hasAdminCap = (_myRole === '' /* PIN global compat */) || _myCanAdmin;
+    const showForAdmin = !!(note && !isWorshipLeader && hasAdminCap);
     if (el) {
       if (showForAdmin) { el.textContent = '📝 ' + note; el.classList.remove('hidden'); }
       else { el.textContent = ''; el.classList.add('hidden'); }
@@ -1471,12 +1486,17 @@
     if (!currentEvent || !masterSocket) return;
     if (isWorshipLeader) {
       masterSocket.emit('worship:leader:release', { eventId: currentEvent.id });
-    } else {
-      // Make sure we're in the worship room first so we receive our own
-      // confirming `worship:leader` broadcast.
-      joinMasterRoom();
-      masterSocket.emit('worship:leader:claim', { eventId: currentEvent.id });
+      return;
     }
+    // WORSHIP-ROLES-2 — gate canLead, DOAR pentru sesiuni cu rol (compat: login cu PIN global = _myRole gol → trece)
+    if (_myRole && !_myCanLead) {
+      setStatus($('liveStatus'), 'Rolul tău („' + _myRole + '") nu poate fi lider.', 'warn');
+      return;
+    }
+    // Make sure we're in the worship room first so we receive our own
+    // confirming `worship:leader` broadcast.
+    joinMasterRoom();
+    masterSocket.emit('worship:leader:claim', { eventId: currentEvent.id });
   }
 
   // WORSHIP-COUNTDOWN — overlay 3-2-1-GO afișat la toți (lider + echipă + proiector)
