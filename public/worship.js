@@ -1671,6 +1671,9 @@
       // Resurse results are stale once the query changes — hide until re-run.
       const resurseSection = document.querySelector('.unified-search-resurse-section');
       if (resurseSection) resurseSection.classList.add('hidden');
+      // WORSHIP-SEARCH-OPENS-LIBRARY — deschide rezultatele când userul caută ceva
+      const resultsDd = document.getElementById('libraryResultsDropdown');
+      if (resultsDd && val.trim()) resultsDd.open = true;
     });
     // V21.39: select-all on focus so re-tap replaces the previous query in
     // one keypress. setTimeout(0) sidesteps mouseup-deselect on click-focus.
