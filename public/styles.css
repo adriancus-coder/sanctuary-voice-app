@@ -7529,3 +7529,50 @@ body.live-fullscreen-active .glass-panel {
   .leader-mode .worship-leader-controls { gap: 8px; }
   .leader-mode .worship-when-options { gap: 6px; }
 }
+
+/* WORSHIP-SONGROW-MOBILE — pe mobil: titlu sus, controale jos, fără drag, compact.
+   Desktop (>640px) rămâne neschimbat. Aplică pe .event-song-row (flex existent, wrap on). */
+@media (max-width: 640px) {
+  .event-song-row {
+    padding: 8px 10px;
+    gap: 6px;
+    align-items: center;
+  }
+  /* Ascunde mânerul de drag (touch nu merge — se folosesc săgețile) */
+  .event-song-row .song-drag-handle { display: none !important; }
+
+  /* RÂND 1: titlul (număr + titlu) pe toată lățimea, max 2 rânduri */
+  .event-song-row .event-song-meta {
+    order: 1;
+    flex: 0 0 100%;
+    min-width: 0;
+  }
+  .event-song-row .event-song-meta strong {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.25;
+    font-size: 0.95rem;
+  }
+
+  /* RÂND 2: săgeți + gamă + secțiuni + delete, aliniate pe un rând sub titlu */
+  .event-song-row .event-song-arrows { order: 2; flex: 0 0 auto; flex-direction: row; gap: 6px; }
+  .event-song-row .song-key-wrap { order: 3; flex: 1 1 auto; margin-left: 0 !important; min-width: 90px; }
+  .event-song-row .song-sections-toggle { order: 4; flex: 0 0 auto; }
+  .event-song-row [data-event-song-delete] { order: 5; flex: 0 0 auto; }
+
+  /* Săgeți MAI MARI (singura cale de reordonare pe mobil) */
+  .event-song-row .event-song-arrows .btn {
+    padding: 8px 12px !important;
+    font-size: 15px !important;
+    min-height: 40px !important;
+    min-width: 40px !important;
+  }
+
+  /* Gama: să încapă confortabil */
+  .event-song-row .song-key-select { width: 100%; padding: 8px; font-size: 14px; }
+
+  /* Panoul de secțiuni rămâne full-width sub tot */
+  .event-song-row .song-sections-panel { order: 6; flex: 0 0 100%; }
+}
