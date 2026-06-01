@@ -7507,3 +7507,25 @@ body.live-fullscreen-active .glass-panel {
   background: var(--panel, #261d12);
   color: var(--accent, #cf9a3c);
 }
+
+/* WORSHIP-LEADER-MOBILE — în leader-mode, ascunde ce ocupă spațiu degeaba pe mobil.
+   Switcher-ul moduri RĂMÂNE (acces la cântări programate). Doar în leader-mode. */
+.leader-mode.worship-app .worship-header,
+.leader-mode.worship-app #worshipEventInfo { display: none !important; }
+
+/* Textele explicative lungi (nu sunt necesare liderului) */
+.leader-mode .worship-leader-controls > p.small.muted,
+.leader-mode .worship-live-panel > p.small.muted,
+.leader-mode .worship-live-panel > h3 { display: none !important; }
+
+/* Din toolbar-ul live, ascunde butoanele care nu-s pentru lider (păstrează select cântare) */
+.leader-mode #worshipShareBtn,
+.leader-mode #worshipSyncProjectorBtn,
+.leader-mode #liveFullscreenBtn { display: none !important; }
+
+/* Compactare generală în leader-mode pe mobil */
+.leader-mode .worship-live-panel { padding: 12px !important; }
+@media (max-width: 640px) {
+  .leader-mode .worship-leader-controls { gap: 8px; }
+  .leader-mode .worship-when-options { gap: 6px; }
+}

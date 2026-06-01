@@ -1350,12 +1350,14 @@
     const status = $('worshipLeaderStatus');
     const controls = $('worshipLeaderControls');
     const livePanel = $('worshipLiveMode');   // FAZA D — container pentru clasa leader-mode
+    const appRoot = $('worshipApp');          // WORSHIP-LEADER-MOBILE — container mare (header/info/switcher)
     if (!btn || !controls) return;
     if (isWorshipLeader) {
       btn.textContent = '🎹 Ești lider (eliberează)';
       btn.classList.add('btn-confirmed');
       controls.classList.remove('hidden');
       if (livePanel) livePanel.classList.add('leader-mode');   // FAZA D — UI optimizat pt control
+      if (appRoot) appRoot.classList.add('leader-mode');       // WORSHIP-LEADER-MOBILE — ascunde header/info
       if (status) status.textContent = 'Trimiți hinturi echipei și pe proiector.';
       populateLeaderSelects();
     } else {
@@ -1363,6 +1365,7 @@
       btn.classList.remove('btn-confirmed');
       controls.classList.add('hidden');
       if (livePanel) livePanel.classList.remove('leader-mode');   // FAZA D — revine la normal
+      if (appRoot) appRoot.classList.remove('leader-mode');       // WORSHIP-LEADER-MOBILE — revine la normal
       if (status) status.textContent = currentLeaderId ? 'Lider activ: altcineva (apasă pentru a prelua)' : '';
     }
   }
