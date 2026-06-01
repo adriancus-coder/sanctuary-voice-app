@@ -364,8 +364,13 @@ function registerSocketHandlers(io, ctx) {
     on(socket, 'worship:hint', (payload) => {
       const eventId = asEventId(payload?.eventId);
       if (!eventId) return;
-      if (worshipLeaders.get(eventId) !== socket.id) return; // only the leader
-      const HINT_TYPES = ['repeat', 'next', 'chorus', 'jump_verse', 'change_key', 'jump_song', 'free'];
+      // WORSHIP-NOTES-FIX — type 'note' e permis de la ORICE worship master (admin non-lider);
+      // restul hinturilor rămân exclusiv pentru lider (gating existent).
+      const isNote = payload?.type === 'note';
+      if (!isNote && worshipLeaders.get(eventId) !== socket.id) return; // only the leader for non-note hints
+      // WORSHIP-NOTES-FIX + earlier — extins HINT_TYPES cu types existente în client
+      // (note/countdown/transpose) care erau silent-dropped înainte.
+      const HINT_TYPES = ['repeat', 'next', 'chorus', 'jump_verse', 'change_key', 'jump_song', 'free', 'note', 'countdown', 'transpose'];
       const type = HINT_TYPES.includes(payload?.type) ? payload.type : null;
       if (!type) return;
       const hint = { type, eventId, ts: Date.now() };

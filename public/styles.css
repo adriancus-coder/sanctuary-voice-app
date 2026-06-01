@@ -7712,3 +7712,5 @@ body.live-fullscreen-active .glass-panel {
   text-align: center;
 }
 .leader-mode .live-section-note { font-size: 16px; }
+/* WORSHIP-NOTES-FIX — butonul „Trimite nota" sub notă, centrat (vizibil non-liderilor) */
+#worshipSendNoteBtn { display: block; margin: 4px auto 8px; }

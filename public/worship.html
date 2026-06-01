@@ -109,8 +109,9 @@
             <div class="live-verse-label" id="liveVerseLabel">—</div>
             <div class="live-verse-text" id="liveVerseText">Selectează o cântare.</div>
           </div>
-          <!-- WORSHIP-NOTES-2 — nota de interpretare a blocului curent (doar la lider) -->
+          <!-- WORSHIP-NOTES-FIX — nota + buton push pentru worship admin (non-lider) -->
           <div id="liveSectionNote" class="live-section-note hidden"></div>
+          <button id="worshipSendNoteBtn" class="btn btn-dark btn-sm hidden" type="button">📝 Trimite nota echipei</button>
           <div class="live-controls">
             <button id="liveVersePrev" class="live-nav-btn" type="button" aria-label="Verset anterior">←</button>
             <button id="liveFontDecrease" class="live-font-btn" type="button" aria-label="Text mai mic">A−</button>
@@ -160,10 +161,6 @@
           <div class="worship-hint-row">
             <input id="worshipHintFreeInput" type="text" maxlength="200" class="worship-hint-free" placeholder="Mesaj liber pentru echipă...">
             <button id="worshipHintFreeBtn" class="btn btn-primary btn-sm" type="button">Trimite</button>
-          </div>
-          <!-- WORSHIP-NOTES-2 — push nota blocului curent DOAR la echipă -->
-          <div class="worship-hint-row">
-            <button id="worshipSendNoteBtn" class="btn btn-dark btn-sm" type="button">📝 Trimite nota</button>
           </div>
           <div class="worship-pending-hints" id="worshipPendingHints"></div>
         </div>

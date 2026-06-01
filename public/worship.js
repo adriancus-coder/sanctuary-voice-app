@@ -1258,6 +1258,8 @@
     masterSocket.on('worship:hint', (h) => {
       // WORSHIP-COUNTDOWN — countdown e văzut de TOȚI (inclusiv liderul), banner separat de hint
       if (h && h.type === 'countdown') { showCountdownOverlay(); return; }
+      // WORSHIP-NOTES-FIX — nota e văzută de TOȚI (inclusiv liderul, ca referință)
+      if (h && h.type === 'note') { showWorshipHintBanner(h); return; }
       if (!isWorshipLeader) showWorshipHintBanner(h);
     });
     masterHeartbeatTimer = setInterval(() => {
@@ -1349,19 +1351,22 @@
     }
   }
 
-  // WORSHIP-NOTES-2 — afișează nota de interpretare a blocului curent (doar la lider, în live)
+  // WORSHIP-NOTES-FIX — nota aparține worship admin (non-lider): vede textul + butonul de push.
+  // Liderul NU vede nota local de aici — o vede ca banner separat când i se face push (receptor 'note').
   function renderLiveSectionNote() {
     const el = document.getElementById('liveSectionNote');
-    if (!el) return;
+    const btn = document.getElementById('worshipSendNoteBtn');
     const song = getLiveSong();
     const notes = (song && Array.isArray(song.sectionNotes)) ? song.sectionNotes : [];
     const note = notes[liveCurrentVerseIndex] || '';
-    if (note && isWorshipLeader) {
-      el.textContent = '📝 ' + note;
-      el.classList.remove('hidden');
-    } else {
-      el.textContent = '';
-      el.classList.add('hidden');
+    const showForAdmin = !!(note && !isWorshipLeader);
+    if (el) {
+      if (showForAdmin) { el.textContent = '📝 ' + note; el.classList.remove('hidden'); }
+      else { el.textContent = ''; el.classList.add('hidden'); }
+    }
+    if (btn) {
+      if (showForAdmin) btn.classList.remove('hidden');
+      else btn.classList.add('hidden');
     }
   }
 
@@ -1506,6 +1511,13 @@
   function sendHint(p) {
     if (!isWorshipLeader || !currentEvent || !masterSocket) return;
     masterSocket.emit('worship:hint', Object.assign({}, p, { eventId: currentEvent.id }));
+  }
+
+  // WORSHIP-NOTES-FIX — push notă de la worship admin (non-lider): NU cere isWorshipLeader.
+  // Serverul acceptă type 'note' de la orice master worship (vezi socket/handlers.js).
+  function sendNote(text) {
+    if (!currentEvent || !masterSocket) return;
+    masterSocket.emit('worship:hint', { type: 'note', text, eventId: currentEvent.id });
   }
 
   // WORSHIP-BTN-FEEDBACK — feedback vizual pe butonul care a declanșat o trimitere la echipă
@@ -1917,14 +1929,15 @@
       dispatchHint({ type: 'free', text });
       inp.value = '';
     });
-    // WORSHIP-NOTES-2 — buton manual: trimite nota blocului curent DOAR la echipă (proiectorul ignoră)
+    // WORSHIP-NOTES-FIX — push notă de la worship admin (non-lider) la echipă + liderul-referință.
+    // Foloseste sendNote (nu sendHint, care cere isWorshipLeader). Proiectorul ignoră 'note'.
     $('worshipSendNoteBtn')?.addEventListener('click', (e) => {
       const song = getLiveSong();
       const notes = (song && Array.isArray(song.sectionNotes)) ? song.sectionNotes : [];
       const note = notes[liveCurrentVerseIndex] || '';
       if (!note) { setStatus($('liveStatus'), 'Nicio notă pe blocul curent.', 'warn'); return; }
       pressFeedback(e.currentTarget);
-      sendHint({ type: 'note', text: note });
+      sendNote(note);
       flashButtonSent(e.currentTarget);
     });
     // WORSHIP-COUNTDOWN — buton manual: instant pt toți (lider+echipă+proiector), NU trece prin „Când"
