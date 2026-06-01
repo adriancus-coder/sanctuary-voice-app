@@ -258,12 +258,14 @@ function renderWorshipRoles(roles) {
   }
   el.innerHTML = roles.map((r) => {
     const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Worship admin' : null].filter(Boolean).join(', ') || 'Membru';
+    const emo = r.emoji ? (escapeHtml(r.emoji) + ' ') : '';
     return '<div class="history-item worship-role-item"' +
       ' data-role-name="' + escapeHtml(r.name) + '"' +
       ' data-role-code="' + escapeHtml(r.code || '') + '"' +
       ' data-role-lead="' + (r.canLead ? '1' : '0') + '"' +
-      ' data-role-admin="' + (r.canAdmin ? '1' : '0') + '">' +
-      '<span><strong>' + escapeHtml(r.name) + '</strong>' +
+      ' data-role-admin="' + (r.canAdmin ? '1' : '0') + '"' +
+      ' data-role-emoji="' + escapeHtml(r.emoji || '') + '">' +
+      '<span>' + emo + '<strong>' + escapeHtml(r.name) + '</strong>' +
         ' <span class="muted">· cod: ' + escapeHtml(r.code || '—') + ' · ' + escapeHtml(caps) + '</span></span>' +
       '<button class="btn btn-dark btn-sm" data-worship-role-delete="' + escapeHtml(r.name) + '" type="button">Șterge</button>' +
     '</div>';
@@ -4657,20 +4659,28 @@ $('openRemoteControlBtn').addEventListener('click', () => {
 document.getElementById('addWorshipRoleBtn')?.addEventListener('click', async () => {
   const name = (document.getElementById('worshipRoleName')?.value || '').trim();
   const code = (document.getElementById('worshipRoleCode')?.value || '').trim();
+  const emoji = (document.getElementById('worshipRoleEmoji')?.value || '').trim();
   const canLead = !!document.getElementById('worshipRoleCanLead')?.checked;
   const canAdmin = !!document.getElementById('worshipRoleCanAdmin')?.checked;
   if (!name) return;
   try {
     const res = await fetch('/api/admin/worship-roles', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-      body: JSON.stringify({ name, code, canLead, canAdmin })
+      body: JSON.stringify({ name, code, canLead, canAdmin, emoji })
     });
     const data = await res.json().catch(() => ({}));
     if (!data.ok) { alert(data.error || 'Eroare la salvare rol.'); return; }
-    ['worshipRoleName', 'worshipRoleCode'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['worshipRoleName', 'worshipRoleCode', 'worshipRoleEmoji'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
     ['worshipRoleCanLead', 'worshipRoleCanAdmin'].forEach((id) => { const el = document.getElementById(id); if (el) el.checked = false; });
     renderWorshipRoles(data.roles);
   } catch (err) { alert('Eroare: ' + err.message); }
+});
+// WORSHIP-ROLES-EMOJI — picker iconițe muzicale → pune emoji-ul în input
+document.getElementById('worshipEmojiPicker')?.addEventListener('click', (e) => {
+  const b = e.target.closest('.emoji-pick');
+  if (!b) return;
+  const inp = document.getElementById('worshipRoleEmoji');
+  if (inp) inp.value = b.getAttribute('data-emoji') || '';
 });
 document.getElementById('worshipRolesList')?.addEventListener('click', async (e) => {
   // Ștergere
@@ -4693,10 +4703,12 @@ document.getElementById('worshipRolesList')?.addEventListener('click', async (e)
   if (!item) return;
   const nameEl = document.getElementById('worshipRoleName');
   const codeEl = document.getElementById('worshipRoleCode');
+  const emojiEl = document.getElementById('worshipRoleEmoji');
   const leadEl = document.getElementById('worshipRoleCanLead');
   const adminEl = document.getElementById('worshipRoleCanAdmin');
   if (nameEl)  nameEl.value  = item.getAttribute('data-role-name') || '';
   if (codeEl)  codeEl.value  = item.getAttribute('data-role-code') || '';
+  if (emojiEl) emojiEl.value = item.getAttribute('data-role-emoji') || '';
   if (leadEl)  leadEl.checked  = item.getAttribute('data-role-lead') === '1';
   if (adminEl) adminEl.checked = item.getAttribute('data-role-admin') === '1';
 });

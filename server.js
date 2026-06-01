@@ -1411,8 +1411,10 @@ if (!Array.isArray(db.worshipRoles)) {
 } else {
   db.worshipRoles = db.worshipRoles.map((r) =>
     (typeof r === 'string')
-      ? { name: r, code: '', canLead: false, canAdmin: false }
-      : { name: String(r?.name || ''), code: String(r?.code || ''), canLead: !!r?.canLead, canAdmin: !!r?.canAdmin }
+      ? { name: r, code: '', canLead: false, canAdmin: false, emoji: '' }
+      : { name: String(r?.name || ''), code: String(r?.code || ''),
+          canLead: !!r?.canLead, canAdmin: !!r?.canAdmin,
+          emoji: String(r?.emoji || '').slice(0, 8) }
   ).filter((r) => r.name);
 }
 if (!db.globalAccess || typeof db.globalAccess !== 'object') {
@@ -4566,13 +4568,14 @@ app.post('/api/admin/worship-roles', (req, res) => {
   const code = String(req.body?.code || '').trim().slice(0, 40);
   const canLead = !!req.body?.canLead;
   const canAdmin = !!req.body?.canAdmin;
+  const emoji = String(req.body?.emoji || '').trim().slice(0, 8);
   if (!name) return res.status(400).json({ ok: false, error: 'Nume rol gol.' });
   if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
   // Cod unic (dacă e dat) — două roluri nu pot folosi același cod, indiferent de nume.
   if (code && db.worshipRoles.some((r) => r.code && r.code === code && r.name.toLowerCase() !== name.toLowerCase())) {
     return res.status(409).json({ ok: false, error: 'Cod deja folosit de alt rol.' });
   }
-  const role = { name, code, canLead, canAdmin };
+  const role = { name, code, canLead, canAdmin, emoji };
   const idx = db.worshipRoles.findIndex((r) => r.name.toLowerCase() === name.toLowerCase());
   if (idx >= 0) db.worshipRoles[idx] = role;   // editare dacă numele există
   else db.worshipRoles.push(role);             // altfel creare

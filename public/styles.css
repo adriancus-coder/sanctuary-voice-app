@@ -7728,3 +7728,14 @@ body.live-fullscreen-active .glass-panel {
   .worship-role-form { flex-direction: row; flex-wrap: wrap; align-items: center; }
   .worship-role-form input[type="text"] { flex: 1 1 140px; width: auto; }
 }
+
+/* WORSHIP-ROLES-EMOJI — picker iconițe muzicale + input liber */
+.worship-emoji-picker { display: flex; flex-wrap: wrap; gap: 4px; }
+.emoji-pick {
+  font-size: 20px; line-height: 1; padding: 6px 8px; cursor: pointer;
+  background: var(--panel-strong, rgba(18, 20, 26, 0.92));
+  border: 1px solid var(--line, rgba(255, 241, 214, 0.12));
+  border-radius: 8px;
+}
+.emoji-pick:hover { border-color: var(--accent, #cf9a3c); background: rgba(207, 154, 60, 0.12); }
+.worship-role-emoji-input { width: 60px; text-align: center; font-size: 18px; flex: 0 0 60px !important; }
