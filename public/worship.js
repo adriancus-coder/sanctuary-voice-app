@@ -7,15 +7,17 @@
   // WORSHIP-ROLES-2 — capabilitățile sesiunii curente (din /api/worship/events* response).
   // Membru de bază (login cu PIN global SAU rol fără bife) = role gol + canLead/canAdmin false.
   // WORSHIP-ROLES-LIVE — _myEmoji adăugat pentru badge-ul vizibil.
-  let _myRole = '', _myCanLead = false, _myCanAdmin = false, _myEmoji = '';
+  let _myRole = '', _myCanLead = false, _myCanAdmin = false, _myCanManageRoles = false, _myEmoji = '';
   function applyCurrentUser(u) {
     if (!u) return;
     _myRole = String(u.role || '');
     _myCanLead = !!u.canLead;
     _myCanAdmin = !!u.canAdmin;
+    _myCanManageRoles = !!u.canManageRoles;   // WORSHIP-MANAGE-ROLES
     _myEmoji = String(u.emoji || '');
     renderMyRoleBadge();
     applyPrepGate();   // WORSHIP-PREP-GATE
+    applyRolesModeGate();   // WORSHIP-MANAGE-ROLES
   }
   // WORSHIP-ROLES-LIVE — afișează rolul curent al membrului (cine ești).
   // PIN global (login fără cod-rol) = _myRole gol → badge ascuns (compat).
@@ -41,6 +43,17 @@
       setlistBtn.classList.add('hidden');
       // dacă e în setlist fără drept, mută-l pe Live
       if (liveMode === 'setlist') toggleMode('live');
+    }
+  }
+  // WORSHIP-MANAGE-ROLES — butonul „Roluri" vizibil DOAR pt rolurile cu canManageRoles.
+  function applyRolesModeGate() {
+    const btn = document.getElementById('worshipRolesModeBtn');
+    if (!btn) return;
+    if (_myCanManageRoles) {
+      btn.classList.remove('hidden');
+    } else {
+      btn.classList.add('hidden');
+      if (liveMode === 'roles') toggleMode('live');
     }
   }
   // V21.5: split into liveEvent (the read-only header — the sync source with
@@ -825,12 +838,15 @@
   }
 
   function toggleMode(mode) {
-    if (mode !== 'setlist' && mode !== 'live') return;
+    if (mode !== 'setlist' && mode !== 'live' && mode !== 'roles') return;
     // WORSHIP-PREP-GATE — lider-doar (canAdmin=false cu rol) nu intră în Pregătire.
     if (mode === 'setlist' && !canAccessPrep()) return;
+    // WORSHIP-MANAGE-ROLES — modul „Roluri" cere canManageRoles.
+    if (mode === 'roles' && !_myCanManageRoles) return;
     liveMode = mode;
     $('worshipSetlistMode').classList.toggle('hidden', mode !== 'setlist');
     $('worshipLiveMode').classList.toggle('hidden', mode !== 'live');
+    document.getElementById('worshipRolesMode')?.classList.toggle('hidden', mode !== 'roles');
     document.querySelectorAll('[data-worship-mode]').forEach((b) => {
       b.classList.toggle('active', b.dataset.worshipMode === mode);
     });
@@ -839,6 +855,7 @@
       initMasterSocket();
       joinMasterRoom();
     }
+    if (mode === 'roles') loadWorshipRolesManage();
   }
 
   function refreshLiveMode() {
@@ -2080,4 +2097,82 @@
         .catch((err) => console.warn('worship SW registration failed:', err && err.message));
     });
   }
+
+  // WORSHIP-MANAGE-ROLES — gestionarea rolurilor în /worship (gate server-side pe canManageRoles).
+  function loadWorshipRolesManage() {
+    fetch('/api/worship/roles', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => { if (d && d.ok) renderWRoles(d.roles || []); })
+      .catch(() => {});
+  }
+  function renderWRoles(roles) {
+    const el = document.getElementById('wRolesList');
+    if (!el) return;
+    if (!roles.length) { el.innerHTML = '<div class="muted">Niciun rol definit.</div>'; return; }
+    el.innerHTML = roles.map((r) => {
+      const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Worship admin' : null, r.canManageRoles ? 'Gestionează roluri' : null].filter(Boolean).join(', ') || 'Membru';
+      const emo = r.emoji ? (escapeHtml(r.emoji) + ' ') : '';
+      return '<div class="history-item worship-role-item"' +
+        ' data-n="' + escapeHtml(r.name) + '"' +
+        ' data-c="' + escapeHtml(r.code || '') + '"' +
+        ' data-e="' + escapeHtml(r.emoji || '') + '"' +
+        ' data-l="' + (r.canLead ? '1' : '0') + '"' +
+        ' data-a="' + (r.canAdmin ? '1' : '0') + '"' +
+        ' data-m="' + (r.canManageRoles ? '1' : '0') + '">' +
+        '<span>' + emo + '<strong>' + escapeHtml(r.name) + '</strong>' +
+          ' <span class="muted">· cod: ' + escapeHtml(r.code || '—') + ' · ' + escapeHtml(caps) + '</span></span>' +
+        '<button class="btn btn-dark btn-sm" data-wrole-del="' + escapeHtml(r.name) + '" type="button">Șterge</button>' +
+      '</div>';
+    }).join('');
+  }
+  document.getElementById('wAddRoleBtn')?.addEventListener('click', async () => {
+    const name = (document.getElementById('wRoleName')?.value || '').trim();
+    const code = (document.getElementById('wRoleCode')?.value || '').trim();
+    const emoji = (document.getElementById('wRoleEmoji')?.value || '').trim();
+    const canLead = !!document.getElementById('wRoleCanLead')?.checked;
+    const canAdmin = !!document.getElementById('wRoleCanAdmin')?.checked;
+    const canManageRoles = !!document.getElementById('wRoleCanManage')?.checked;
+    if (!name) return;
+    try {
+      const res = await fetch('/api/worship/roles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ name, code, canLead, canAdmin, canManageRoles, emoji })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) { alert(data.error || 'Eroare la salvare rol.'); return; }
+      ['wRoleName', 'wRoleCode', 'wRoleEmoji'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
+      ['wRoleCanLead', 'wRoleCanAdmin', 'wRoleCanManage'].forEach((id) => { const el = document.getElementById(id); if (el) el.checked = false; });
+      renderWRoles(data.roles || []);
+    } catch (err) { alert('Eroare: ' + err.message); }
+  });
+  document.getElementById('wRolesList')?.addEventListener('click', async (e) => {
+    const delBtn = e.target.closest('[data-wrole-del]');
+    if (delBtn) {
+      const name = delBtn.getAttribute('data-wrole-del');
+      if (!confirm('Ștergi rolul „' + name + '"?')) return;
+      try {
+        const res = await fetch('/api/worship/roles', {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ name })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (data.ok) renderWRoles(data.roles || []);
+      } catch (_) {}
+      return;
+    }
+    const item = e.target.closest('.worship-role-item');
+    if (!item) return;
+    const nameEl = document.getElementById('wRoleName');
+    const codeEl = document.getElementById('wRoleCode');
+    const emojiEl = document.getElementById('wRoleEmoji');
+    const leadEl = document.getElementById('wRoleCanLead');
+    const adminEl = document.getElementById('wRoleCanAdmin');
+    const manageEl = document.getElementById('wRoleCanManage');
+    if (nameEl)  nameEl.value  = item.getAttribute('data-n') || '';
+    if (codeEl)  codeEl.value  = item.getAttribute('data-c') || '';
+    if (emojiEl) emojiEl.value = item.getAttribute('data-e') || '';
+    if (leadEl)  leadEl.checked  = item.getAttribute('data-l') === '1';
+    if (adminEl) adminEl.checked = item.getAttribute('data-a') === '1';
+    if (manageEl) manageEl.checked = item.getAttribute('data-m') === '1';
+  });
 })();

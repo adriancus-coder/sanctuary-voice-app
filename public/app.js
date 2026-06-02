@@ -277,7 +277,7 @@ function renderWorshipRoles(roles) {
     return;
   }
   el.innerHTML = roles.map((r) => {
-    const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Worship admin' : null].filter(Boolean).join(', ') || 'Membru';
+    const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Worship admin' : null, r.canManageRoles ? 'Gestionează roluri' : null].filter(Boolean).join(', ') || 'Membru';
     const emo = r.emoji ? (escapeHtml(r.emoji) + ' ') : '';
     const online = !!(_worshipRolesOnline && _worshipRolesOnline[r.name] > 0);
     const dot = '<span class="worship-role-dot ' + (online ? 'on' : 'off') + '" title="' + (online ? 'Online' : 'Offline') + '"></span>';
@@ -286,6 +286,7 @@ function renderWorshipRoles(roles) {
       ' data-role-code="' + escapeHtml(r.code || '') + '"' +
       ' data-role-lead="' + (r.canLead ? '1' : '0') + '"' +
       ' data-role-admin="' + (r.canAdmin ? '1' : '0') + '"' +
+      ' data-role-manage="' + (r.canManageRoles ? '1' : '0') + '"' +
       ' data-role-emoji="' + escapeHtml(r.emoji || '') + '">' +
       '<span>' + dot + emo + '<strong>' + escapeHtml(r.name) + '</strong>' +
         ' <span class="muted">· cod: ' + escapeHtml(r.code || '—') + ' · ' + escapeHtml(caps) + '</span></span>' +
@@ -4689,16 +4690,17 @@ document.getElementById('addWorshipRoleBtn')?.addEventListener('click', async ()
   const emoji = (document.getElementById('worshipRoleEmoji')?.value || '').trim();
   const canLead = !!document.getElementById('worshipRoleCanLead')?.checked;
   const canAdmin = !!document.getElementById('worshipRoleCanAdmin')?.checked;
+  const canManageRoles = !!document.getElementById('worshipRoleCanManage')?.checked;   // WORSHIP-MANAGE-ROLES
   if (!name) return;
   try {
     const res = await fetch('/api/admin/worship-roles', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-      body: JSON.stringify({ name, code, canLead, canAdmin, emoji })
+      body: JSON.stringify({ name, code, canLead, canAdmin, canManageRoles, emoji })
     });
     const data = await res.json().catch(() => ({}));
     if (!data.ok) { alert(data.error || 'Eroare la salvare rol.'); return; }
     ['worshipRoleName', 'worshipRoleCode', 'worshipRoleEmoji'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
-    ['worshipRoleCanLead', 'worshipRoleCanAdmin'].forEach((id) => { const el = document.getElementById(id); if (el) el.checked = false; });
+    ['worshipRoleCanLead', 'worshipRoleCanAdmin', 'worshipRoleCanManage'].forEach((id) => { const el = document.getElementById(id); if (el) el.checked = false; });
     renderWorshipRoles(data.roles);
   } catch (err) { alert('Eroare: ' + err.message); }
 });
@@ -4753,11 +4755,13 @@ document.getElementById('worshipRolesList')?.addEventListener('click', async (e)
   const emojiEl = document.getElementById('worshipRoleEmoji');
   const leadEl = document.getElementById('worshipRoleCanLead');
   const adminEl = document.getElementById('worshipRoleCanAdmin');
+  const manageEl = document.getElementById('worshipRoleCanManage');   // WORSHIP-MANAGE-ROLES
   if (nameEl)  nameEl.value  = item.getAttribute('data-role-name') || '';
   if (codeEl)  codeEl.value  = item.getAttribute('data-role-code') || '';
   if (emojiEl) emojiEl.value = item.getAttribute('data-role-emoji') || '';
   if (leadEl)  leadEl.checked  = item.getAttribute('data-role-lead') === '1';
   if (adminEl) adminEl.checked = item.getAttribute('data-role-admin') === '1';
+  if (manageEl) manageEl.checked = item.getAttribute('data-role-manage') === '1';
 });
 
 $('createRemoteOperatorBtn')?.addEventListener('click', async () => {

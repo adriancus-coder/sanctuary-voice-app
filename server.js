@@ -1406,14 +1406,15 @@ if (!Array.isArray(db.pinnedTextLibrary)) {
 }
 // WORSHIP-ROLES-1: listă globală de etichete de rol worship (ex. „Chitară 1", „Voce").
 // WORSHIP-ROLES-1B: rolurile devin obiecte {name, code, canLead, canAdmin}; migrare safe.
+// WORSHIP-MANAGE-ROLES: a 3-a capabilitate canManageRoles (super-user worship); migrare safe.
 if (!Array.isArray(db.worshipRoles)) {
   db.worshipRoles = [];
 } else {
   db.worshipRoles = db.worshipRoles.map((r) =>
     (typeof r === 'string')
-      ? { name: r, code: '', canLead: false, canAdmin: false, emoji: '' }
+      ? { name: r, code: '', canLead: false, canAdmin: false, canManageRoles: false, emoji: '' }
       : { name: String(r?.name || ''), code: String(r?.code || ''),
-          canLead: !!r?.canLead, canAdmin: !!r?.canAdmin,
+          canLead: !!r?.canLead, canAdmin: !!r?.canAdmin, canManageRoles: !!r?.canManageRoles,
           emoji: String(r?.emoji || '').slice(0, 8) }
   ).filter((r) => r.name);
 }
@@ -4568,6 +4569,7 @@ app.post('/api/admin/worship-roles', (req, res) => {
   const code = String(req.body?.code || '').trim().slice(0, 40);
   const canLead = !!req.body?.canLead;
   const canAdmin = !!req.body?.canAdmin;
+  const canManageRoles = !!req.body?.canManageRoles;   // WORSHIP-MANAGE-ROLES
   const emoji = String(req.body?.emoji || '').trim().slice(0, 8);
   if (!name) return res.status(400).json({ ok: false, error: 'Nume rol gol.' });
   if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
@@ -4575,7 +4577,7 @@ app.post('/api/admin/worship-roles', (req, res) => {
   if (code && db.worshipRoles.some((r) => r.code && r.code === code && r.name.toLowerCase() !== name.toLowerCase())) {
     return res.status(409).json({ ok: false, error: 'Cod deja folosit de alt rol.' });
   }
-  const role = { name, code, canLead, canAdmin, emoji };
+  const role = { name, code, canLead, canAdmin, canManageRoles, emoji };
   const idx = db.worshipRoles.findIndex((r) => r.name.toLowerCase() === name.toLowerCase());
   if (idx >= 0) db.worshipRoles[idx] = role;   // editare dacă numele există
   else db.worshipRoles.push(role);             // altfel creare
@@ -4584,6 +4586,57 @@ app.post('/api/admin/worship-roles', (req, res) => {
 });
 app.delete('/api/admin/worship-roles', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;
+  const name = String(req.body?.name || '').trim();
+  if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
+  db.worshipRoles = db.worshipRoles.filter((r) => r.name !== name);
+  saveDb();
+  return res.json({ ok: true, roles: db.worshipRoles });
+});
+
+// WORSHIP-MANAGE-ROLES — endpoint-uri worship-facing pentru gestionarea rolurilor.
+// Gate server-side: sesiune worship validă + rolul CURENT (din db.worshipRoles) are canManageRoles.
+// Verificarea pe rolul CURENT (nu sesiunea de la login) face ca revocarea capabilității să aibă efect imediat.
+function requireWorshipManageSession(req, res) {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return null;
+  const roleName = session.worshipRole || '';
+  if (!roleName) {
+    res.status(403).json({ ok: false, error: 'Necesită rol cu gestionare roluri.' });
+    return null;
+  }
+  const roleObj = (Array.isArray(db.worshipRoles) ? db.worshipRoles : []).find((r) => r.name === roleName);
+  if (!roleObj || !roleObj.canManageRoles) {
+    res.status(403).json({ ok: false, error: 'Rolul tău nu poate gestiona roluri.' });
+    return null;
+  }
+  return session;
+}
+app.get('/api/worship/roles', (req, res) => {
+  if (!requireWorshipManageSession(req, res)) return;
+  return res.json({ ok: true, roles: Array.isArray(db.worshipRoles) ? db.worshipRoles : [] });
+});
+app.post('/api/worship/roles', (req, res) => {
+  if (!requireWorshipManageSession(req, res)) return;
+  const name = String(req.body?.name || '').trim().slice(0, 40);
+  const code = String(req.body?.code || '').trim().slice(0, 40);
+  const canLead = !!req.body?.canLead;
+  const canAdmin = !!req.body?.canAdmin;
+  const canManageRoles = !!req.body?.canManageRoles;
+  const emoji = String(req.body?.emoji || '').trim().slice(0, 8);
+  if (!name) return res.status(400).json({ ok: false, error: 'Nume rol gol.' });
+  if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
+  if (code && db.worshipRoles.some((r) => r.code && r.code === code && r.name.toLowerCase() !== name.toLowerCase())) {
+    return res.status(409).json({ ok: false, error: 'Cod deja folosit de alt rol.' });
+  }
+  const role = { name, code, canLead, canAdmin, canManageRoles, emoji };
+  const idx = db.worshipRoles.findIndex((r) => r.name.toLowerCase() === name.toLowerCase());
+  if (idx >= 0) db.worshipRoles[idx] = role;
+  else db.worshipRoles.push(role);
+  saveDb();
+  return res.json({ ok: true, roles: db.worshipRoles });
+});
+app.delete('/api/worship/roles', (req, res) => {
+  if (!requireWorshipManageSession(req, res)) return;
   const name = String(req.body?.name || '').trim();
   if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
   db.worshipRoles = db.worshipRoles.filter((r) => r.name !== name);
@@ -5468,7 +5521,7 @@ app.post('/api/auth/worship', (req, res) => {
     const matched = roles.find((r) => r && r.code && safeStringEqual(pin, r.code));
     if (matched) {
       authed = true;
-      roleInfo = { name: matched.name, canLead: !!matched.canLead, canAdmin: !!matched.canAdmin };
+      roleInfo = { name: matched.name, canLead: !!matched.canLead, canAdmin: !!matched.canAdmin, canManageRoles: !!matched.canManageRoles };
     }
   }
   if (!authed) {
@@ -5487,11 +5540,12 @@ app.post('/api/auth/worship', (req, res) => {
     exp: now + WORSHIP_SESSION_MAX_AGE_MS,
     worshipRole: roleInfo ? roleInfo.name : '',
     canLead: roleInfo ? roleInfo.canLead : false,
-    canAdmin: roleInfo ? roleInfo.canAdmin : false
+    canAdmin: roleInfo ? roleInfo.canAdmin : false,
+    canManageRoles: roleInfo ? roleInfo.canManageRoles : false   // WORSHIP-MANAGE-ROLES
   };
   setWorshipSessionCookie(req, res, session);
   logger.info('[worship/login] Worship session created', roleInfo ? '(role=' + roleInfo.name + ')' : '(base member via PIN)');
-  return res.json({ ok: true, role: session.worshipRole, canLead: session.canLead, canAdmin: session.canAdmin });
+  return res.json({ ok: true, role: session.worshipRole, canLead: session.canLead, canAdmin: session.canAdmin, canManageRoles: session.canManageRoles });
 });
 
 app.post('/api/auth/worship/logout', (req, res) => {
@@ -5634,6 +5688,7 @@ app.get('/api/worship/events', (req, res) => {
       role: session.worshipRole || '',
       canLead: !!session.canLead,
       canAdmin: !!session.canAdmin,
+      canManageRoles: !!session.canManageRoles,   // WORSHIP-MANAGE-ROLES
       emoji: _roleObj ? (_roleObj.emoji || '') : ''
     };
     return res.json({ ok: true, events, currentUser });
@@ -5666,6 +5721,7 @@ app.get('/api/worship/events/:id', (req, res) => {
           role: session.worshipRole || '',
           canLead: !!session.canLead,
           canAdmin: !!session.canAdmin,
+          canManageRoles: !!session.canManageRoles,   // WORSHIP-MANAGE-ROLES
           emoji: _ro ? (_ro.emoji || '') : ''
         };
       })(),

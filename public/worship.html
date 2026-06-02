@@ -49,6 +49,8 @@
     <nav class="worship-mode-switcher" id="worshipModeSwitcher">
       <button type="button" data-worship-mode="setlist" class="active">📋 Pregătire program</button>
       <button type="button" data-worship-mode="live">🎵 Live</button>
+      <!-- WORSHIP-MANAGE-ROLES — al 3-lea mod, vizibil DOAR cu canManageRoles -->
+      <button type="button" data-worship-mode="roles" id="worshipRolesModeBtn" class="hidden">👑 Roluri</button>
     </nav>
 
     <section id="worshipSetlistMode" class="worship-mode-panel worship-song-panel">
@@ -167,6 +169,26 @@
           </div>
           <div class="worship-pending-hints" id="worshipPendingHints"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- WORSHIP-MANAGE-ROLES — panou de gestionare roluri, vizibil DOAR cu canManageRoles -->
+    <section id="worshipRolesMode" class="worship-mode-panel hidden">
+      <div class="panel glass-panel worship-roles-manage">
+        <h3>👑 Gestionează roluri</h3>
+        <div class="muted small">Coduri + capabilități pentru rolurile echipei. Vizibil doar dacă rolul tău are „Gestionează roluri".</div>
+        <div class="worship-role-form">
+          <input id="wRoleName" type="text" placeholder="Nume (ex. Pian)" maxlength="40">
+          <input id="wRoleEmoji" type="text" placeholder="🎹" maxlength="8" class="worship-role-emoji-input">
+          <input id="wRoleCode" type="text" placeholder="Cod (ex. 4821)" maxlength="40">
+          <div class="worship-cap-toggles">
+            <label class="worship-cap-toggle"><input type="checkbox" id="wRoleCanLead"><span class="worship-cap-pill">🎹 Poate fi lider</span></label>
+            <label class="worship-cap-toggle"><input type="checkbox" id="wRoleCanAdmin"><span class="worship-cap-pill">🛠 Poate fi worship admin</span></label>
+            <label class="worship-cap-toggle"><input type="checkbox" id="wRoleCanManage"><span class="worship-cap-pill">👑 Gestionează roluri</span></label>
+          </div>
+          <button id="wAddRoleBtn" class="btn btn-dark" type="button">Adaugă / actualizează rol</button>
+        </div>
+        <div id="wRolesList" class="history-list"><div class="muted">Niciun rol definit.</div></div>
       </div>
     </section>
   </main>
