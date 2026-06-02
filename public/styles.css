@@ -7721,12 +7721,35 @@ body.live-fullscreen-active .glass-panel {
 /* WORSHIP-ROLES-1B — formular rol cu nume + cod + bife (Lider / Worship admin) */
 .worship-role-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .worship-role-form input[type="text"] { width: 100%; }
-.worship-role-cap { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text, #f6f0e6); cursor: pointer; }
 .worship-role-item { cursor: pointer; }
 .worship-role-item:hover { background: rgba(255, 241, 214, 0.04); }
 @media (min-width: 600px) {
   .worship-role-form { flex-direction: row; flex-wrap: wrap; align-items: center; }
   .worship-role-form input[type="text"] { flex: 1 1 140px; width: auto; }
+}
+
+/* WORSHIP-ROLE-TOGGLES — checkbox-uri native ascunse; label = pastilă toggle lizibilă
+   (fix pătrate albe iOS care împingeau textul tăiat în dreapta) */
+.worship-cap-toggles { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.worship-cap-toggle { position: relative; display: inline-flex; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.worship-cap-toggle input[type="checkbox"] {
+  position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none;
+  -webkit-appearance: none; appearance: none;
+}
+.worship-cap-pill {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 10px 18px; border-radius: 22px; font-size: 14px; font-weight: 600;
+  background: var(--panel-strong, rgba(18,20,26,0.92));
+  border: 1px solid var(--line, rgba(255,241,214,0.18));
+  color: var(--muted, rgba(228,219,204,0.7)); transition: all .15s; user-select: none;
+}
+.worship-cap-toggle input[type="checkbox"]:checked + .worship-cap-pill {
+  background: linear-gradient(150deg, var(--gold, #d8b06a), #9a6f25);
+  border-color: var(--gold, #d8b06a); color: #1a1206;
+  box-shadow: 0 4px 14px -4px rgba(216,176,106,0.5);
+}
+.worship-cap-toggle input[type="checkbox"]:focus-visible + .worship-cap-pill {
+  outline: 2px solid var(--gold, #d8b06a); outline-offset: 2px;
 }
 
 /* WORSHIP-ROLES-EMOJI — picker iconițe muzicale + input liber */

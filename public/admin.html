@@ -520,8 +520,16 @@
                 <button type="button" class="emoji-pick" data-emoji="👏">👏</button>
               </div>
               <input id="worshipRoleCode" type="text" placeholder="Cod (ex. 4821)" maxlength="40">
-              <label class="worship-role-cap"><input type="checkbox" id="worshipRoleCanLead"> Poate fi lider</label>
-              <label class="worship-role-cap"><input type="checkbox" id="worshipRoleCanAdmin"> Poate fi worship admin</label>
+              <div class="worship-cap-toggles">
+                <label class="worship-cap-toggle">
+                  <input type="checkbox" id="worshipRoleCanLead">
+                  <span class="worship-cap-pill">🎹 Poate fi lider</span>
+                </label>
+                <label class="worship-cap-toggle">
+                  <input type="checkbox" id="worshipRoleCanAdmin">
+                  <span class="worship-cap-pill">🛠 Poate fi worship admin</span>
+                </label>
+              </div>
               <button id="addWorshipRoleBtn" class="btn btn-dark" type="button">Adaugă / actualizează rol</button>
             </div>
             <div id="worshipRolesList" class="history-list">
