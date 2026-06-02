@@ -277,7 +277,7 @@ function renderWorshipRoles(roles) {
     return;
   }
   el.innerHTML = roles.map((r) => {
-    const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Worship admin' : null, r.canManageRoles ? 'Gestionează roluri' : null].filter(Boolean).join(', ') || 'Membru';
+    const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Pregătire program' : null, r.canManageRoles ? 'Gestionează roluri' : null].filter(Boolean).join(', ') || 'Membru';
     const emo = r.emoji ? (escapeHtml(r.emoji) + ' ') : '';
     const online = !!(_worshipRolesOnline && _worshipRolesOnline[r.name] > 0);
     const dot = '<span class="worship-role-dot ' + (online ? 'on' : 'off') + '" title="' + (online ? 'Online' : 'Offline') + '"></span>';

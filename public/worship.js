@@ -32,7 +32,7 @@
       return;
     }
     if (!_myRole) { el.classList.add('hidden'); el.textContent = ''; return; }
-    const caps = [_myCanLead ? 'Lider' : null, _myCanAdmin ? 'Worship admin' : null].filter(Boolean).join(', ') || 'Membru';
+    const caps = [_myCanLead ? 'Lider' : null, _myCanAdmin ? 'Pregătire program' : null].filter(Boolean).join(', ') || 'Membru';
     el.innerHTML = (_myEmoji ? escapeHtml(_myEmoji) + ' ' : '') + '<strong>' + escapeHtml(_myRole) + '</strong> · ' + escapeHtml(caps);
     el.classList.remove('hidden');
   }
@@ -2117,7 +2117,7 @@
     if (!el) return;
     if (!roles.length) { el.innerHTML = '<div class="muted">Niciun rol definit.</div>'; return; }
     el.innerHTML = roles.map((r) => {
-      const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Worship admin' : null, r.canManageRoles ? 'Gestionează roluri' : null].filter(Boolean).join(', ') || 'Membru';
+      const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Pregătire program' : null, r.canManageRoles ? 'Gestionează roluri' : null].filter(Boolean).join(', ') || 'Membru';
       const emo = r.emoji ? (escapeHtml(r.emoji) + ' ') : '';
       return '<div class="history-item worship-role-item"' +
         ' data-n="' + escapeHtml(r.name) + '"' +
