@@ -7752,6 +7752,14 @@ body.live-fullscreen-active .glass-panel {
   outline: 2px solid var(--gold, #d8b06a); outline-offset: 2px;
 }
 
+/* WORSHIP-ROLES-ONLINE — punct verde pe rolul conectat acum în managementul de roluri (admin) */
+.worship-role-dot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  margin-right: 8px; vertical-align: middle; flex: none;
+}
+.worship-role-dot.on { background: var(--success, #2b8a5b); box-shadow: 0 0 8px rgba(43,138,91,0.7); }
+.worship-role-dot.off { background: var(--line, rgba(255,241,214,0.2)); }
+
 /* WORSHIP-ROLES-EMOJI — picker iconițe muzicale + input liber */
 .worship-emoji-picker { display: flex; flex-wrap: wrap; gap: 4px; }
 .emoji-pick {

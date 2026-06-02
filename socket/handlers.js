@@ -104,6 +104,24 @@ function registerSocketHandlers(io, ctx) {
     if (activeEvent) emitWorshipMembersCount(activeEvent.id);
   }
 
+  // WORSHIP-ROLES-ONLINE — ce roluri worship sunt conectate ACUM (din socket.data.worshipRole).
+  // Rolurile sunt globale (db.worshipRoles nu-s pe eveniment), iar managementul de roluri stă în
+  // tab-ul admin global → emitem către TOATE socket-urile admin (orice eveniment), nu către un room.
+  function buildWorshipRolesOnline() {
+    const counts = {};
+    io.sockets.sockets.forEach((s) => {
+      const r = s.data && s.data.worshipRole;
+      if (r) counts[r] = (counts[r] || 0) + 1;
+    });
+    return counts;
+  }
+  function emitWorshipRolesOnline() {
+    const payload = buildWorshipRolesOnline();
+    io.sockets.sockets.forEach((s) => {
+      if (s.data && s.data.role === 'admin') s.emit('worship:roles_online', payload);
+    });
+  }
+
   const RATE_LIMITS = {
     join_event:              { windowMs: 60 * 1000, max: 60 },
     participant_language:    { windowMs: 60 * 1000, max: 60 },
@@ -295,6 +313,8 @@ function registerSocketHandlers(io, ctx) {
       socket.data.worshipRole = String(session.worshipRole || '');
       socket.data.worshipCanLead = !!session.canLead;
       socket.data.worshipCanAdmin = !!session.canAdmin;
+      // WORSHIP-ROLES-ONLINE — anunță adminii că un rol s-a conectat (dacă sesiunea are rol).
+      if (socket.data.worshipRole) emitWorshipRolesOnline();
       ensureWorshipState(event);
       event.worshipState.masterSessionId = session.sid || null;
       event.worshipState.masterLastSeen = Date.now();
@@ -679,6 +699,10 @@ function registerSocketHandlers(io, ctx) {
 
     socket.on('disconnect', () => {
       closeAzureSpeechSession(socket.id);
+      // WORSHIP-ROLES-ONLINE — dacă socketul avea un rol worship, recoutează după
+      // ce socket-ul iese din io.sockets.sockets (setTimeout 0 = next tick).
+      const hadWorshipRole = !!(socket.data && socket.data.worshipRole);
+      if (hadWorshipRole) setTimeout(emitWorshipRolesOnline, 0);
       // V21.21: drop this socket from operator presence + worship member
       // tracking and broadcast fresh counts. Happens BEFORE the worship
       // master grace handler so admins see operator leaves immediately.

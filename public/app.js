@@ -265,7 +265,11 @@ function populateWorshipMsgRoles(roles) {
       (r.emoji ? escapeHtml(r.emoji) + ' ' : '') + escapeHtml(r.name) +
       '</option>').join('');
 }
+// WORSHIP-ROLES-ONLINE — state local pentru punctul verde: roluri online + ultima listă renderată.
+let _worshipRolesOnline = {};
+let _lastWorshipRoles = null;
 function renderWorshipRoles(roles) {
+  _lastWorshipRoles = roles;
   const el = document.getElementById('worshipRolesList');
   if (!el) return;
   if (!roles || !roles.length) {
@@ -275,13 +279,15 @@ function renderWorshipRoles(roles) {
   el.innerHTML = roles.map((r) => {
     const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Worship admin' : null].filter(Boolean).join(', ') || 'Membru';
     const emo = r.emoji ? (escapeHtml(r.emoji) + ' ') : '';
+    const online = !!(_worshipRolesOnline && _worshipRolesOnline[r.name] > 0);
+    const dot = '<span class="worship-role-dot ' + (online ? 'on' : 'off') + '" title="' + (online ? 'Online' : 'Offline') + '"></span>';
     return '<div class="history-item worship-role-item"' +
       ' data-role-name="' + escapeHtml(r.name) + '"' +
       ' data-role-code="' + escapeHtml(r.code || '') + '"' +
       ' data-role-lead="' + (r.canLead ? '1' : '0') + '"' +
       ' data-role-admin="' + (r.canAdmin ? '1' : '0') + '"' +
       ' data-role-emoji="' + escapeHtml(r.emoji || '') + '">' +
-      '<span>' + emo + '<strong>' + escapeHtml(r.name) + '</strong>' +
+      '<span>' + dot + emo + '<strong>' + escapeHtml(r.name) + '</strong>' +
         ' <span class="muted">· cod: ' + escapeHtml(r.code || '—') + ' · ' + escapeHtml(caps) + '</span></span>' +
       '<button class="btn btn-dark btn-sm" data-worship-role-delete="' + escapeHtml(r.name) + '" type="button">Șterge</button>' +
     '</div>';
@@ -1953,6 +1959,11 @@ socket.on('worship:master_presence', (data) => {
   renderAdminEventSongLibrary();
   // V21.21: keep the dedicated Worship Live panel in sync.
   renderAdminWorshipPanel();
+});
+// WORSHIP-ROLES-ONLINE — primește harta rolurilor conectate și re-randează lista cu punctul verde.
+socket.on('worship:roles_online', (payload) => {
+  _worshipRolesOnline = payload || {};
+  if (_lastWorshipRoles) renderWorshipRoles(_lastWorshipRoles);
 });
 
 function renderGlobalSongLibrary(items = []) {
