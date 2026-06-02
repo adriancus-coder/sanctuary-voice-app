@@ -15,6 +15,7 @@
     _myCanAdmin = !!u.canAdmin;
     _myEmoji = String(u.emoji || '');
     renderMyRoleBadge();
+    applyPrepGate();   // WORSHIP-PREP-GATE
   }
   // WORSHIP-ROLES-LIVE — afișează rolul curent al membrului (cine ești).
   // PIN global (login fără cod-rol) = _myRole gol → badge ascuns (compat).
@@ -25,6 +26,22 @@
     const caps = [_myCanLead ? 'Lider' : null, _myCanAdmin ? 'Worship admin' : null].filter(Boolean).join(', ') || 'Membru';
     el.innerHTML = (_myEmoji ? escapeHtml(_myEmoji) + ' ' : '') + '<strong>' + escapeHtml(_myRole) + '</strong> · ' + escapeHtml(caps);
     el.classList.remove('hidden');
+  }
+  // WORSHIP-PREP-GATE — „Pregătire program" cere capabilitatea canAdmin.
+  // PIN global (_myRole gol) = compat, are acces. Lider-doar (canAdmin=false cu rol) = blocat.
+  function canAccessPrep() {
+    return (_myRole === '') || _myCanAdmin;
+  }
+  function applyPrepGate() {
+    const setlistBtn = document.querySelector('[data-worship-mode="setlist"]');
+    if (!setlistBtn) return;
+    if (canAccessPrep()) {
+      setlistBtn.classList.remove('hidden');
+    } else {
+      setlistBtn.classList.add('hidden');
+      // dacă e în setlist fără drept, mută-l pe Live
+      if (liveMode === 'setlist') toggleMode('live');
+    }
   }
   // V21.5: split into liveEvent (the read-only header — the sync source with
   // admin/operator) and pickerEvents (future + live, used by the per-card
@@ -809,6 +826,8 @@
 
   function toggleMode(mode) {
     if (mode !== 'setlist' && mode !== 'live') return;
+    // WORSHIP-PREP-GATE — lider-doar (canAdmin=false cu rol) nu intră în Pregătire.
+    if (mode === 'setlist' && !canAccessPrep()) return;
     liveMode = mode;
     $('worshipSetlistMode').classList.toggle('hidden', mode !== 'setlist');
     $('worshipLiveMode').classList.toggle('hidden', mode !== 'live');
