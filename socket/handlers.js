@@ -360,12 +360,15 @@ function registerSocketHandlers(io, ctx) {
         return socket.emit('worship:master:denied', { message: 'Eveniment indisponibil.' });
       }
       // WORSHIP-ROLES-LIVE — re-verifică rolul CURENT din db.worshipRoles (scoaterea capabilității
-      // are efect imediat, nu doar la următorul login). PIN global (worshipRole gol) = compat, permite.
-      const _claimRole = session.worshipRole || '';
-      if (_claimRole) {
-        const _ro = (Array.isArray(db.worshipRoles) ? db.worshipRoles : []).find((r) => r.name === _claimRole);
-        if (!_ro || !_ro.canLead) {
-          return socket.emit('worship:master:denied', { message: 'Rolul tău nu mai poate fi lider.' });
+      // are efect imediat, nu doar la următorul login).
+      // WORSHIP-PIN-MASTER — maestrul (PIN global) trece peste verificarea db (nu-i găsit acolo).
+      if (!session.worshipMaster) {
+        const _claimRole = session.worshipRole || '';
+        if (_claimRole) {
+          const _ro = (Array.isArray(db.worshipRoles) ? db.worshipRoles : []).find((r) => r.name === _claimRole);
+          if (!_ro || !_ro.canLead) {
+            return socket.emit('worship:master:denied', { message: 'Rolul tău nu mai poate fi lider.' });
+          }
         }
       }
       // Ensure room membership so this claimant also receives the broadcast
@@ -402,13 +405,16 @@ function registerSocketHandlers(io, ctx) {
       const isNote = payload?.type === 'note';
       if (!isNote && worshipLeaders.get(eventId) !== socket.id) return; // only the leader for non-note hints
       // WORSHIP-ROLES-LIVE — pentru type 'note': re-verifică rolul CURENT din db.worshipRoles
-      // (scoaterea capabilității canAdmin are efect imediat). PIN global (worshipRole gol) = compat.
+      // (scoaterea capabilității canAdmin are efect imediat).
+      // WORSHIP-PIN-MASTER — maestrul (PIN global) trece peste verificarea db.
       if (isNote) {
         const _ns = getWorshipSessionFromSocket(socket);
-        const _nRole = _ns?.worshipRole || '';
-        if (_nRole) {
-          const _nro = (Array.isArray(db.worshipRoles) ? db.worshipRoles : []).find((r) => r.name === _nRole);
-          if (!_nro || !_nro.canAdmin) return; // rol fără worship-admin → nota nu se trimite
+        if (!_ns?.worshipMaster) {
+          const _nRole = _ns?.worshipRole || '';
+          if (_nRole) {
+            const _nro = (Array.isArray(db.worshipRoles) ? db.worshipRoles : []).find((r) => r.name === _nRole);
+            if (!_nro || !_nro.canAdmin) return; // rol fără worship-admin → nota nu se trimite
+          }
         }
       }
       // WORSHIP-NOTES-FIX + earlier — extins HINT_TYPES cu types existente în client

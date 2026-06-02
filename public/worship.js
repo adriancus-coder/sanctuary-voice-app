@@ -7,23 +7,30 @@
   // WORSHIP-ROLES-2 — capabilitățile sesiunii curente (din /api/worship/events* response).
   // Membru de bază (login cu PIN global SAU rol fără bife) = role gol + canLead/canAdmin false.
   // WORSHIP-ROLES-LIVE — _myEmoji adăugat pentru badge-ul vizibil.
-  let _myRole = '', _myCanLead = false, _myCanAdmin = false, _myCanManageRoles = false, _myEmoji = '';
+  let _myRole = '', _myCanLead = false, _myCanAdmin = false, _myCanManageRoles = false, _myEmoji = '', _myWorshipMaster = false;
   function applyCurrentUser(u) {
     if (!u) return;
     _myRole = String(u.role || '');
     _myCanLead = !!u.canLead;
     _myCanAdmin = !!u.canAdmin;
     _myCanManageRoles = !!u.canManageRoles;   // WORSHIP-MANAGE-ROLES
+    _myWorshipMaster = !!u.worshipMaster;      // WORSHIP-PIN-MASTER
     _myEmoji = String(u.emoji || '');
     renderMyRoleBadge();
     applyPrepGate();   // WORSHIP-PREP-GATE
     applyRolesModeGate();   // WORSHIP-MANAGE-ROLES
   }
   // WORSHIP-ROLES-LIVE — afișează rolul curent al membrului (cine ești).
-  // PIN global (login fără cod-rol) = _myRole gol → badge ascuns (compat).
+  // PIN global vechi (înainte de PIN-MASTER) = _myRole gol → badge ascuns (compat).
+  // WORSHIP-PIN-MASTER — maestrul are badge dedicat „👑 Master · acces complet".
   function renderMyRoleBadge() {
     const el = document.getElementById('worshipMyRoleBadge');
     if (!el) return;
+    if (_myWorshipMaster) {
+      el.innerHTML = '👑 <strong>Master</strong> · acces complet';
+      el.classList.remove('hidden');
+      return;
+    }
     if (!_myRole) { el.classList.add('hidden'); el.textContent = ''; return; }
     const caps = [_myCanLead ? 'Lider' : null, _myCanAdmin ? 'Worship admin' : null].filter(Boolean).join(', ') || 'Membru';
     el.innerHTML = (_myEmoji ? escapeHtml(_myEmoji) + ' ' : '') + '<strong>' + escapeHtml(_myRole) + '</strong> · ' + escapeHtml(caps);

@@ -4599,6 +4599,8 @@ app.delete('/api/admin/worship-roles', (req, res) => {
 function requireWorshipManageSession(req, res) {
   const session = requireWorshipApiSession(req, res);
   if (!session) return null;
+  // WORSHIP-PIN-MASTER — maestru (PIN global) trece peste verificarea db.worshipRoles.
+  if (session.worshipMaster) return session;
   const roleName = session.worshipRole || '';
   if (!roleName) {
     res.status(403).json({ ok: false, error: 'Necesită rol cu gestionare roluri.' });
@@ -5511,10 +5513,12 @@ app.post('/api/auth/worship', (req, res) => {
   }
   const pin = String(req.body?.pin || '').trim();
   let roleInfo = null;   // null = membru de bază
+  let isMaster = false;   // WORSHIP-PIN-MASTER — PIN global = cheia de maestru
   let authed = false;
-  // (a) PIN global — păstrat exact ca înainte (membru de bază, fără rol special)
+  // (a) PIN global — devine acum cheia de maestru (toate capabilitățile).
   if (WORSHIP_PIN && pin && safeStringEqual(pin, WORSHIP_PIN)) {
     authed = true;
+    isMaster = true;
   }
   // (b) cod de rol — dacă nu a trecut PIN-ul, încearcă codurile de rol
   if (!authed && pin) {
@@ -5532,20 +5536,22 @@ app.post('/api/auth/worship', (req, res) => {
   // V21.1: sid gives the worship session a stable identity (offline detection
   // and master tracking in later V21 stages key on it).
   // WORSHIP-ROLES-2: salvăm rolul + capabilități în sesiune (null/false = membru de bază).
+  // WORSHIP-PIN-MASTER: maestru → toate capabilitățile true, etichetă „Master" pentru badge.
   const session = {
     role: 'worship',
     sid: randomBytes(8).toString('hex'),
     addedSongs: [],
     iat: now,
     exp: now + WORSHIP_SESSION_MAX_AGE_MS,
-    worshipRole: roleInfo ? roleInfo.name : '',
-    canLead: roleInfo ? roleInfo.canLead : false,
-    canAdmin: roleInfo ? roleInfo.canAdmin : false,
-    canManageRoles: roleInfo ? roleInfo.canManageRoles : false   // WORSHIP-MANAGE-ROLES
+    worshipMaster: isMaster,
+    worshipRole: roleInfo ? roleInfo.name : (isMaster ? 'Master' : ''),
+    canLead: roleInfo ? roleInfo.canLead : isMaster,
+    canAdmin: roleInfo ? roleInfo.canAdmin : isMaster,
+    canManageRoles: roleInfo ? roleInfo.canManageRoles : isMaster
   };
   setWorshipSessionCookie(req, res, session);
-  logger.info('[worship/login] Worship session created', roleInfo ? '(role=' + roleInfo.name + ')' : '(base member via PIN)');
-  return res.json({ ok: true, role: session.worshipRole, canLead: session.canLead, canAdmin: session.canAdmin, canManageRoles: session.canManageRoles });
+  logger.info('[worship/login] Worship session created', isMaster ? '(master via global PIN)' : (roleInfo ? '(role=' + roleInfo.name + ')' : '(base member)'));
+  return res.json({ ok: true, role: session.worshipRole, canLead: session.canLead, canAdmin: session.canAdmin, canManageRoles: session.canManageRoles, worshipMaster: session.worshipMaster });
 });
 
 app.post('/api/auth/worship/logout', (req, res) => {
@@ -5689,6 +5695,7 @@ app.get('/api/worship/events', (req, res) => {
       canLead: !!session.canLead,
       canAdmin: !!session.canAdmin,
       canManageRoles: !!session.canManageRoles,   // WORSHIP-MANAGE-ROLES
+      worshipMaster: !!session.worshipMaster,     // WORSHIP-PIN-MASTER
       emoji: _roleObj ? (_roleObj.emoji || '') : ''
     };
     return res.json({ ok: true, events, currentUser });
@@ -5722,6 +5729,7 @@ app.get('/api/worship/events/:id', (req, res) => {
           canLead: !!session.canLead,
           canAdmin: !!session.canAdmin,
           canManageRoles: !!session.canManageRoles,   // WORSHIP-MANAGE-ROLES
+          worshipMaster: !!session.worshipMaster,     // WORSHIP-PIN-MASTER
           emoji: _ro ? (_ro.emoji || '') : ''
         };
       })(),
@@ -5823,8 +5831,11 @@ app.delete('/api/worship/events/:id/songs/:itemId', (req, res) => {
   const session = requireWorshipApiSession(req, res);
   if (!session) return;
   const itemId = String(req.params.itemId || '').trim();
-  // Worship may delete only songs it added in the current session.
-  if (!itemId || !session.addedSongs.includes(itemId)) {
+  // WORSHIP-PIN-MASTER — maestru poate șterge orice cântare; ceilalți doar ce-au adăugat în sesiune.
+  if (!itemId) {
+    return res.status(400).json({ ok: false, error: 'Missing itemId' });
+  }
+  if (!session.worshipMaster && !session.addedSongs.includes(itemId)) {
     logger.warn(`[worship/delete-song] Forbidden: itemId=${itemId} not in session.addedSongs`);
     return res.status(403).json({ ok: false, error: 'Can only delete songs added in this session' });
   }
