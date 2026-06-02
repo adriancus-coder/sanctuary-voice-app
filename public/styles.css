@@ -7745,3 +7745,17 @@ body.live-fullscreen-active .glass-panel {
 .worship-role-msg-row select { flex: 0 0 auto; min-width: 120px; }
 .worship-role-msg-row input[type="text"] { flex: 1 1 160px; min-width: 0; }
 .worship-role-msg-row button { flex: 0 0 auto; }
+
+/* WORSHIP-ROLES-LIVE — badge cu rolul curent al membrului ("emoji Nume · capabilități") */
+.worship-my-role-badge {
+  display: inline-block;
+  margin: 6px 0;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(216, 176, 106, 0.14);
+  border: 1px solid var(--gold, #d8b06a);
+  color: var(--gold, #d8b06a);
+  font-size: 14px;
+  font-weight: 600;
+}
+.worship-my-role-badge strong { color: var(--text, #f6f0e6); }

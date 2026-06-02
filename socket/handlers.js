@@ -339,6 +339,15 @@ function registerSocketHandlers(io, ctx) {
       if (!event || !isWorshipAccessibleEvent(event)) {
         return socket.emit('worship:master:denied', { message: 'Eveniment indisponibil.' });
       }
+      // WORSHIP-ROLES-LIVE — re-verifică rolul CURENT din db.worshipRoles (scoaterea capabilității
+      // are efect imediat, nu doar la următorul login). PIN global (worshipRole gol) = compat, permite.
+      const _claimRole = session.worshipRole || '';
+      if (_claimRole) {
+        const _ro = (Array.isArray(db.worshipRoles) ? db.worshipRoles : []).find((r) => r.name === _claimRole);
+        if (!_ro || !_ro.canLead) {
+          return socket.emit('worship:master:denied', { message: 'Rolul tău nu mai poate fi lider.' });
+        }
+      }
       // Ensure room membership so this claimant also receives the broadcast
       // below (a master that toggled into Live mode is already joined, but a
       // claim from any other state must not silently miss its own confirmation).
@@ -372,6 +381,16 @@ function registerSocketHandlers(io, ctx) {
       // restul hinturilor rămân exclusiv pentru lider (gating existent).
       const isNote = payload?.type === 'note';
       if (!isNote && worshipLeaders.get(eventId) !== socket.id) return; // only the leader for non-note hints
+      // WORSHIP-ROLES-LIVE — pentru type 'note': re-verifică rolul CURENT din db.worshipRoles
+      // (scoaterea capabilității canAdmin are efect imediat). PIN global (worshipRole gol) = compat.
+      if (isNote) {
+        const _ns = getWorshipSessionFromSocket(socket);
+        const _nRole = _ns?.worshipRole || '';
+        if (_nRole) {
+          const _nro = (Array.isArray(db.worshipRoles) ? db.worshipRoles : []).find((r) => r.name === _nRole);
+          if (!_nro || !_nro.canAdmin) return; // rol fără worship-admin → nota nu se trimite
+        }
+      }
       // WORSHIP-NOTES-FIX + earlier — extins HINT_TYPES cu types existente în client
       // (note/countdown/transpose) care erau silent-dropped înainte.
       const HINT_TYPES = ['repeat', 'next', 'chorus', 'jump_verse', 'change_key', 'jump_song', 'free', 'note', 'countdown', 'transpose'];

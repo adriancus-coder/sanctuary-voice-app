@@ -6,12 +6,25 @@
   let currentEvent = null;
   // WORSHIP-ROLES-2 — capabilitățile sesiunii curente (din /api/worship/events* response).
   // Membru de bază (login cu PIN global SAU rol fără bife) = role gol + canLead/canAdmin false.
-  let _myRole = '', _myCanLead = false, _myCanAdmin = false;
+  // WORSHIP-ROLES-LIVE — _myEmoji adăugat pentru badge-ul vizibil.
+  let _myRole = '', _myCanLead = false, _myCanAdmin = false, _myEmoji = '';
   function applyCurrentUser(u) {
     if (!u) return;
     _myRole = String(u.role || '');
     _myCanLead = !!u.canLead;
     _myCanAdmin = !!u.canAdmin;
+    _myEmoji = String(u.emoji || '');
+    renderMyRoleBadge();
+  }
+  // WORSHIP-ROLES-LIVE — afișează rolul curent al membrului (cine ești).
+  // PIN global (login fără cod-rol) = _myRole gol → badge ascuns (compat).
+  function renderMyRoleBadge() {
+    const el = document.getElementById('worshipMyRoleBadge');
+    if (!el) return;
+    if (!_myRole) { el.classList.add('hidden'); el.textContent = ''; return; }
+    const caps = [_myCanLead ? 'Lider' : null, _myCanAdmin ? 'Worship admin' : null].filter(Boolean).join(', ') || 'Membru';
+    el.innerHTML = (_myEmoji ? escapeHtml(_myEmoji) + ' ' : '') + '<strong>' + escapeHtml(_myRole) + '</strong> · ' + escapeHtml(caps);
+    el.classList.remove('hidden');
   }
   // V21.5: split into liveEvent (the read-only header — the sync source with
   // admin/operator) and pickerEvents (future + live, used by the per-card

@@ -5628,10 +5628,13 @@ app.get('/api/worship/events', (req, res) => {
         songsCount: Array.isArray(event.songLibrary) ? event.songLibrary.length : 0
       }));
     // WORSHIP-ROLES-2: expune capabilitățile sesiunii (FĂRĂ coduri) ca clientul să gate-uiască UI.
+    // WORSHIP-ROLES-LIVE: include și emoji-ul rolului (din db.worshipRoles) pentru badge.
+    const _roleObj = (Array.isArray(db.worshipRoles) ? db.worshipRoles : []).find((r) => r.name === session.worshipRole);
     const currentUser = {
       role: session.worshipRole || '',
       canLead: !!session.canLead,
-      canAdmin: !!session.canAdmin
+      canAdmin: !!session.canAdmin,
+      emoji: _roleObj ? (_roleObj.emoji || '') : ''
     };
     return res.json({ ok: true, events, currentUser });
   } catch (err) {
@@ -5656,11 +5659,16 @@ app.get('/api/worship/events/:id', (req, res) => {
     return res.json({
       ok: true,
       // WORSHIP-ROLES-2: capabilitățile sesiunii curente (gate UI client-side)
-      currentUser: {
-        role: session.worshipRole || '',
-        canLead: !!session.canLead,
-        canAdmin: !!session.canAdmin
-      },
+      // WORSHIP-ROLES-LIVE: include și emoji-ul rolului (din db.worshipRoles) pentru badge.
+      currentUser: (() => {
+        const _ro = (Array.isArray(db.worshipRoles) ? db.worshipRoles : []).find((r) => r.name === session.worshipRole);
+        return {
+          role: session.worshipRole || '',
+          canLead: !!session.canLead,
+          canAdmin: !!session.canAdmin,
+          emoji: _ro ? (_ro.emoji || '') : ''
+        };
+      })(),
       event: {
         id: event.id,
         name: event.name || 'Untitled event',
