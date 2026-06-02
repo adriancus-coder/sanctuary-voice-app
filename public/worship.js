@@ -2132,6 +2132,13 @@
       '</div>';
     }).join('');
   }
+  // WORSHIP-ROLES-EMOJI-PICKER — click pe iconițele muzicale → pune emoji-ul în #wRoleEmoji
+  document.getElementById('wEmojiPicker')?.addEventListener('click', (e) => {
+    const b = e.target.closest('.emoji-pick');
+    if (!b) return;
+    const inp = document.getElementById('wRoleEmoji');
+    if (inp) inp.value = b.getAttribute('data-emoji') || '';
+  });
   document.getElementById('wAddRoleBtn')?.addEventListener('click', async () => {
     const name = (document.getElementById('wRoleName')?.value || '').trim();
     const code = (document.getElementById('wRoleCode')?.value || '').trim();
