@@ -5818,6 +5818,53 @@ app.get('/api/worship/events/:id', (req, res) => {
   }
 });
 
+// WORSHIP-SONG-RECENCY-CHECK — caută dacă o cântare a fost cântată în ultimele N săptămâni
+// în alte evenimente ale org-ului (match pe librarySongId SAU titlu, case-insensitive). Folosit
+// de client ÎNAINTE de POST /songs/add pentru a afișa un confirm cu datele recente.
+const SONG_RECENCY_WEEKS = 4;
+app.post('/api/worship/events/:id/songs/check-recency', (req, res) => {
+  const session = requireWorshipApiSession(req, res);
+  if (!session) return;
+  const targetId = req.params.id;
+  const event = db.events[targetId];
+  if (!event) return res.status(404).json({ ok: false, error: 'Event not found' });
+  if (!isWorshipAccessibleEvent(event)) {
+    return res.status(403).json({ ok: false, error: 'Cannot modify this event' });
+  }
+  const librarySongId = String(req.body?.librarySongId || '').trim();
+  if (!librarySongId) return res.status(400).json({ ok: false, error: 'Missing librarySongId' });
+  const orgId = getEventOrgId(event);
+  const library = getOrganizationSongLibrary(orgId) || [];
+  const librarySong = library.find((s) => s && s.id === librarySongId);
+  const title = librarySong ? String(librarySong.title || '').trim().toLowerCase() : '';
+  const now = Date.now();
+  const cutoff = now - SONG_RECENCY_WEEKS * 7 * 24 * 3600 * 1000;
+  const dates = [];
+  Object.values(db.events).forEach((ev) => {
+    if (!ev || ev.hidden) return;
+    if (getEventOrgId(ev) !== orgId) return;
+    if (ev.id === targetId) return;   // nu se compară cu evenimentul curent
+    const ts = typeof ev.scheduledTimestamp === 'number' ? ev.scheduledTimestamp : null;
+    if (ts === null || ts < cutoff || ts > now) return;   // doar trecut, în fereastră
+    const songs = Array.isArray(ev.songLibrary) ? ev.songLibrary : [];
+    const has = songs.some((s) => {
+      if (!s) return false;
+      if (s.id === librarySongId) return true;
+      const t = String(s.title || '').trim().toLowerCase();
+      return title && t === title;
+    });
+    if (has) {
+      dates.push({
+        ts,
+        date: ev.scheduledDate || new Date(ts).toISOString().slice(0, 10),
+        name: ev.name || ''
+      });
+    }
+  });
+  dates.sort((a, b) => b.ts - a.ts);   // recent întâi
+  return res.json({ ok: true, found: dates.length > 0, dates, weeks: SONG_RECENCY_WEEKS });
+});
+
 app.post('/api/worship/events/:id/songs/add', (req, res) => {
   const session = requireWorshipApiSession(req, res);
   if (!session) return;

@@ -661,8 +661,32 @@
   // flashes gold and scrolls into view. Only the event-detail is refreshed
   // (not the global library) so the green state survives the 1.5s display
   // window.
+  // WORSHIP-SONG-RECENCY-CHECK — formatare dată (2026-05-12 → „12 mai")
+  function formatRecencyDate(iso) {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso + 'T00:00:00');
+      return d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'long' });
+    } catch (_) { return iso; }
+  }
   async function addSongToSpecificEvent(eventId, librarySongId, btn) {
     if (!eventId || !librarySongId) return;
+    // WORSHIP-SONG-RECENCY-CHECK — caută în ultimele 4 săptămâni; dacă găsește, cere confirmare.
+    // Eșec la check (rețea/etc.) → continuă add-ul normal (fail-open, nu blocăm utilizatorul).
+    try {
+      const chk = await fetch('/api/worship/events/' + encodeURIComponent(eventId) + '/songs/check-recency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ librarySongId })
+      });
+      const chkData = await chk.json().catch(() => ({}));
+      if (chkData && chkData.ok && chkData.found && Array.isArray(chkData.dates) && chkData.dates.length) {
+        const list = chkData.dates.map((d) => formatRecencyDate(d.date)).join(', ');
+        const ok = confirm('Această cântare a fost cântată recent: ' + list + '.\n\nO adaugi oricum?');
+        if (!ok) return;   // Renunță — nu adăuga nimic, nicio mutație
+      }
+    } catch (_) { /* ignorăm — fail-open */ }
     const targetEvent = pickerEvents.find((e) => e && e.id === eventId);
     const targetName = targetEvent ? targetEvent.name : 'event';
     const originalText = btn ? btn.innerHTML : '';
