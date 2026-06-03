@@ -7782,6 +7782,10 @@ body.live-fullscreen-active .glass-panel {
   justify-content: center;
 }
 
+/* WORSHIP-SPECTATOR-FONT — bara A−/A+ pe panoul spectator */
+.spectator-fontbar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; }
+.spectator-font-btn { min-width: 48px; font-weight: 700; font-size: 16px; }
+
 /* WORSHIP-KEY-EVERYWHERE — gama vizibilă mare pe spectator + worship-view */
 .spectator-key {
   text-align: center;

@@ -208,6 +208,11 @@
     <!-- WORSHIP-SPECTATOR-GATE — panou minim pentru spectator (rol fără capabilități):
          vede DOAR versul curent, fără switcher, fără control. -->
     <section id="worshipSpectatorMode" class="worship-mode-panel worship-spectator-panel hidden">
+      <!-- WORSHIP-SPECTATOR-FONT — control mărime text per dispozitiv (persistă în sesiune) -->
+      <div class="spectator-fontbar">
+        <button id="spectatorFontDecrease" class="btn btn-dark spectator-font-btn" type="button" aria-label="Text mai mic">A−</button>
+        <button id="spectatorFontIncrease" class="btn btn-dark spectator-font-btn" type="button" aria-label="Text mai mare">A+</button>
+      </div>
       <div class="spectator-key hidden" id="spectatorKey"></div>
       <div class="spectator-verse" id="spectatorVerseText">Așteptăm versurile...</div>
     </section>

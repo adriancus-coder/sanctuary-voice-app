@@ -110,6 +110,8 @@
     if (!verses.length) { el.textContent = 'Așteptăm versurile...'; setKey(''); return; }
     const idx = Math.max(0, Math.min(liveCurrentVerseIndex, verses.length - 1));
     el.textContent = verses[idx];
+    // WORSHIP-SPECTATOR-FONT — păstrează mărimea aleasă pe parcursul schimbării versului.
+    el.style.fontSize = spectatorFontSize + 'px';
     const songKey = song.key ? String(song.key) : '';
     setKey(songKey ? ('🎵 ' + songKey) : '');
   }
@@ -134,6 +136,18 @@
   let liveFontSize = 32;
   const LIVE_FONT_MIN = 20;
   const LIVE_FONT_MAX = 60;
+  // WORSHIP-SPECTATOR-FONT — mărimea versului pe ecranul spectator (per dispozitiv, în sesiune).
+  let spectatorFontSize = 40;
+  const SPECTATOR_FONT_MIN = 24;
+  const SPECTATOR_FONT_MAX = 80;
+  function applySpectatorFontSize() {
+    const el = document.getElementById('spectatorVerseText');
+    if (el) el.style.fontSize = spectatorFontSize + 'px';
+  }
+  function changeSpectatorFontSize(delta) {
+    spectatorFontSize = Math.max(SPECTATOR_FONT_MIN, Math.min(SPECTATOR_FONT_MAX, spectatorFontSize + delta));
+    applySpectatorFontSize();
+  }
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
@@ -1994,6 +2008,9 @@
     // V21.13: lyrics font size +/- (works in both normal and fullscreen)
     $('liveFontDecrease').addEventListener('click', () => changeLiveFontSize(-2));
     $('liveFontIncrease').addEventListener('click', () => changeLiveFontSize(2));
+    // WORSHIP-SPECTATOR-FONT — A−/A+ pe panoul spectator (per dispozitiv).
+    document.getElementById('spectatorFontDecrease')?.addEventListener('click', () => changeSpectatorFontSize(-3));
+    document.getElementById('spectatorFontIncrease')?.addEventListener('click', () => changeSpectatorFontSize(3));
     applyLiveFontSize();
 
     // WORSHIP-LEADER: claim/release + hint controls. Action hints reuse the
