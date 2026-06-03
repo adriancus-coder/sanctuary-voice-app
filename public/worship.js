@@ -1742,16 +1742,11 @@
         const targetSection = WHEN_SECTION[p.when];   // undefined pt next_verse
         const matches = isVerseTrigger || (targetSection && sectionAtNew === targetSection);
         if (!matches) return true;   // încă nu — păstrează în coadă
-        // WORSHIP-COUNTDOWN (A) — anunță schimbarea cu 3-2-1-GO la toți, apoi aplică pe GO
-        showCountdownOverlay();
-        sendHint({ type: 'countdown' });
-        const act = p.action;
-        const hintPayload = p.hint;
-        setTimeout(() => {
-          try { if (typeof act === 'function') act(); }
-          catch (e) { console.warn('pending action failed', e); }
-          sendHint(hintPayload);
-        }, 2100);   // după 3-2-1 (3×700ms), pe „GO"
+        // WORSHIP-NO-AUTO-COUNTDOWN — hintul programat se aplică DIRECT (fără countdown automat).
+        // Countdown-ul rămâne DOAR manual (butonul ⏱). Echipa decide dacă reintroduce automatul.
+        try { if (typeof p.action === 'function') p.action(); }
+        catch (e) { console.warn('pending action failed', e); }
+        sendHint(p.hint);
         applied = true;
         return false;   // scoate din coadă
       });
