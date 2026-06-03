@@ -791,25 +791,31 @@
           </div>
 
           <div class="panel glass-panel section-stack">
-            <details class="library-dropdown" open>
-              <summary class="library-dropdown-summary">📚 <span data-i18n="song.churchLib">Church Library</span></summary>
-              <div data-i18n="song.churchLibHint" class="muted">Shared for all events · search resursecrestine.ro too</div>
+            <!-- WORSHIP-ADMIN-LIBRARY-COLLAPSE — search bar mereu vizibil (afară din <details>);
+                 doar rezultatele sunt în dropdown-ul colapsat. Auto-deschis la tastare (vezi app.js). -->
+            <div class="library-search-bar-admin">
+              <div class="library-search-label">📚 <span data-i18n="song.churchLib">Church Library</span>
+                <span class="muted small" data-i18n="song.churchLibHint">Shared for all events · search resursecrestine.ro too</span>
+              </div>
+              <div class="unified-search-input-row">
+                <input id="globalSongLibrarySearch" type="text" class="unified-search-input" data-i18n-placeholder="ph.songSearch" placeholder="Caută cântare (Library + Resurse)...">
+                <select id="globalSongLibrarySort">
+                  <option data-i18n="opt.sortAz" value="az" selected>Title A-Z</option>
+                  <option data-i18n="opt.sortZa" value="za">Title Z-A</option>
+                  <option data-i18n="opt.sortRecent" value="recent">Recent first</option>
+                </select>
+                <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button" data-i18n="btn.searchResurse">Caută și pe resurse</button>
+              </div>
+              <div id="importUrlStatus" class="muted" style="min-height: 1em;"></div>
+              <div class="library-backup-controls">
+                <button id="exportLibraryBtn" class="btn btn-dark btn-sm" type="button" data-i18n="btn.exportLib">⬇ Export Library</button>
+                <button id="importLibraryBtn" class="btn btn-dark btn-sm" type="button" data-i18n="btn.importLib">⬆ Import Library</button>
+                <input id="importLibraryFile" type="file" accept="application/json,.json" class="hidden">
+              </div>
+            </div>
+            <details class="library-dropdown" id="globalLibraryResultsDropdown">
+              <summary class="library-dropdown-summary" data-i18n="song.results">Rezultate</summary>
               <div class="unified-search">
-                <div class="unified-search-input-row">
-                  <input id="globalSongLibrarySearch" type="text" class="unified-search-input" data-i18n-placeholder="ph.songSearch" placeholder="Caută cântare (Library + Resurse)...">
-                  <select id="globalSongLibrarySort">
-                    <option data-i18n="opt.sortAz" value="az" selected>Title A-Z</option>
-                    <option data-i18n="opt.sortZa" value="za">Title Z-A</option>
-                    <option data-i18n="opt.sortRecent" value="recent">Recent first</option>
-                  </select>
-                  <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button" data-i18n="btn.searchResurse">Caută și pe resurse</button>
-                </div>
-                <div id="importUrlStatus" class="muted" style="min-height: 1em;"></div>
-                <div class="library-backup-controls">
-                  <button id="exportLibraryBtn" class="btn btn-dark btn-sm" type="button" data-i18n="btn.exportLib">⬇ Export Library</button>
-                  <button id="importLibraryBtn" class="btn btn-dark btn-sm" type="button" data-i18n="btn.importLib">⬆ Import Library</button>
-                  <input id="importLibraryFile" type="file" accept="application/json,.json" class="hidden">
-                </div>
                 <div class="unified-search-library-section">
                   <div data-i18n="song.fromLibrary" class="unified-search-section-label">Din Library</div>
                   <div id="globalSongLibraryList" class="event-list unified-search-library-results"></div>

@@ -5081,11 +5081,14 @@ $('openMainPreviewBtn').addEventListener('click', openMainPreviewWindow);
 $('openParticipantPreviewBtn').addEventListener('click', openParticipantPreviewWindow);
 $('openBothPreviewsBtn').addEventListener('click', openBothPreviewWindows);
 let adminLibrarySearchDebounce;
-$('globalSongLibrarySearch').addEventListener('input', () => {
+$('globalSongLibrarySearch').addEventListener('input', (e) => {
   clearTimeout(adminLibrarySearchDebounce);
   adminLibrarySearchDebounce = setTimeout(() => renderGlobalSongLibrary(currentGlobalSongLibrary), 220);
   // Resurse results are stale once the query changes — hide until re-run.
   document.querySelector('.unified-search-resurse-section')?.classList.add('hidden');
+  // WORSHIP-ADMIN-LIBRARY-COLLAPSE — auto-deschide rezultatele când utilizatorul tastează.
+  const dd = document.getElementById('globalLibraryResultsDropdown');
+  if (dd && (e.target.value || '').trim()) dd.open = true;
 });
 // V21.39: select-all on focus so re-tap replaces the previous query in one keypress.
 // setTimeout(0) sidesteps mouseup-deselect when the focus arrived via click.
@@ -5232,6 +5235,9 @@ $('importUrlBtn')?.addEventListener('click', async () => {
   status.style.color = '';
   if (resultsEl) resultsEl.innerHTML = '';
   btn.disabled = true;
+  // WORSHIP-ADMIN-LIBRARY-COLLAPSE — deschide rezultatele când se face căutarea pe resurse.
+  const adminResultsDd = document.getElementById('globalLibraryResultsDropdown');
+  if (adminResultsDd) adminResultsDd.open = true;
 
   try {
     if (isUrl) {
