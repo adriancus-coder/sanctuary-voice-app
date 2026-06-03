@@ -12,6 +12,7 @@ function registerEventRoutes(app, ctx) {
     AZURE_SPEECH_REGION,
     COMMERCIAL_MODE,
     DEFAULT_ORG_ID,
+    deriveScheduledFields,   // WORSHIP-RESCHEDULE
     LANGUAGES,
     LANGUAGE_NAMES_RO,
     LANGUAGE_ENDONYMS,
@@ -580,6 +581,50 @@ function registerEventRoutes(app, ctx) {
     setImmediate(() => io.emit('active_event_changed', { eventId: event.id }));
     logger.info('[admin] renamed event:', event.id, '→', event.name);
     return res.json({ ok: true, eventId: event.id, name: event.name });
+  });
+
+  // WORSHIP-RESCHEDULE: admin editează data + ora unui eveniment (same admin-code gate).
+  // Folosește deriveScheduledFields (din server.js) — aceeași calculație ca la creare,
+  // inclusiv timezone (păstrăm timezone-ul existent dacă nu vine altul în body).
+  app.post('/api/events/:id/reschedule', (req, res) => {
+    const event = db.events[req.params.id];
+    if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+    if (!requireEventAdmin(req, res, event)) return;
+    const date = String(req.body?.date || '').trim();   // YYYY-MM-DD
+    const time = String(req.body?.time || '').trim();    // HH:MM (poate fi gol)
+    if (!date) return res.status(400).json({ ok: false, error: 'Data e obligatorie.' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ ok: false, error: 'Format dată invalid (AAAA-LL-ZZ).' });
+    }
+    if (time && !/^\d{2}:\d{2}$/.test(time)) {
+      return res.status(400).json({ ok: false, error: 'Format oră invalid (HH:MM).' });
+    }
+    const tz = String(req.body?.timezone || event.timezone || '').trim() || null;
+    const scheduling = deriveScheduledFields({
+      scheduledDate: date,
+      scheduledTime: time || null,
+      timezone: tz,
+      scheduledAt: null
+    });
+    if (!scheduling.scheduledTimestamp) {
+      return res.status(400).json({ ok: false, error: 'Dată/oră invalidă.' });
+    }
+    event.scheduledDate = scheduling.scheduledDate;
+    event.scheduledTime = scheduling.scheduledTime;
+    event.scheduledAt = scheduling.scheduledAt;
+    event.scheduledTimestamp = scheduling.scheduledTimestamp;
+    if (scheduling.timezone) event.timezone = scheduling.timezone;
+    saveDb();
+    setImmediate(() => io.emit('active_event_changed', { eventId: event.id }));
+    logger.info('[admin] rescheduled event:', event.id, '→', event.scheduledAt);
+    return res.json({
+      ok: true,
+      eventId: event.id,
+      scheduledAt: event.scheduledAt,
+      scheduledDate: event.scheduledDate,
+      scheduledTime: event.scheduledTime,
+      scheduledTimestamp: event.scheduledTimestamp
+    });
   });
 
   app.post('/api/events/:id/activate', (req, res) => {

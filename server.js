@@ -6516,6 +6516,7 @@ registerEventRoutes(app, {
   appendAudioArchiveChunk,
   audioArchivePath,
   applyDisplaySnapshot,
+  deriveScheduledFields,   // WORSHIP-RESCHEDULE — folosit de /api/events/:id/reschedule
   applySourceCorrections,
   buildBaseUrl,
   buildBlockLabels,

@@ -1546,6 +1546,7 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
           ${(event.worshipDraft && !event.approved) ? `<button class="btn btn-confirmed" data-action="approve" data-id="${event.id}" title="Aprobă acest eveniment draft creat de worship — devine eveniment normal și poate merge live.">✓ Aprobă</button>` : ''}
           <button class="btn btn-primary" data-action="activate" data-id="${event.id}" title="Make this the active event for participants and the main screen. Only one event can be live at a time."${(event.id === activeEventId || (event.worshipDraft && !event.approved)) ? ' disabled' : ''}>${event.id === activeEventId ? 'Live now' : 'Set live'}</button>
           <button class="btn btn-dark" data-action="rename" data-id="${event.id}" title="Schimbă numele acestui eveniment.">✏ Redenumește</button>
+          <button class="btn btn-dark" data-action="reschedule" data-id="${event.id}" title="Schimbă data și ora acestui eveniment.">🕐 Dată/oră</button>
           <button class="btn btn-dark" data-action="duplicate" data-id="${event.id}" title="Create a new event with the same languages, glossary, and song library — clean transcript and stats.">Duplicate</button>
           <button class="btn btn-dark" data-action="visibility" data-id="${event.id}" title="${escapeHtml(visibilityTitle)}">${visibilityLabel}</button>
           <button class="btn btn-danger" data-action="delete" data-id="${event.id}">Delete</button>
@@ -5746,6 +5747,30 @@ $('eventList').addEventListener('click', async (e) => {
       await refreshEventList();
     } catch (err) {
       alert('Eroare la redenumire: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
+  // WORSHIP-RESCHEDULE — admin schimbă data + ora unui eveniment existent.
+  if (action === 'reschedule') {
+    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event:') || '').trim();
+    if (!adminCode) return;
+    const newDate = (prompt('Dată nouă (AAAA-LL-ZZ):') || '').trim();
+    if (!newDate) return;
+    const newTime = (prompt('Oră nouă (HH:MM) — lasă gol pentru toată ziua:') || '').trim();
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/events/${id}/reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: adminCode, date: newDate, time: newTime })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) { alert(data.error || 'Reprogramare eșuată.'); return; }
+      await refreshEventList();
+    } catch (err) {
+      alert('Eroare la reprogramare: ' + err.message);
     } finally {
       btn.disabled = false;
     }
