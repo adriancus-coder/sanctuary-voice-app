@@ -252,18 +252,7 @@ async function loadWorshipRoles() {
     const data = await res.json().catch(() => ({}));
     const roles = (data && data.ok && Array.isArray(data.roles)) ? data.roles : [];
     renderWorshipRoles(roles);
-    populateWorshipMsgRoles(roles);   // WORSHIP-ROLES-3 — populează și dropdown-ul din Live Control
-  } catch (_) { renderWorshipRoles([]); populateWorshipMsgRoles([]); }
-}
-// WORSHIP-ROLES-3 — populează dropdown-ul de roluri din cardul „Mesaj către echipa worship"
-function populateWorshipMsgRoles(roles) {
-  const sel = document.getElementById('worshipMsgRole');
-  if (!sel) return;
-  sel.innerHTML = '<option value="__all__">Toți</option>' +
-    (Array.isArray(roles) ? roles : []).map((r) =>
-      '<option value="' + escapeHtml(r.name) + '">' +
-      (r.emoji ? escapeHtml(r.emoji) + ' ' : '') + escapeHtml(r.name) +
-      '</option>').join('');
+  } catch (_) { renderWorshipRoles([]); }
 }
 // WORSHIP-ROLES-ONLINE — state local pentru punctul verde: roluri online + ultima listă renderată.
 let _worshipRolesOnline = {};
@@ -272,25 +261,39 @@ function renderWorshipRoles(roles) {
   _lastWorshipRoles = roles;
   const el = document.getElementById('worshipRolesList');
   if (!el) return;
+  // WORSHIP-MSG-PER-ROLE — zona „📢 Toți" sus + ✉️ per rol + câmp inline.
+  const allRow = '<div class="worship-msg-all">' +
+    '<input type="text" id="worshipMsgAllText" placeholder="Mesaj pentru toți" maxlength="200">' +
+    '<button class="btn btn-primary btn-sm" id="worshipMsgAllBtn" type="button">📢 Toți</button>' +
+    '</div>';
   if (!roles || !roles.length) {
-    el.innerHTML = '<div class="muted">Niciun rol definit.</div>';
+    el.innerHTML = allRow + '<div class="muted">Niciun rol definit.</div>';
     return;
   }
-  el.innerHTML = roles.map((r) => {
+  el.innerHTML = allRow + roles.map((r) => {
     const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Pregătire program' : null, r.canManageRoles ? 'Gestionează roluri' : null].filter(Boolean).join(', ') || 'Membru';
     const emo = r.emoji ? (escapeHtml(r.emoji) + ' ') : '';
     const online = !!(_worshipRolesOnline && _worshipRolesOnline[r.name] > 0);
     const dot = '<span class="worship-role-dot ' + (online ? 'on' : 'off') + '" title="' + (online ? 'Online' : 'Offline') + '"></span>';
-    return '<div class="history-item worship-role-item"' +
-      ' data-role-name="' + escapeHtml(r.name) + '"' +
-      ' data-role-code="' + escapeHtml(r.code || '') + '"' +
-      ' data-role-lead="' + (r.canLead ? '1' : '0') + '"' +
-      ' data-role-admin="' + (r.canAdmin ? '1' : '0') + '"' +
-      ' data-role-manage="' + (r.canManageRoles ? '1' : '0') + '"' +
-      ' data-role-emoji="' + escapeHtml(r.emoji || '') + '">' +
-      '<span>' + dot + emo + '<strong>' + escapeHtml(r.name) + '</strong>' +
-        ' <span class="muted">· cod: ' + escapeHtml(r.code || '—') + ' · ' + escapeHtml(caps) + '</span></span>' +
-      '<button class="btn btn-dark btn-sm" data-worship-role-delete="' + escapeHtml(r.name) + '" type="button">Șterge</button>' +
+    return '<div class="worship-role-block">' +
+      '<div class="history-item worship-role-item"' +
+        ' data-role-name="' + escapeHtml(r.name) + '"' +
+        ' data-role-code="' + escapeHtml(r.code || '') + '"' +
+        ' data-role-lead="' + (r.canLead ? '1' : '0') + '"' +
+        ' data-role-admin="' + (r.canAdmin ? '1' : '0') + '"' +
+        ' data-role-manage="' + (r.canManageRoles ? '1' : '0') + '"' +
+        ' data-role-emoji="' + escapeHtml(r.emoji || '') + '">' +
+        '<span>' + dot + emo + '<strong>' + escapeHtml(r.name) + '</strong>' +
+          ' <span class="muted">· cod: ' + escapeHtml(r.code || '—') + ' · ' + escapeHtml(caps) + '</span></span>' +
+        '<span class="worship-role-actions">' +
+          '<button class="btn btn-dark btn-sm worship-role-msg-btn" data-msg-role="' + escapeHtml(r.name) + '" type="button" title="Trimite mesaj">✉️</button>' +
+          '<button class="btn btn-dark btn-sm" data-worship-role-delete="' + escapeHtml(r.name) + '" type="button">Șterge</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="worship-role-msg-inline hidden" data-msg-inline="' + escapeHtml(r.name) + '">' +
+        '<input type="text" placeholder="Mesaj pt ' + escapeHtml(r.name) + '" maxlength="200">' +
+        '<button class="btn btn-primary btn-sm" type="button" data-msg-send="' + escapeHtml(r.name) + '">Trimite</button>' +
+      '</div>' +
     '</div>';
   }).join('');
 }
@@ -1970,7 +1973,6 @@ socket.on('worship:roles_online', (payload) => {
 socket.on('worship:roles_changed', (payload) => {
   const roles = (payload && Array.isArray(payload.roles)) ? payload.roles : [];
   if (typeof renderWorshipRoles === 'function') renderWorshipRoles(roles);
-  if (typeof populateWorshipMsgRoles === 'function') populateWorshipMsgRoles(roles);
 });
 
 function renderGlobalSongLibrary(items = []) {
@@ -4717,26 +4719,17 @@ document.getElementById('worshipEmojiPicker')?.addEventListener('click', (e) => 
   const inp = document.getElementById('worshipRoleEmoji');
   if (inp) inp.value = b.getAttribute('data-emoji') || '';
 });
-// WORSHIP-ROLES-3 — trimite mesaj țintit către un rol worship (sau Toți)
-document.getElementById('worshipMsgSendBtn')?.addEventListener('click', async () => {
-  const role = document.getElementById('worshipMsgRole')?.value || '__all__';
-  const textEl = document.getElementById('worshipMsgText');
-  const text = (textEl?.value || '').trim();
-  const statusEl = document.getElementById('worshipMsgStatus');
+// WORSHIP-MSG-PER-ROLE — trimitere mesaj țintit (admin) folosește endpoint-ul event-scoped existent.
+async function sendWorshipRoleMessage(role, text) {
   if (!text) return;
-  if (!currentEvent?.id) { if (statusEl) statusEl.textContent = 'Deschide un eveniment activ.'; return; }
+  if (!currentEvent?.id) { alert('Deschide un eveniment activ.'); return; }
   try {
     const res = await fetch('/api/events/' + encodeURIComponent(currentEvent.id) + '/worship/role-message',
       adminJsonOptions('POST', { role, text }));
     const data = await res.json().catch(() => ({}));
-    if (data.ok) {
-      if (textEl) textEl.value = '';
-      if (statusEl) statusEl.textContent = 'Trimis către ' + (data.delivered || 0) + ' dispozitiv(e).';
-    } else if (statusEl) {
-      statusEl.textContent = data.error || 'Eroare.';
-    }
-  } catch (err) { if (statusEl) statusEl.textContent = 'Eroare: ' + err.message; }
-});
+    if (!data.ok) alert(data.error || 'Eroare.');
+  } catch (err) { alert('Eroare: ' + err.message); }
+}
 document.getElementById('worshipRolesList')?.addEventListener('click', async (e) => {
   // Ștergere
   const delBtn = e.target.closest('[data-worship-role-delete]');
@@ -4753,7 +4746,45 @@ document.getElementById('worshipRolesList')?.addEventListener('click', async (e)
     } catch (_) {}
     return;
   }
-  // Click pe rând (afară de butonul de șterge) → prefill formularul pentru editare
+  // WORSHIP-MSG-PER-ROLE — ✉️ → toggle câmpul inline al rolului
+  const msgBtn = e.target.closest('.worship-role-msg-btn');
+  if (msgBtn) {
+    e.stopPropagation();
+    const role = msgBtn.getAttribute('data-msg-role') || '';
+    const inline = document.querySelector('[data-msg-inline="' + CSS.escape(role) + '"]');
+    if (inline) {
+      inline.classList.toggle('hidden');
+      const inp = inline.querySelector('input[type="text"]');
+      if (!inline.classList.contains('hidden') && inp) inp.focus();
+    }
+    return;
+  }
+  // WORSHIP-MSG-PER-ROLE — Trimite mesaj per rol
+  const sendBtn = e.target.closest('[data-msg-send]');
+  if (sendBtn) {
+    e.stopPropagation();
+    const role = sendBtn.getAttribute('data-msg-send') || '';
+    const inline = document.querySelector('[data-msg-inline="' + CSS.escape(role) + '"]');
+    const inp = inline ? inline.querySelector('input[type="text"]') : null;
+    const text = (inp?.value || '').trim();
+    if (!text) return;
+    await sendWorshipRoleMessage(role, text);
+    if (inp) inp.value = '';
+    if (inline) inline.classList.add('hidden');
+    return;
+  }
+  // WORSHIP-MSG-PER-ROLE — „📢 Toți"
+  const allBtn = e.target.closest('#worshipMsgAllBtn');
+  if (allBtn) {
+    e.stopPropagation();
+    const inp = document.getElementById('worshipMsgAllText');
+    const text = (inp?.value || '').trim();
+    if (!text) return;
+    await sendWorshipRoleMessage('__all__', text);
+    if (inp) inp.value = '';
+    return;
+  }
+  // Click pe rând (afară de butonul de șterge / mesaj) → prefill formularul pentru editare
   const item = e.target.closest('.worship-role-item');
   if (!item) return;
   const nameEl = document.getElementById('worshipRoleName');

@@ -4662,6 +4662,38 @@ app.delete('/api/worship/roles', (req, res) => {
   return res.json({ ok: true, roles: db.worshipRoles });
 });
 
+// WORSHIP-MSG-PER-ROLE — endpoint worship-facing pentru mesaj țintit pe rol (sau toți).
+// Auth: requireWorshipManageSession (canManageRoles sau PIN-master) — adică cine
+// gestionează echipa poate și să-i scrie. Logica de emit e IDENTICĂ cu endpoint-ul
+// admin /api/events/:id/worship/role-message — filtrare pe socket.data.worshipRole
+// în camera worship:<eventId>.
+app.post('/api/worship/role-message', (req, res) => {
+  const session = requireWorshipManageSession(req, res);
+  if (!session) return;
+  const eventId = String(req.body?.eventId || '').trim();
+  const event = db.events[eventId];
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  const role = String(req.body?.role || '').trim();
+  const text = String(req.body?.text || '').trim().slice(0, 200);
+  if (!text) return res.status(400).json({ ok: false, error: 'Mesaj gol.' });
+  const room = io.sockets.adapter.rooms.get(`worship:${eventId}`);
+  const hint = { type: 'admin_msg', text, eventId, ts: Date.now(), role: role || '__all__' };
+  let delivered = 0;
+  if (room) {
+    room.forEach((socketId) => {
+      const s = io.sockets.sockets.get(socketId);
+      if (!s) return;
+      const sRole = s.data?.worshipRole || '';
+      if (!role || role === '__all__' || sRole === role) {
+        s.emit('worship:hint', hint);
+        delivered++;
+      }
+    });
+  }
+  logger.info('[worship/role-message worship-side] event=' + eventId + ' role=' + (role || '__all__') + ' delivered=' + delivered);
+  return res.json({ ok: true, delivered });
+});
+
 app.get('/api/admin/access-requests', (req, res) => {
   if (!hasValidAdminSession(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   const org = ensureOrganization(DEFAULT_ORG_ID);

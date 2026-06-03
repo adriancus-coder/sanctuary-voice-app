@@ -2178,22 +2178,49 @@
   function renderWRoles(roles) {
     const el = document.getElementById('wRolesList');
     if (!el) return;
-    if (!roles.length) { el.innerHTML = '<div class="muted">Niciun rol definit.</div>'; return; }
-    el.innerHTML = roles.map((r) => {
+    // WORSHIP-MSG-PER-ROLE — zona „📢 Toți" sus + ✉️ per rol + câmp inline.
+    const allRow = '<div class="worship-msg-all">' +
+      '<input type="text" id="wMsgAllText" placeholder="Mesaj pentru toți" maxlength="200">' +
+      '<button class="btn btn-primary btn-sm" id="wMsgAllBtn" type="button">📢 Toți</button>' +
+      '</div>';
+    if (!roles.length) { el.innerHTML = allRow + '<div class="muted">Niciun rol definit.</div>'; return; }
+    el.innerHTML = allRow + roles.map((r) => {
       const caps = [r.canLead ? 'Lider' : null, r.canAdmin ? 'Pregătire program' : null, r.canManageRoles ? 'Gestionează roluri' : null].filter(Boolean).join(', ') || 'Membru';
       const emo = r.emoji ? (escapeHtml(r.emoji) + ' ') : '';
-      return '<div class="history-item worship-role-item"' +
-        ' data-n="' + escapeHtml(r.name) + '"' +
-        ' data-c="' + escapeHtml(r.code || '') + '"' +
-        ' data-e="' + escapeHtml(r.emoji || '') + '"' +
-        ' data-l="' + (r.canLead ? '1' : '0') + '"' +
-        ' data-a="' + (r.canAdmin ? '1' : '0') + '"' +
-        ' data-m="' + (r.canManageRoles ? '1' : '0') + '">' +
-        '<span>' + emo + '<strong>' + escapeHtml(r.name) + '</strong>' +
-          ' <span class="muted">· cod: ' + escapeHtml(r.code || '—') + ' · ' + escapeHtml(caps) + '</span></span>' +
-        '<button class="btn btn-dark btn-sm" data-wrole-del="' + escapeHtml(r.name) + '" type="button">Șterge</button>' +
+      return '<div class="worship-role-block">' +
+        '<div class="history-item worship-role-item"' +
+          ' data-n="' + escapeHtml(r.name) + '"' +
+          ' data-c="' + escapeHtml(r.code || '') + '"' +
+          ' data-e="' + escapeHtml(r.emoji || '') + '"' +
+          ' data-l="' + (r.canLead ? '1' : '0') + '"' +
+          ' data-a="' + (r.canAdmin ? '1' : '0') + '"' +
+          ' data-m="' + (r.canManageRoles ? '1' : '0') + '">' +
+          '<span>' + emo + '<strong>' + escapeHtml(r.name) + '</strong>' +
+            ' <span class="muted">· cod: ' + escapeHtml(r.code || '—') + ' · ' + escapeHtml(caps) + '</span></span>' +
+          '<span class="worship-role-actions">' +
+            '<button class="btn btn-dark btn-sm w-role-msg-btn" data-wmsg-role="' + escapeHtml(r.name) + '" type="button" title="Trimite mesaj">✉️</button>' +
+            '<button class="btn btn-dark btn-sm" data-wrole-del="' + escapeHtml(r.name) + '" type="button">Șterge</button>' +
+          '</span>' +
+        '</div>' +
+        '<div class="worship-role-msg-inline hidden" data-wmsg-inline="' + escapeHtml(r.name) + '">' +
+          '<input type="text" placeholder="Mesaj pt ' + escapeHtml(r.name) + '" maxlength="200">' +
+          '<button class="btn btn-primary btn-sm" type="button" data-wmsg-send="' + escapeHtml(r.name) + '">Trimite</button>' +
+        '</div>' +
       '</div>';
     }).join('');
+  }
+  // WORSHIP-MSG-PER-ROLE — trimitere mesaj (worship) folosește endpoint-ul worship-facing.
+  async function sendWorshipMsg(role, text) {
+    if (!text) return;
+    if (!currentEvent?.id) { alert('Niciun eveniment activ.'); return; }
+    try {
+      const res = await fetch('/api/worship/role-message', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ eventId: currentEvent.id, role, text })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) alert(data.error || 'Eroare.');
+    } catch (err) { alert('Eroare: ' + err.message); }
   }
   // WORSHIP-ROLES-EMOJI-PICKER — click pe iconițele muzicale → pune emoji-ul în #wRoleEmoji
   document.getElementById('wEmojiPicker')?.addEventListener('click', (e) => {
@@ -2235,6 +2262,42 @@
         const data = await res.json().catch(() => ({}));
         if (data.ok) renderWRoles(data.roles || []);
       } catch (_) {}
+      return;
+    }
+    // WORSHIP-MSG-PER-ROLE — ✉️ → toggle câmp inline
+    const msgBtn = e.target.closest('.w-role-msg-btn');
+    if (msgBtn) {
+      e.stopPropagation();
+      const role = msgBtn.getAttribute('data-wmsg-role') || '';
+      const inline = document.querySelector('[data-wmsg-inline="' + CSS.escape(role) + '"]');
+      if (inline) {
+        inline.classList.toggle('hidden');
+        const inp = inline.querySelector('input[type="text"]');
+        if (!inline.classList.contains('hidden') && inp) inp.focus();
+      }
+      return;
+    }
+    const sendBtn = e.target.closest('[data-wmsg-send]');
+    if (sendBtn) {
+      e.stopPropagation();
+      const role = sendBtn.getAttribute('data-wmsg-send') || '';
+      const inline = document.querySelector('[data-wmsg-inline="' + CSS.escape(role) + '"]');
+      const inp = inline ? inline.querySelector('input[type="text"]') : null;
+      const text = (inp?.value || '').trim();
+      if (!text) return;
+      await sendWorshipMsg(role, text);
+      if (inp) inp.value = '';
+      if (inline) inline.classList.add('hidden');
+      return;
+    }
+    const allBtn = e.target.closest('#wMsgAllBtn');
+    if (allBtn) {
+      e.stopPropagation();
+      const inp = document.getElementById('wMsgAllText');
+      const text = (inp?.value || '').trim();
+      if (!text) return;
+      await sendWorshipMsg('__all__', text);
+      if (inp) inp.value = '';
       return;
     }
     const item = e.target.closest('.worship-role-item');
