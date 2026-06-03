@@ -5480,17 +5480,20 @@ function broadcastPermanentWorshipView() {
   }
 }
 
-// A worship event is one that belongs to the default org, is not hidden, and is
-// scheduled strictly in the future (next service — never past/active).
+// WORSHIP-EDIT-ANY-EVENT — worship poate edita setlist în ORICE eveniment al org-ului
+// (viitor + activ + trecut). Restricția de timp a fost eliminată la cererea owner-ului;
+// testat în practică: adăugarea în evenimentul activ nu produce modificări vizuale bruște.
+// Gardurile hidden + org rămân (nu expunem evenimente ascunse sau din alte org-uri).
 function isWorshipEditableEvent(event) {
   if (!event || event.hidden) return false;
   if (getEventOrgId(event) !== DEFAULT_ORG_ID) return false;
-  return typeof event.scheduledTimestamp === 'number' && event.scheduledTimestamp > Date.now();
+  return true;
 }
 
 // V21.1: Worship Live Tablet may also control the currently-active event, not
-// just upcoming ones — setlist editing stays limited to upcoming events
-// (isWorshipEditableEvent), but live verse control needs the active event too.
+// just upcoming ones — setlist editing now applies to ANY event in the org
+// (isWorshipEditableEvent above), so isWorshipAccessibleEvent reduces to it
+// + the active-event branch (păstrat pentru continuitate logică).
 function isWorshipAccessibleEvent(event) {
   if (!event || event.hidden) return false;
   if (getEventOrgId(event) !== DEFAULT_ORG_ID) return false;
