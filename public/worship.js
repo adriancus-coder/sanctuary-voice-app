@@ -19,6 +19,7 @@
     renderMyRoleBadge();
     applyPrepGate();   // WORSHIP-PREP-GATE
     applyRolesModeGate();   // WORSHIP-MANAGE-ROLES
+    applySpectatorGate();   // WORSHIP-SPECTATOR-GATE
   }
   // WORSHIP-ROLES-LIVE — afișează rolul curent al membrului (cine ești).
   // PIN global vechi (înainte de PIN-MASTER) = _myRole gol → badge ascuns (compat).
@@ -62,6 +63,45 @@
       btn.classList.add('hidden');
       if (liveMode === 'roles') toggleMode('live');
     }
+  }
+  // WORSHIP-SPECTATOR-GATE — rol cu cod DAR zero capabilități (ne-master) = spectator pur:
+  // vede DOAR versul curent, fără switcher, fără moduri de control.
+  function isSpectator() {
+    return _myRole !== '' && !_myCanLead && !_myCanAdmin && !_myCanManageRoles && !_myWorshipMaster;
+  }
+  function applySpectatorGate() {
+    const spectator = isSpectator();
+    const switcher = document.getElementById('worshipModeSwitcher');
+    const specPanel = document.getElementById('worshipSpectatorMode');
+    if (spectator) {
+      if (switcher) switcher.classList.add('hidden');
+      document.getElementById('worshipSetlistMode')?.classList.add('hidden');
+      document.getElementById('worshipLiveMode')?.classList.add('hidden');
+      document.getElementById('worshipRolesMode')?.classList.add('hidden');
+      if (specPanel) specPanel.classList.remove('hidden');
+      liveMode = 'spectator';
+      // Conectează-te ca să primești sincronizarea live (același canal ca masterii).
+      if (typeof initMasterSocket === 'function') initMasterSocket();
+      if (typeof joinMasterRoom === 'function') joinMasterRoom();
+      renderSpectatorVerse();
+    } else {
+      if (specPanel) specPanel.classList.add('hidden');
+      if (switcher) switcher.classList.remove('hidden');
+    }
+  }
+  // WORSHIP-SPECTATOR-GATE — versul curent randat pe panoul spectator
+  // (folosește aceeași sursă ca renderLiveMode: getLiveSong + parseVerses(song.text)).
+  function renderSpectatorVerse() {
+    if (!isSpectator()) return;
+    const el = document.getElementById('spectatorVerseText');
+    if (!el) return;
+    const song = (typeof getLiveSong === 'function') ? getLiveSong() : null;
+    if (!song) { el.textContent = 'Așteptăm versurile...'; return; }
+    if (liveEnded) { el.textContent = 'Pauză'; return; }
+    const verses = (typeof parseVerses === 'function') ? parseVerses(song.text) : [];
+    if (!verses.length) { el.textContent = 'Așteptăm versurile...'; return; }
+    const idx = Math.max(0, Math.min(liveCurrentVerseIndex, verses.length - 1));
+    el.textContent = verses[idx];
   }
   // V21.5: split into liveEvent (the read-only header — the sync source with
   // admin/operator) and pickerEvents (future + live, used by the per-card
@@ -845,6 +885,8 @@
   }
 
   function toggleMode(mode) {
+    // WORSHIP-SPECTATOR-GATE — spectatorul nu comută moduri (apărare).
+    if (isSpectator()) return;
     if (mode !== 'setlist' && mode !== 'live' && mode !== 'roles') return;
     // WORSHIP-PREP-GATE — lider-doar (canAdmin=false cu rol) nu intră în Pregătire.
     if (mode === 'setlist' && !canAccessPrep()) return;
@@ -898,6 +940,8 @@
   }
 
   function renderLiveMode() {
+    // WORSHIP-SPECTATOR-GATE — spectatorul are propria randare (panou minim cu versul).
+    renderSpectatorVerse();
     const labelEl = $('liveVerseLabel');
     const textEl = $('liveVerseText');
     const posEl = $('liveVersePosition');
