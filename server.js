@@ -4559,6 +4559,18 @@ app.get('/api/operator/request-status/:id', (req, res) => {
 // WORSHIP-ROLES-1: editable list of worship roles managed by admin in the Operator Roles tab.
 // Global (not per-event). WORSHIP-ROLES-1B: roles are now objects {name, code, canLead, canAdmin}.
 // `Member` is the implicit base — canLead/canAdmin are extra capabilities. Code used for login (ETAPA 2).
+// WORSHIP-ROLES-SYNC — anunță adminii + worship managers/master că db.worshipRoles s-a schimbat.
+// Payload-ul conține codurile rolurilor → emis DOAR la cine ar fi putut deja să le vadă
+// (admin via /api/admin/worship-roles; worship doar cu canManageRoles via /api/worship/roles).
+function broadcastWorshipRolesChanged() {
+  const payload = { roles: Array.isArray(db.worshipRoles) ? db.worshipRoles : [] };
+  io.sockets.sockets.forEach((s) => {
+    if (!s.data) return;
+    const isAdmin = s.data.role === 'admin';
+    const isWorshipManager = !!s.data.worshipCanManageRoles || !!s.data.worshipMaster;
+    if (isAdmin || isWorshipManager) s.emit('worship:roles_changed', payload);
+  });
+}
 app.get('/api/admin/worship-roles', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;
   return res.json({ ok: true, roles: Array.isArray(db.worshipRoles) ? db.worshipRoles : [] });
@@ -4582,6 +4594,7 @@ app.post('/api/admin/worship-roles', (req, res) => {
   if (idx >= 0) db.worshipRoles[idx] = role;   // editare dacă numele există
   else db.worshipRoles.push(role);             // altfel creare
   saveDb();
+  broadcastWorshipRolesChanged();   // WORSHIP-ROLES-SYNC
   return res.json({ ok: true, roles: db.worshipRoles });
 });
 app.delete('/api/admin/worship-roles', (req, res) => {
@@ -4590,6 +4603,7 @@ app.delete('/api/admin/worship-roles', (req, res) => {
   if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
   db.worshipRoles = db.worshipRoles.filter((r) => r.name !== name);
   saveDb();
+  broadcastWorshipRolesChanged();   // WORSHIP-ROLES-SYNC
   return res.json({ ok: true, roles: db.worshipRoles });
 });
 
@@ -4635,6 +4649,7 @@ app.post('/api/worship/roles', (req, res) => {
   if (idx >= 0) db.worshipRoles[idx] = role;
   else db.worshipRoles.push(role);
   saveDb();
+  broadcastWorshipRolesChanged();   // WORSHIP-ROLES-SYNC
   return res.json({ ok: true, roles: db.worshipRoles });
 });
 app.delete('/api/worship/roles', (req, res) => {
@@ -4643,6 +4658,7 @@ app.delete('/api/worship/roles', (req, res) => {
   if (!Array.isArray(db.worshipRoles)) db.worshipRoles = [];
   db.worshipRoles = db.worshipRoles.filter((r) => r.name !== name);
   saveDb();
+  broadcastWorshipRolesChanged();   // WORSHIP-ROLES-SYNC
   return res.json({ ok: true, roles: db.worshipRoles });
 });
 

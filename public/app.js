@@ -1966,6 +1966,12 @@ socket.on('worship:roles_online', (payload) => {
   _worshipRolesOnline = payload || {};
   if (_lastWorshipRoles) renderWorshipRoles(_lastWorshipRoles);
 });
+// WORSHIP-ROLES-SYNC — un alt admin sau cineva din /worship a modificat rolurile → re-randează live.
+socket.on('worship:roles_changed', (payload) => {
+  const roles = (payload && Array.isArray(payload.roles)) ? payload.roles : [];
+  if (typeof renderWorshipRoles === 'function') renderWorshipRoles(roles);
+  if (typeof populateWorshipMsgRoles === 'function') populateWorshipMsgRoles(roles);
+});
 
 function renderGlobalSongLibrary(items = []) {
   const box = $('globalSongLibraryList');

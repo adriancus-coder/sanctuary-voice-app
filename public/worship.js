@@ -1242,6 +1242,13 @@
     masterSocket.on('worship:master:denied', (d) => {
       setStatus($('liveStatus'), (d && d.message) || 'Conexiune worship respinsă.', 'err');
     });
+    // WORSHIP-ROLES-SYNC — lista de roluri s-a schimbat (admin sau alt worship manager); re-randează
+    // dacă modul Roluri e deschis. Server-ul emite DOAR la worship managers/master + admini.
+    masterSocket.on('worship:roles_changed', (payload) => {
+      if (typeof renderWRoles === 'function' && payload && Array.isArray(payload.roles)) {
+        renderWRoles(payload.roles);
+      }
+    });
     masterSocket.on('worship:sync_request_resolved', (data) => {
       if (!data || !pendingSyncId || data.requestId !== pendingSyncId) return;
       pendingSyncId = null;

@@ -313,6 +313,9 @@ function registerSocketHandlers(io, ctx) {
       socket.data.worshipRole = String(session.worshipRole || '');
       socket.data.worshipCanLead = !!session.canLead;
       socket.data.worshipCanAdmin = !!session.canAdmin;
+      // WORSHIP-ROLES-SYNC — capabilități adiționale pentru filtrarea worship:roles_changed.
+      socket.data.worshipCanManageRoles = !!session.canManageRoles;
+      socket.data.worshipMaster = !!session.worshipMaster;
       // WORSHIP-ROLES-ONLINE — anunță adminii că un rol s-a conectat (dacă sesiunea are rol).
       if (socket.data.worshipRole) emitWorshipRolesOnline();
       ensureWorshipState(event);
