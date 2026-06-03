@@ -125,10 +125,18 @@
     const titleEl = $('viewSongTitle');
     const labelEl = $('viewVerseLabel');
     const lyricsEl = $('viewLyrics');
+    // WORSHIP-KEY-EVERYWHERE — gama permanentă (nu doar ca hint change_key temporar).
+    const keyEl = $('viewSongKey');
+    function setKey(text) {
+      if (!keyEl) return;
+      keyEl.textContent = text;
+      keyEl.classList.toggle('hidden', !text);
+    }
     if (!currentSong) {
       if (titleEl) titleEl.textContent = '—';
       if (labelEl) labelEl.textContent = '';
       if (lyricsEl) lyricsEl.textContent = 'Așteaptă cântarea de la worship leader…';
+      setKey('');
       return;
     }
     const verses = parseVerses(currentSong.text);
@@ -136,12 +144,15 @@
       if (titleEl) titleEl.textContent = currentSong.title || '';
       if (labelEl) labelEl.textContent = '';
       if (lyricsEl) lyricsEl.textContent = 'Cântarea nu are versuri.';
+      setKey('');
       return;
     }
     const idx = Math.max(0, Math.min(currentVerseIndex, verses.length - 1));
     if (titleEl) titleEl.textContent = currentSong.title || '';
     if (labelEl) labelEl.textContent = 'Strofa ' + (idx + 1) + ' / ' + verses.length;
     if (lyricsEl) lyricsEl.textContent = verses[idx] || '';
+    const songKey = currentSong.key ? String(currentSong.key) : '';
+    setKey(songKey ? ('🎵 ' + songKey) : '');
   }
 
   function applyState(state, songObj) {

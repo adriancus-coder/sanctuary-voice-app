@@ -6612,11 +6612,11 @@ button[disabled]:active {
 .live-song-key {
   display: inline-block;
   margin-left: 12px;
-  padding: 2px 12px;
+  padding: 4px 14px;
   background: var(--accent, #cf9a3c);
   color: #1a1206;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
   text-transform: none;
   letter-spacing: 0;
@@ -6624,11 +6624,11 @@ button[disabled]:active {
 }
 .verse-mini-key {
   margin-left: 6px;
-  padding: 1px 7px;
+  padding: 2px 9px;
   background: rgba(207, 154, 60, 0.25);
   color: var(--accent, #cf9a3c);
   border-radius: 7px;
-  font-size: 0.8em;
+  font-size: 0.95em;
   font-weight: 700;
   text-transform: none;
   letter-spacing: 0;
@@ -7778,6 +7778,24 @@ body.live-fullscreen-active .glass-panel {
   align-items: center;
   justify-content: center;
 }
+
+/* WORSHIP-KEY-EVERYWHERE — gama vizibilă mare pe spectator + worship-view */
+.spectator-key {
+  text-align: center;
+  font-size: clamp(20px, 5vw, 32px);
+  font-weight: 700;
+  color: var(--gold, #d8b06a);
+  margin-bottom: 12px;
+}
+.view-song-key {
+  text-align: center;
+  font-size: clamp(22px, 4vw, 40px);
+  font-weight: 700;
+  color: var(--gold, #d8b06a);
+  margin: 10px 0;
+}
+.spectator-key.hidden,
+.view-song-key.hidden { display: none; }
 
 /* WORSHIP-ROLES-EMOJI — picker iconițe muzicale + input liber */
 .worship-emoji-picker { display: flex; flex-wrap: wrap; gap: 4px; }

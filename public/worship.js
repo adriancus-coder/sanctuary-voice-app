@@ -91,17 +91,27 @@
   }
   // WORSHIP-SPECTATOR-GATE — versul curent randat pe panoul spectator
   // (folosește aceeași sursă ca renderLiveMode: getLiveSong + parseVerses(song.text)).
+  // WORSHIP-KEY-EVERYWHERE — afișează și gama cântării (song.key); gama e doar pe cântare,
+  // nu pe bloc (verificat: live-song-key și verse-mini-key folosesc același songKey).
   function renderSpectatorVerse() {
     if (!isSpectator()) return;
     const el = document.getElementById('spectatorVerseText');
+    const keyEl = document.getElementById('spectatorKey');
+    function setKey(text) {
+      if (!keyEl) return;
+      keyEl.textContent = text;
+      keyEl.classList.toggle('hidden', !text);
+    }
     if (!el) return;
     const song = (typeof getLiveSong === 'function') ? getLiveSong() : null;
-    if (!song) { el.textContent = 'Așteptăm versurile...'; return; }
-    if (liveEnded) { el.textContent = 'Pauză'; return; }
+    if (!song) { el.textContent = 'Așteptăm versurile...'; setKey(''); return; }
+    if (liveEnded) { el.textContent = 'Pauză'; setKey(''); return; }
     const verses = (typeof parseVerses === 'function') ? parseVerses(song.text) : [];
-    if (!verses.length) { el.textContent = 'Așteptăm versurile...'; return; }
+    if (!verses.length) { el.textContent = 'Așteptăm versurile...'; setKey(''); return; }
     const idx = Math.max(0, Math.min(liveCurrentVerseIndex, verses.length - 1));
     el.textContent = verses[idx];
+    const songKey = song.key ? String(song.key) : '';
+    setKey(songKey ? ('🎵 ' + songKey) : '');
   }
   // V21.5: split into liveEvent (the read-only header — the sync source with
   // admin/operator) and pickerEvents (future + live, used by the per-card
