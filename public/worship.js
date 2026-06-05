@@ -69,6 +69,23 @@
   function isSpectator() {
     return _myRole !== '' && !_myCanLead && !_myCanAdmin && !_myCanManageRoles && !_myWorshipMaster;
   }
+  // WORSHIP-SPECTATOR-WAKELOCK — ține ecranul aprins pentru spectatori în timpul slujbei.
+  // Browserele eliberează lock-ul când tab-ul pierde focus → re-cerere la visibilitychange.
+  let _wakeLock = null;
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator && !_wakeLock) {
+        _wakeLock = await navigator.wakeLock.request('screen');
+        _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+      }
+    } catch (_) { /* unele browsere/contexte refuză — silențios */ }
+  }
+  function releaseWakeLock() {
+    try { if (_wakeLock) { _wakeLock.release(); _wakeLock = null; } } catch (_) {}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isSpectator()) requestWakeLock();
+  });
   function applySpectatorGate() {
     const spectator = isSpectator();
     const switcher = document.getElementById('worshipModeSwitcher');
@@ -84,9 +101,11 @@
       if (typeof initMasterSocket === 'function') initMasterSocket();
       if (typeof joinMasterRoom === 'function') joinMasterRoom();
       renderSpectatorVerse();
+      requestWakeLock();   // WORSHIP-SPECTATOR-WAKELOCK
     } else {
       if (specPanel) specPanel.classList.add('hidden');
       if (switcher) switcher.classList.remove('hidden');
+      releaseWakeLock();   // WORSHIP-SPECTATOR-WAKELOCK — eliberează când nu mai ești spectator
     }
   }
   // WORSHIP-SPECTATOR-GATE — versul curent randat pe panoul spectator
@@ -1375,6 +1394,10 @@
       // picker + verse view, so a song switch by another master shows too. When
       // not in Live mode the mirror above is enough; entering Live mode applies it.
       if (liveMode === 'live') refreshLiveMode();
+      // WORSHIP-SPECTATOR-SYNC — spectatorul trebuie să primească LIVE noul vers/gamă.
+      // Singura cale prin care liveCurrentSongId/Index se mută pe spectator e prin
+      // state_change (worship:hint nu schimbă starea — doar overlay-uri/banner-uri).
+      else if (isSpectator()) renderSpectatorVerse();
       checkPendingHints(liveCurrentVerseIndex);   // FAZA C — declanșare și prin sync de la alt master
     });
     // V21.8: operator suggested a song. Show the accept/decline modal —
