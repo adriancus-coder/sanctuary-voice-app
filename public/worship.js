@@ -649,7 +649,7 @@
   function renderAddToEventPicker(librarySongId, containerEl) {
     if (!containerEl) return;
     if (!pickerEvents.length) {
-      containerEl.innerHTML = '<p class="muted small">Niciun event disponibil. Cere admin să creeze un event.</p>';
+      containerEl.innerHTML = '<p class="muted small">Niciun eveniment încă. Apasă „➕ Nou" (sus) ca să creezi unul, apoi adaugă cântarea în el.</p>';
       return;
     }
     containerEl.innerHTML = pickerEvents.map((ev) =>
