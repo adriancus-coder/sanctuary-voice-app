@@ -6515,6 +6515,7 @@ button[disabled]:active {
   border-color: transparent;
 }
 
+.worship-live-panel { padding: 14px; }
 .worship-live-panel h3 { margin-top: 0; }
 
 .live-toolbar {
