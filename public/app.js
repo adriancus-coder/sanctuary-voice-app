@@ -18,6 +18,9 @@ let currentSongTitle = '';  // pentru a detecta schimb cântec
 let currentGlobalSongLibrary = [];
 let currentPinnedTextLibrary = [];
 let availableEventsList = [];
+// WORSHIP-RESCHEDULE-V2 — state pentru dialogul de reprogramare
+let _rescheduleEventId = null;
+let _rescheduleAdminCode = '';
 let currentDisplayPresets = [];
 let currentVolume = 70;
 let currentMuted = false;
@@ -1320,6 +1323,21 @@ function populateTimezoneSelect() {
   const list = Array.from(set).sort();
   select.innerHTML = list.map((tz) => `<option value="${tz}">${tz}</option>`).join('');
   select.value = browserTz && set.has(browserTz) ? browserTz : 'UTC';
+}
+// WORSHIP-RESCHEDULE-V2 — populează #rescheduleTimezone cu același set ca la creare.
+function populateRescheduleTimezone(preferredTz) {
+  const select = $('rescheduleTimezone');
+  if (!select) return;
+  const browserTz = detectBrowserTimezone();
+  const set = new Set(COMMON_TIMEZONES);
+  if (browserTz) set.add(browserTz);
+  if (preferredTz) set.add(preferredTz);
+  const list = Array.from(set).sort();
+  select.innerHTML = list.map((tz) => `<option value="${tz}">${tz}</option>`).join('');
+  const chosen = preferredTz && set.has(preferredTz)
+    ? preferredTz
+    : (browserTz && set.has(browserTz) ? browserTz : 'UTC');
+  select.value = chosen;
 }
 
 function formatScheduledPreview() {
@@ -5758,28 +5776,23 @@ $('eventList').addEventListener('click', async (e) => {
     }
     return;
   }
-  // WORSHIP-RESCHEDULE — admin schimbă data + ora unui eveniment existent.
+  // WORSHIP-RESCHEDULE-V2 — admin deschide formularul (date+time+timezone), pre-completat cu valorile curente.
+  // Fix-ul de fus orar e pe partea de server (deriveScheduledFields) + clientul trimite acum un timezone real.
   if (action === 'reschedule') {
     const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event:') || '').trim();
     if (!adminCode) return;
-    const newDate = (prompt('Dată nouă (AAAA-LL-ZZ):') || '').trim();
-    if (!newDate) return;
-    const newTime = (prompt('Oră nouă (HH:MM) — lasă gol pentru toată ziua:') || '').trim();
-    btn.disabled = true;
-    try {
-      const res = await fetch(`/api/events/${id}/reschedule`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: adminCode, date: newDate, time: newTime })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!data.ok) { alert(data.error || 'Reprogramare eșuată.'); return; }
-      await refreshEventList();
-    } catch (err) {
-      alert('Eroare la reprogramare: ' + err.message);
-    } finally {
-      btn.disabled = false;
-    }
+    _rescheduleEventId = id;
+    _rescheduleAdminCode = adminCode;
+    const ev = (Array.isArray(availableEventsList) ? availableEventsList : []).find((e) => e && e.id === id);
+    const dateEl = document.getElementById('rescheduleDate');
+    const timeEl = document.getElementById('rescheduleTime');
+    const statusEl = document.getElementById('rescheduleStatus');
+    if (statusEl) statusEl.textContent = '';
+    if (dateEl) dateEl.value = (ev && ev.scheduledDate) || '';
+    if (timeEl) timeEl.value = (ev && ev.scheduledTime) || '';
+    populateRescheduleTimezone(ev && ev.timezone);
+    const dlg = document.getElementById('rescheduleDialog');
+    if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
     return;
   }
   if (action === 'delete') {
@@ -6603,4 +6616,40 @@ document.getElementById('copyPartialsBtn')?.addEventListener('click', () => {
 });
 document.getElementById('clearPartialsBtn')?.addEventListener('click', () => {
   if (typeof window.clearPartialHistory === 'function') window.clearPartialHistory();
+});
+
+// WORSHIP-RESCHEDULE-V2 — handler-ele dialogului de reprogramare
+document.getElementById('rescheduleCancelBtn')?.addEventListener('click', () => {
+  document.getElementById('rescheduleDialog')?.close();
+});
+document.getElementById('rescheduleSaveBtn')?.addEventListener('click', async () => {
+  const id = _rescheduleEventId;
+  if (!id) return;
+  const date = (document.getElementById('rescheduleDate')?.value || '').trim();
+  const time = (document.getElementById('rescheduleTime')?.value || '').trim();
+  const timezone = (document.getElementById('rescheduleTimezone')?.value || '').trim() || detectBrowserTimezone();
+  const statusEl = document.getElementById('rescheduleStatus');
+  if (!date) { if (statusEl) statusEl.textContent = 'Alege data.'; return; }
+  const btn = document.getElementById('rescheduleSaveBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(`/api/events/${encodeURIComponent(id)}/reschedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: _rescheduleAdminCode, date, time, timezone })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok) {
+      if (statusEl) statusEl.textContent = data.error || 'Reprogramare eșuată.';
+      return;
+    }
+    document.getElementById('rescheduleDialog')?.close();
+    _rescheduleEventId = null;
+    _rescheduleAdminCode = '';
+    await refreshEventList();
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Eroare: ' + err.message;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 });

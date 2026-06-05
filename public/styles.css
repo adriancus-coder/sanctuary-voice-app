@@ -7854,3 +7854,25 @@ body.live-fullscreen-active .glass-panel {
   font-weight: 600;
 }
 .worship-my-role-badge strong { color: var(--text, #f6f0e6); }
+
+/* WORSHIP-RESCHEDULE-V2 — dialog dată/oră/fus */
+.reschedule-dialog {
+  background: var(--panel, #0e1015);
+  color: var(--text, #f6f0e6);
+  border: 1px solid var(--line, rgba(255,241,214,0.12));
+  border-radius: 14px;
+  padding: 20px;
+  max-width: 380px;
+  width: calc(100% - 32px);
+}
+.reschedule-dialog h3 { margin: 0 0 14px; color: var(--gold, #d8b06a); }
+.reschedule-dialog label { display: block; margin-bottom: 12px; font-size: 14px; }
+.reschedule-dialog input, .reschedule-dialog select {
+  width: 100%; margin-top: 4px; padding: 8px;
+  background: rgba(255,255,255,0.05); color: var(--text, #f6f0e6);
+  border: 1px solid var(--line, rgba(255,241,214,0.18)); border-radius: 8px;
+}
+.reschedule-row { display: flex; gap: 8px; }
+.reschedule-row > label { flex: 1; }
+.reschedule-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.reschedule-dialog::backdrop { background: rgba(0,0,0,0.6); }

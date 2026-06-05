@@ -1114,6 +1114,27 @@
     </div>
   </div>
 
+  <!-- WORSHIP-RESCHEDULE-V2 — formular dată/oră/fus (același pattern ca la creare) -->
+  <dialog id="rescheduleDialog" class="reschedule-dialog">
+    <h3>Schimbă data și ora</h3>
+    <div class="reschedule-row">
+      <label>Dată
+        <input id="rescheduleDate" type="date" required>
+      </label>
+      <label>Oră
+        <input id="rescheduleTime" type="time" required>
+      </label>
+    </div>
+    <label>Fus orar
+      <select id="rescheduleTimezone"></select>
+    </label>
+    <div id="rescheduleStatus" class="muted small"></div>
+    <div class="reschedule-actions">
+      <button id="rescheduleCancelBtn" class="btn btn-dark" type="button">Anulează</button>
+      <button id="rescheduleSaveBtn" class="btn btn-primary" type="button">Salvează</button>
+    </div>
+  </dialog>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
   <script src="/admin-i18n.js"></script>
