@@ -5533,7 +5533,14 @@ function buildWorshipStatePayload(event) {
   let song = null;
   if (ws.currentSongId) {
     const found = (event.songLibrary || []).find((s) => s && s.id === ws.currentSongId);
-    if (found) song = { id: found.id, title: found.title || '', text: found.text || '' };
+    if (found) song = {
+      id: found.id,
+      title: found.title || '',
+      text: found.text || '',
+      // WORSHIP-VIEW-KEY-PAYLOAD-FIX — include gama, ca worship-view (QR/link) să o afișeze
+      // (în /worship spectatorul citește getLiveSong() direct și avea deja key; aici lipsea).
+      key: typeof found.key === 'string' ? found.key : ''
+    };
   }
   return {
     eventId: event.id,
