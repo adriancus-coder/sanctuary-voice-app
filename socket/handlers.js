@@ -422,7 +422,7 @@ function registerSocketHandlers(io, ctx) {
       }
       // WORSHIP-NOTES-FIX + earlier — extins HINT_TYPES cu types existente în client
       // (note/countdown/transpose) care erau silent-dropped înainte.
-      const HINT_TYPES = ['repeat', 'next', 'chorus', 'jump_verse', 'change_key', 'jump_song', 'free', 'note', 'countdown', 'transpose'];
+      const HINT_TYPES = ['repeat', 'repeat_chorus', 'next', 'chorus', 'jump_verse', 'change_key', 'jump_song', 'free', 'note', 'countdown', 'transpose'];
       const type = HINT_TYPES.includes(payload?.type) ? payload.type : null;
       if (!type) return;
       const hint = { type, eventId, ts: Date.now() };

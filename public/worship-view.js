@@ -32,6 +32,7 @@
     if (!h || typeof h !== 'object') return '';
     switch (h.type) {
       case 'repeat': return '🔁 Repetăm strofa';
+      case 'repeat_chorus': return '🔁 Repetăm refrenul';
       case 'next': return '⏭ Strofa următoare';
       case 'chorus': return '🎶 Refren';
       case 'jump_verse': return '➡ Strofa ' + (Number(h.verseIndex) + 1);

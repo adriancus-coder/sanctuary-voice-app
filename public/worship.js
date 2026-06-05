@@ -1533,6 +1533,7 @@
     if (!h || typeof h !== 'object') return '';
     switch (h.type) {
       case 'repeat': return '🔁 Repetăm strofa';
+      case 'repeat_chorus': return '🔁 Repetăm refrenul';
       case 'next': return '⏭ Strofa următoare';
       case 'chorus': return '🎶 Refren';
       case 'jump_verse': return '➡ Strofa ' + (Number(h.verseIndex) + 1);
@@ -2048,6 +2049,8 @@
         const t = b.getAttribute('data-hint');
         if (t === 'next') dispatchHint({ type: 'next' }, () => liveNext());
         else if (t === 'repeat') dispatchHint({ type: 'repeat' }, () => setLiveVerse(liveCurrentVerseIndex));
+        // WORSHIP-REPEAT-CHORUS — geamăn cu 'repeat': rămâne pe blocul curent + anunță echipa.
+        else if (t === 'repeat_chorus') dispatchHint({ type: 'repeat_chorus' }, () => setLiveVerse(liveCurrentVerseIndex));
         else if (t === 'chorus') dispatchHint({ type: 'chorus' });
         if (wasNow) flashButtonSent(b);
       });
