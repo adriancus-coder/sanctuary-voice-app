@@ -6490,7 +6490,7 @@ button[disabled]:active {
 }
 .worship-mode-switcher button {
   flex: 1;
-  padding: 10px 12px;
+  padding: 10px 8px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
@@ -6498,6 +6498,16 @@ button[disabled]:active {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  /* WORSHIP-MODE-TABS-FIX — text centrat + nowrap + ellipsis ca „Live" / „Pregătire program"
+     / „Roluri" să nu fie tăiate de colțurile rotunjite pe ecrane înguste. */
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+@media (max-width: 380px) {
+  .worship-mode-switcher button { font-size: 13px; padding: 9px 6px; }
 }
 .worship-mode-switcher button.active {
   background: var(--gold-strong, #ffe4b3);
