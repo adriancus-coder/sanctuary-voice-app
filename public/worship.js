@@ -413,9 +413,9 @@
           '</div>' +
           // WORSHIP-SECTIONS-A — toggle pt marcaje secțiune (Strofă/Refren/Pod) per bloc
           '<button class="btn btn-dark btn-sm song-sections-toggle" type="button" data-sections-toggle="' + escapeHtml(s.id) + '" title="Marchează secțiuni">🏷 Secțiuni</button>' +
-          // WORSHIP-MASTER-DELETE-BTN — maestrul (PIN global) vede „Șterge" pe ORICE cântare
-          // (serverul îi permite deja, din WORSHIP-PIN-MASTER). Ceilalți doar pe cele adăugate de ei.
-          ((s.addedByWorship || _myWorshipMaster)
+          // WORSHIP-MASTER-DELETE-BTN — maestrul (PIN global) vede „Șterge" pe ORICE cântare.
+          // WORSHIP-PREP-DELETE — cine pregătește programul (canAdmin) la fel. Ceilalți doar pe ale lor.
+          ((s.addedByWorship || _myWorshipMaster || _myCanAdmin)
             ? '<button class="btn btn-danger btn-sm" type="button" data-event-song-delete="' + escapeHtml(s.id) + '">Șterge</button>'
             : '') +
           '<div class="song-sections-panel hidden" data-song-sections="' + escapeHtml(s.id) + '">' +

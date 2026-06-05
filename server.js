@@ -5936,13 +5936,15 @@ app.delete('/api/worship/events/:id/songs/:itemId', (req, res) => {
   const session = requireWorshipApiSession(req, res);
   if (!session) return;
   const itemId = String(req.params.itemId || '').trim();
-  // WORSHIP-PIN-MASTER — maestru poate șterge orice cântare; ceilalți doar ce-au adăugat în sesiune.
+  // WORSHIP-PIN-MASTER — maestru poate șterge orice cântare;
+  // WORSHIP-PREP-DELETE — cine pregătește programul (canAdmin) la fel; ceilalți doar ce-au adăugat în sesiune.
+  // Ștergerea afectează DOAR event.songLibrary (filter mai jos), NU Library globală.
   if (!itemId) {
     return res.status(400).json({ ok: false, error: 'Missing itemId' });
   }
-  if (!session.worshipMaster && !session.addedSongs.includes(itemId)) {
-    logger.warn(`[worship/delete-song] Forbidden: itemId=${itemId} not in session.addedSongs`);
-    return res.status(403).json({ ok: false, error: 'Can only delete songs added in this session' });
+  if (!session.worshipMaster && !session.canAdmin && !session.addedSongs.includes(itemId)) {
+    logger.warn(`[worship/delete-song] Forbidden: itemId=${itemId} not addedSongs, not canAdmin/master`);
+    return res.status(403).json({ ok: false, error: 'Can only delete songs you added (or you need prep/master rights)' });
   }
   try {
     const event = db.events[req.params.id];
