@@ -105,10 +105,14 @@ function can(permission) {
 }
 
 function eventCodeOptions(method, payload = {}) {
+  // OPERATOR-PARITY-B — trimite și eventId, ca endpoint-urile non-event-scoped
+  // (Library globală) să poată autoriza via requireAdminOrOperatorApiSession
+  // (care verifică code + eventId în body). Pentru endpoint-urile cu :id în path
+  // câmpul e ignorat — sigur de adăugat.
   return {
     method,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...payload, code: state.accessCode })
+    body: JSON.stringify({ ...payload, code: state.accessCode, eventId: state.eventId || '' })
   };
 }
 
@@ -308,6 +312,7 @@ function renderRemoteSongLibrary() {
           <button class="btn btn-dark" type="button" data-remote-song-action="stage" data-remote-song-id="${item.id}" title="Încarcă în Live Control (staged) — fără să afișeze pe proiector">Load</button>
           <button class="btn btn-primary" type="button" data-remote-song-action="send" data-remote-song-id="${item.id}">Send first verse</button>
           <button class="btn btn-dark" type="button" data-remote-song-action="add" data-remote-song-id="${item.id}">Add to event</button>
+          <button class="btn btn-danger" type="button" data-remote-song-action="delete" data-remote-song-id="${item.id}" title="Șterge din Library (afectează toate evenimentele)">🗑 Delete</button>
         </div>
         <div class="library-preview hidden" data-remote-song-preview="${item.id}">
           <pre class="library-preview-text">${escapeHtml(item.text || '')}</pre>
@@ -337,6 +342,7 @@ function renderRemotePinnedTextLibrary() {
           <button class="btn btn-dark" type="button" data-remote-pinned-action="preview" data-remote-pinned-id="${item.id}">Preview</button>
           <button class="btn btn-dark" type="button" data-remote-pinned-action="load" data-remote-pinned-id="${item.id}">Load in editor</button>
           <button class="btn btn-primary" type="button" data-remote-pinned-action="send" data-remote-pinned-id="${item.id}">Send to main screen</button>
+          <button class="btn btn-danger" type="button" data-remote-pinned-action="delete" data-remote-pinned-id="${item.id}" title="Șterge din Pinned Library">🗑 Delete</button>
         </div>
         <div class="library-preview hidden" data-remote-pinned-preview="${item.id}">
           <pre class="library-preview-text">${escapeHtml(item.text || '')}</pre>
@@ -1827,6 +1833,19 @@ $('remoteSongLibraryList')?.addEventListener('click', async (e) => {
     } catch (err) {
       setStatus(err.message);
     }
+    return;
+  }
+  // OPERATOR-PARITY-B — Delete pe Library globală (afectează toate evenimentele).
+  if (action === 'delete') {
+    if (!confirm('Ștergi „' + (item.title || 'cântarea') + '" din Library?\n\nAcțiunea afectează TOATE evenimentele.')) return;
+    try {
+      const res = await fetch('/api/global-song-library/' + encodeURIComponent(songId), eventCodeOptions('DELETE'));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Ștergere eșuată.');
+      setStatus(`Șters din Library: „${item.title || 'cântarea'}".`);
+      loadRemoteSongLibrary();
+    } catch (err) { alert('Eroare: ' + err.message); }
+    return;
   }
 });
 
@@ -1866,6 +1885,19 @@ $('remoteManualLibraryList')?.addEventListener('click', async (e) => {
     } catch (err) {
       setStatus(err.message);
     }
+    return;
+  }
+  // OPERATOR-PARITY-B — Delete pe Pinned Library.
+  if (action === 'delete') {
+    if (!confirm('Ștergi „' + (item.title || 'textul') + '" din Pinned Library?')) return;
+    try {
+      const res = await fetch('/api/pinned-text-library/' + encodeURIComponent(itemId), eventCodeOptions('DELETE'));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Ștergere eșuată.');
+      setStatus(`Șters din Pinned Library: „${item.title || 'textul'}".`);
+      loadRemotePinnedTextLibrary();
+    } catch (err) { alert('Eroare: ' + err.message); }
+    return;
   }
 });
 
@@ -1981,6 +2013,21 @@ document.querySelectorAll('[data-remote-edit-verse-close]').forEach((el) => {
   el.addEventListener('click', closeRemoteEditVerseModal);
 });
 
+// OPERATOR-PARITY-B — salvează direct în Library (skip editor). Mirror al
+// importSongDirectToLibrary din admin (app.js); folosește eventCodeOptions
+// pentru ca POST să treacă prin requireAdminOrOperatorApiSession.
+async function remoteImportSongDirectToLibrary(song) {
+  const title = String(song && song.title || '').trim();
+  const text = String(song && song.text || '').trim();
+  if (!title || !text) { alert('Cântarea importată nu are titlu sau versuri.'); return false; }
+  const res = await fetch('/api/global-song-library',
+    eventCodeOptions('POST', { title, text, sourceLang: song.sourceLang || state.currentEvent?.sourceLang || 'ro' }));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || 'Salvare eșuată.');
+  loadRemoteSongLibrary();
+  return true;
+}
+
 async function importRemoteSongFromUrl(url) {
   const res = await fetch('/api/songs/import-url', {
     method: 'POST',
@@ -2065,7 +2112,10 @@ $('remoteImportUrlBtn')?.addEventListener('click', async () => {
               <div style="font-weight:600;">${escapeHtml(item.title)}</div>
               <div class="muted small">${escapeHtml(item.author || 'Anonim')}</div>
             </div>
-            <button class="btn btn-dark" type="button" data-remote-import-result-url="${escapeHtml(item.url)}">Import</button>
+            <div class="import-result-actions">
+              <button class="btn btn-primary" type="button" data-remote-import-result-url="${escapeHtml(item.url)}">Import</button>
+              <button class="btn btn-dark" type="button" data-remote-import-editor-url="${escapeHtml(item.url)}">✎ Editor</button>
+            </div>
           </div>
         `).join('');
       }
@@ -2095,34 +2145,51 @@ $('remoteSongLibrarySearch')?.addEventListener('keydown', (e) => {
   }
 });
 
+// OPERATOR-PARITY-B: „Import" = importRemoteSongFromUrl + remoteImportSongDirectToLibrary
+// (direct în Library); „✎ Editor" = doar importRemoteSongFromUrl (umple editorul, fluxul vechi).
 $('remoteImportUrlResults')?.addEventListener('click', async (e) => {
+  const status = $('remoteImportUrlStatus');
+  const resultsEl = $('remoteImportUrlResults');
+
+  const editorBtn = e.target.closest('[data-remote-import-editor-url]');
+  if (editorBtn) {
+    const url = editorBtn.dataset.remoteImportEditorUrl;
+    if (status) { status.textContent = 'Se deschide în editor...'; status.style.color = ''; }
+    editorBtn.disabled = true;
+    const originalEd = editorBtn.textContent;
+    editorBtn.textContent = '...';
+    try {
+      const song = await importRemoteSongFromUrl(url);
+      if (status) { status.textContent = `Deschis în editor: "${song.title}". Verifică și salvează.`; status.style.color = '#0c0'; }
+      editorBtn.disabled = false;
+      editorBtn.textContent = originalEd;
+    } catch (err) {
+      if (status) {
+        if (err.cancelled) { status.textContent = err.message; status.style.color = '#f80'; }
+        else { status.textContent = `Eroare la import: ${err.message}`; status.style.color = '#f00'; }
+      }
+      editorBtn.disabled = false;
+      editorBtn.textContent = originalEd;
+    }
+    return;
+  }
+
   const btn = e.target.closest('[data-remote-import-result-url]');
   if (!btn) return;
   const url = btn.dataset.remoteImportResultUrl;
-  const status = $('remoteImportUrlStatus');
-  const resultsEl = $('remoteImportUrlResults');
-  if (status) {
-    status.textContent = 'Se importă rezultatul selectat...';
-    status.style.color = '';
-  }
+  if (status) { status.textContent = 'Se importă și se salvează în Library...'; status.style.color = ''; }
   btn.disabled = true;
   btn.textContent = '...';
   try {
     const song = await importRemoteSongFromUrl(url);
-    if (status) {
-      status.textContent = `Importat: "${song.title}"`;
-      status.style.color = '#0c0';
-    }
+    await remoteImportSongDirectToLibrary(song);
+    if (status) { status.textContent = `Salvat în Library: "${song.title}"`; status.style.color = '#0c0'; }
     if (resultsEl) resultsEl.innerHTML = '';
+    btn.textContent = '✓ Salvat';
   } catch (err) {
     if (status) {
-      if (err.cancelled) {
-        status.textContent = err.message;
-        status.style.color = '#f80';
-      } else {
-        status.textContent = `Eroare la import: ${err.message}`;
-        status.style.color = '#f00';
-      }
+      if (err.cancelled) { status.textContent = err.message; status.style.color = '#f80'; }
+      else { status.textContent = `Eroare la import: ${err.message}`; status.style.color = '#f00'; }
     }
     btn.disabled = false;
     btn.textContent = 'Import';

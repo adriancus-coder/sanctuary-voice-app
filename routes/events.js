@@ -79,6 +79,7 @@ function registerEventRoutes(app, ctx) {
     requireEventPermission,
     requireEventRole,
     requireGlobalLibraryAdmin,
+    requireAdminOrOperatorApiSession,   // OPERATOR-PARITY-B
     tryWorshipSession,
     broadcastPermanentWorshipView,
     resolveEventAccessFromCode,
@@ -1836,10 +1837,9 @@ function registerEventRoutes(app, ctx) {
   });
 
   app.post('/api/global-song-library', (req, res) => {
-    // V20.3: worship-role sessions may save library songs. Admins still pass
-    // via requireGlobalLibraryAdmin (which also sends the 403 when neither
-    // applies). Operators are intentionally NOT granted here — admin + worship only.
-    if (!tryWorshipSession(req) && !requireGlobalLibraryAdmin(req, res)) return;
+    // OPERATOR-PARITY-B — admin + operator (cu cod + eventId în body) + worship pot salva în Library.
+    // (V20.3 anterior: doar admin + worship; operatorul a fost adăugat explicit cu autorizarea owner-ului.)
+    if (!requireAdminOrOperatorApiSession(req, res)) return;
     const title = String(req.body.title || '').trim();
     const text = sanitizeStructuredText(req.body.text || '');
     const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
@@ -1873,7 +1873,8 @@ function registerEventRoutes(app, ctx) {
   });
 
   app.delete('/api/pinned-text-library/:itemId', (req, res) => {
-    if (!requireGlobalLibraryAdmin(req, res)) return;
+    // OPERATOR-PARITY-B — admin + operator + worship pot șterge din Library globală pinned.
+    if (!requireAdminOrOperatorApiSession(req, res)) return;
     const org = getDefaultOrganization();
     org.pinnedTextLibrary = (org.pinnedTextLibrary || []).filter((item) => item.id !== req.params.itemId);
     saveDb();
@@ -1881,7 +1882,8 @@ function registerEventRoutes(app, ctx) {
   });
 
   app.delete('/api/global-song-library/:songId', (req, res) => {
-    if (!requireGlobalLibraryAdmin(req, res)) return;
+    // OPERATOR-PARITY-B — admin + operator + worship pot șterge din Library globală.
+    if (!requireAdminOrOperatorApiSession(req, res)) return;
     const org = getDefaultOrganization();
     org.globalSongLibrary = (org.globalSongLibrary || []).filter((item) => item.id !== req.params.songId);
     saveDb();

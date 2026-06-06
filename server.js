@@ -6635,6 +6635,7 @@ registerEventRoutes(app, {
   requireEventPermission,
   requireEventRole,
   requireGlobalLibraryAdmin,
+  requireAdminOrOperatorApiSession,   // OPERATOR-PARITY-B
   tryWorshipSession,
   broadcastPermanentWorshipView,
   resolveEventAccessFromCode,
