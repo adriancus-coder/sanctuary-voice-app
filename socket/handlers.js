@@ -381,6 +381,13 @@ function registerSocketHandlers(io, ctx) {
       worshipLeaders.set(eventId, socket.id);
       socket.data.worshipLeaderEventId = eventId;
       io.to(`worship:${eventId}`).emit('worship:leader', { eventId, leaderId: socket.id, active: true });
+      // WORSHIP-LEAD-ANY-EVENT — anunță TOȚI userii worship că există un lider pe acest eveniment,
+      // ca cei de pe alt eveniment să afișeze banner-ul „Liderul conduce pe alt eveniment".
+      io.emit('worship:leader_event', {
+        eventId,
+        eventName: event && event.name ? String(event.name) : '',
+        active: true
+      });
     });
 
     // WORSHIP-LEADER: the current leader releases the slot. Only the holder can
@@ -392,6 +399,8 @@ function registerSocketHandlers(io, ctx) {
         worshipLeaders.delete(eventId);
         if (socket.data.worshipLeaderEventId === eventId) socket.data.worshipLeaderEventId = '';
         io.to(`worship:${eventId}`).emit('worship:leader', { eventId, leaderId: null, active: false });
+        // WORSHIP-LEAD-ANY-EVENT — anunță global că liderul a renunțat (ascunde banner-ul peste tot).
+        io.emit('worship:leader_event', { eventId, eventName: '', active: false });
       }
     });
 
@@ -764,6 +773,8 @@ function registerSocketHandlers(io, ctx) {
       if (leaderEventId && worshipLeaders.get(leaderEventId) === socket.id) {
         worshipLeaders.delete(leaderEventId);
         io.to(`worship:${leaderEventId}`).emit('worship:leader', { eventId: leaderEventId, leaderId: null, active: false });
+        // WORSHIP-LEAD-ANY-EVENT — anunță global că liderul s-a deconectat.
+        io.emit('worship:leader_event', { eventId: leaderEventId, eventName: '', active: false });
       }
       cleanupSocketPresence(socket);
     });

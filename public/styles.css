@@ -7894,6 +7894,18 @@ body.live-fullscreen-active .glass-panel {
 }
 .worship-my-role-badge strong { color: var(--text, #f6f0e6); }
 
+/* WORSHIP-LEAD-ANY-EVENT — banner pentru spectatori de pe alt eveniment */
+.worship-leader-elsewhere {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: rgba(216, 176, 106, 0.14);
+  border: 1px solid var(--gold, #d8b06a);
+  border-radius: 10px;
+  padding: 8px 12px; margin: 8px 0;
+  font-size: 14px; color: var(--text, #f6f0e6);
+}
+.worship-leader-elsewhere span { flex: 1 1 auto; }
+.worship-leader-elsewhere.hidden { display: none; }
+
 /* WORSHIP-RESCHEDULE-V2 — dialog dată/oră/fus */
 .reschedule-dialog {
   background: var(--panel, #0e1015);

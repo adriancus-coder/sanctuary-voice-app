@@ -1341,13 +1341,15 @@
   // never set optimistically — so a single source of truth decides the role.
   let isWorshipLeader = false;
   let currentLeaderId = null;
+  // WORSHIP-LEAD-ANY-EVENT — id-ul evenimentului unde un lider e activ (folosit de banner)
+  let _leaderEventId = null;
 
   function joinMasterRoom() {
     if (masterSocket && masterSocket.connected) {
-      // V21.x: prefer liveEvent.id — set EARLY in loadLiveEvent, before
-      // loadEventDetail completes — so the room subscription happens
-      // even during the brief window when currentEvent is still null.
-      const eventId = (liveEvent && liveEvent.id) || (currentEvent && currentEvent.id);
+      // WORSHIP-LEAD-ANY-EVENT — preferă currentEvent (evenimentul ales din dropdown),
+      // ca liderul să poată conduce pe orice eveniment, nu doar pe cel live.
+      // liveEvent rămâne ca fallback în fereastra inițială când currentEvent e null.
+      const eventId = (currentEvent && currentEvent.id) || (liveEvent && liveEvent.id);
       if (eventId) masterSocket.emit('worship:master:join', { eventId });
     }
   }
@@ -1506,6 +1508,24 @@
       currentLeaderId = d.active ? d.leaderId : null;
       isWorshipLeader = !!(d.active && d.leaderId && d.leaderId === masterSocket.id);
       renderLeaderUI();
+    });
+    // WORSHIP-LEAD-ANY-EVENT — anunț global despre liderul activ pe alt eveniment.
+    // Spectatorii / membrii de pe alt eveniment văd banner-ul + butonul de mutare;
+    // mutarea NU e automată — necesită un tap pe buton.
+    masterSocket.on('worship:leader_event', (d) => {
+      if (!d) return;
+      const myEventId = (currentEvent && currentEvent.id) || '';
+      const banner = document.getElementById('worshipLeaderElsewhere');
+      const txt = document.getElementById('worshipLeaderElsewhereText');
+      if (d.active && d.eventId && d.eventId !== myEventId) {
+        _leaderEventId = d.eventId;
+        if (txt) txt.textContent = 'Liderul conduce pe alt eveniment: ' + (d.eventName || 'eveniment');
+        if (banner) banner.classList.remove('hidden');
+      } else {
+        // !active sau eu sunt deja pe evenimentul liderului → ascunde banner-ul
+        _leaderEventId = null;
+        if (banner) banner.classList.add('hidden');
+      }
     });
     // WORSHIP-LEADER: a hint from the leader. The leader doesn't need a banner
     // of their own hint (they triggered it), so only non-leaders show it.
@@ -1993,9 +2013,31 @@
     // WORSHIP-DRAFT-2 — buton de creare draft (one-time bind, lângă Logout)
     $('worshipCreateDraftBtn')?.addEventListener('click', createWorshipDraft);
     // WORSHIP-EVENT-DROPDOWN-B — schimbarea selecției încarcă evenimentul
+    // WORSHIP-LEAD-ANY-EVENT — și re-abonează camera de sincronizare pe noul eveniment,
+    // ca liderul / spectatorii să primească state_change + hint din evenimentul ales.
     $('worshipEventDropdown')?.addEventListener('change', async (e) => {
       const id = e.target.value;
-      if (id) await loadEventDetail(id);
+      if (id) {
+        await loadEventDetail(id);
+        if (masterSocket && masterSocket.connected) {
+          masterSocket.emit('worship:master:join', { eventId: id });
+        }
+        // dacă m-am mutat pe evenimentul liderului, ascunde banner-ul
+        if (_leaderEventId && _leaderEventId === id) {
+          document.getElementById('worshipLeaderElsewhere')?.classList.add('hidden');
+        }
+      }
+    });
+    // WORSHIP-LEAD-ANY-EVENT — un tap pe buton mută spectatorul pe evenimentul liderului.
+    document.getElementById('worshipGoToLeaderEvent')?.addEventListener('click', async () => {
+      if (!_leaderEventId) return;
+      await loadEventDetail(_leaderEventId);
+      if (masterSocket && masterSocket.connected) {
+        masterSocket.emit('worship:master:join', { eventId: _leaderEventId });
+      }
+      const sel = document.getElementById('worshipEventDropdown');
+      if (sel) sel.value = _leaderEventId;
+      document.getElementById('worshipLeaderElsewhere')?.classList.add('hidden');
     });
 
     // V21.5: dropdown removed — header now shows the live event read-only.
