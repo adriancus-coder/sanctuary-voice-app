@@ -7797,6 +7797,10 @@ body.live-fullscreen-active .glass-panel {
 .spectator-fontbar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; flex-wrap: wrap; }
 .spectator-font-btn { min-width: 48px; font-weight: 700; font-size: 16px; }
 
+/* WORSHIP-KEY-NOTATION-PREP — capul listei Pregătire (titlu + comutator notație) */
+.setlist-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.setlist-head h3 { margin: 0; }
+
 /* WORSHIP-KEY-NOTATION-RO — comutator pe proiector worship-view (header) */
 .view-key-notation-toggle {
   background: rgba(255, 255, 255, 0.06);

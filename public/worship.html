@@ -56,7 +56,11 @@
     <section id="worshipSetlistMode" class="worship-mode-panel worship-song-panel">
       <!-- Songs already in the selected event -->
       <div class="event-songs-section panel glass-panel">
-        <h3>În acest event (<span id="eventSongsCount">0</span>)</h3>
+        <div class="setlist-head">
+          <h3>În acest event (<span id="eventSongsCount">0</span>)</h3>
+          <!-- WORSHIP-KEY-NOTATION-PREP — comutator notație gamă pentru selectoarele din Pregătire -->
+          <button class="btn btn-dark btn-sm js-key-notation-toggle" type="button" title="Schimbă notația gamei (internațional / românesc)">C→Do</button>
+        </div>
         <div id="eventSongsList" class="event-songs-list"></div>
       </div>
 
