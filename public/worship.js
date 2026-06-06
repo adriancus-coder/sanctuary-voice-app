@@ -20,6 +20,7 @@
     applyPrepGate();   // WORSHIP-PREP-GATE
     applyRolesModeGate();   // WORSHIP-MANAGE-ROLES
     applySpectatorGate();   // WORSHIP-SPECTATOR-GATE
+    applyDraftBtnGate();   // WORSHIP-DRAFT-BTN-GATE
   }
   // WORSHIP-ROLES-LIVE — afișează rolul curent al membrului (cine ești).
   // PIN global vechi (înainte de PIN-MASTER) = _myRole gol → badge ascuns (compat).
@@ -107,6 +108,13 @@
       if (switcher) switcher.classList.remove('hidden');
       releaseWakeLock();   // WORSHIP-SPECTATOR-WAKELOCK — eliberează când nu mai ești spectator
     }
+  }
+  // WORSHIP-DRAFT-BTN-GATE — „➕ Nou" (creare draft) ascuns DOAR pentru spectatorii puri (zero capabilități).
+  // Liderii (inclusiv lider-doar), cei cu pregătire, manage-roles, master și PIN-global îl văd.
+  function applyDraftBtnGate() {
+    const btn = document.getElementById('worshipCreateDraftBtn');
+    if (!btn) return;
+    btn.classList.toggle('hidden', isSpectator());
   }
   // WORSHIP-SPECTATOR-GATE — versul curent randat pe panoul spectator
   // (folosește aceeași sursă ca renderLiveMode: getLiveSong + parseVerses(song.text)).
