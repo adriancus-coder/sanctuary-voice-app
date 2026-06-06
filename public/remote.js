@@ -1757,11 +1757,14 @@ document.querySelectorAll('.top-nav-btn[data-tab]').forEach((btn) => {
 });
 
 let remoteLibrarySearchDebounce;
-$('remoteSongLibrarySearch')?.addEventListener('input', () => {
+$('remoteSongLibrarySearch')?.addEventListener('input', (e) => {
   clearTimeout(remoteLibrarySearchDebounce);
   remoteLibrarySearchDebounce = setTimeout(renderRemoteSongLibrary, 220);
   // Resurse results are stale once the query changes — hide until re-run.
   document.querySelector('.unified-search-resurse-section')?.classList.add('hidden');
+  // OPERATOR-LIBRARY-LAYOUT — auto-deschide dropdown-ul „Rezultate" când se tastează (ca admin).
+  const dd = document.getElementById('remoteLibraryResultsDropdown');
+  if (dd && (e.target.value || '').trim()) dd.open = true;
 });
 // V21.39: select-all on focus so re-tap replaces the previous query in one keypress.
 // setTimeout(0) sidesteps mouseup-deselect when the focus arrived via click.
@@ -2072,6 +2075,9 @@ $('remoteImportUrlBtn')?.addEventListener('click', async () => {
   }
   const isUrl = /^https?:\/\//i.test(value);
   if (resurseSection) resurseSection.classList.remove('hidden');
+  // OPERATOR-LIBRARY-LAYOUT — deschide dropdown-ul „Rezultate" când se caută pe resurse (ca admin).
+  const resResultsDd = document.getElementById('remoteLibraryResultsDropdown');
+  if (resResultsDd) resResultsDd.open = true;
   if (spinner) spinner.classList.remove('hidden');
   if (status) {
     status.textContent = isUrl ? 'Se importă...' : 'Se caută pe resurse...';
