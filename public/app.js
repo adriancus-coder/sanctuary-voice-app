@@ -5259,10 +5259,11 @@ $('importUrlBtn')?.addEventListener('click', async () => {
 
   try {
     if (isUrl) {
+      // WORSHIP-IMPORT-DIRECT — URL direct → importă și salvează direct în Library.
       const song = await importSongFromUrl(value);
-      status.textContent = `Importat: "${song.title}" (${song.sourceProvider})`;
+      await saveSongToLibrary();
+      status.textContent = `Salvat în Library: "${song.title}" (${song.sourceProvider})`;
       status.style.color = '#0c0';
-      document.querySelector('.song-editor-details')?.setAttribute('open', '');
     } else {
       const res = await fetch('/api/songs/search', {
         method: 'POST',
@@ -5287,7 +5288,10 @@ $('importUrlBtn')?.addEventListener('click', async () => {
               <div style="font-weight: 600;">${escapeHtml(item.title)}</div>
               <div class="muted small">${escapeHtml(item.author || 'Anonim')}</div>
             </div>
-            <button class="btn btn-dark" type="button" data-import-result-url="${escapeHtml(item.url)}">Import</button>
+            <div class="import-result-actions">
+              <button class="btn btn-primary" type="button" data-import-result-url="${escapeHtml(item.url)}">Import</button>
+              <button class="btn btn-dark" type="button" data-import-editor-url="${escapeHtml(item.url)}">✎ Editor</button>
+            </div>
           </div>
         `).join('');
       }
@@ -5318,34 +5322,55 @@ $('globalSongLibrarySearch')?.addEventListener('keydown', (e) => {
   }
 });
 
-// V18: Import a song picked from the search results list
+// V18 + WORSHIP-IMPORT-DIRECT: „Import" = importSongFromUrl + saveSongToLibrary (direct în Library);
+// „✎ Editor" = doar importSongFromUrl (umple editorul, fluxul vechi pentru ajustare manuală).
 $('importUrlResults')?.addEventListener('click', async (e) => {
-  const btn = e.target.closest('[data-import-result-url]');
-  if (!btn) return;
-
-  const url = btn.dataset.importResultUrl;
   const status = $('importUrlStatus');
   const resultsEl = $('importUrlResults');
 
-  status.textContent = 'Se importă rezultatul selectat...';
+  const editorBtn = e.target.closest('[data-import-editor-url]');
+  if (editorBtn) {
+    const url = editorBtn.dataset.importEditorUrl;
+    status.textContent = 'Se deschide în editor...';
+    status.style.color = '';
+    editorBtn.disabled = true;
+    const originalEd = editorBtn.textContent;
+    editorBtn.textContent = '...';
+    try {
+      const song = await importSongFromUrl(url);
+      status.textContent = `Deschis în editor: "${song.title}". Verifică și salvează.`;
+      status.style.color = '#0c0';
+      document.querySelector('.song-editor-details')?.setAttribute('open', '');
+      editorBtn.disabled = false;
+      editorBtn.textContent = originalEd;
+    } catch (err) {
+      if (err.cancelled) { status.textContent = err.message; status.style.color = '#f80'; }
+      else { status.textContent = `Eroare la import: ${err.message}`; status.style.color = '#f00'; }
+      editorBtn.disabled = false;
+      editorBtn.textContent = originalEd;
+    }
+    return;
+  }
+
+  const btn = e.target.closest('[data-import-result-url]');
+  if (!btn) return;
+  const url = btn.dataset.importResultUrl;
+  status.textContent = 'Se importă și se salvează în Library...';
   status.style.color = '';
   btn.disabled = true;
   btn.textContent = '...';
-
   try {
+    // importSongFromUrl umple editorul + face dedup-check; apoi saveSongToLibrary îl persistă
+    // (citește din #songTitle/#songText). Editorul rămâne curățat la final prin clearSong().
     const song = await importSongFromUrl(url);
-    status.textContent = `Importat: "${song.title}"`;
+    await saveSongToLibrary();
+    status.textContent = `Salvat în Library: "${song.title}"`;
     status.style.color = '#0c0';
     if (resultsEl) resultsEl.innerHTML = '';
-    document.querySelector('.song-editor-details')?.setAttribute('open', '');
+    btn.textContent = '✓ Salvat';
   } catch (err) {
-    if (err.cancelled) {
-      status.textContent = err.message;
-      status.style.color = '#f80';
-    } else {
-      status.textContent = `Eroare la import: ${err.message}`;
-      status.style.color = '#f00';
-    }
+    if (err.cancelled) { status.textContent = err.message; status.style.color = '#f80'; }
+    else { status.textContent = `Eroare la import: ${err.message}`; status.style.color = '#f00'; }
     btn.disabled = false;
     btn.textContent = 'Import';
   }

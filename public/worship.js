@@ -856,6 +856,25 @@
     return data.song;
   }
 
+  // WORSHIP-IMPORT-DIRECT — salvează direct în Library (skip editor).
+  // Întoarce true dacă a salvat, false dacă a fost anulat / titlu+text lipsesc.
+  async function importSongDirectToLibrary(song) {
+    const title = String(song && song.title || '').trim();
+    const text = String(song && song.text || '').trim();
+    if (!title || !text) { alert('Cântarea importată nu are titlu sau versuri.'); return false; }
+    const dup = findDuplicateInLibrary(title);
+    if (dup && !confirm('Cântarea „' + dup.title + '" există deja în Library. O suprascrii?')) return false;
+    const res = await fetch('/api/global-song-library', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, text })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Salvare eșuată.');
+    await loadLibrary();
+    return true;
+  }
+
   // Fill the editor from an imported song, warning if it duplicates a library
   // title. Returns true if the editor was filled, false if the user cancelled.
   function acceptImportedSong(song) {
@@ -890,12 +909,11 @@
     resultsEl.innerHTML = '';
     try {
       if (isUrl) {
+        // WORSHIP-IMPORT-DIRECT — URL direct → salvare directă în Library (sărim editorul)
         const song = await importFromUrl(value);
-        if (!acceptImportedSong(song)) {
-          setStatus(status, 'Anulat — cântarea există deja în Library.', 'err');
-          return;
-        }
-        setStatus(status, 'Importat: „' + song.title + '”. Verifică și salvează.', 'ok');
+        const ok = await importSongDirectToLibrary(song);
+        if (!ok) { setStatus(status, 'Anulat.', 'err'); return; }
+        setStatus(status, 'Salvat în Library: „' + song.title + '”.', 'ok');
       } else {
         const res = await fetch('/api/songs/search', {
           method: 'POST',
@@ -916,7 +934,12 @@
               '<strong>' + escapeHtml(item.title || 'Fără titlu') + '</strong>' +
               (item.author ? '<div class="small muted">' + escapeHtml(item.author) + '</div>' : '') +
             '</div>' +
-            '<button class="btn btn-dark btn-sm" type="button" data-import-result-url="' + escapeHtml(item.url || '') + '">Import</button>' +
+            // WORSHIP-IMPORT-DIRECT — „Import" salvează direct în Library;
+            // „✎ Editor" deschide în editor (fluxul vechi).
+            '<div class="import-result-actions">' +
+              '<button class="btn btn-primary btn-sm" type="button" data-import-result-url="' + escapeHtml(item.url || '') + '">Import</button>' +
+              '<button class="btn btn-dark btn-sm" type="button" data-import-editor-url="' + escapeHtml(item.url || '') + '">✎ Editor</button>' +
+            '</div>' +
           '</div>'
         ).join('');
       }
@@ -2196,6 +2219,31 @@
     });
 
     $('importUrlResults').addEventListener('click', async (e) => {
+      // WORSHIP-IMPORT-DIRECT — „Import" → direct în Library; „✎ Editor" → editor (vechi).
+      const editorBtn = e.target.closest('[data-import-editor-url]');
+      if (editorBtn && !editorBtn.disabled) {
+        const url = editorBtn.dataset.importEditorUrl;
+        if (!url) return;
+        const original = editorBtn.textContent;
+        editorBtn.disabled = true;
+        editorBtn.textContent = '...';
+        try {
+          const song = await importFromUrl(url);
+          if (!acceptImportedSong(song)) {
+            editorBtn.disabled = false;
+            editorBtn.textContent = original;
+            return;
+          }
+          setStatus($('importUrlStatus'), 'Deschis în editor: „' + song.title + '”. Verifică și salvează.', 'ok');
+          editorBtn.disabled = false;
+          editorBtn.textContent = original;
+        } catch (err) {
+          editorBtn.disabled = false;
+          editorBtn.textContent = original;
+          setStatus($('importUrlStatus'), 'Eroare: ' + err.message, 'err');
+        }
+        return;
+      }
       const btn = e.target.closest('[data-import-result-url]');
       if (!btn || btn.disabled) return;
       const url = btn.dataset.importResultUrl;
@@ -2205,13 +2253,14 @@
       btn.textContent = '...';
       try {
         const song = await importFromUrl(url);
-        if (!acceptImportedSong(song)) {
+        const ok = await importSongDirectToLibrary(song);
+        if (!ok) {
           btn.disabled = false;
           btn.textContent = original;
           return;
         }
-        $('importUrlResults').innerHTML = '';
-        setStatus($('importUrlStatus'), 'Importat: „' + song.title + '”. Verifică și salvează.', 'ok');
+        btn.textContent = '✓ Salvat';
+        setStatus($('importUrlStatus'), 'Salvat în Library: „' + song.title + '”.', 'ok');
       } catch (err) {
         btn.disabled = false;
         btn.textContent = original;
