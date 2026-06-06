@@ -2391,7 +2391,7 @@ progress::-moz-progress-bar {
   flex-direction: row;
   align-items: center;
   gap: 4px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;   /* LIBRARY-ACTIONS-WRAP — butoanele curg pe rânduri noi; toate vizibile, inclusiv Delete */
 }
 
 .library-card-actions select {
@@ -2411,11 +2411,10 @@ progress::-moz-progress-bar {
 }
 
 @media (max-width: 768px) {
-  .library-card-actions {
-    flex-wrap: wrap;
-  }
+  /* LIBRARY-ACTIONS-WRAP — wrap-ul e acum mereu activ (vezi mai sus);
+     select-ul rămâne natural pe orice ecran, fără a forța 100% care strica rândul */
   .library-card-actions select {
-    flex: 1 1 100%;
+    flex: 0 0 auto;
   }
 }
 
