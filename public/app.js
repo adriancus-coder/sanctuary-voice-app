@@ -2013,6 +2013,7 @@ function renderGlobalSongLibrary(items = []) {
         <div class="library-card-actions">
           <button class="btn btn-dark" data-global-song-action="preview" data-global-song-id="${item.id}">Preview</button>
           <button class="btn btn-dark" data-global-song-action="load" data-global-song-id="${item.id}">Edit</button>
+          <button class="btn btn-dark" data-global-song-action="stage" data-global-song-id="${item.id}" title="Încarcă în Live Control (staged) — fără să afișeze pe proiector">Load</button>
           <button class="btn btn-primary" data-global-song-action="send" data-global-song-id="${item.id}">Send first verse</button>
           <span class="add-event-split">
             <button class="btn btn-dark add-event-btn" data-global-song-action="add" data-global-song-id="${item.id}">Add to...</button>
@@ -5410,6 +5411,12 @@ $('globalSongLibraryList').addEventListener('click', async (e) => {
     fillSongEditor(item);
     setStatus('Loaded from church library.');
     clearLibrarySearch('globalSongLibrarySearch', renderGlobalSongLibrary, currentGlobalSongLibrary);
+    return;
+  }
+  // SONG-LIBRARY-LOAD-BTN — încarcă în Live Control fără să afișeze (stage:true).
+  if (action === 'stage') {
+    if (!currentEvent) return alert('Open or create an event first.');
+    await loadAdminSongStaged(item);
     return;
   }
   if (action === 'send') {

@@ -299,6 +299,7 @@ function renderRemoteSongLibrary() {
         <div class="library-card-actions">
           <button class="btn btn-dark" type="button" data-remote-song-action="preview" data-remote-song-id="${item.id}">Preview</button>
           <button class="btn btn-dark" type="button" data-remote-song-action="load" data-remote-song-id="${item.id}">Edit</button>
+          <button class="btn btn-dark" type="button" data-remote-song-action="stage" data-remote-song-id="${item.id}" title="Încarcă în Live Control (staged) — fără să afișeze pe proiector">Load</button>
           <button class="btn btn-primary" type="button" data-remote-song-action="send" data-remote-song-id="${item.id}">Send first verse</button>
           <button class="btn btn-dark" type="button" data-remote-song-action="add" data-remote-song-id="${item.id}">Add to event</button>
         </div>
@@ -1723,6 +1724,11 @@ $('remoteSongLibraryList')?.addEventListener('click', async (e) => {
     // V21.39: clear the search field after a successful action so the next
     // search starts fresh (admin already does this via clearLibrarySearch).
     const sEl = $('remoteSongLibrarySearch'); if (sEl) { sEl.value = ''; renderRemoteSongLibrary(); }
+    return;
+  }
+  // SONG-LIBRARY-LOAD-BTN — încarcă în Live Control (staged), fără să afișeze pe proiector.
+  if (action === 'stage') {
+    await remoteLoadScheduledSong(item, true);
     return;
   }
   if (action === 'send') {
