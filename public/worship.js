@@ -403,6 +403,13 @@
   }
 
   function renderEventSongs() {
+    // WORSHIP-SECTIONS-KEEP-OPEN — capturează panourile de secțiuni deschise ÎNAINTE de re-render.
+    // Re-randarea reface markup-ul cu <div class="song-sections-panel hidden">, deci orice panou
+    // deschis manual de utilizator s-ar închide la fiecare salvare (saveSongSections emite
+    // event:songlibrary_changed → re-fetch + render). Restaurăm starea după bindSongRowEvents.
+    const _openSectionPanels = Array.from(
+      document.querySelectorAll('#eventSongsList [data-song-sections]:not(.hidden)')
+    ).map((el) => el.getAttribute('data-song-sections'));
     const list = $('eventSongsList');
     const songs = (currentEvent && Array.isArray(currentEvent.songs)) ? currentEvent.songs : [];
     $('eventSongsCount').textContent = String(songs.length);
@@ -449,6 +456,11 @@
       );
     }).join('');
     bindSongRowEvents();
+    // WORSHIP-SECTIONS-KEEP-OPEN — restaurează panourile care erau deschise înainte de re-render.
+    _openSectionPanels.forEach((id) => {
+      const p = document.querySelector('[data-song-sections="' + id + '"]');
+      if (p) p.classList.remove('hidden');
+    });
   }
 
   // WORSHIP-SECTIONS-A — generează rândurile cu select Strofă/Refren/Pod per bloc parseVerses.
