@@ -1762,9 +1762,10 @@
       masterSocket.emit('worship:leader:release', { eventId: currentEvent.id });
       return;
     }
-    // WORSHIP-ROLES-2 — gate canLead, DOAR pentru sesiuni cu rol (compat: login cu PIN global = _myRole gol → trece)
-    if (_myRole && !_myCanLead) {
-      setStatus($('liveStatus'), 'Rolul tău („' + _myRole + '") nu poate fi lider.', 'warn');
+    // WORSHIP-LEAD-ALSO-PREP — controlul live permis pentru Lider (canLead) SAU Pregătire program (canAdmin).
+    // DOAR pentru sesiuni cu rol (compat: login cu PIN global = _myRole gol → trece).
+    if (_myRole && !_myCanLead && !_myCanAdmin) {
+      setStatus($('liveStatus'), 'Rolul tău („' + _myRole + '") nu poate controla live-ul.', 'warn');
       return;
     }
     // Make sure we're in the worship room first so we receive our own

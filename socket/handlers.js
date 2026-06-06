@@ -383,8 +383,9 @@ function registerSocketHandlers(io, ctx) {
         const _claimRole = session.worshipRole || '';
         if (_claimRole) {
           const _ro = (Array.isArray(db.worshipRoles) ? db.worshipRoles : []).find((r) => r.name === _claimRole);
-          if (!_ro || !_ro.canLead) {
-            return socket.emit('worship:master:denied', { message: 'Rolul tău nu mai poate fi lider.' });
+          // WORSHIP-LEAD-ALSO-PREP — controlul live permis pentru Lider (canLead) SAU Pregătire program (canAdmin)
+          if (!_ro || (!_ro.canLead && !_ro.canAdmin)) {
+            return socket.emit('worship:master:denied', { message: 'Rolul tău nu poate controla live-ul.' });
           }
         }
       }
