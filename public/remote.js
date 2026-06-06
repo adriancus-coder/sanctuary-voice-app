@@ -59,10 +59,16 @@ function escapeHtmlWithBreaks(value) {
   return escapeHtml(value).replace(/\n/g, '<br>');
 }
 
-// V19: case + diacritic-insensitive search (RO ăâîșț etc.), mirrors app.js normalizeForSearch.
+// V19 + SEARCH-NORMALIZE-PUNCTUATION: case + diacritic + punctuation-insensitive search.
 function normalizeForSearch(str) {
   if (!str) return '';
-  return String(str).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
+  return String(str)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // V19: song-block "already displayed" tracking for the live song.

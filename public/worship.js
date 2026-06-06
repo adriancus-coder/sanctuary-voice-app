@@ -175,10 +175,13 @@
   }
 
   function normalizeForSearch(s) {
+    // SEARCH-NORMALIZE-PUNCTUATION — la fel ca în admin/operator (punctuație + cratimă → spațiu).
     return String(s || '')
       .toLowerCase()
       .normalize('NFKD')
       .replace(/[̀-ͯ]/g, '')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 

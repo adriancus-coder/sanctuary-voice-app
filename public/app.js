@@ -441,7 +441,10 @@ function normalizeForSearch(str) {
   return String(str)
     .toLowerCase()
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '');
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')   // SEARCH-NORMALIZE-PUNCTUATION — punctuație/cratimă → spațiu
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // V18.1: Check if imported song matches existing library entry (by normalized title)
