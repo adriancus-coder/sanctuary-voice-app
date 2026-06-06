@@ -1351,6 +1351,8 @@
   let currentLeaderId = null;
   // WORSHIP-LEAD-ANY-EVENT — id-ul evenimentului unde un lider e activ (folosit de banner)
   let _leaderEventId = null;
+  // WORSHIP-PREP-ELSEWHERE — id-ul evenimentului unde „Pregătire program" e activă (banner separat)
+  let _prepEventId = null;
 
   function joinMasterRoom() {
     if (masterSocket && masterSocket.connected) {
@@ -1532,6 +1534,22 @@
       } else {
         // !active sau eu sunt deja pe evenimentul liderului → ascunde banner-ul
         _leaderEventId = null;
+        if (banner) banner.classList.add('hidden');
+      }
+    });
+    // WORSHIP-PREP-ELSEWHERE — separat de leader_event: cineva cu „Pregătire program" (canAdmin)
+    // e prezent pe alt eveniment decât al meu. NU schimbă cu nimic logica de lider.
+    masterSocket.on('worship:prep_event', (d) => {
+      if (!d) return;
+      const myEventId = (currentEvent && currentEvent.id) || '';
+      const banner = document.getElementById('worshipPrepElsewhere');
+      const txt = document.getElementById('worshipPrepElsewhereText');
+      if (d.active && d.eventId && d.eventId !== myEventId) {
+        _prepEventId = d.eventId;
+        if (txt) txt.textContent = 'Nu ești sincronizat cu worship' + (d.eventName ? ' (' + d.eventName + ')' : '');
+        if (banner) banner.classList.remove('hidden');
+      } else {
+        _prepEventId = null;
         if (banner) banner.classList.add('hidden');
       }
     });
@@ -2034,6 +2052,10 @@
         if (_leaderEventId && _leaderEventId === id) {
           document.getElementById('worshipLeaderElsewhere')?.classList.add('hidden');
         }
+        // WORSHIP-PREP-ELSEWHERE — același tip de auto-hide când m-am mutat pe evenimentul prep
+        if (_prepEventId && _prepEventId === id) {
+          document.getElementById('worshipPrepElsewhere')?.classList.add('hidden');
+        }
       }
     });
     // WORSHIP-LEAD-ANY-EVENT — un tap pe buton mută spectatorul pe evenimentul liderului.
@@ -2046,6 +2068,17 @@
       const sel = document.getElementById('worshipEventDropdown');
       if (sel) sel.value = _leaderEventId;
       document.getElementById('worshipLeaderElsewhere')?.classList.add('hidden');
+    });
+    // WORSHIP-PREP-ELSEWHERE — un tap pe buton mută la evenimentul unde e „Pregătire program".
+    document.getElementById('worshipGoToPrepEvent')?.addEventListener('click', async () => {
+      if (!_prepEventId) return;
+      await loadEventDetail(_prepEventId);
+      if (masterSocket && masterSocket.connected) {
+        masterSocket.emit('worship:master:join', { eventId: _prepEventId });
+      }
+      const sel = document.getElementById('worshipEventDropdown');
+      if (sel) sel.value = _prepEventId;
+      document.getElementById('worshipPrepElsewhere')?.classList.add('hidden');
     });
 
     // V21.5: dropdown removed — header now shows the live event read-only.

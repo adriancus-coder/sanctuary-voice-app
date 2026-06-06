@@ -149,6 +149,25 @@ function registerSocketHandlers(io, ctx) {
   // is a live, in-the-moment role that resets cleanly on restart.
   const worshipLeaders = new Map();
 
+  // WORSHIP-PREP-ELSEWHERE — separat de worshipLeaders: track cine (cu canAdmin) e pe ce eveniment.
+  // Folosit ca să anunțăm membrii de pe ALT eveniment că „Pregătire program" e activă altundeva.
+  // NU se intersectează cu logica de claim/lider — banner separat, eveniment socket separat.
+  const worshipPrepPresence = new Map();   // eventId -> Set<socketId>
+  function clearPrepFromOtherEvents(socketId, exceptEventId) {
+    for (const [eid, set] of worshipPrepPresence.entries()) {
+      if (eid !== exceptEventId && set && set.has(socketId)) {
+        set.delete(socketId);
+        if (!set.size) worshipPrepPresence.delete(eid);
+        const ev = db.events[eid];
+        io.to('worship:all').emit('worship:prep_event', {
+          eventId: eid,
+          eventName: ev && ev.name ? String(ev.name) : '',
+          active: worshipPrepPresence.has(eid)
+        });
+      }
+    }
+  }
+
   // V21.20: anti-flicker grace before declaring a worship master offline on
   // socket disconnect. Browsers drop sockets on micro-net-hiccups and tab
   // switches on mobile; without a grace, we'd flap the badge. 5s is short
@@ -323,10 +342,31 @@ function registerSocketHandlers(io, ctx) {
           socket.emit('worship:leader_event', { eventId: leadEid, eventName: lev && lev.name ? String(lev.name) : '', active: true });
         }
       }
+      // WORSHIP-PREP-ELSEWHERE — replay și pentru prezența „Pregătire program" pe alte evenimente.
+      for (const [prepEid, prepSet] of worshipPrepPresence.entries()) {
+        if (prepEid && prepEid !== eventId && prepSet && prepSet.size > 0) {
+          const pev = db.events[prepEid];
+          socket.emit('worship:prep_event', { eventId: prepEid, eventName: pev && pev.name ? String(pev.name) : '', active: true });
+        }
+      }
       // WORSHIP-ROLES-3 — salvează rolul + capabilitățile pe socket pentru push țintit pe rol.
       socket.data.worshipRole = String(session.worshipRole || '');
       socket.data.worshipCanLead = !!session.canLead;
       socket.data.worshipCanAdmin = !!session.canAdmin;
+      // WORSHIP-PREP-ELSEWHERE — înregistrează prezența celor cu canAdmin pe acest eveniment
+      // (master: PIN-global are canAdmin=true din session; intenția cerută = „Pregătire program" =
+      //  rol cu canAdmin. Dacă vrei să excluzi master, adaugă && !session.worshipMaster.)
+      if (session.canAdmin) {
+        clearPrepFromOtherEvents(socket.id, eventId);   // socketul s-a mutat aici dintr-un alt eveniment
+        if (!worshipPrepPresence.has(eventId)) worshipPrepPresence.set(eventId, new Set());
+        worshipPrepPresence.get(eventId).add(socket.id);
+        const ev = db.events[eventId];
+        io.to('worship:all').emit('worship:prep_event', {
+          eventId,
+          eventName: ev && ev.name ? String(ev.name) : '',
+          active: true
+        });
+      }
       // WORSHIP-ROLES-SYNC — capabilități adiționale pentru filtrarea worship:roles_changed.
       socket.data.worshipCanManageRoles = !!session.canManageRoles;
       socket.data.worshipMaster = !!session.worshipMaster;
@@ -791,6 +831,21 @@ function registerSocketHandlers(io, ctx) {
         io.to(`worship:${leaderEventId}`).emit('worship:leader', { eventId: leaderEventId, leaderId: null, active: false });
         // WORSHIP-LEAD-ANY-EVENT — anunță userii worship că liderul s-a deconectat.
         io.to('worship:all').emit('worship:leader_event', { eventId: leaderEventId, eventName: '', active: false });
+      }
+      // WORSHIP-PREP-ELSEWHERE — curăță prezența „Pregătire program" la deconectare; banner se ascunde
+      // pe ceilalți dacă era ultimul canAdmin pe evenimentul respectiv.
+      for (const [eid, set] of worshipPrepPresence.entries()) {
+        if (set && set.has(socket.id)) {
+          set.delete(socket.id);
+          const stillActive = set.size > 0;
+          if (!stillActive) worshipPrepPresence.delete(eid);
+          const ev = db.events[eid];
+          io.to('worship:all').emit('worship:prep_event', {
+            eventId: eid,
+            eventName: ev && ev.name ? String(ev.name) : '',
+            active: stillActive
+          });
+        }
       }
       cleanupSocketPresence(socket);
     });
