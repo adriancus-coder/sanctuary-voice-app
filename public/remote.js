@@ -978,6 +978,58 @@ async function join() {
   });
 }
 
+// OPERATOR-EVENT-PICKER — selector de eveniment + indicator/warning când ales ≠ live.
+// state.fixedEventId === '' înseamnă „live automat" (resolveRemoteEventId folosește /api/events/active).
+async function loadRemoteEventPicker() {
+  const sel = document.getElementById('remoteEventPicker');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/events');
+    const data = await res.json().catch(() => ({}));
+    const events = Array.isArray(data.events) ? data.events : (Array.isArray(data) ? data : []);
+    let liveId = '';
+    try {
+      const a = await fetch('/api/events/active');
+      const ad = await a.json().catch(() => ({}));
+      liveId = (ad && ad.event && ad.event.id) || '';
+    } catch (_) { /* live unknown */ }
+    state._liveEventId = liveId;
+    const current = state.fixedEventId || state.eventId || liveId;
+    sel.innerHTML = '<option value="">Eveniment live (automat)</option>' +
+      events.map((e) => {
+        const isLive = e.id === liveId ? ' • LIVE' : '';
+        const isSel = e.id === current ? ' selected' : '';
+        return '<option value="' + escapeHtml(e.id) + '"' + isSel + '>' + escapeHtml(e.name || 'Eveniment') + isLive + '</option>';
+      }).join('');
+    updateRemoteEventWarning();
+  } catch (_) { /* silent */ }
+}
+function updateRemoteEventWarning() {
+  const warn = document.getElementById('remoteEventWarning');
+  if (!warn) return;
+  const operatingId = state.fixedEventId || state.eventId || '';
+  const notLive = operatingId && state._liveEventId && operatingId !== state._liveEventId;
+  warn.classList.toggle('hidden', !notLive);
+}
+document.getElementById('remoteEventPicker')?.addEventListener('change', async (e) => {
+  const chosen = e.target.value || '';
+  // siguranță: oprește audio dacă rulează — schimbarea evenimentului ar trimite la altă destinație
+  try { if (state.liveAudio && state.liveAudio.running) await stopRemoteLiveAudio(); } catch (_) {}
+  state.fixedEventId = chosen;   // '' = revine la live automat
+  // sincronizează URL fără reload (?event= reflectă starea)
+  try {
+    const u = new URL(window.location.href);
+    if (chosen) u.searchParams.set('event', chosen);
+    else u.searchParams.delete('event');
+    window.history.replaceState({}, '', u);
+  } catch (_) {}
+  state.eventId = '';
+  state.currentEvent = null;
+  await join();
+  await loadRemoteEventPicker();   // refresh marcarea LIVE pe lista din selector
+  updateRemoteEventWarning();
+});
+
 socket.on('connect', join);
 socket.on('disconnect', () => setStatus('Reconnecting...'));
 socket.on('join_error', ({ message }) => setStatus(message || 'Cannot join remote control.'));
@@ -990,10 +1042,16 @@ socket.on('joined_event', ({ role, event, access }) => {
   refreshRemoteUi();
   loadRemoteSongLibrary();
   loadRemotePinnedTextLibrary();
+  loadRemoteEventPicker();   // OPERATOR-EVENT-PICKER — populează selectorul + marchează LIVE
   setStatus(access?.operator?.name ? `Remote control connected as ${access.operator.name}.` : 'Remote control connected.');
 });
 socket.on('active_event_changed', async ({ eventId }) => {
-  if (state.fixedEventId) return;
+  // OPERATOR-EVENT-PICKER — actualizează lista + warning-ul indiferent dacă operatorul a fixat manual
+  // (live-ul nou e altul; afișăm că „LIVE" s-a mutat, dar nu-l smulgem din evenimentul ales).
+  state._liveEventId = eventId || '';
+  await loadRemoteEventPicker();
+  updateRemoteEventWarning();
+  if (state.fixedEventId) return;   // operator pe alegere manuală — NU re-join automat
   if (state.liveAudio.running) await stopRemoteLiveAudio();
   state.eventId = eventId || '';
   state.currentEvent = null;

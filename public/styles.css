@@ -7800,6 +7800,25 @@ body.live-fullscreen-active .glass-panel {
 /* WORSHIP-IMPORT-DIRECT — perechea de butoane „Import" + „✎ Editor" pe rezultate */
 .import-result-actions { display: inline-flex; gap: 6px; flex: 0 0 auto; }
 
+/* OPERATOR-EVENT-PICKER — selector eveniment + warning în header-ul remote */
+.remote-event-picker-wrap {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px;
+}
+.remote-event-picker {
+  max-width: 260px; padding: 6px 10px; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line, rgba(255, 241, 214, 0.18));
+  color: var(--text, #f6f0e6); font-size: 14px;
+}
+.remote-event-warning {
+  font-size: 12px; font-weight: 700;
+  color: #ffb27a;
+  background: rgba(207, 106, 60, 0.18);
+  border: 1px solid rgba(207, 106, 60, 0.4);
+  padding: 3px 10px; border-radius: 8px;
+}
+.remote-event-warning.hidden { display: none; }
+
 /* WORSHIP-KEY-NOTATION-PREP — capul listei Pregătire (titlu + comutator notație) */
 .setlist-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .setlist-head h3 { margin: 0; }

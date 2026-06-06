@@ -27,6 +27,13 @@
         <div class="remote-hero-event">
           <div class="eyebrow">Sanctuary Voice</div>
           <h1 id="remoteEventName">Remote control</h1>
+          <!-- OPERATOR-EVENT-PICKER — alege orice eveniment (live, viitor, trecut) -->
+          <div class="remote-event-picker-wrap">
+            <select id="remoteEventPicker" class="remote-event-picker" title="Alege evenimentul în care operezi">
+              <option value="">Eveniment live (automat)</option>
+            </select>
+            <span id="remoteEventWarning" class="remote-event-warning hidden">⚠️ Operezi pe un eveniment care NU e live</span>
+          </div>
         </div>
         <div class="remote-header-actions remote-hero-actions">
           <button id="remoteOpenMainPreviewBtn" class="btn btn-dark btn-sm" type="button">Open main screen</button>
