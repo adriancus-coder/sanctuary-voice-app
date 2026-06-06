@@ -309,6 +309,20 @@ function registerSocketHandlers(io, ctx) {
       socket.join(`worship:${eventId}`);
       socket.data.worshipMasterEventId = eventId;
       socket.data.worshipMasterSid = session.sid || null;
+      // WORSHIP-LEAD-ANY-EVENT — every worship client joins one shared room so the
+      // worship:leader_event broadcast targets ONLY worship clients (not io.emit
+      // to every participant/screen/other-org socket). All worship clients reach
+      // here because every load path runs joinMasterRoom. Auto-left on disconnect.
+      socket.join('worship:all');
+      // Replay the current cross-event leader state to this (possibly late-joining
+      // or just-switched) client, so its "go to leader's event" banner is correct
+      // even though worship:leader_event is otherwise only emitted on claim.
+      for (const leadEid of worshipLeaders.keys()) {
+        if (leadEid && leadEid !== eventId) {
+          const lev = db.events[leadEid];
+          socket.emit('worship:leader_event', { eventId: leadEid, eventName: lev && lev.name ? String(lev.name) : '', active: true });
+        }
+      }
       // WORSHIP-ROLES-3 — salvează rolul + capabilitățile pe socket pentru push țintit pe rol.
       socket.data.worshipRole = String(session.worshipRole || '');
       socket.data.worshipCanLead = !!session.canLead;
@@ -381,9 +395,11 @@ function registerSocketHandlers(io, ctx) {
       worshipLeaders.set(eventId, socket.id);
       socket.data.worshipLeaderEventId = eventId;
       io.to(`worship:${eventId}`).emit('worship:leader', { eventId, leaderId: socket.id, active: true });
-      // WORSHIP-LEAD-ANY-EVENT — anunță TOȚI userii worship că există un lider pe acest eveniment,
-      // ca cei de pe alt eveniment să afișeze banner-ul „Liderul conduce pe alt eveniment".
-      io.emit('worship:leader_event', {
+      // WORSHIP-LEAD-ANY-EVENT — anunță userii worship (camera worship:all) că există
+      // un lider pe acest eveniment, ca cei de pe alt eveniment să afișeze banner-ul
+      // „Liderul conduce pe alt eveniment". Scoped la worship:all (nu io.emit), ca
+      // participanții/proiectoarele/alte organizații să nu primească intern worship.
+      io.to('worship:all').emit('worship:leader_event', {
         eventId,
         eventName: event && event.name ? String(event.name) : '',
         active: true
@@ -399,8 +415,8 @@ function registerSocketHandlers(io, ctx) {
         worshipLeaders.delete(eventId);
         if (socket.data.worshipLeaderEventId === eventId) socket.data.worshipLeaderEventId = '';
         io.to(`worship:${eventId}`).emit('worship:leader', { eventId, leaderId: null, active: false });
-        // WORSHIP-LEAD-ANY-EVENT — anunță global că liderul a renunțat (ascunde banner-ul peste tot).
-        io.emit('worship:leader_event', { eventId, eventName: '', active: false });
+        // WORSHIP-LEAD-ANY-EVENT — anunță userii worship că liderul a renunțat (ascunde banner-ul).
+        io.to('worship:all').emit('worship:leader_event', { eventId, eventName: '', active: false });
       }
     });
 
@@ -773,8 +789,8 @@ function registerSocketHandlers(io, ctx) {
       if (leaderEventId && worshipLeaders.get(leaderEventId) === socket.id) {
         worshipLeaders.delete(leaderEventId);
         io.to(`worship:${leaderEventId}`).emit('worship:leader', { eventId: leaderEventId, leaderId: null, active: false });
-        // WORSHIP-LEAD-ANY-EVENT — anunță global că liderul s-a deconectat.
-        io.emit('worship:leader_event', { eventId: leaderEventId, eventName: '', active: false });
+        // WORSHIP-LEAD-ANY-EVENT — anunță userii worship că liderul s-a deconectat.
+        io.to('worship:all').emit('worship:leader_event', { eventId: leaderEventId, eventName: '', active: false });
       }
       cleanupSocketPresence(socket);
     });
