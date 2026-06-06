@@ -7794,8 +7794,22 @@ body.live-fullscreen-active .glass-panel {
 }
 
 /* WORSHIP-SPECTATOR-FONT — bara A−/A+ pe panoul spectator */
-.spectator-fontbar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; }
+.spectator-fontbar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; flex-wrap: wrap; }
 .spectator-font-btn { min-width: 48px; font-weight: 700; font-size: 16px; }
+
+/* WORSHIP-KEY-NOTATION-RO — comutator pe proiector worship-view (header) */
+.view-key-notation-toggle {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line, rgba(255, 241, 214, 0.18));
+  color: var(--text, #f6f0e6);
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: auto;
+}
+.view-key-notation-toggle:hover { background: rgba(255, 255, 255, 0.12); }
 
 /* WORSHIP-KEY-EVERYWHERE — gama vizibilă mare pe spectator + worship-view */
 .spectator-key {

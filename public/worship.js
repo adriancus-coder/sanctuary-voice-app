@@ -132,7 +132,7 @@
     // WORSHIP-SPECTATOR-FONT — păstrează mărimea aleasă pe parcursul schimbării versului.
     el.style.fontSize = spectatorFontSize + 'px';
     const songKey = song.key ? String(song.key) : '';
-    setKey(songKey ? ('🎵 ' + songKey) : '');
+    setKey(songKey ? ('🎵 ' + formatKey(songKey)) : '');
   }
   // V21.5: split into liveEvent (the read-only header — the sync source with
   // admin/operator) and pickerEvents (future + live, used by the per-card
@@ -361,6 +361,29 @@
   const SONG_KEYS = ['C','C#','Db','D','D#','Eb','E','F','F#','Gb','G','G#','Ab','A','A#','Bb','B',
                      'Cm','C#m','Dm','D#m','Ebm','Em','Fm','F#m','Gm','G#m','Am','A#m','Bbm','Bm'];
 
+  // WORSHIP-KEY-NOTATION-RO — notație românească pentru afișare (stocarea rămâne internațională).
+  // Preferința e per-device (localStorage 'worshipKeyNotation' = 'intl' (default) sau 'ro').
+  // formatKey() e folosită PESTE TOT unde se afișează gama; song.key + select value rămân intl.
+  const KEY_NOTE_RO = { 'C':'Do','D':'Re','E':'Mi','F':'Fa','G':'Sol','A':'La','B':'Si' };
+  function getKeyNotation() {
+    try { return localStorage.getItem('worshipKeyNotation') === 'ro' ? 'ro' : 'intl'; }
+    catch (_) { return 'intl'; }
+  }
+  function setKeyNotation(n) {
+    try { localStorage.setItem('worshipKeyNotation', n === 'ro' ? 'ro' : 'intl'); } catch (_) {}
+  }
+  function formatKey(key) {
+    const k = String(key || '').trim();
+    if (!k) return '';
+    if (getKeyNotation() !== 'ro') return k;
+    const m = k.match(/^([A-G])(#|b)?(m)?$/);
+    if (!m) return k;
+    const note = KEY_NOTE_RO[m[1]] || m[1];
+    const accidental = m[2] === '#' ? ' diez' : (m[2] === 'b' ? ' bemol' : '');
+    const quality = m[3] === 'm' ? ' minor' : ' major';
+    return note + accidental + quality;
+  }
+
   // WORSHIP-KEY-TRANSPOSE: scară cromatică curată (12 semitoni, sharp-only) + mapping
   // enharmonic. Folosită DOAR pentru transpunere ±1 semiton, separat de SONG_KEYS care
   // amestecă enharmonice + major/minor pentru selector.
@@ -391,10 +414,11 @@
 
     list.innerHTML = songs.map((s, idx) => {
       const keyVal = s.key ? escapeHtml(s.key) : '';
+      // WORSHIP-KEY-NOTATION-RO — option value rămâne intl (stocare); textul afișat se traduce.
       const opts = SONG_KEYS.map((k) =>
-        '<option value="' + k + '"' + (s.key === k ? ' selected' : '') + '>' + k + '</option>').join('');
+        '<option value="' + k + '"' + (s.key === k ? ' selected' : '') + '>' + escapeHtml(formatKey(k)) + '</option>').join('');
       const customOpt = (keyVal && !SONG_KEYS.includes(s.key))
-        ? '<option value="' + keyVal + '" selected>' + keyVal + '</option>' : '';
+        ? '<option value="' + keyVal + '" selected>' + escapeHtml(formatKey(s.key)) + '</option>' : '';
       return (
         '<div class="event-song-row" draggable="true" data-event-song-id="' + escapeHtml(s.id) + '" data-idx="' + idx + '">' +
           '<span class="song-drag-handle" title="Trage pentru reordonare">⠿</span>' +
@@ -1040,7 +1064,7 @@
     liveCurrentVerseIndex = idx;
     // V21.22: when in END state, show a clear "paused" view while keeping
     // the verse list highlighted so the master can step back.
-    const keyBadge = songKey ? ' <span class="live-song-key">🎵 ' + escapeHtml(songKey) + '</span>' : '';
+    const keyBadge = songKey ? ' <span class="live-song-key">🎵 ' + escapeHtml(formatKey(songKey)) + '</span>' : '';
     if (liveEnded) {
       labelEl.innerHTML = 'END' + keyBadge;
       textEl.textContent = 'Ecran golit pentru membri.';
@@ -1061,7 +1085,7 @@
       return '<button type="button" class="verse-mini-item' + cls +
         '" data-verse-index="' + i + '">' +
           '<div class="verse-mini-label">Strofa ' + (i + 1) +
-            (songKey ? ' <span class="verse-mini-key">🎵 ' + escapeHtml(songKey) + '</span>' : '') +
+            (songKey ? ' <span class="verse-mini-key">🎵 ' + escapeHtml(formatKey(songKey)) + '</span>' : '') +
           '</div>' +
           '<div class="verse-mini-text">' + escapeHtml(v) + '</div>' +
         '</button>';
@@ -1537,7 +1561,7 @@
       case 'next': return '⏭ Strofa următoare';
       case 'chorus': return '🎶 Refren';
       case 'jump_verse': return '➡ Strofa ' + (Number(h.verseIndex) + 1);
-      case 'change_key': return '🎵 Gama: ' + (h.key || '');
+      case 'change_key': return '🎵 Gama: ' + formatKey(h.key || '');
       case 'transpose': return h.text || '🎵 Transpunere gamă';
       case 'jump_song': return '🎶 ' + (h.text || 'Altă cântare');
       case 'note': return '📝 ' + (h.text || '');
@@ -1653,7 +1677,7 @@
     const keySel = $('worshipHintKeySelect');
     if (keySel) {
       keySel.innerHTML = '<option value="">— gamă —</option>' +
-        SONG_KEYS.map((k) => '<option value="' + k + '">' + k + '</option>').join('');
+        SONG_KEYS.map((k) => '<option value="' + k + '">' + escapeHtml(formatKey(k)) + '</option>').join('');
     }
     const songSel = $('worshipHintSongSelect');
     if (songSel) {
@@ -2035,6 +2059,25 @@
     // WORSHIP-SPECTATOR-FONT — A−/A+ pe panoul spectator (per dispozitiv).
     document.getElementById('spectatorFontDecrease')?.addEventListener('click', () => changeSpectatorFontSize(-3));
     document.getElementById('spectatorFontIncrease')?.addEventListener('click', () => changeSpectatorFontSize(3));
+    // WORSHIP-KEY-NOTATION-RO — comutator notație gamă (Do/C) cu re-randare instant
+    function updateKeyNotationToggleLabel() {
+      const isRo = getKeyNotation() === 'ro';
+      document.querySelectorAll('.js-key-notation-toggle').forEach((b) => {
+        b.textContent = isRo ? 'Do→C' : 'C→Do';
+      });
+    }
+    document.querySelectorAll('.js-key-notation-toggle').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setKeyNotation(getKeyNotation() === 'ro' ? 'intl' : 'ro');
+        updateKeyNotationToggleLabel();
+        // re-randează tot ce arată gama (Live, spectator, lista de cântări cu selectorul + leader selects)
+        if (typeof refreshLiveMode === 'function') refreshLiveMode();
+        if (typeof renderSpectatorVerse === 'function') renderSpectatorVerse();
+        if (typeof renderEventSongs === 'function') renderEventSongs();
+        if (typeof populateLeaderSelects === 'function') populateLeaderSelects();
+      });
+    });
+    updateKeyNotationToggleLabel();   // label inițial corect
     applyLiveFontSize();
 
     // WORSHIP-LEADER: claim/release + hint controls. Action hints reuse the
@@ -2105,7 +2148,7 @@
       const arrow = n > 0 ? '↑' : (n < 0 ? '↓' : '↔');
       const sign = n > 0 ? '+' : '';
       const word = (Math.abs(n) === 1) ? 'semiton' : 'semitoni';
-      sendHint({ type: 'transpose', text: `${arrow} ${sign}${n} ${word} (acum: ${newKey})` });
+      sendHint({ type: 'transpose', text: `${arrow} ${sign}${n} ${word} (acum: ${formatKey(newKey)})` });
     }
     $('worshipKeyUpBtn')?.addEventListener('click', (e) => {
       pressFeedback(e.currentTarget);

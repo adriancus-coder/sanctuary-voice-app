@@ -2,6 +2,27 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
+  // WORSHIP-KEY-NOTATION-RO — notație românească pe proiector (preferință per-device,
+  // localStorage 'worshipKeyNotation'). Duplicat din worship.js (no bundler).
+  const KEY_NOTE_RO = { 'C':'Do','D':'Re','E':'Mi','F':'Fa','G':'Sol','A':'La','B':'Si' };
+  function getKeyNotation() {
+    try { return localStorage.getItem('worshipKeyNotation') === 'ro' ? 'ro' : 'intl'; }
+    catch (_) { return 'intl'; }
+  }
+  function setKeyNotation(n) {
+    try { localStorage.setItem('worshipKeyNotation', n === 'ro' ? 'ro' : 'intl'); } catch (_) {}
+  }
+  function formatKey(key) {
+    const k = String(key || '').trim();
+    if (!k) return '';
+    if (getKeyNotation() !== 'ro') return k;
+    const m = k.match(/^([A-G])(#|b)?(m)?$/);
+    if (!m) return k;
+    const note = KEY_NOTE_RO[m[1]] || m[1];
+    const accidental = m[2] === '#' ? ' diez' : (m[2] === 'b' ? ' bemol' : '');
+    const quality = m[3] === 'm' ? ' minor' : ' major';
+    return note + accidental + quality;
+  }
   const params = new URLSearchParams(location.search);
   const eventId = params.get('event');
   const token = params.get('token');
@@ -36,7 +57,7 @@
       case 'next': return '⏭ Strofa următoare';
       case 'chorus': return '🎶 Refren';
       case 'jump_verse': return '➡ Strofa ' + (Number(h.verseIndex) + 1);
-      case 'change_key': return '🎵 Gama: ' + (h.key || '');
+      case 'change_key': return '🎵 Gama: ' + formatKey(h.key || '');
       case 'jump_song': return '🎶 ' + (h.text || 'Altă cântare');
       case 'free': return h.text || '';
       default: return h.text || '';
@@ -153,7 +174,7 @@
     if (labelEl) labelEl.textContent = 'Strofa ' + (idx + 1) + ' / ' + verses.length;
     if (lyricsEl) lyricsEl.textContent = verses[idx] || '';
     const songKey = currentSong.key ? String(currentSong.key) : '';
-    setKey(songKey ? ('🎵 ' + songKey) : '');
+    setKey(songKey ? ('🎵 ' + formatKey(songKey)) : '');
   }
 
   function applyState(state, songObj) {
@@ -425,4 +446,16 @@
     }
     await enterPermanent();
   });
+
+  // WORSHIP-KEY-NOTATION-RO — comutator notație gamă pe proiector (per-device).
+  function updateViewKeyToggleLabel() {
+    const b = document.getElementById('viewKeyNotationToggle');
+    if (b) b.textContent = getKeyNotation() === 'ro' ? 'Do→C' : 'C→Do';
+  }
+  document.getElementById('viewKeyNotationToggle')?.addEventListener('click', () => {
+    setKeyNotation(getKeyNotation() === 'ro' ? 'intl' : 'ro');
+    updateViewKeyToggleLabel();
+    if (typeof render === 'function') render();
+  });
+  updateViewKeyToggleLabel();
 })();
