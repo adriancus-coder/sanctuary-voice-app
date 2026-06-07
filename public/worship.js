@@ -1518,6 +1518,8 @@
           renderEventSongs();
           // Keep Live mode's song picker fresh too (new song may need it).
           refreshLiveMode();
+          // WORSHIP-SPECTATOR-KEY-SYNC — spectatorul trebuie să vadă gama nouă imediat (nu doar la refresh)
+          if (typeof isSpectator === 'function' && isSpectator()) renderSpectatorVerse();
         }
       } catch (err) { /* render stale state is fine */ }
     });
