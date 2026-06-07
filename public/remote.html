@@ -32,7 +32,13 @@
             <select id="remoteEventPicker" class="remote-event-picker" title="Alege evenimentul în care operezi">
               <option value="">Eveniment live (automat)</option>
             </select>
-            <span id="remoteEventWarning" class="remote-event-warning hidden">⚠️ Operezi pe un eveniment care NU e live</span>
+            <div id="remoteEventWarning" class="remote-event-warning hidden">
+              <span class="remote-event-warning-text">Nu ești sincronizat cu Admin. Folosești un eveniment care nu este activ la admin.</span>
+              <span class="remote-event-warning-actions">
+                <button id="remoteSyncToActiveBtn" class="btn btn-sm btn-primary" type="button">Sincronizează</button>
+                <button id="remoteDismissWarningBtn" class="btn btn-sm" type="button">OK</button>
+              </span>
+            </div>
           </div>
         </div>
         <div class="remote-header-actions remote-hero-actions">

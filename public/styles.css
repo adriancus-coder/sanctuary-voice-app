@@ -7810,12 +7810,14 @@ body.live-fullscreen-active .glass-panel {
   color: var(--text, #f6f0e6); font-size: 14px;
 }
 .remote-event-warning {
-  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 13px; font-weight: 600;
   color: #ffb27a;
   background: rgba(207, 106, 60, 0.18);
   border: 1px solid rgba(207, 106, 60, 0.4);
-  padding: 3px 10px; border-radius: 8px;
+  padding: 6px 10px; border-radius: 8px;
 }
+.remote-event-warning-actions { display: flex; gap: 6px; }
 .remote-event-warning.hidden { display: none; }
 
 /* WORSHIP-KEY-NOTATION-PREP — capul listei Pregătire (titlu + comutator notație) */

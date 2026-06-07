@@ -1020,13 +1020,34 @@ function updateRemoteEventWarning() {
   if (!warn) return;
   const operatingId = state.fixedEventId || state.eventId || '';
   const notLive = operatingId && state._liveEventId && operatingId !== state._liveEventId;
-  warn.classList.toggle('hidden', !notLive);
+  // OPERATOR-SYNC-WARNING — „OK" ascunde doar pt evenimentul curent; reapare pe alt ne-activ
+  const dismissed = notLive && state._syncWarningDismissedFor === operatingId;
+  warn.classList.toggle('hidden', !notLive || dismissed);
 }
+// OPERATOR-SYNC-WARNING — „Sincronizează" → mută pe evenimentul activ al adminului (= live automat)
+document.getElementById('remoteSyncToActiveBtn')?.addEventListener('click', async () => {
+  try { if (state.liveAudio && state.liveAudio.running) await stopRemoteLiveAudio(); } catch (_) {}
+  state.fixedEventId = '';                 // '' = live automat → resolveRemoteEventId folosește /api/events/active
+  state._syncWarningDismissedFor = null;
+  try { const u = new URL(window.location.href); u.searchParams.delete('event'); window.history.replaceState({}, '', u); } catch (_) {}
+  state.eventId = '';
+  state.currentEvent = null;
+  await join();                            // reconectează pe evenimentul activ
+  const sel = document.getElementById('remoteEventPicker'); if (sel) sel.value = '';
+  await loadRemoteEventPicker();
+  updateRemoteEventWarning();
+});
+// OPERATOR-SYNC-WARNING — „OK" → ascunde avertismentul pt evenimentul curent (rămâi unde ești)
+document.getElementById('remoteDismissWarningBtn')?.addEventListener('click', () => {
+  state._syncWarningDismissedFor = state.fixedEventId || state.eventId || '';
+  updateRemoteEventWarning();
+});
 document.getElementById('remoteEventPicker')?.addEventListener('change', async (e) => {
   const chosen = e.target.value || '';
   // siguranță: oprește audio dacă rulează — schimbarea evenimentului ar trimite la altă destinație
   try { if (state.liveAudio && state.liveAudio.running) await stopRemoteLiveAudio(); } catch (_) {}
   state.fixedEventId = chosen;   // '' = revine la live automat
+  state._syncWarningDismissedFor = null;   // OPERATOR-SYNC-WARNING — reapare pe alt ne-activ
   // sincronizează URL fără reload (?event= reflectă starea)
   try {
     const u = new URL(window.location.href);
