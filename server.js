@@ -6011,6 +6011,11 @@ app.patch('/api/worship/events/:id/songs/:itemId/key', (req, res) => {
       eventId: event.id,
       songLibrary: event.songLibrary
     });
+    // WORSHIP-KEY-BROADCAST-STATE — trimite și state_change (calea dovedită pt spectator + worship-view),
+    // ca schimbarea gamei (inclusiv din Pregătire, fără a schimba strofa) să ajungă instant, nu doar la
+    // următoarea strofă. Payload-ul reflectă worshipState curent + song.key nou → clientul KEY-VIA-STATE
+    // detectează keyChanged și re-randează fără a strica strofa.
+    io.to(`worship:${event.id}`).emit('worship:state_change', buildWorshipStatePayload(event));
     logger.info(`[worship/song-key] event=${event.id} itemId=${itemId} key="${song.key}"`);
     return res.json({ ok: true, song: { id: song.id, key: song.key } });
   } catch (err) {
