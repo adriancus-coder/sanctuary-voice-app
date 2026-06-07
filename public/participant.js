@@ -14,8 +14,8 @@ let availableLanguages = {};
 let availableEndonyms = {};
 let participantWakeLock = null;
 const participantParams = new URLSearchParams(window.location.search);
-const LIVE_ENTRY_MIN_DISPLAY_MS = 2200;
-const LIVE_ENTRY_MAX_DISPLAY_MS = 9000;
+const LIVE_ENTRY_MIN_DISPLAY_MS = 3000;   // PARTICIPANT-SLOWER-DISPLAY (era 2200)
+const LIVE_ENTRY_MAX_DISPLAY_MS = 11000;  // PARTICIPANT-SLOWER-DISPLAY (era 9000)
 const LIVE_ENTRY_MAX_QUEUE = 3;
 const LIVE_ENTRY_CATCHUP_MIN_MS = 1100;
 
@@ -440,7 +440,7 @@ function getLiveEntryDuration(entry) {
   const text = String(getTextForEntry(entry) || '').trim();
   const words = countWords(text);
   const lineCount = Math.max(1, Math.ceil(text.length / 42));
-  const readingMs = 1400 + (words * 380) + (lineCount * 360);
+  const readingMs = 1400 + (words * 450) + (lineCount * 360);   // PARTICIPANT-SLOWER-DISPLAY (per-cuvânt era 380; baza 1400 + per-linie 360 neschimbate)
   return Math.max(LIVE_ENTRY_MIN_DISPLAY_MS, Math.min(LIVE_ENTRY_MAX_DISPLAY_MS, readingMs));
 }
 
