@@ -1064,7 +1064,16 @@ document.getElementById('remoteEventPicker')?.addEventListener('change', async (
 
 socket.on('connect', join);
 socket.on('disconnect', () => setStatus('Reconnecting...'));
-socket.on('join_error', ({ message }) => setStatus(message || 'Cannot join remote control.'));
+socket.on('join_error', ({ message }) => {
+  setStatus(message || 'Cannot join remote control.');
+  // FIX-WRONG-PASSWORD-RETRY — pe cod invalid, golește codul greșit stocat și re-cere imediat (nu mai rămâi blocat)
+  const msg = String(message || '').toLowerCase();
+  if (msg.includes('cod') && msg.includes('invalid')) {
+    state.accessCode = '';   // golit: chiar dacă userul anulează prompt-ul, următorul join() va re-cere codul
+    const retry = (prompt('Wrong code. Re-enter moderator code or PIN:') || '').trim();
+    if (retry) { state.accessCode = retry; join(); }
+  }
+});
 socket.on('joined_event', ({ role, event, access }) => {
   if (role !== 'screen') return;
   state.currentEvent = event;

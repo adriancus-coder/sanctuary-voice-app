@@ -4015,6 +4015,24 @@ socket.on('joined_event', ({ event, role }) => {
   updateBibleModeUI();
 });
 
+// FIX-WRONG-PASSWORD-RETRY — adminul nu avea handler de join_error: la cod greșit, codul greșit rămânea stocat
+// și prompt-ul de parolă nu mai reapărea (trebuia refresh). Acum, pe „Cod ... invalid", golim codul greșit
+// (localStorage + currentEvent.adminCode) și re-cerem imediat, ca să se poată reîncerca fără refresh.
+socket.on('join_error', ({ message }) => {
+  setStatus(message || 'Cannot join event control.');
+  const msg = String(message || '').toLowerCase();
+  if (msg.includes('cod') && msg.includes('invalid') && currentEvent && currentEvent.id) {
+    try { localStorage.removeItem(`sanctuary_admin_code_${currentEvent.id}`); } catch (_) {}
+    currentEvent.adminCode = '';
+    const retry = (prompt('Wrong admin code. Re-enter admin code or PIN:') || '').trim();
+    if (retry) {
+      currentEvent.adminCode = retry;
+      try { localStorage.setItem(`sanctuary_admin_code_${currentEvent.id}`, retry); } catch (_) {}
+      socket.emit('join_event', { eventId: currentEvent.id, role: 'admin', code: retry });
+    }
+  }
+});
+
 socket.on('transcript_entry', (entry) => {
   if (!currentEvent) return;
   currentEvent.transcripts = currentEvent.transcripts || [];
