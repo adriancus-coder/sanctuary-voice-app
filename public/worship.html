@@ -56,6 +56,15 @@
       <button id="worshipGoToPrepEvent" class="btn btn-sm btn-primary" type="button">Mergi la evenimentul worship</button>
     </div>
 
+    <!-- WORSHIP-FOLLOW-LIVE — avertisment când worship a ales MANUAL un eveniment care nu e activ la admin (model operator) -->
+    <div id="worshipNotSyncedAdmin" class="worship-leader-elsewhere hidden">
+      <span class="worship-leader-elsewhere-text">Nu ești sincronizat cu Admin. Folosești un eveniment care nu este activ la admin.</span>
+      <span class="worship-sync-actions">
+        <button id="worshipSyncToLiveBtn" class="btn btn-sm btn-primary" type="button">Sincronizează</button>
+        <button id="worshipDismissSyncBtn" class="btn btn-sm" type="button">OK</button>
+      </span>
+    </div>
+
     <section class="worship-event-info" id="worshipEventInfo"></section>
 
     <nav class="worship-mode-switcher" id="worshipModeSwitcher">

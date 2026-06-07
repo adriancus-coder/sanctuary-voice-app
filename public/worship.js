@@ -157,6 +157,10 @@
   // admin/operator) and pickerEvents (future + live, used by the per-card
   // "Add to event" picker). pickerEvents loads lazily on first picker open.
   let liveEvent = null;
+  // WORSHIP-FOLLOW-LIVE — urmărirea automată a live-ului adminului (model fixedEventId de la operator).
+  let _worshipManualEventId = '';      // '' = urmează live automat; setat = alegere manuală din dropdown
+  let _worshipLiveEventId = '';        // id-ul evenimentului live curent (din ?mode=live), pt avertisment
+  let _worshipSyncDismissedFor = null; // „OK" ascunde avertismentul doar pt evenimentul curent
   let pickerEvents = [];
   let pickerEventsLoaded = false;
   let libraryItems = [];
@@ -288,6 +292,7 @@
         return;
       }
       liveEvent = Array.isArray(data.events) && data.events.length ? data.events[0] : null;
+      _worshipLiveEventId = liveEvent ? liveEvent.id : '';   // WORSHIP-FOLLOW-LIVE — reper pt avertisment
       if (data.currentUser) applyCurrentUser(data.currentUser);   // WORSHIP-ROLES-2
       renderLiveEventDisplay();
       if (liveEvent) {
@@ -298,6 +303,7 @@
         renderEventSongs();
         loadLibrary();
         resetLiveForEvent();
+        updateWorshipSyncWarning();   // WORSHIP-FOLLOW-LIVE — fără live → niciun avertisment
       }
     } catch (err) {
       liveEvent = null;
@@ -373,10 +379,36 @@
       loadLibrary();
       resetLiveForEvent();
       renderEventDropdown();   // WORSHIP-EVENT-DROPDOWN-B — reflectă currentEvent în select
+      updateWorshipSyncWarning();   // WORSHIP-FOLLOW-LIVE — reflectă starea de sincronizare cu adminul
     } catch (err) {
       $('worshipEventInfo').innerHTML =
         '<p class="muted">Eroare: ' + escapeHtml(err.message) + '</p>';
     }
+  }
+
+  // WORSHIP-FOLLOW-LIVE — află id-ul live fără a muta worship (currentEvent rămâne pe alegerea manuală).
+  // Folosit când worship e pe alegere manuală și adminul schimbă live-ul: actualizăm doar reperul + avertismentul.
+  async function refreshWorshipLiveId() {
+    try {
+      const res = await fetch('/api/worship/events?mode=live');
+      const data = await res.json().catch(() => ({}));
+      const lv = (data && data.ok && Array.isArray(data.events) && data.events.length) ? data.events[0] : null;
+      _worshipLiveEventId = lv ? lv.id : '';
+    } catch (_) { /* live necunoscut */ }
+    updateWorshipSyncWarning();
+  }
+
+  // WORSHIP-FOLLOW-LIVE — avertisment „Nu ești sincronizat cu Admin" când worship a ales MANUAL din dropdown
+  // un eveniment ce nu e cel live. Model identic cu operatorul (updateRemoteEventWarning); „OK" ascunde doar
+  // pt evenimentul curent. Gate-ul pe _worshipManualEventId păstrează worship↔echipă neatins: urmărirea
+  // liderului / prep-ul (care NU setează flag-ul manual) nu declanșează avertismentul de admin.
+  function updateWorshipSyncWarning() {
+    const warn = document.getElementById('worshipNotSyncedAdmin');
+    if (!warn) return;
+    const operatingId = (currentEvent && currentEvent.id) || '';
+    const notLive = !!(_worshipManualEventId && operatingId && _worshipLiveEventId && operatingId !== _worshipLiveEventId);
+    const dismissed = notLive && _worshipSyncDismissedFor === operatingId;
+    warn.classList.toggle('hidden', !notLive || dismissed);
   }
 
   // WORSHIP-SONGS: predefined keys (major + minor) for the gamă selector.
@@ -1427,6 +1459,11 @@
     // owns the whole cascade: it re-fetches ?mode=live, updates the
     // header, swaps currentEvent, and re-renders Setlist + Live mode.
     masterSocket.on('active_event_changed', () => {
+      // WORSHIP-FOLLOW-LIVE — actualizează imediat avertismentul, apoi tratează în funcție de alegerea manuală.
+      updateWorshipSyncWarning();
+      // Pe alegere manuală din dropdown → NU smulgem worship (rămâne pe alegere); doar reîmprospătăm reperul
+      // live (din ?mode=live) ca avertismentul să fie corect. Altfel urmărim automat live-ul (comportament restaurat).
+      if (_worshipManualEventId) { refreshWorshipLiveId(); return; }
       loadLiveEvent();
     });
     // WORSHIP-SYNC — every worship master reflects live verse/song changes made
@@ -2071,6 +2108,9 @@
     $('worshipEventDropdown')?.addEventListener('change', async (e) => {
       const id = e.target.value;
       if (id) {
+        // WORSHIP-FOLLOW-LIVE — a ales evenimentul LIVE → revine la „urmează automat" (flag gol);
+        // a ales ALT eveniment → alegere manuală (flag setat) — nu va mai fi smuls de active_event_changed.
+        _worshipManualEventId = (id === _worshipLiveEventId) ? '' : id;
         await loadEventDetail(id);
         if (masterSocket && masterSocket.connected) {
           masterSocket.emit('worship:master:join', { eventId: id });
@@ -2083,6 +2123,7 @@
         if (_prepEventId && _prepEventId === id) {
           document.getElementById('worshipPrepElsewhere')?.classList.add('hidden');
         }
+        updateWorshipSyncWarning();   // WORSHIP-FOLLOW-LIVE — reflectă imediat starea de sincronizare
       }
     });
     // WORSHIP-LEAD-ANY-EVENT — un tap pe buton mută spectatorul pe evenimentul liderului.
@@ -2106,6 +2147,23 @@
       const sel = document.getElementById('worshipEventDropdown');
       if (sel) sel.value = _prepEventId;
       document.getElementById('worshipPrepElsewhere')?.classList.add('hidden');
+    });
+    // WORSHIP-FOLLOW-LIVE — „Sincronizează" → revine la urmărirea automată a live-ului (flag gol) + mută pe live.
+    document.getElementById('worshipSyncToLiveBtn')?.addEventListener('click', async () => {
+      _worshipManualEventId = '';
+      _worshipSyncDismissedFor = null;
+      await loadLiveEvent();   // mută pe live (loadEventDetail în interior) + actualizează reperul live
+      if (masterSocket && masterSocket.connected && liveEvent) {
+        masterSocket.emit('worship:master:join', { eventId: liveEvent.id });
+      }
+      const sel = document.getElementById('worshipEventDropdown');
+      if (sel && liveEvent) sel.value = liveEvent.id;
+      updateWorshipSyncWarning();
+    });
+    // WORSHIP-FOLLOW-LIVE — „OK" → ascunde avertismentul pt evenimentul curent (rămâi pe alegerea manuală).
+    document.getElementById('worshipDismissSyncBtn')?.addEventListener('click', () => {
+      _worshipSyncDismissedFor = (currentEvent && currentEvent.id) || '';
+      updateWorshipSyncWarning();
     });
 
     // V21.5: dropdown removed — header now shows the live event read-only.
@@ -2412,6 +2470,7 @@
           // are received regardless of which tab is active.
           initMasterSocket();
           liveEvent = Array.isArray(data.events) && data.events.length ? data.events[0] : null;
+          _worshipLiveEventId = liveEvent ? liveEvent.id : '';   // WORSHIP-FOLLOW-LIVE — reper pt avertisment
           renderLiveEventDisplay();
           if (liveEvent) {
             loadEventDetail(liveEvent.id);

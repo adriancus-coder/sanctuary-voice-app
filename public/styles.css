@@ -7918,6 +7918,10 @@ body.live-fullscreen-active .glass-panel {
 }
 .worship-leader-elsewhere span { flex: 1 1 auto; }
 .worship-leader-elsewhere.hidden { display: none; }
+/* WORSHIP-FOLLOW-LIVE — butoanele avertismentului „Nu ești sincronizat cu Admin" */
+.worship-sync-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+/* mai specific decât „.worship-leader-elsewhere span { flex: 1 1 auto }" → grupul de butoane rămâne compact, textul crește */
+.worship-leader-elsewhere .worship-sync-actions { flex: 0 0 auto; }
 
 /* WORSHIP-RESCHEDULE-V2 — dialog dată/oră/fus */
 .reschedule-dialog {
