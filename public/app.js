@@ -5850,14 +5850,15 @@ $('eventList').addEventListener('click', async (e) => {
   }
   if (action === 'delete') {
     if (!confirm('Delete this event permanently?')) return;
-    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event to delete it:') || '').trim();
-    if (!adminCode) return;
+    // REMOVE-DELETE-PROMPT — fără prompt de cod: sesiunea admin autorizează deja pe server (requireEventAdmin);
+    // codul din body e verificat DOAR dacă nu ești logat. Trimitem codul disponibil; serverul decide (403 dacă nimic).
+    const adminCode = (currentEvent?.id === id ? currentEvent.adminCode : getStoredAdminCode(id)) || '';
     const res = await fetch(`/api/events/${id}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: adminCode })
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (data.ok) {
       if (currentEvent?.id === id) {
         currentEvent = null;
@@ -5874,6 +5875,9 @@ $('eventList').addEventListener('click', async (e) => {
         refreshDisplayControls();
       }
       await refreshEventList();
+    } else {
+      // REMOVE-DELETE-PROMPT — feedback clar dacă serverul respinge (ex. 403 când nu ești logat și fără cod valid)
+      alert(data.error || 'Could not delete the event.');
     }
   }
 });
