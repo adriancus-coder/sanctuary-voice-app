@@ -124,23 +124,34 @@
     if (!isSpectator()) return;
     const el = document.getElementById('spectatorVerseText');
     const keyEl = document.getElementById('spectatorKey');
+    const posEl = document.getElementById('spectatorPosition');   // WORSHIP-AMIN-AND-POSITION
     function setKey(text) {
       if (!keyEl) return;
       keyEl.textContent = text;
       keyEl.classList.toggle('hidden', !text);
     }
+    // WORSHIP-AMIN-AND-POSITION — indicator poziție strofă (text gol = ascuns)
+    function setPos(text) {
+      if (!posEl) return;
+      posEl.textContent = text;
+      posEl.classList.toggle('hidden', !text);
+    }
     if (!el) return;
     const song = (typeof getLiveSong === 'function') ? getLiveSong() : null;
-    if (!song) { el.textContent = 'Așteptăm versurile...'; setKey(''); return; }
-    if (liveEnded) { el.textContent = 'Pauză'; setKey(''); return; }
+    if (!song) { el.textContent = 'Așteptăm versurile...'; setKey(''); setPos(''); return; }
+    // WORSHIP-AMIN-AND-POSITION — la END spectatorul vede „AMIN" (nu „Pauză")
+    if (liveEnded) { el.textContent = 'AMIN'; setKey(''); setPos(''); return; }
     const verses = (typeof parseVerses === 'function') ? parseVerses(song.text) : [];
-    if (!verses.length) { el.textContent = 'Așteptăm versurile...'; setKey(''); return; }
+    if (!verses.length) { el.textContent = 'Așteptăm versurile...'; setKey(''); setPos(''); return; }
     const idx = Math.max(0, Math.min(liveCurrentVerseIndex, verses.length - 1));
     el.textContent = verses[idx];
     // WORSHIP-SPECTATOR-FONT — păstrează mărimea aleasă pe parcursul schimbării versului.
     el.style.fontSize = spectatorFontSize + 'px';
     const songKey = song.key ? String(song.key) : '';
     setKey(songKey ? ('🎵 ' + formatKey(songKey)) : '');
+    // WORSHIP-AMIN-AND-POSITION — „x / y" + „· ultima strofă" la ultimul bloc
+    const isLast = idx === verses.length - 1;
+    setPos((idx + 1) + ' / ' + verses.length + (isLast ? ' · ultima strofă' : ''));
   }
   // V21.5: split into liveEvent (the read-only header — the sync source with
   // admin/operator) and pickerEvents (future + live, used by the per-card

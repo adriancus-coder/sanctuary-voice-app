@@ -171,7 +171,11 @@
     }
     const idx = Math.max(0, Math.min(currentVerseIndex, verses.length - 1));
     if (titleEl) titleEl.textContent = currentSong.title || '';
-    if (labelEl) labelEl.textContent = 'Strofa ' + (idx + 1) + ' / ' + verses.length;
+    // WORSHIP-AMIN-AND-POSITION — marchează ultima strofă în labelul de poziție
+    if (labelEl) {
+      const isLast = idx === verses.length - 1;
+      labelEl.textContent = 'Strofa ' + (idx + 1) + ' / ' + verses.length + (isLast ? ' · ultima strofă' : '');
+    }
     if (lyricsEl) lyricsEl.textContent = verses[idx] || '';
     const songKey = currentSong.key ? String(currentSong.key) : '';
     setKey(songKey ? ('🎵 ' + formatKey(songKey)) : '');
@@ -185,7 +189,8 @@
     // the right-arrow → END button. Reuse the existing waiting screen so
     // members see consistent UX between "not live yet" and "paused".
     if (state && state.ended === true) {
-      showWaiting('Pauză worship. Așteaptă următoarea cântare.');
+      // WORSHIP-AMIN-AND-POSITION — la END membrii (worship-view) văd „AMIN" (nu „Pauză worship")
+      showWaiting('AMIN');
       return;
     }
     render();

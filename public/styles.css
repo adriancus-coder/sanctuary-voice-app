@@ -7844,6 +7844,17 @@ body.live-fullscreen-active .glass-panel {
   color: var(--gold, #d8b06a);
   margin-bottom: 12px;
 }
+/* WORSHIP-AMIN-AND-POSITION — indicator poziție strofă pe panoul spectator (discret, deasupra versului) */
+.spectator-position {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--gold, #d8b06a);
+  opacity: 0.85;
+  margin-bottom: 8px;
+}
+.spectator-position.hidden { display: none; }
 .view-song-key {
   text-align: center;
   font-size: clamp(22px, 4vw, 40px);
