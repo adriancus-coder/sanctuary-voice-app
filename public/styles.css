@@ -7777,14 +7777,14 @@ body.live-fullscreen-active .glass-panel {
 .worship-roles-manage { display: flex; flex-direction: column; gap: 12px; }
 
 /* WORSHIP-SPECTATOR-GATE — panou minim pentru rol fără capabilități (doar versul curent) */
-.worship-spectator-panel { padding: 24px 16px; }
+.worship-spectator-panel { padding: 24px 6px; }   /* WORSHIP-SPECTATOR-MARGINS — lateral ~2mm (era 16px); vertical 24px neatins */
 .spectator-verse {
   font-size: clamp(28px, 7vw, 56px);
   font-weight: 600;
   text-align: center;
   line-height: 1.3;
   color: var(--text, #f6f0e6);
-  padding: 24px;
+  padding: 24px 4px;   /* WORSHIP-SPECTATOR-MARGINS — lateral ~1mm (era 24px peste tot); vertical 24px neatins */
   white-space: pre-wrap;
   min-height: 50vh;
   display: flex;
