@@ -1709,6 +1709,20 @@ async function syncSpeedToEvent() {
   }
 }
 
+// TRANSLATION-MODE-DESCRIPTIONS — text mic care explică modul selectat
+const SPEED_HINTS = {
+  rapid: 'Latență minimă, propoziții scurte. Pentru conversație rapidă, întrebări-răspunsuri.',
+  balanced: 'Echilibru între viteză și context. Recomandat pentru majoritatea serviciilor.',
+  clear: 'Mai mult context per propoziție, traducere de calitate. Pentru vorbire așezată.',
+  interpret: 'Parafrazează concis ca un interpret uman — păstrează sensul, dar ține pasul cu un vorbitor rapid sau continuu.'
+};
+function updateSpeedHint() {
+  const el = document.getElementById('speedHint');
+  if (!el) return;
+  const v = ($('speed') && $('speed').value) || 'balanced';
+  el.textContent = SPEED_HINTS[v] || SPEED_HINTS.balanced;
+}
+
 function populateEventLinks() {
   if (!currentEvent) return;
   const mainOperatorCode = currentEvent.mainOperatorCode || currentEvent.screenOperatorCode || '';
@@ -2618,6 +2632,7 @@ async function openEventById(eventId) {
   rememberAdminCode(currentEvent);
   populateEventLinks();
   $('speed').value = currentEvent.speed || 'balanced';
+  updateSpeedHint();
   currentVolume = currentEvent.audioVolume;
   currentMuted = currentEvent.audioMuted;
   $('volumeRange').value = String(currentVolume);
@@ -3993,6 +4008,7 @@ socket.on('joined_event', ({ event, role }) => {
   if ($('songSourceLang')) $('songSourceLang').value = currentEvent.songState?.sourceLang || currentEvent.sourceLang || 'ro';
   if ($('manualSourceLang')) $('manualSourceLang').value = currentEvent.displayState?.manualSourceLang || currentEvent.sourceLang || 'ro';
   $('speed').value = event.speed || 'balanced';
+  updateSpeedHint();
   currentVolume = event.audioVolume;
   currentMuted = event.audioMuted;
   $('volumeRange').value = String(currentVolume);
@@ -4441,7 +4457,8 @@ document.getElementById('targetLangChips')?.addEventListener('click', (e) => {
 $('sendManualLiveBtn').addEventListener('click', () => sendManualText('auto'));
 $('sendManualDisplayBtn').addEventListener('click', () => sendManualText('manual'));
 $('saveManualLibraryBtn').addEventListener('click', savePinnedTextToLibrary);
-$('speed').addEventListener('change', syncSpeedToEvent);
+$('speed').addEventListener('change', () => { syncSpeedToEvent(); updateSpeedHint(); });
+updateSpeedHint();
 $('currentSourceLang')?.addEventListener('change', async () => {
   await syncSpeedToEvent();
   setStatus(`Input language set to ${langLabel(currentEvent?.sourceLang || 'ro')}.`);
