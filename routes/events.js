@@ -423,7 +423,23 @@ function registerEventRoutes(app, ctx) {
   });
 
   app.get('/api/events', (req, res) => {
-    if ((COMMERCIAL_MODE || isAdminLoginConfigured()) && !requireAdminApiSession(req, res)) return;
+    // FIX-OPERATOR-EVENT-LIST — operatorul are nevoie de listă pt selectorul de eveniment (OPERATOR-EVENT-PICKER).
+    // Era requireAdminApiSession (admin-only) → operatorul primea 401/403 → catch silent → listă goală (regresie).
+    // requireAdminOrOperatorApiSession acceptă admin + operator-PIN(cookie) + worship pe ORICE request, dar
+    // codul de EVENT îl citește DOAR din req.body → la un GET (fără body) ar pica pt operatorul pe cod de event.
+    // De aceea acceptăm întâi codul admin/screen trimis pe query/header (getSuppliedEventCode), apoi fallback pe gate.
+    // summarizeEvent = doar metadate + linkuri publice, FĂRĂ secrete (fără adminCode/coduri) → sigur pt operator.
+    if (COMMERCIAL_MODE || isAdminLoginConfigured()) {
+      let allowed = false;
+      const codeEventId = String(req.query?.eventId || req.body?.eventId || '').trim();
+      const codeEvent = codeEventId ? db.events[codeEventId] : null;
+      const suppliedCode = getSuppliedEventCode(req);
+      if (codeEvent && suppliedCode) {
+        const access = resolveEventAccessFromCode(codeEvent, suppliedCode);
+        if (access.role === 'admin' || access.role === 'screen') allowed = true;
+      }
+      if (!allowed && !requireAdminOrOperatorApiSession(req, res)) return;
+    }
     const activeEventId = getActiveEventIdForOrg(DEFAULT_ORG_ID);
     const events = getOrganizationEvents(DEFAULT_ORG_ID)
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))

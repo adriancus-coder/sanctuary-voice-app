@@ -990,7 +990,12 @@ async function loadRemoteEventPicker() {
   const sel = document.getElementById('remoteEventPicker');
   if (!sel) return;
   try {
-    const res = await fetch('/api/events');
+    // FIX-OPERATOR-EVENT-LIST — GET /api/events cere acum admin SAU operator. La un GET nu putem trimite body,
+    // deci trimitem codul operatorului pe header (x-access-code, citit de getSuppliedEventCode pe server) + eventId
+    // pe query, ca operatorul pe cod de event să fie autorizat. (Operatorul pe PIN are deja cookie de sesiune.)
+    const pickerEventId = state.fixedEventId || state.eventId || '';
+    const pickerUrl = '/api/events' + (pickerEventId ? ('?eventId=' + encodeURIComponent(pickerEventId)) : '');
+    const res = await fetch(pickerUrl, state.accessCode ? { headers: { 'x-access-code': state.accessCode } } : undefined);
     const data = await res.json().catch(() => ({}));
     const events = Array.isArray(data.events) ? data.events : (Array.isArray(data) ? data : []);
     let liveId = '';
