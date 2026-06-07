@@ -121,7 +121,7 @@
   // WORSHIP-KEY-EVERYWHERE — afișează și gama cântării (song.key); gama e doar pe cântare,
   // nu pe bloc (verificat: live-song-key și verse-mini-key folosesc același songKey).
   function renderSpectatorVerse() {
-    if (!isSpectator()) return;
+    if (!isSpectator()) { console.log('[DIAG-KEY] renderSpectatorVerse: NU e spectator, ies'); return; }
     const el = document.getElementById('spectatorVerseText');
     const keyEl = document.getElementById('spectatorKey');
     const posEl = document.getElementById('spectatorPosition');   // WORSHIP-AMIN-AND-POSITION
@@ -138,6 +138,7 @@
     }
     if (!el) return;
     const song = (typeof getLiveSong === 'function') ? getLiveSong() : null;
+    console.log('[DIAG-KEY] renderSpectatorVerse: song=', song && song.id, '| song.key=', song && song.key, '| liveCurrentSongId=', liveCurrentSongId);
     if (!song) { el.textContent = 'Așteptăm versurile...'; setKey(''); setPos(''); return; }
     // WORSHIP-AMIN-AND-POSITION — la END spectatorul vede „AMIN" (nu „Pauză")
     if (liveEnded) { el.textContent = 'AMIN'; setKey(''); setPos(''); return; }
@@ -148,6 +149,7 @@
     // WORSHIP-SPECTATOR-FONT — păstrează mărimea aleasă pe parcursul schimbării versului.
     el.style.fontSize = spectatorFontSize + 'px';
     const songKey = song.key ? String(song.key) : '';
+    console.log('[DIAG-KEY] renderSpectatorVerse: setKey ->', songKey);
     setKey(songKey ? ('🎵 ' + formatKey(songKey)) : '');
     // WORSHIP-AMIN-AND-POSITION — „x / y" + „· ultima strofă" la ultimul bloc
     const isLast = idx === verses.length - 1;
@@ -1501,7 +1503,8 @@
     // worship-scoped detail to keep the "adăugat de tine" flag and the
     // Delete button correct for this session.
     masterSocket.on('event:songlibrary_changed', async (data) => {
-      if (!data || !data.eventId) return;
+      console.log('[DIAG-KEY] songlibrary_changed primit:', data && data.eventId, '| isSpectator=', (typeof isSpectator==='function'?isSpectator():'?'), '| liveEvent=', liveEvent && liveEvent.id, '| currentEvent=', currentEvent && currentEvent.id);
+      if (!data || !data.eventId) { console.log('[DIAG-KEY] IES: data lipsă'); return; }
       // V21.x: race-safe — when active_event_changed fires immediately
       // before this (admin activate + add in quick succession), the
       // active_event_changed handler is still re-fetching and
@@ -1509,19 +1512,22 @@
       // in loadLiveEvent, so use it as the source of truth for which
       // event this worship is attached to.
       const myId = (liveEvent && liveEvent.id) || (currentEvent && currentEvent.id);
-      if (!myId || myId !== data.eventId) return;
+      if (!myId || myId !== data.eventId) { console.log('[DIAG-KEY] IES: myId', myId, '!= data.eventId', data.eventId); return; }
       try {
         const r = await fetch('/api/worship/events/' + encodeURIComponent(data.eventId));
         const j = await r.json().catch(() => ({}));
         if (r.ok && j && j.ok && j.event) {
           currentEvent = j.event;
+          const _ls = (typeof getLiveSong==='function') ? getLiveSong() : null;
+          console.log('[DIAG-KEY] re-fetch OK; getLiveSong.id=', _ls && _ls.id, '| getLiveSong.key=', _ls && _ls.key, '| liveCurrentSongId=', liveCurrentSongId);
           renderEventSongs();
           // Keep Live mode's song picker fresh too (new song may need it).
           refreshLiveMode();
           // WORSHIP-SPECTATOR-KEY-SYNC — spectatorul trebuie să vadă gama nouă imediat (nu doar la refresh)
-          if (typeof isSpectator === 'function' && isSpectator()) renderSpectatorVerse();
-        }
-      } catch (err) { /* render stale state is fine */ }
+          if (typeof isSpectator === 'function' && isSpectator()) { console.log('[DIAG-KEY] chem renderSpectatorVerse'); renderSpectatorVerse(); }
+          else console.log('[DIAG-KEY] NU sunt spectator, nu chem renderSpectatorVerse');
+        } else console.log('[DIAG-KEY] re-fetch eșuat: status', r.status, '| ok=', j && j.ok);
+      } catch (err) { console.log('[DIAG-KEY] re-fetch EXCEPȚIE:', err && err.message); /* render stale state is fine */ }
     });
     // WORSHIP-LEADER: leadership changes for the event. The broadcast is the
     // single source of truth — set isWorshipLeader by comparing the announced
