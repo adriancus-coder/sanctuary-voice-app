@@ -2978,7 +2978,9 @@ function buildPrompt(sourceLangName, targetLangName, speed, glossary) {
   const speedRules = {
     rapid: 'Translate fast, naturally, and as spoken language.',
     balanced: 'Translate naturally, smoothly, and clearly for live listening.',
-    clear: 'Translate carefully and clearly for church live listening. Keep it fluid, not rigid.'
+    clear: 'Translate carefully and clearly for church live listening. Keep it fluid, not rigid.',
+    // TRANSLATION-MODE-INTERPRET — parafrazare ca interpret uman consecutiv (sens fidel, mai concis)
+    interpret: 'Act as a professional consecutive interpreter for a fast speaker. Convey the full MEANING faithfully, but be CONCISE: paraphrase and condense naturally so the listener keeps pace, the way a human interpreter compresses while staying accurate. Drop filler and redundancy, never drop actual content or change the message. Aim for noticeably fewer words than a literal translation.'
   };
 
   const glossaryText = Object.entries(glossary || {})
@@ -3105,7 +3107,8 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
   }
   inputMessages.push({ role: 'user', content: cleanText });
   // V22.15 — modul „clear" (calitate) → model mai bun; rapid/balanced → nano (rapid).
-  const translateModel = (event && event.speed === 'clear') ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
+  // TRANSLATION-MODE-INTERPRET — clear ȘI interpret folosesc modelul de calitate (mini, mai bun la parafrazat)
+  const translateModel = (event && (event.speed === 'clear' || event.speed === 'interpret')) ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
   await acquireTranslateSlot();   // V22.37 — limitează concurența traducerilor
   try {
     const onDelta = typeof options.onDelta === 'function' ? options.onDelta : null;
@@ -3792,11 +3795,13 @@ async function startAzureSpeechSession(socket, event) {
   //  - rapid: 300ms - latență minimă, propoziții scurte (Q&A, conversație rapidă)
   //  - balanced: 500ms - echilibru între latență și context (default, validat empiric)
   //  - clear: 800ms - mai mult context per propoziție, traducere de calitate
+  //  - interpret: 700ms - fraze coerente, context bun pentru condensare ca interpret uman
   // Mode-ul se aplică la pornirea sesiunii. Pentru schimbare mid-Live: Stop + Start.
   const segmentationByMode = {
     rapid: '300',
     balanced: '300',  // SMART FLUSH V2: redus de la 500 pentru vorbire continuă rapidă
-    clear: '800'
+    clear: '800',
+    interpret: '700'   // TRANSLATION-MODE-INTERPRET — fraze coerente, context bun pt condensare
   };
   const segmentationTimeout = segmentationByMode[event.speed] || segmentationByMode.balanced;
   try {
