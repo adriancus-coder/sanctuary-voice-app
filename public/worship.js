@@ -398,7 +398,7 @@
     updateWorshipSyncWarning();
   }
 
-  // WORSHIP-MANUAL-SYNC — avertisment „Nu ești sincronizat cu Admin" ori de câte ori worship NU e pe evenimentul
+  // NO-AUTO-FOLLOW-LIVE — avertisment „Nu ești sincronizat cu Admin" ori de câte ori worship NU e pe evenimentul
   // live (indiferent cum a ajuns acolo: nu s-a mutat după ce adminul a schimbat live-ul, sau a ales manual din
   // dropdown). Model ca la operator (updateRemoteEventWarning); „OK" ascunde doar pt evenimentul curent, iar
   // „Sincronizează" mută manual pe live. (worship↔echipă rămâne neatins — banner-ele leader/prep sunt separate.)
@@ -406,7 +406,7 @@
     const warn = document.getElementById('worshipNotSyncedAdmin');
     if (!warn) return;
     const operatingId = (currentEvent && currentEvent.id) || '';
-    // WORSHIP-MANUAL-SYNC — avertisment ori de câte ori worship NU e pe evenimentul live (gate-ul manual scos)
+    // NO-AUTO-FOLLOW-LIVE — avertisment ori de câte ori worship NU e pe evenimentul live (gate-ul manual scos)
     const notLive = !!(operatingId && _worshipLiveEventId && operatingId !== _worshipLiveEventId);
     const dismissed = notLive && _worshipSyncDismissedFor === operatingId;
     warn.classList.toggle('hidden', !notLive || dismissed);
@@ -1452,13 +1452,13 @@
         setStatus($('liveStatus'), 'Operatorul a aprobat sync-ul proiectorului.', 'ok');
       }
     });
-    // WORSHIP-MANUAL-SYNC — when admin starts/stops the active event for the org, worship does NOT auto-follow.
+    // NO-AUTO-FOLLOW-LIVE — when admin starts/stops the active event for the org, worship does NOT auto-follow.
     // The server emits active_event_changed globally (io.emit) on /activate, on event-delete reassignment, and
     // on auto-activate of a new event; worship only refreshes which event is live (the warning reference) and
     // re-renders the „Nu ești sincronizat cu Admin" warning. The actual move to live is MANUAL, via the
     // „Sincronizează" button. (First open still starts on live — see init/loadLiveEvent.)
     masterSocket.on('active_event_changed', () => {
-      // WORSHIP-MANUAL-SYNC — nu mai urmărim automat live-ul; doar reîmprospătăm reperul live (din ?mode=live)
+      // NO-AUTO-FOLLOW-LIVE — nu mai urmărim automat live-ul; doar reîmprospătăm reperul live (din ?mode=live)
       // și actualizăm avertismentul. refreshWorshipLiveId cheamă updateWorshipSyncWarning la final.
       refreshWorshipLiveId();
     });

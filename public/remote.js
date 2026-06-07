@@ -1078,16 +1078,13 @@ socket.on('joined_event', ({ role, event, access }) => {
   setStatus(access?.operator?.name ? `Remote control connected as ${access.operator.name}.` : 'Remote control connected.');
 });
 socket.on('active_event_changed', async ({ eventId }) => {
-  // OPERATOR-EVENT-PICKER — actualizează lista + warning-ul indiferent dacă operatorul a fixat manual
-  // (live-ul nou e altul; afișăm că „LIVE" s-a mutat, dar nu-l smulgem din evenimentul ales).
+  // NO-AUTO-FOLLOW-LIVE — operatorul NU mai sare automat după admin. Doar actualizează reperul „LIVE" +
+  // avertismentul; mutarea pe live se face MANUAL prin butonul „Sincronizează" (remoteSyncToActiveBtn).
+  // (Prima deschidere pornește pe live — vezi join()/resolveRemoteEventId. Audio-ul NU se oprește aici:
+  // operatorul nu se mută, deci stream-ul lui curent nu trebuie întrerupt de schimbarea live-ului adminului.)
   state._liveEventId = eventId || '';
   await loadRemoteEventPicker();
   updateRemoteEventWarning();
-  if (state.fixedEventId) return;   // operator pe alegere manuală — NU re-join automat
-  if (state.liveAudio.running) await stopRemoteLiveAudio();
-  state.eventId = eventId || '';
-  state.currentEvent = null;
-  await join();
 });
 socket.on('azure_audio_ready', () => {
   if (state.liveAudio.running) setLiveAudioStatus('On-Air. Azure Speech connected.');
