@@ -1454,11 +1454,25 @@
       const incomingSong = st.currentSongId || null;
       const incomingVerse = Number.isInteger(st.currentVerseIndex) ? st.currentVerseIndex : 0;
       const incomingEnded = st.ended === true;
-      // Echo / no-op suppression (see note above).
+      // WORSHIP-SPECTATOR-KEY-VIA-STATE — gama vine în payload odată cu starea (server: payload.song.key).
+      const incomingKey = (payload.song && typeof payload.song.key === 'string') ? payload.song.key : null;
+      // gama curentă cunoscută local pt cântarea live (ca să detectăm schimbarea doar-de-gamă)
+      const _curSong = (typeof getLiveSong === 'function') ? getLiveSong() : null;
+      const _curKey = _curSong && typeof _curSong.key === 'string' ? _curSong.key : null;
+      const keyChanged = incomingSong === liveCurrentSongId && incomingKey !== null && incomingKey !== _curKey;
+      // Echo / no-op suppression (see note above) — acum include gama, ca o schimbare
+      // doar-de-gamă (aceeași cântare/vers/ended) să NU mai fie suprimată.
       if (incomingSong === liveCurrentSongId &&
           incomingVerse === liveCurrentVerseIndex &&
-          incomingEnded === liveEnded) {
+          incomingEnded === liveEnded &&
+          !keyChanged) {
         return;
+      }
+      // WORSHIP-SPECTATOR-KEY-VIA-STATE — aplică gama nouă în copia locală (currentEvent.songs,
+      // sursa lui getLiveSong) ÎNAINTE de re-render, ca renderSpectatorVerse s-o reflecte fără re-fetch.
+      if (incomingSong && incomingKey !== null && currentEvent && Array.isArray(currentEvent.songs)) {
+        const _s = currentEvent.songs.find((x) => x && x.id === incomingSong);
+        if (_s) _s.key = incomingKey;
       }
       // Mirror into the local event state so a later refreshLiveMode (e.g. when
       // entering Live mode) restores THIS state, not a stale one.
