@@ -2040,6 +2040,16 @@ function shouldFlushBufferedText(text, options = {}) {
 // Previne dubluri când Azure trimite și `recognized` după un partial flush
 const partialFlushTracker = new Map(); // eventId -> { lastFlushedText, timestamp }
 
+// AZURE-WORDCOUNT-FLUSH — segmentarea Azure pe timp (Speech_SegmentationSilenceTimeoutMs) nu e fiabilă în
+// SDK-ul JS (limitare cunoscută Microsoft) → frazele se adună. Tăiem proactiv la NR. DE CUVINTE, prag PER MOD.
+const WORDCOUNT_FLUSH_BY_MODE = { rapid: 12, balanced: 12, clear: 25, interpret: 25 };
+function getWordcountFlushThreshold(speed) {
+  return WORDCOUNT_FLUSH_BY_MODE[speed] || WORDCOUNT_FLUSH_BY_MODE.balanced;
+}
+// Flag per-event: setat DOAR când NOI am tăiat partial-ul la cuvinte în smooth mode. Îl folosim ca
+// `recognized` (finalul) să facă delta DOAR atunci (altfel păstrăm commit-ul curat V22.5 neatins).
+const wordFlushedEvents = new Set();
+
 function isPartialFlushDuplicate(eventId, newText, windowMs = 3000) {
   const tracker = partialFlushTracker.get(eventId);
   if (!tracker) return false;
@@ -3743,6 +3753,7 @@ function closeAzureSpeechSession(socketId) {
   // TASK 37: Cleanup partial flush tracker pentru acest event
   if (session.eventId) {
     partialFlushTracker.delete(session.eventId);
+    wordFlushedEvents.delete(session.eventId);   // AZURE-WORDCOUNT-FLUSH — evită scurgeri de flag între sesiuni
   }
   try { session.pushStream?.close(); } catch (_) {}
   // V22.25 — așteaptă închiderea COMPLETĂ a recognizer-ului (Azure eliberează conexiunea)
@@ -3859,6 +3870,26 @@ async function startAzureSpeechSession(socket, event) {
         }
       }
     }
+
+    // AZURE-WORDCOUNT-FLUSH — în smooth mode, taie acumularea când Azure nu segmentează la timp.
+    // Tăiem după DELTĂ (partea nouă față de ce-am trimis ultima dată), FĂRĂ fereastră de timp:
+    // așa frazele lungi se taie în bucăți de ~prag cuvinte, fără să re-trimitem ce-am trimis deja.
+    // (NU folosim isPartialFlushDuplicate aici: el ștergea tracker-ul pe fereastra de 3s, iar la
+    //  fraze lungi nesegmentate asta făcea delta = textul întreg → re-trimitea acumulatul = dublură.)
+    if (AZURE_SMOOTH_MODE) {
+      const wcThreshold = getWordcountFlushThreshold(currentEvent?.speed || event.speed);
+      const tracker = partialFlushTracker.get(event.id);
+      let deltaText = text;
+      if (tracker && tracker.lastFlushedText && text.startsWith(tracker.lastFlushedText)) {
+        deltaText = text.slice(tracker.lastFlushedText.length).trim();
+      }
+      // flush DOAR dacă partea NOUĂ a atins pragul (nu textul total)
+      if (countWords(deltaText) >= wcThreshold) {
+        markPartialFlushed(event.id, text);          // reține TOT textul de până acum (persistent în sesiune)
+        wordFlushedEvents.add(event.id);              // recognized va face delta finală (anti-dublare)
+        queueSpeechText(event.id, deltaText, effectiveSourceLang, 'azure_sdk');
+      }
+    }
   };
   recognizer.recognized = (_, result) => {
     if (result?.result?.reason !== sdk.ResultReason.RecognizedSpeech) return;
@@ -3872,10 +3903,30 @@ async function startAzureSpeechSession(socket, event) {
       return;
     }
 
-    // V22.5 — În smooth mode, recognized e mereu o propoziție completă (nu există
-    // partial-flush de deduplicat). Sărim logica TASK 37 care, la propoziții consecutive
-    // cu început similar, calcula deltas greșite și lipea fragmente. Commit direct, curat.
+    // V22.5 — în smooth mode, recognized e o propoziție completă → commit curat (fără delta), ca să nu
+    // lipim fragmente la fraze cu început similar (bug-ul vechi TASK 37). EXCEPȚIE (AZURE-WORDCOUNT-FLUSH):
+    // dacă NOI am tăiat partial-ul la cuvinte pentru acest event (wordFlushedEvents), fraza completă
+    // re-conține bucata deja trimisă → facem delta DOAR atunci (apoi curățăm flag-ul), ca să nu dublăm.
     if (AZURE_SMOOTH_MODE) {
+      if (wordFlushedEvents.has(event.id)) {
+        wordFlushedEvents.delete(event.id);
+        const tracker = partialFlushTracker.get(event.id);
+        if (tracker && tracker.lastFlushedText && text.length > tracker.lastFlushedText.length && text.startsWith(tracker.lastFlushedText)) {
+          const deltaText = text.slice(tracker.lastFlushedText.length).trim();
+          const deltaWords = countWords(deltaText);
+          if (deltaWords >= AZURE_LIVE_TEXT_MIN_WORDS) {
+            markPartialFlushed(event.id, text);
+            queueSpeechText(event.id, deltaText, effectiveSourceLang, 'azure_sdk');
+          }
+          // delta sub prag sau text care nu începe cu ce-am flush-uit → NU re-trimit (evit dublarea)
+          return;
+        }
+        // nu pot calcula delta sigur (textul nu începe cu lastFlushedText) → commit întreg o singură dată
+        markPartialFlushed(event.id, text);
+        queueSpeechText(event.id, text, effectiveSourceLang, 'azure_sdk');
+        return;
+      }
+      // cazul normal V22.5 — niciun word-flush → commit curat, NEATINS
       queueSpeechText(event.id, text, effectiveSourceLang, 'azure_sdk');
       return;
     }
