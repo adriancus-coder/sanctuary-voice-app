@@ -941,6 +941,25 @@ function enqueueLiveEntry(entry) {
   if (!isFreshLiveEntry(entry)) return;
   const candidate = cloneEntry(entry);
   const candidateSignature = buildLiveEntrySignature(candidate);
+
+  // FIX-PARTICIPANT-DUPLICATE — partial→final e ACELAȘI entry (după ID), nu unul nou.
+  // buildLiveEntrySignature compară id+text exact, iar finalul diferă ușor de partial-ul
+  // vizibil (punctuație/cuvinte în plus) → nu era recunoscut → intra în coadă → fraza
+  // apărea de două ori. Acum: dacă entry-ul (după ID) e deja vizibil, îl înlocuim pe loc
+  // (fără re-anunțare); dacă textul e deja identic, nu facem nimic. Dacă e deja în coadă
+  // (după ID), actualizăm acel item în loc să adăugăm un duplicat.
+  if (state.visibleLiveEntry && candidate.id && state.visibleLiveEntry.id === candidate.id) {
+    if (candidateSignature !== buildLiveEntrySignature(state.visibleLiveEntry)) {
+      showLiveEntry(candidate, { announce: false });
+    }
+    return;
+  }
+  const sameIdQueueIdx = state.liveEntryQueue.findIndex((item) => item.id && candidate.id && item.id === candidate.id);
+  if (sameIdQueueIdx !== -1) {
+    state.liveEntryQueue[sameIdQueueIdx] = candidate;
+    return;
+  }
+
   if (!state.visibleLiveEntry) {
     showLiveEntry(candidate, { announce: true });
     return;
