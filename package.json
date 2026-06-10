@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "check": "node scripts/check-syntax.js",
+    "smoke": "node scripts/smoke-operator-access.js",
     "audit:high": "npm audit --audit-level=high"
   },
   "overrides": {
