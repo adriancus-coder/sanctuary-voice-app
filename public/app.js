@@ -103,26 +103,50 @@ function setStatus(text) {
 // V22.1 — listening indicator (4 puncte pulsând) când nu există partial.
 const LISTENING_DOTS_HTML = '<span class="listening-dots" aria-label="listening"><span></span><span></span><span></span><span></span></span>';
 
-function setPartialTranscript(text = '') {
-  if (text && text.trim() && text.trim() !== lastPartialCaptured) {
-    window.partialTranscriptHistory.push({
-      timestamp: new Date().toISOString(),
-      text: text.trim()
-    });
-    lastPartialCaptured = text.trim();
-    if (window.partialTranscriptHistory.length > 1000) {
-      window.partialTranscriptHistory.shift();
-    }
-  }
+// ADMIN-PARTIAL-THROTTLE — stare pentru throttle afișare partial (~10/s) + pauză pe tab ascuns
+let partialRenderPending = false;     // un render e deja programat
+let partialLastRenderMs = 0;          // când am randat ultima dată
+let partialLatestText = '';           // ultimul text primit (sursă de adevăr pt render)
+const PARTIAL_RENDER_INTERVAL_MS = 100;   // ~10 update-uri/secundă
+
+function renderPartialNow() {
+  partialRenderPending = false;
+  partialLastRenderMs = Date.now();
   const compact = $('partialTranscript');
   const large = $('partialTranscriptLarge');
-  if (text) {
-    if (compact) compact.textContent = text;
-    if (large) large.textContent = text;
+  if (partialLatestText) {
+    if (compact) compact.textContent = partialLatestText;
+    if (large) large.textContent = partialLatestText;
   } else {
     if (compact) compact.innerHTML = LISTENING_DOTS_HTML;
     if (large) large.innerHTML = LISTENING_DOTS_HTML;
   }
+}
+
+function schedulePartialRender(immediate = false) {
+  // tab ascuns: nu atinge DOM-ul (evită acumularea care îngheață la revenire) — doar reținem textul
+  if (document.hidden) return;
+  if (immediate) { renderPartialNow(); return; }
+  if (partialRenderPending) return;
+  const sinceLast = Date.now() - partialLastRenderMs;
+  if (sinceLast >= PARTIAL_RENDER_INTERVAL_MS) {
+    renderPartialNow();
+  } else {
+    partialRenderPending = true;
+    setTimeout(renderPartialNow, PARTIAL_RENDER_INTERVAL_MS - sinceLast);
+  }
+}
+
+function setPartialTranscript(text = '', immediate = false) {
+  // record (ieftin) — istoricul + ultimul text se actualizează MEREU
+  if (text && text.trim() && text.trim() !== lastPartialCaptured) {
+    window.partialTranscriptHistory.push({ timestamp: new Date().toISOString(), text: text.trim() });
+    lastPartialCaptured = text.trim();
+    if (window.partialTranscriptHistory.length > 1000) window.partialTranscriptHistory.shift();
+  }
+  partialLatestText = text || '';
+  // render throttle-uit (sau imediat pt final)
+  schedulePartialRender(immediate);
 }
 
 // V22.42 — timer Live Session (header). Pornește la On-Air, reset la Stop.
@@ -3458,7 +3482,7 @@ async function startBrowserAzureRecognition() {
     if (event.result.reason !== SpeechSDK.ResultReason.RecognizedSpeech) return;
     const text = String(event.result.text || '').trim();
     if (!text || !currentEvent) return;
-    setPartialTranscript(text);
+    setPartialTranscript(text, true);   // ADMIN-PARTIAL-THROTTLE — finalul apare imediat
     socket.emit('submit_text', { eventId: currentEvent.id, text });
   };
 
@@ -5909,6 +5933,10 @@ $('eventList').addEventListener('click', async (e) => {
   }
 });
 document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible' && window.isRecognitionRunning && !screenWakeLock) await enableScreenWakeLock(); });
+// ADMIN-PARTIAL-THROTTLE — la revenirea pe tab, afișează o dată ultimul partial (fără să proceseze acumulatul)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) renderPartialNow();
+});
 window.addEventListener('beforeunload', async () => { await disableScreenWakeLock(); });
 
 window.addEventListener('load', async () => {
