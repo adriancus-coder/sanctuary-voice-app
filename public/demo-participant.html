@@ -64,22 +64,6 @@
   <div class="demo-corner-banner">Demo mode — connect to a live event for real translation</div>
 
   <script src="/demo-shared.js"></script>
-  <script>
-  (function () {
-    var select = document.getElementById('languageSelectDemo');
-    var textEl = document.getElementById('demoMainText');
-    var badgeEl = document.getElementById('demoLangBadge');
-
-    function update(lang) {
-      var verse = window.SV_DEMO.verses[lang] || window.SV_DEMO.verses.en;
-      textEl.textContent = verse;
-      textEl.dir = window.SV_DEMO.rtl[lang] ? 'rtl' : 'ltr';
-      badgeEl.textContent = window.SV_DEMO.names[lang] || lang;
-    }
-
-    select.addEventListener('change', function () { update(select.value); });
-    update(select.value);
-  })();
-  </script>
+  <script src="/demo-participant.js"></script>
 </body>
 </html>

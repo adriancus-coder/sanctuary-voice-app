@@ -191,7 +191,10 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       // aka.ms = Microsoft Speech SDK loader
       // csspeechstorage.blob.core.windows.net = resurse auxiliare Microsoft Speech SDK (worker.js, etc.)
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://aka.ms', 'https://csspeechstorage.blob.core.windows.net'],
+      // SEC-AUDIT-2026-06 B2: no 'unsafe-inline' — all page scripts are external
+      // files under public/ (landing.js, demo-*.js were extracted for this).
+      // styleSrc keeps 'unsafe-inline' for now (inline <style>/style= still used).
+      scriptSrc: ["'self'", 'https://aka.ms', 'https://csspeechstorage.blob.core.windows.net'],
       // fonts.googleapis.com = stylesheet-ul Google Fonts (Fraunces, Space Grotesk)
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       imgSrc: ["'self'", 'data:', 'blob:'],
