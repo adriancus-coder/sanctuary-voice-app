@@ -8,13 +8,18 @@
     "check": "node scripts/check-syntax.js",
     "audit:high": "npm audit --audit-level=high"
   },
+  "overrides": {
+    "microsoft-cognitiveservices-speech-sdk": {
+      "uuid": "^11.1.1"
+    }
+  },
   "dependencies": {
     "compression": "^1.8.1",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "fast-xml-parser": "^5.8.0",
     "helmet": "^8.1.0",
-    "microsoft-cognitiveservices-speech-sdk": "^1.49.0",
+    "microsoft-cognitiveservices-speech-sdk": "^1.50.0",
     "multer": "^2.0.0",
     "openai": "^4.104.0",
     "qrcode": "^1.5.4",

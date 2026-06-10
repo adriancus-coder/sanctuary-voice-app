@@ -529,7 +529,12 @@ function registerSocketHandlers(io, ctx) {
       socket.data.permissions = socket.data.role === 'admin' ? ['main_screen', 'song', 'glossary'] : (access.permissions || []);
 
       socket.join(`event:${eventId}`);
-      if (socket.data.role === 'admin') socket.join(`event:${eventId}:admins`);
+      if (socket.data.role === 'admin') {
+        socket.join(`event:${eventId}:admins`);
+        // SEC-AUDIT-2026-06 A1: global admin room for org-level notifications
+        // (access_request_created) that must not reach participants.
+        socket.join('admins');
+      }
       if (socket.data.role === 'screen') socket.join(`event:${eventId}:screens`);
       if (socket.data.role === 'participant' || socket.data.role === 'participant_preview') socket.join(`event:${eventId}:lang:${socket.data.language}`);
       // V21.3: operators/admins observe the worship-live channel.
