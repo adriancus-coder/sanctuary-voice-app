@@ -1122,10 +1122,20 @@ function globalJsonOptions(method, payload = {}) {
   };
 }
 
+// SEC-AUDIT-2026-06 B1: admin codes live in sessionStorage (gone when the tab closes), never
+// in localStorage — on a shared computer persistent codes were readable by anyone via DevTools.
+// One-time sweep of codes persisted by older versions:
+try {
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('sanctuary_admin_code_')) localStorage.removeItem(key);
+  }
+} catch (_) {}
+
 function getStoredAdminCode(eventId = '') {
   if (!eventId) return '';
   try {
-    return localStorage.getItem(`sanctuary_admin_code_${eventId}`) || '';
+    return sessionStorage.getItem(`sanctuary_admin_code_${eventId}`) || '';
   } catch (_) {
     return '';
   }
@@ -1134,7 +1144,7 @@ function getStoredAdminCode(eventId = '') {
 function rememberAdminCode(event) {
   if (!event?.id || !event.adminCode) return;
   try {
-    localStorage.setItem(`sanctuary_admin_code_${event.id}`, event.adminCode);
+    sessionStorage.setItem(`sanctuary_admin_code_${event.id}`, event.adminCode);
   } catch (_) {}
 }
 
@@ -4033,17 +4043,17 @@ socket.on('joined_event', ({ event, role }) => {
 
 // FIX-WRONG-PASSWORD-RETRY — adminul nu avea handler de join_error: la cod greșit, codul greșit rămânea stocat
 // și prompt-ul de parolă nu mai reapărea (trebuia refresh). Acum, pe „Cod ... invalid", golim codul greșit
-// (localStorage + currentEvent.adminCode) și re-cerem imediat, ca să se poată reîncerca fără refresh.
+// (sessionStorage + currentEvent.adminCode) și re-cerem imediat, ca să se poată reîncerca fără refresh.
 socket.on('join_error', ({ message }) => {
   setStatus(message || 'Cannot join event control.');
   const msg = String(message || '').toLowerCase();
   if (msg.includes('cod') && msg.includes('invalid') && currentEvent && currentEvent.id) {
-    try { localStorage.removeItem(`sanctuary_admin_code_${currentEvent.id}`); } catch (_) {}
+    try { sessionStorage.removeItem(`sanctuary_admin_code_${currentEvent.id}`); } catch (_) {}
     currentEvent.adminCode = '';
     const retry = (prompt('Wrong admin code. Re-enter admin code or PIN:') || '').trim();
     if (retry) {
       currentEvent.adminCode = retry;
-      try { localStorage.setItem(`sanctuary_admin_code_${currentEvent.id}`, retry); } catch (_) {}
+      try { sessionStorage.setItem(`sanctuary_admin_code_${currentEvent.id}`, retry); } catch (_) {}
       socket.emit('join_event', { eventId: currentEvent.id, role: 'admin', code: retry });
     }
   }

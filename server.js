@@ -2364,34 +2364,35 @@ function resolveEventAccessFromCode(event, code) {
   const suppliedCode = String(code || '').trim();
   if (!suppliedCode) return { role: '', permissions: [], operator: null };
   const globalAccess = ensureGlobalAccess('', event);
-  if (MASTER_ADMIN_PIN && suppliedCode === MASTER_ADMIN_PIN) {
+  // SEC-AUDIT-2026-06 A2: all code/PIN checks below use safeStringEqual (timingSafeEqual).
+  if (MASTER_ADMIN_PIN && safeStringEqual(suppliedCode, MASTER_ADMIN_PIN)) {
     return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
   }
-  if (String(event.adminCode || '') === suppliedCode) {
+  if (safeStringEqual(suppliedCode, String(event.adminCode || ''))) {
     return { role: 'admin', permissions: ['main_screen', 'song'], operator: null };
   }
-  if (MASTER_MODERATOR_PIN && suppliedCode === MASTER_MODERATOR_PIN) {
+  if (MASTER_MODERATOR_PIN && safeStringEqual(suppliedCode, MASTER_MODERATOR_PIN)) {
     return {
       role: 'screen',
       permissions: ['main_screen', 'song'],
       operator: { id: 'master-moderator', name: 'Master Moderator', profile: 'full', code: suppliedCode }
     };
   }
-  if (globalAccess.mainOperatorCode && suppliedCode === globalAccess.mainOperatorCode) {
+  if (globalAccess.mainOperatorCode && safeStringEqual(suppliedCode, globalAccess.mainOperatorCode)) {
     return {
       role: 'screen',
       permissions: ['main_screen', 'song'],
       operator: { id: 'main-operator', name: 'Main Operator', profile: 'full', code: suppliedCode, permanent: true }
     };
   }
-  if (String(event.screenOperatorCode || '') === suppliedCode) {
+  if (safeStringEqual(suppliedCode, String(event.screenOperatorCode || ''))) {
     return {
       role: 'screen',
       permissions: ['main_screen', 'song'],
       operator: { id: 'default-screen', name: 'Default operator', profile: 'full', code: suppliedCode }
     };
   }
-  const operator = (event.remoteOperators || []).find((item) => String(item.code || '') === suppliedCode);
+  const operator = (event.remoteOperators || []).find((item) => safeStringEqual(String(item.code || ''), suppliedCode));
   if (operator) {
     return {
       role: 'screen',
@@ -2400,7 +2401,7 @@ function resolveEventAccessFromCode(event, code) {
     };
   }
   const granted = (getOrganizationForEvent(event)?.grantedOperators || [])
-    .find((entry) => String(entry?.code || '').trim() === suppliedCode);
+    .find((entry) => safeStringEqual(String(entry?.code || '').trim(), suppliedCode));
   if (granted) {
     return {
       role: 'screen',
@@ -2443,12 +2444,14 @@ function requireEventPermission(req, res, permission) {
 function canManageEvents(req) {
   if (hasValidAdminSession(req)) return true;
   const suppliedCode = getSuppliedEventCode(req);
-  if (MASTER_ADMIN_PIN && suppliedCode === MASTER_ADMIN_PIN) return true;
+  // SEC-AUDIT-2026-06 A2: timing-safe comparisons; an empty supplied code never matches.
+  if (MASTER_ADMIN_PIN && safeStringEqual(suppliedCode, MASTER_ADMIN_PIN)) return true;
   const appAdminCode = String(process.env.APP_ADMIN_CODE || process.env.ADMIN_CODE || '').trim();
-  if (appAdminCode && suppliedCode === appAdminCode) return true;
+  if (appAdminCode && safeStringEqual(suppliedCode, appAdminCode)) return true;
   const events = Object.values(db.events || {});
   if (!events.length && !appAdminCode && !MASTER_ADMIN_PIN && !COMMERCIAL_MODE) return true;
-  return events.some((event) => String(event.adminCode || '') === suppliedCode);
+  if (!suppliedCode) return false;
+  return events.some((event) => safeStringEqual(String(event.adminCode || ''), suppliedCode));
 }
 
 function requireEventManager(req, res) {
@@ -4465,16 +4468,17 @@ function getActiveEvents() {
 function isOperatorPinValid(pin) {
   const candidate = String(pin || '').trim();
   if (!candidate) return false;
-  if (MAIN_OPERATOR_PIN && candidate === MAIN_OPERATOR_PIN) return true;
+  // SEC-AUDIT-2026-06 A2: timing-safe comparisons for operator PIN/codes.
+  if (MAIN_OPERATOR_PIN && safeStringEqual(candidate, MAIN_OPERATOR_PIN)) return true;
   for (const event of Object.values(db.events || {})) {
     const operators = Array.isArray(event.remoteOperators) ? event.remoteOperators : [];
-    if (operators.some((operator) => String(operator.code || '').trim() === candidate)) {
+    if (operators.some((operator) => safeStringEqual(String(operator.code || '').trim(), candidate))) {
       return true;
     }
   }
   for (const org of Object.values(db.organizations || {})) {
     const granted = Array.isArray(org?.grantedOperators) ? org.grantedOperators : [];
-    if (granted.some((entry) => String(entry?.code || '').trim() === candidate)) {
+    if (granted.some((entry) => safeStringEqual(String(entry?.code || '').trim(), candidate))) {
       return true;
     }
   }
@@ -4578,6 +4582,8 @@ app.post('/api/operator/request-access', (req, res) => {
   if (!Array.isArray(org.accessRequests)) org.accessRequests = [];
   const request = {
     id: randomUUID(),
+    // SEC-AUDIT-2026-06 A1: secret returned only to the requester; required to poll request-status.
+    pollToken: randomUUID(),
     name,
     contact,
     requestedAt: new Date().toISOString(),
@@ -4587,8 +4593,10 @@ app.post('/api/operator/request-access', (req, res) => {
   if (org.accessRequests.length > 200) org.accessRequests = org.accessRequests.slice(-200);
   saveDb();
   sendAdminAccessRequestNotification(org, request).catch((err) => logger.error('admin push error:', err?.message || err));
-  io.emit('access_request_created', { id: request.id });
-  res.json({ ok: true, requestId: request.id });
+  // SEC-AUDIT-2026-06 A1: admins only — a global emit handed the request id to every
+  // connected client, who could then poll request-status and steal the operator code.
+  io.to('admins').emit('access_request_created', { id: request.id });
+  res.json({ ok: true, requestId: request.id, pollToken: request.pollToken });
 });
 
 app.get('/api/operator/request-status/:id', (req, res) => {
@@ -4597,6 +4605,13 @@ app.get('/api/operator/request-status/:id', (req, res) => {
   const org = ensureOrganization(DEFAULT_ORG_ID);
   const request = (org.accessRequests || []).find((r) => r.id === id);
   if (!request) return res.status(404).json({ ok: false, status: 'unknown' });
+  // SEC-AUDIT-2026-06 A1: only the requester (holder of pollToken) may read the status —
+  // the granted payload contains the operator code. Legacy requests without a token are
+  // not readable; same 404 shape so the response is not an existence oracle.
+  const token = String(req.query.token || '').trim();
+  if (!request.pollToken || !token || !safeStringEqual(token, request.pollToken)) {
+    return res.status(404).json({ ok: false, status: 'unknown' });
+  }
   const payload = { ok: true, status: request.status };
   if (request.status === 'granted' && request.operatorCode) {
     payload.operatorCode = request.operatorCode;
@@ -5149,7 +5164,7 @@ app.post('/admin/audit-translations', (req, res) => {
   const supplied = String(req.headers['x-main-operator-code'] || '').trim();
   const orgAccess = getOrganizationAccess(DEFAULT_ORG_ID);
   const expected = String(orgAccess?.mainOperatorCode || '').trim();
-  if (!expected || supplied !== expected) {
+  if (!expected || !safeStringEqual(supplied, expected)) {
     return res.status(401).json({ ok: false, error: 'Invalid x-main-operator-code header.' });
   }
 
@@ -5260,7 +5275,7 @@ app.post('/admin/normalize-content', (req, res) => {
   const supplied = String(req.headers['x-main-operator-code'] || '').trim();
   const orgAccess = getOrganizationAccess(DEFAULT_ORG_ID);
   const expected = String(orgAccess?.mainOperatorCode || '').trim();
-  if (!expected || supplied !== expected) {
+  if (!expected || !safeStringEqual(supplied, expected)) {
     return res.status(401).json({ ok: false, error: 'Invalid x-main-operator-code header.' });
   }
   try {

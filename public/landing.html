@@ -474,15 +474,15 @@ function closeOperatorModal() {
   }
   window.__opStopPolling = stopPolling;
 
-  function startPolling(requestId) {
+  function startPolling(requestId, pollToken) {
     stopPolling();
     if (waitingErr) waitingErr.textContent = '';
-    pollTimer = setInterval(function () { pollOnce(requestId); }, 4000);
-    pollOnce(requestId);
+    pollTimer = setInterval(function () { pollOnce(requestId, pollToken); }, 4000);
+    pollOnce(requestId, pollToken);
   }
 
-  function pollOnce(requestId) {
-    fetch('/api/operator/request-status/' + encodeURIComponent(requestId))
+  function pollOnce(requestId, pollToken) {
+    fetch('/api/operator/request-status/' + encodeURIComponent(requestId) + '?token=' + encodeURIComponent(pollToken || ''))
       .then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
       .then(function (resp) {
         var data = resp.data || {};
@@ -553,7 +553,7 @@ function closeOperatorModal() {
             requestForm.reset();
             if (waitingMeta) waitingMeta.textContent = 'Submitted as ' + name;
             showOnlyView('opWaitingView');
-            startPolling(data.requestId);
+            startPolling(data.requestId, data.pollToken || '');
           } else {
             reqError.textContent = data.error || 'Could not send request. Try again.';
           }
