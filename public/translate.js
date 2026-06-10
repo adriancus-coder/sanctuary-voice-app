@@ -737,27 +737,42 @@ window.addEventListener('load', async () => {
   window.setInterval(updateClock, 1000);
 });
 
-// MAINSCREEN-OFFLINE-SONG-NAV — navigare de avarie prin strofe când socket-ul e căzut.
-// Toată cântarea (blocks + allTranslations) e deja în memorie; doar comanda de schimbare
-// venea prin socket. Offline: ←/→ sau PageUp/PageDown mută strofa LOCAL. Online: tastele
-// nu fac nimic (operatorul controlează). La reconectare, song_state/joined_event
-// suprascriu starea locală → resincronizare automată.
+// MAINSCREEN-SONG-KEYS — navigare prin strofe de la tastatura proiectorului (online + offline).
+// Navigarea e LOCALĂ pe acest ecran; orice song_state de la operator suprascrie poziția locală
+// (operatorul rămâne sursa de adevăr când acționează). Offline e și singurul control (avarie).
+// Taste: ←/→, PageUp/PageDown (clicker) = secvențial · 1-9 = direct la blocul N ·
+// R = refren/chorus (ciclează) · P = pod/bridge/punte (ciclează). R/P tac fără etichete potrivite.
+function songKeysJumpToBlock(nextIndex) {
+  const ss = state.songState;
+  if (!ss || !Array.isArray(ss.blocks) || !ss.blocks.length) return;
+  const clamped = Math.max(0, Math.min(ss.blocks.length - 1, nextIndex));
+  if (clamped === (Number(ss.currentIndex) || 0)) return;
+  ss.currentIndex = clamped;
+  ss.activeBlock = ss.blocks[clamped] || null;
+  ss.translations = (Array.isArray(ss.allTranslations) ? ss.allTranslations[clamped] : null) || {};
+  renderDisplay();
+}
+function songKeysJumpToLabel(pattern) {
+  const ss = state.songState;
+  const labels = Array.isArray(ss?.blockLabels) ? ss.blockLabels : [];
+  if (!labels.length) return;
+  const matches = [];
+  labels.forEach((label, i) => { if (pattern.test(String(label || ''))) matches.push(i); });
+  if (!matches.length) return;
+  const cur = Number(ss.currentIndex) || 0;
+  const after = matches.find((i) => i > cur);   // următorul match după poziția curentă (ciclează)
+  songKeysJumpToBlock(after !== undefined ? after : matches[0]);
+}
 document.addEventListener('keydown', (e) => {
-  const back = e.key === 'ArrowLeft' || e.key === 'PageUp';
-  const fwd = e.key === 'ArrowRight' || e.key === 'PageDown';
-  if (!back && !fwd) return;
-  if (socket.connected) return;                       // doar ca avarie, offline
   const tag = (e.target && e.target.tagName) || '';
-  if (tag === 'INPUT' || tag === 'TEXTAREA') return;  // nu interfera cu tastarea
-  if (state.currentDisplayMode !== 'song') return;    // același guard ca renderer-ul (getTextToDisplay)
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;      // nu interfera cu tastarea
+  if (state.currentDisplayMode !== 'song') return;
   const ss = state.songState;
   if (!ss || !Array.isArray(ss.blocks) || !ss.blocks.length) return;
   const cur = Number(ss.currentIndex) || 0;
-  const next = Math.max(0, Math.min(ss.blocks.length - 1, cur + (fwd ? 1 : -1)));
-  if (next === cur) return;
-  e.preventDefault();
-  ss.currentIndex = next;
-  ss.activeBlock = ss.blocks[next] || null;
-  ss.translations = (Array.isArray(ss.allTranslations) ? ss.allTranslations[next] : null) || {};
-  renderDisplay();
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); songKeysJumpToBlock(cur - 1); return; }
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); songKeysJumpToBlock(cur + 1); return; }
+  if (/^[1-9]$/.test(e.key)) { e.preventDefault(); songKeysJumpToBlock(Number(e.key) - 1); return; }
+  if (e.key === 'r' || e.key === 'R') { e.preventDefault(); songKeysJumpToLabel(/refren|chorus/i); return; }
+  if (e.key === 'p' || e.key === 'P') { e.preventDefault(); songKeysJumpToLabel(/pod|bridge|punte/i); return; }
 });
