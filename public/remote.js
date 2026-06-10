@@ -971,7 +971,7 @@ async function join() {
   }
   state.eventId = eventId;
   if (!state.accessCode) {
-    state.accessCode = (prompt('Enter moderator code or PIN:') || '').trim();
+    state.accessCode = await askForCode('Enter moderator code or PIN:');
   }
   if (!state.accessCode) {
     setStatus('Missing moderator code or PIN.');
@@ -1064,13 +1064,13 @@ document.getElementById('remoteEventPicker')?.addEventListener('change', async (
 
 socket.on('connect', join);
 socket.on('disconnect', () => setStatus('Reconnecting...'));
-socket.on('join_error', ({ message }) => {
+socket.on('join_error', async ({ message }) => {
   setStatus(message || 'Cannot join remote control.');
   // FIX-WRONG-PASSWORD-RETRY — pe cod invalid, golește codul greșit stocat și re-cere imediat (nu mai rămâi blocat)
   const msg = String(message || '').toLowerCase();
   if (msg.includes('cod') && msg.includes('invalid')) {
     state.accessCode = '';   // golit: chiar dacă userul anulează prompt-ul, următorul join() va re-cere codul
-    const retry = (prompt('Wrong code. Re-enter moderator code or PIN:') || '').trim();
+    const retry = await askForCode('Wrong code. Re-enter moderator code or PIN:');
     if (retry) { state.accessCode = retry; join(); }
   }
 });

@@ -2631,7 +2631,7 @@ async function openEventById(eventId) {
   let res = await fetch(`/api/events/${eventId}${storedCode ? `?code=${encodeURIComponent(storedCode)}` : ''}`);
   let data = await res.json();
   if (data.ok && data.event && !data.event.adminCode) {
-    const suppliedCode = (prompt('Enter admin code or PIN for this event:') || '').trim();
+    const suppliedCode = await askForCode('Enter admin code or PIN for this event:');
     if (suppliedCode) {
       res = await fetch(`/api/events/${eventId}?code=${encodeURIComponent(suppliedCode)}`);
       data = await res.json();
@@ -4044,13 +4044,13 @@ socket.on('joined_event', ({ event, role }) => {
 // FIX-WRONG-PASSWORD-RETRY — adminul nu avea handler de join_error: la cod greșit, codul greșit rămânea stocat
 // și prompt-ul de parolă nu mai reapărea (trebuia refresh). Acum, pe „Cod ... invalid", golim codul greșit
 // (sessionStorage + currentEvent.adminCode) și re-cerem imediat, ca să se poată reîncerca fără refresh.
-socket.on('join_error', ({ message }) => {
+socket.on('join_error', async ({ message }) => {
   setStatus(message || 'Cannot join event control.');
   const msg = String(message || '').toLowerCase();
   if (msg.includes('cod') && msg.includes('invalid') && currentEvent && currentEvent.id) {
     try { sessionStorage.removeItem(`sanctuary_admin_code_${currentEvent.id}`); } catch (_) {}
     currentEvent.adminCode = '';
-    const retry = (prompt('Wrong admin code. Re-enter admin code or PIN:') || '').trim();
+    const retry = await askForCode('Wrong admin code. Re-enter admin code or PIN:');
     if (retry) {
       currentEvent.adminCode = retry;
       try { sessionStorage.setItem(`sanctuary_admin_code_${currentEvent.id}`, retry); } catch (_) {}
@@ -5797,7 +5797,7 @@ $('eventList').addEventListener('click', async (e) => {
     return;
   }
   if (action === 'activate') {
-    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event to activate it:') || '').trim();
+    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : await askForCode('Enter admin code or PIN for this event to activate it:');
     if (!adminCode) return;
     const res = await fetch(`/api/events/${id}/activate`, {
       method: 'POST',
@@ -5810,7 +5810,7 @@ $('eventList').addEventListener('click', async (e) => {
   }
   // WORSHIP-DRAFT-34 — admin aprobă un draft worship → devine eveniment normal (poate merge live)
   if (action === 'approve') {
-    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event to approve it:') || '').trim();
+    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : await askForCode('Enter admin code or PIN for this event to approve it:');
     if (!adminCode) return;
     // WORSHIP-DRAFT-RENAME — opțional schimb numele la aprobare (gol = păstrează numele draft)
     const newName = prompt('Nume eveniment (lasă gol ca să păstrezi numele draft):', '') || '';
@@ -5835,7 +5835,7 @@ $('eventList').addEventListener('click', async (e) => {
   }
   // WORSHIP-DRAFT-RENAME — admin schimbă numele oricărui eveniment (oricând)
   if (action === 'rename') {
-    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event:') || '').trim();
+    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : await askForCode('Enter admin code or PIN for this event:');
     if (!adminCode) return;
     const newName = (prompt('Nume nou pentru eveniment:') || '').trim();
     if (!newName) return;
@@ -5859,7 +5859,7 @@ $('eventList').addEventListener('click', async (e) => {
   // WORSHIP-RESCHEDULE-V2 — admin deschide formularul (date+time+timezone), pre-completat cu valorile curente.
   // Fix-ul de fus orar e pe partea de server (deriveScheduledFields) + clientul trimite acum un timezone real.
   if (action === 'reschedule') {
-    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : (prompt('Enter admin code or PIN for this event:') || '').trim();
+    const adminCode = currentEvent?.id === id ? currentEvent.adminCode : await askForCode('Enter admin code or PIN for this event:');
     if (!adminCode) return;
     _rescheduleEventId = id;
     _rescheduleAdminCode = adminCode;
