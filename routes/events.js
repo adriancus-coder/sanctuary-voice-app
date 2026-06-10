@@ -693,6 +693,11 @@ function registerEventRoutes(app, ctx) {
   delete db.events[req.params.id];
   speechBuffers.delete(req.params.id);
     participantPresence.delete(req.params.id);
+    // SEC-AUDIT-2026-06 C2: remove the event's audio archive so deleted events
+    // don't leave orphaned .webm files accumulating on the data disk.
+    if (AUDIO_ARCHIVE_ENABLED && typeof audioArchivePath === 'function') {
+      try { fs.unlinkSync(audioArchivePath(req.params.id)); } catch (_) { /* no archive or already gone */ }
+    }
     const orgId = orgIdSnapshot;
     if (getActiveEventIdForOrg(orgId) === req.params.id) {
       const remaining = getOrganizationEvents(orgId).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -1986,7 +1991,9 @@ function registerEventRoutes(app, ctx) {
   }
 
   function cleanupTranscribeRateLimits(now = Date.now()) {
-    if (transcribeRateLimits.size < 500) return;
+    // SEC-AUDIT-2026-06 C4: sweep earlier (was 500) so the map drains expired
+    // windows before drifting large under bursty multi-IP traffic.
+    if (transcribeRateLimits.size < 200) return;
     for (const [key, entry] of transcribeRateLimits.entries()) {
       if (now - entry.windowStart > TRANSCRIBE_RATE_LIMIT_WINDOW_MS * 2) {
         transcribeRateLimits.delete(key);
