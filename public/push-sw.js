@@ -23,8 +23,13 @@ const PARTICIPANT_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
+  // Cache each shell asset individually — cache.addAll() rejects wholesale if
+  // any single asset fails, which used to leave the cache completely empty
+  // (and the fetch fallback below returning undefined → TypeError).
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PARTICIPANT_SHELL).catch(() => {}))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(PARTICIPANT_SHELL.map((path) => cache.add(path).catch(() => {})))
+    )
   );
   self.skipWaiting();
 });
@@ -57,7 +62,16 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(req, clone)).catch(() => {});
       }
       return res;
-    }).catch(() => caches.match(req).then((hit) => hit || caches.match('/participant')))
+    }).catch(() =>
+      // ignoreSearch: /participant?event=...&preview=1 must hit the cached
+      // bare /participant shell — Cache.match compares the query string too.
+      caches.match(req, { ignoreSearch: true })
+        .then((hit) => hit || caches.match('/participant'))
+        .then((hit) => hit || new Response(
+          '<!doctype html><meta charset="utf-8"><title>Offline</title><p>You appear to be offline. Reconnect and reload to rejoin the live service.</p>',
+          { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+        ))
+    )
   );
 });
 
