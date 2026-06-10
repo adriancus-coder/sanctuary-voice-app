@@ -736,3 +736,28 @@ window.addEventListener('load', async () => {
   updateClock();
   window.setInterval(updateClock, 1000);
 });
+
+// MAINSCREEN-OFFLINE-SONG-NAV — navigare de avarie prin strofe când socket-ul e căzut.
+// Toată cântarea (blocks + allTranslations) e deja în memorie; doar comanda de schimbare
+// venea prin socket. Offline: ←/→ sau PageUp/PageDown mută strofa LOCAL. Online: tastele
+// nu fac nimic (operatorul controlează). La reconectare, song_state/joined_event
+// suprascriu starea locală → resincronizare automată.
+document.addEventListener('keydown', (e) => {
+  const back = e.key === 'ArrowLeft' || e.key === 'PageUp';
+  const fwd = e.key === 'ArrowRight' || e.key === 'PageDown';
+  if (!back && !fwd) return;
+  if (socket.connected) return;                       // doar ca avarie, offline
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;  // nu interfera cu tastarea
+  if (state.currentDisplayMode !== 'song') return;    // același guard ca renderer-ul (getTextToDisplay)
+  const ss = state.songState;
+  if (!ss || !Array.isArray(ss.blocks) || !ss.blocks.length) return;
+  const cur = Number(ss.currentIndex) || 0;
+  const next = Math.max(0, Math.min(ss.blocks.length - 1, cur + (fwd ? 1 : -1)));
+  if (next === cur) return;
+  e.preventDefault();
+  ss.currentIndex = next;
+  ss.activeBlock = ss.blocks[next] || null;
+  ss.translations = (Array.isArray(ss.allTranslations) ? ss.allTranslations[next] : null) || {};
+  renderDisplay();
+});
