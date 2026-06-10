@@ -7,6 +7,10 @@ process.on('unhandledRejection', (reason) => {
     let msg = '';
     try { msg = (reason && reason.message) ? String(reason.message) : String(reason); } catch (_) { msg = '[unstringifiable]'; }
     try { process.stderr.write('[V22.37 unhandledRejection] ' + msg.slice(0, 200) + '\n'); } catch (_) {}
+    // SEC-AUDIT-2026-06 C3: also persist to app.log (best-effort). We pass the
+    // pre-extracted string, never the Error itself, to keep the V22.37 contract
+    // of not touching .stack on a possibly-overflowed stack.
+    try { logger.error('[unhandledRejection]', msg.slice(0, 200)); } catch (_) {}
   });
 });
 process.on('uncaughtException', (err) => {
@@ -14,6 +18,7 @@ process.on('uncaughtException', (err) => {
     let msg = '';
     try { msg = (err && err.message) ? String(err.message) : String(err); } catch (_) { msg = '[unstringifiable]'; }
     try { process.stderr.write('[V22.37 uncaughtException] ' + msg.slice(0, 200) + '\n'); } catch (_) {}
+    try { logger.error('[uncaughtException]', msg.slice(0, 200)); } catch (_) {}
   });
 });
 
@@ -32,7 +37,7 @@ const QRCode = require('qrcode');
 const OpenAI = require('openai');
 const packageJson = require('./package.json');
 const { createLogger } = require('./lib/logger');
-const { createJsonDbStore } = require('./lib/db');
+const { createJsonDbStore, atomicWriteFileSync } = require('./lib/db');
 const { createTranslationService } = require('./lib/translation');
 const { installRateLimitGC } = require('./lib/rate-limit-gc');
 const { registerAdminRoutes } = require('./routes/admin');
@@ -2877,7 +2882,8 @@ function flushPersistentTranslationCache() {
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     const entries = Array.from(translationCache.entries()).slice(-TRANSLATION_CACHE_LIMIT);
-    fs.writeFileSync(TRANSLATION_CACHE_FILE, JSON.stringify(entries), 'utf8');
+    // SEC-AUDIT-2026-06 C1: atomic write so a crash can't truncate the cache file.
+    atomicWriteFileSync(TRANSLATION_CACHE_FILE, JSON.stringify(entries));
     translationCacheDirty = false;
   } catch (err) {
     logger.warn('translation cache flush failed:', err?.message || err);
@@ -5177,7 +5183,8 @@ app.post('/admin/audit-translations', (req, res) => {
       sessions: fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) : null,
       translationCache: Array.from(translationCache.entries())
     };
-    fs.writeFileSync(backupPath, JSON.stringify(backup), 'utf8');
+    // SEC-AUDIT-2026-06 C1: atomic write so a crash can't truncate the audit backup.
+    atomicWriteFileSync(backupPath, JSON.stringify(backup));
   } catch (err) {
     return res.status(500).json({ ok: false, error: `Backup failed: ${err?.message || err}`, backupPath });
   }

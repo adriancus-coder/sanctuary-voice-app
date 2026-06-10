@@ -76,6 +76,10 @@ services:
         value: internal
       - key: COMMERCIAL_MODE
         value: 1
+      # SEC-AUDIT-2026-06 C4: set NODE_ENV explicitly so the fail-closed secret
+      # guard (ADMIN_SESSION_SECRET) keys on production even if COMMERCIAL_MODE flips.
+      - key: NODE_ENV
+        value: production
 
       # ── Storage paths (DATA_DIR defaults to /var/data on Render; LOG_DIR defaults to ./logs) ─
       - key: DATA_DIR
