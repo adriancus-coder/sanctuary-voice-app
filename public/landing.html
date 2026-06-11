@@ -1,298 +1,228 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sanctuary Voice | Live AI translation for church services</title>
-  <meta name="description" content="Sanctuary Voice helps churches deliver live AI translation to participant phones and main screens during services.">
-  <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/landing.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sanctuary Voice — Live translation for church services</title>
+<meta name="description" content="Live AI captions and translation for church services — on every phone and the main screen. Nothing to install.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Albert+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/landing.css">
 </head>
-<body class="landing-body">
-  <header class="landing-nav" id="landingNav">
-    <a class="landing-brand" href="/" aria-label="Sanctuary Voice home">
-      <span class="landing-brand-mark">SV</span>
-      <span>Sanctuary Voice</span>
-    </a>
-    <nav class="landing-nav-links" id="landingNavLinks" aria-label="Primary">
-      <a href="#how-it-works">How it works</a>
-      <a href="#for-churches">For churches</a>
-      <a href="/demo-screen">Main screen view</a>
-      <a href="/demo-participant">Listener view</a>
-    </nav>
-    <button class="landing-nav-toggle" type="button" id="landingNavToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="landingNavLinks"><span></span></button>
-    <a class="landing-admin-link" href="/admin">Admin Login</a>
-  </header>
+<body>
 
-  <a id="landingNextService" class="landing-next-service" href="#join" hidden>
-    <span class="landing-next-service-label">Next service</span>
-    <span id="landingNextServiceText" class="landing-next-service-text"></span>
-    <span class="landing-next-service-cta">Get Event ID &rarr;</span>
-  </a>
+<nav class="nav">
+  <div class="nav-in">
+    <a class="brand" href="/">Sanctuary <em>Voice</em></a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#modes">Modes</a>
+      <a href="#songs">Songs</a>
+      <a href="#churches">For churches</a>
+      <a href="/admin">Admin</a>
+      <a class="btn btn-cta" href="#join">Join a service</a>
+    </div>
+  </div>
+</nav>
 
-  <main>
-    <section class="landing-hero" data-animate>
-      <div class="landing-hero-copy">
-        <h1>Live translation for the whole room, without losing the service.</h1>
-        <p>Sanctuary Voice helps churches offer real-time AI translation on participant phones, main screens, and operator controls from one simple service desk.</p>
-        <div class="landing-actions">
-          <a class="landing-primary" href="/admin">Login to Admin</a>
-          <a class="landing-secondary" href="/demo-screen">Open main screen view</a>
+<a id="landingNextService" class="landing-next-service" href="#join" hidden>
+  <span class="landing-next-service-label">Next service</span>
+  <span id="landingNextServiceText" class="landing-next-service-text"></span>
+  <span class="landing-next-service-cta">Get Event ID &rarr;</span>
+</a>
+
+<header class="hero">
+  <div class="beam beam-1" aria-hidden="true"></div>
+  <div class="beam beam-2" aria-hidden="true"></div>
+  <div class="beam beam-3" aria-hidden="true"></div>
+  <canvas id="fx" aria-hidden="true"></canvas>
+  <div class="hero-in">
+    <div>
+      <div class="eyebrow">Live AI translation for churches</div>
+      <h1>The whole room hears the same sermon.</h1>
+      <p class="lead">Sanctuary Voice turns live speech into instant captions and translations — on every phone, on the main screen, in every language your congregation speaks. Nothing to install. Built for Sunday morning pressure.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-cta" href="#churches">Bring it to your church</a>
+        <a class="btn btn-hair" href="#join">I'm at a service — join</a>
+      </div>
+      <p class="hero-note">Speech recognition streams in under a second. Translations follow one phrase behind — like a human interpreter, without the second voice in the room.</p>
+    </div>
+    <div class="phone-stage">
+      <div class="phone" id="phone" aria-label="Live demo of the participant view">
+        <div class="glare" aria-hidden="true"></div>
+        <div class="phone-bar">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span class="smallcap">Live</span>
+          <span class="smallcap phone-langs">RO → EN · NO</span>
         </div>
-      </div>
-
-      <div class="landing-hero-art" aria-hidden="true">
-        <svg viewBox="0 0 600 520" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <radialGradient id="heroGlow" cx="50%" cy="42%" r="55%">
-              <stop offset="0%" stop-color="#D4A853" stop-opacity="0.18"/>
-              <stop offset="60%" stop-color="#D4A853" stop-opacity="0.05"/>
-              <stop offset="100%" stop-color="#D4A853" stop-opacity="0"/>
-            </radialGradient>
-          </defs>
-
-          <circle cx="300" cy="220" r="240" fill="url(#heroGlow)"/>
-
-          <g class="landing-hero-rays" stroke="#D4A853" stroke-width="1.2" stroke-linecap="round" opacity="0.16">
-            <line x1="300" y1="220" x2="40"  y2="40"/>
-            <line x1="300" y1="220" x2="170" y2="10"/>
-            <line x1="300" y1="220" x2="300" y2="-10"/>
-            <line x1="300" y1="220" x2="430" y2="10"/>
-            <line x1="300" y1="220" x2="560" y2="40"/>
-            <line x1="300" y1="220" x2="595" y2="160"/>
-            <line x1="300" y1="220" x2="595" y2="280"/>
-            <line x1="300" y1="220" x2="560" y2="400"/>
-            <line x1="300" y1="220" x2="430" y2="500"/>
-            <line x1="300" y1="220" x2="300" y2="525"/>
-            <line x1="300" y1="220" x2="170" y2="500"/>
-            <line x1="300" y1="220" x2="40"  y2="400"/>
-            <line x1="300" y1="220" x2="5"   y2="280"/>
-            <line x1="300" y1="220" x2="5"   y2="160"/>
-          </g>
-
-          <g class="landing-hero-waves" fill="none" stroke="#D4A853">
-            <circle cx="300" cy="220" r="120" stroke-width="2"   opacity="0.42"/>
-            <circle cx="300" cy="220" r="170" stroke-width="1.6" opacity="0.28"/>
-            <circle cx="300" cy="220" r="220" stroke-width="1.2" opacity="0.16"/>
-            <circle cx="300" cy="220" r="270" stroke-width="0.9" opacity="0.08"/>
-          </g>
-
-          <circle cx="300" cy="220" r="6" fill="#D4A853"/>
-        </svg>
-      </div>
-    </section>
-
-    <section id="how-it-works" class="landing-section" data-animate>
-      <div class="landing-section-head">
-        <h2>Built for Sunday morning pressure.</h2>
-        <p>One operator can start the live service, show translated text, send songs, and keep participants connected.</p>
-      </div>
-      <div class="landing-steps">
-        <article>
-          <span>1</span>
-          <h3>Create or open a service</h3>
-          <p>Choose the spoken language and the target languages people need.</p>
-        </article>
-        <article>
-          <span>2</span>
-          <h3>Share one permanent QR</h3>
-          <p>Participants scan once and choose the live service when it starts.</p>
-        </article>
-        <article>
-          <span>3</span>
-          <h3>Control the room</h3>
-          <p>Switch between live speech, songs, pinned text, and main-screen modes.</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="features" class="landing-section landing-features" data-animate>
-      <div class="landing-section-head">
-        <h2>Everything in one panel.</h2>
-        <p>The same admin desk runs live transcription, translation, songs, the main screen, operator roles, and the participant view — without juggling apps.</p>
-      </div>
-      <div class="landing-feature-grid">
-        <article>
-          <h3>Live transcription</h3>
-          <p>Speech from the operator mic flows through OpenAI Whisper or Azure Speech and lands on phones in a few seconds.</p>
-        </article>
-        <article>
-          <h3>AI translation</h3>
-          <p>Every line is rendered into each target language; refrains and repeated phrases come back instantly from cache.</p>
-        </article>
-        <article>
-          <h3>Single &amp; dual main screen</h3>
-          <p>Project one language full-width or two side by side, with size presets that read clearly across the sanctuary.</p>
-        </article>
-        <article>
-          <h3>Song workflow</h3>
-          <p>Save lyrics in a shared church library, jump between verses and choruses, repeat the refrain with a single <code>R:</code> line.</p>
-        </article>
-        <article>
-          <h3>Pinned text &amp; black screen</h3>
-          <p>One click to show a fixed announcement, a pinned Bible verse, or an instant black screen — without breaking participant translations.</p>
-        </article>
-        <article>
-          <h3>Operator roles &amp; access requests</h3>
-          <p>Sign in with a PIN or request access from the front page; the admin grants Full, Main Screen only, or Song only and you drop onto the live event.</p>
-        </article>
-        <article>
-          <h3>Permanent participant QR</h3>
-          <p>Print one QR for the whole year. People scan it once and pick the live service from a clean chooser.</p>
-        </article>
-        <article>
-          <h3>Scheduled services &amp; countdown</h3>
-          <p>Set date, time and timezone when you create a service. Visitors and the projector show a live countdown until you go on the air.</p>
-        </article>
-        <article>
-          <h3>Glossary &amp; source corrections</h3>
-          <p>Lock in how Bible names, places and church-specific terms are translated — per language and per event.</p>
-        </article>
-        <article>
-          <h3>Reliability &amp; privacy</h3>
-          <p>Built-in self-test covers database, sockets, OpenAI, Azure, web push and transcribe latency. Daily backups, graceful shutdown, and codes hidden by default with an eye toggle.</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="for-churches" class="landing-proof" data-animate>
-      <div>
-        <h2>Designed for multilingual churches.</h2>
-        <p>Sanctuary Voice is made for services where people need help following the message, the songs, and the flow of the room in their own language.</p>
-      </div>
-      <div class="landing-proof-list">
-        <div>Permanent participant QR</div>
-        <div>Protected Admin access</div>
-        <div>Song and church library workflow</div>
-        <div>Main screen and phone views</div>
-      </div>
-    </section>
-
-    <section class="landing-roles" data-animate>
-      <div class="landing-operator-card">
-        <div>
-          <div class="landing-operator-eyebrow">Operator desk</div>
-          <strong>On-Air</strong>
-          <p>Song, pinned text, live speech, and screen control — all from one panel that signs you in and drops you onto the live service.</p>
+        <div class="phone-body">
+          <div class="src-line" id="srcLine"><span class="caret"></span></div>
+          <div class="tr-line" id="trEn"><span class="tag">EN</span><span class="tr-text" id="trEnText"></span></div>
+          <div class="tr-line" id="trNo"><span class="tag">NO</span><span class="tr-text" id="trNoText"></span></div>
         </div>
-        <button class="landing-preview-cta" type="button" id="operatorLoginBtn">Operator Login</button>
-      </div>
-
-      <div class="landing-listener-card" id="join">
-        <div>
-          <div class="landing-operator-eyebrow">Listener</div>
-          <strong>Join the service</strong>
-          <p>Already have the service ID? Type it here and follow the live translation in your language.</p>
-        </div>
-        <form class="landing-listener-form" id="listenerJoinForm" novalidate>
-          <label class="landing-listener-label" for="listenerEventId">Event ID</label>
-          <input id="listenerEventId" type="text" placeholder="e.g. K3PR9XJM" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text" maxlength="64">
-          <button type="submit" class="landing-preview-cta">Join &rarr;</button>
-          <div id="listenerJoinError" class="landing-listener-error" role="alert"></div>
-        </form>
-      </div>
-    </section>
-
-    <section class="landing-languages" data-animate>
-      <h3>Translate into the languages your church needs.</h3>
-      <div class="landing-language-pills">
-        <span class="landing-language-pill">Norwegian</span>
-        <span class="landing-language-pill">English</span>
-        <span class="landing-language-pill">Romanian</span>
-        <span class="landing-language-pill">Russian</span>
-        <span class="landing-language-pill">Ukrainian</span>
-        <span class="landing-language-pill">Spanish</span>
-        <span class="landing-language-pill">French</span>
-        <span class="landing-language-pill">German</span>
-        <span class="landing-language-pill">Italian</span>
-        <span class="landing-language-pill">Portuguese</span>
-        <span class="landing-language-pill">Polish</span>
-        <span class="landing-language-pill">Turkish</span>
-        <span class="landing-language-pill">Arabic</span>
-        <span class="landing-language-pill">Persian</span>
-        <span class="landing-language-pill">Hungarian</span>
-        <span class="landing-language-pill">Greek</span>
-      </div>
-      <a class="landing-more-langs" href="mailto:contact@sanctuaryvoice.com?subject=Additional%20language%20request">More languages available on request</a>
-    </section>
-
-    <section class="landing-note" data-animate>
-      <p>AI translation can contain mistakes or interpretation differences. Sanctuary Voice is a support tool, not a replacement for careful teaching, Scripture, or human review.</p>
-    </section>
-  </main>
-
-  <footer class="landing-footer">
-    <div>Sanctuary Voice &middot; Live translation for church services</div>
-  </footer>
-
-  <div id="opModal" class="op-modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="opModalTitle">
-    <div class="op-modal">
-      <div class="op-modal-header">
-        <h2 id="opModalTitle">Operator Login</h2>
-        <button class="op-modal-close" type="button" id="opModalClose" aria-label="Close">&times;</button>
-      </div>
-      <div id="opLoginView">
-        <p class="op-modal-desc">Enter your operator PIN to open the operator dashboard.</p>
-        <form id="opLoginForm" novalidate>
-          <div class="op-modal-field">
-            <label for="opPin">Operator PIN</label>
-            <input id="opPin" type="password" placeholder="Enter your PIN" autocomplete="current-password">
-          </div>
-          <div id="opLoginError" class="op-modal-error" role="alert"></div>
-          <div class="op-modal-actions">
-            <button type="button" class="op-modal-cancel" id="opModalCancelBtn">Cancel</button>
-            <button type="submit" class="btn btn-primary">Connect</button>
-          </div>
-        </form>
-        <div class="op-modal-footer">
-          <button type="button" class="op-modal-link" id="opShowRequestBtn">Don't have a PIN? Request access</button>
-        </div>
-      </div>
-
-      <div id="opRequestView" hidden>
-        <p class="op-modal-desc">Tell the admin who you are. When they approve, you'll be signed in automatically.</p>
-        <form id="opRequestForm" novalidate>
-          <div class="op-modal-field">
-            <label for="opReqName">Your name</label>
-            <input id="opReqName" type="text" placeholder="John Doe" autocomplete="name" maxlength="80">
-          </div>
-          <div class="op-modal-field">
-            <label for="opReqContact">Phone or email <span class="op-field-optional">(optional)</span></label>
-            <input id="opReqContact" type="text" placeholder="+47 ... or you@church.org" autocomplete="off" maxlength="200">
-          </div>
-          <div id="opRequestError" class="op-modal-error" role="alert"></div>
-          <div class="op-modal-actions">
-            <button type="button" class="op-modal-cancel" id="opRequestBackBtn">Back</button>
-            <button type="submit" class="btn btn-primary" id="opRequestSubmitBtn">Send request</button>
-          </div>
-        </form>
-      </div>
-
-      <div id="opWaitingView" hidden>
-        <div class="op-waiting-stage">
-          <div class="op-waiting-spinner" aria-hidden="true"></div>
-          <h3 class="op-waiting-title">Waiting for admin approval&hellip;</h3>
-          <p class="op-waiting-desc">Stay on this page. You'll be signed in automatically as soon as the admin grants access.</p>
-          <div id="opWaitingMeta" class="op-waiting-meta"></div>
-          <div id="opWaitingError" class="op-modal-error" role="alert"></div>
-          <div class="op-modal-actions">
-            <button type="button" class="op-modal-cancel" id="opWaitingCancelBtn">Cancel</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="opDeniedView" hidden>
-        <div class="op-waiting-stage">
-          <h3 class="op-waiting-title op-denied-title">Access denied</h3>
-          <p class="op-waiting-desc">The admin denied your request. Reach out to them directly if you need access.</p>
-          <div class="op-modal-actions">
-            <button type="button" class="btn btn-primary" id="opDeniedCloseBtn">Close</button>
-          </div>
-        </div>
+        <div class="phone-foot">Participant view · joins by QR or code · no app needed</div>
       </div>
     </div>
   </div>
+</header>
 
-<script src="/landing.js"></script>
+<div class="facts">
+  <div class="facts-in">
+    <div class="fact"><span class="idx">01</span><span><b>Under a second</b> from voice to caption, streaming continuously.</span></div>
+    <div class="fact"><span class="idx">02</span><span><b>Four speaking modes</b> — including Interpret, for fast preachers.</span></div>
+    <div class="fact"><span class="idx">03</span><span><b>Keeps going</b> when the Wi-Fi doesn't. Songs stay navigable offline.</span></div>
+  </div>
+</div>
+
+<section class="light section" id="how">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="eyebrow">Order of service</div>
+      <h2>Built for Sunday morning pressure.</h2>
+      <p class="sub">No rehearsal needed. If your team can open a webpage, they can run live translation.</p>
+    </div>
+    <div class="order">
+      <div class="order-row" data-reveal>
+        <div class="order-time">09:52</div>
+        <h3>Open the service</h3>
+        <p>Create it once or reuse last week's. Pick the source language and the languages your room needs.</p>
+      </div>
+      <div class="order-row" data-reveal>
+        <div class="order-time">09:55</div>
+        <h3>Share one permanent QR</h3>
+        <p>The same code, every week — print it on the door, drop it on the screen. Visitors scan and they're in.</p>
+      </div>
+      <div class="order-row" data-reveal>
+        <div class="order-time">10:00</div>
+        <h3>Just speak</h3>
+        <p>Captions stream to every phone and the main screen. The operator keeps control of songs, pinned text and the room.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="light section sect-tight" id="features">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="eyebrow">Everything in one panel</div>
+      <h2>The whole service, not just the sermon.</h2>
+    </div>
+    <div class="features-grid">
+      <div class="fcard" data-reveal><h3>Live captions &amp; translation</h3><p>Streaming speech recognition with AI translation tuned for natural, spoken language — not word-for-word output.</p></div>
+      <div class="fcard" data-reveal><h3>Church glossary</h3><p>Names, places and theological terms translated your way, every time. Correct the source once, it sticks.</p></div>
+      <div class="fcard" data-reveal><h3>Songs that follow the leader</h3><p>A song library with verse and chorus structure. Push lyrics to the main screen and every phone in sync.</p></div>
+      <div class="fcard" data-reveal><h3>Main screen, single or dual</h3><p>Projector view with themes, font fitting, pinned text and black screen — controllable from a phone.</p></div>
+      <div class="fcard" data-reveal><h3>Operator roles</h3><p>Give your tech team exactly the controls they need. Access requests, codes and sessions stay server-side.</p></div>
+      <div class="fcard" data-reveal><h3>Fails gracefully</h3><p>Connection drops? Screens keep the last words, songs stay navigable from the projector keyboard, and everything resyncs on its own.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="modes section" id="modes">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="eyebrow">Tuned to the speaker</div>
+      <h2>Four ways to translate, one tap apart.</h2>
+      <p class="sub">Every preacher is different. Pick the mode that matches the moment — switch any time.</p>
+    </div>
+    <div data-reveal>
+      <div class="mode-chips" role="tablist" aria-label="Translation modes">
+        <button class="chip on" data-mode="rapid" role="tab" aria-selected="true">Rapid</button>
+        <button class="chip" data-mode="balanced" role="tab" aria-selected="false">Balanced</button>
+        <button class="chip" data-mode="clear" role="tab" aria-selected="false">Clear</button>
+        <button class="chip" data-mode="interpret" role="tab" aria-selected="false">Interpret</button>
+      </div>
+      <div class="mode-panel">
+        <div class="mode-col">
+          <span class="smallcap">Speaker · Romanian</span>
+          <p class="mode-src">„Și vreau să înțelegeți, dragii mei, că atitudinea noastră față de valorile materiale ne descoperă cel mai sincer."</p>
+        </div>
+        <div class="mode-col">
+          <span class="smallcap">Room reads · English</span>
+          <p class="mode-out" id="modeOut">And I want you to understand, dear ones, that our attitude toward material values reveals us most honestly.</p>
+        </div>
+        <p class="mode-desc" id="modeDesc">Minimal latency, short phrases. For fast conversation and Q&amp;A.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="light section" id="songs">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="eyebrow">Worship, included</div>
+      <h2>Songs speak the structure of worship.</h2>
+    </div>
+    <div class="song-grid">
+      <div class="song-sheet" data-reveal>
+        <span class="label">[Verse 1]</span><br>
+        Amazing grace, how sweet the sound<br>
+        That saved a wretch like me<br>
+        <span class="label">[Refren]</span><br>
+        Praise the Lord, praise the Lord<br>
+        Let the earth hear His voice<br>
+        <span class="label">[Pod]</span><br>
+        My chains are gone, I've been set free
+        <div class="keys" aria-label="Projector keyboard shortcuts">
+          <span class="kbd">1–9</span><span class="kbd">R</span><span class="kbd">P</span><span class="kbd">←</span><span class="kbd">→</span><span class="kbd">PgUp/PgDn</span>
+        </div>
+      </div>
+      <div class="song-copy" data-reveal>
+        <h3>Label once, jump forever</h3>
+        <p>Mark verses, chorus and bridge right in the lyrics. The projector keyboard jumps straight to them — press R for the chorus, numbers for verses.</p>
+        <h3>Translated side by side</h3>
+        <p>Lyrics and their translations travel together, so the screen and every phone show the song in the languages of the room.</p>
+        <h3>Works with a clicker</h3>
+        <p>PageUp / PageDown from any presentation remote steps through the song — online, and even if the internet drops mid-chorus.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="join section" id="join">
+  <div class="join-in" data-reveal>
+    <div class="eyebrow eyebrow-center">At a service right now?</div>
+    <h2>Join in two taps.</h2>
+    <p>Scan the QR at the door — or type the service code from the screen.</p>
+    <form class="join-form" id="joinForm">
+      <input class="join-input" id="joinCode" placeholder="SERVICE CODE" maxlength="24" autocomplete="off" aria-label="Service code">
+      <button class="btn btn-cta" type="submit">Join</button>
+    </form>
+    <p class="join-note">No account, no install. Pick your language and read along.</p>
+  </div>
+</section>
+
+<section class="churches section" id="churches">
+  <div class="wrap churches-in">
+    <div data-reveal>
+      <div class="eyebrow">For churches</div>
+      <h2 class="churches-h2">One service. Every language in the room.</h2>
+      <p class="sub">Sanctuary Voice runs in the browser on the hardware you already own — a laptop, a projector, and the phones already in everyone's pocket.</p>
+      <ul class="checks">
+        <li>Nothing to install for listeners — QR in, language picked, done.</li>
+        <li>One permanent QR per church. Print it once.</li>
+        <li>Operator roles and masked access codes — security stays on the server.</li>
+        <li>Streaming recognition under a second; translations one phrase behind.</li>
+      </ul>
+    </div>
+    <div class="card" data-reveal>
+      <h3>Bring Sanctuary Voice to your church</h3>
+      <p>Set up your first service in minutes and run it this Sunday.</p>
+      <a class="btn btn-cta btn-full" href="/admin">Get started</a>
+      <p class="card-sub">Already set up? <a class="card-link" href="/admin">Admin login</a></p>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-in">
+    <span>Sanctuary <em class="brand-em">Voice</em> — live translation for church services.</span>
+    <span><a href="/demo-screen">Main screen demo</a> · <a href="/demo-participant">Listener demo</a> · <a href="/admin">Admin</a></span>
+  </div>
+</footer>
+
+<script src="/landing.js" defer></script>
 </body>
 </html>
