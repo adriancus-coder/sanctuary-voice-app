@@ -108,6 +108,8 @@ let partialRenderPending = false;     // un render e deja programat
 let partialLastRenderMs = 0;          // când am randat ultima dată
 let partialLatestText = '';           // ultimul text primit (sursă de adevăr pt render)
 const PARTIAL_RENDER_INTERVAL_MS = 100;   // ~10 update-uri/secundă
+let partialDotsTimer = null;                 // ADMIN-PARTIAL-CLEAR-GRACE
+const PARTIAL_CLEAR_GRACE_MS = 1500;         // cât păstrăm ultimul text înainte de punctele de ascultare
 
 function renderPartialNow() {
   partialRenderPending = false;
@@ -138,14 +140,27 @@ function schedulePartialRender(immediate = false) {
 }
 
 function setPartialTranscript(text = '', immediate = false) {
-  // record (ieftin) — istoricul + ultimul text se actualizează MEREU
+  // record (ieftin) — istoricul se actualizează la fiecare text nevid (neschimbat)
   if (text && text.trim() && text.trim() !== lastPartialCaptured) {
     window.partialTranscriptHistory.push({ timestamp: new Date().toISOString(), text: text.trim() });
     lastPartialCaptured = text.trim();
     if (window.partialTranscriptHistory.length > 1000) window.partialTranscriptHistory.shift();
   }
-  partialLatestText = text || '';
-  // render throttle-uit (sau imediat pt final)
+  if (!text) {
+    // ADMIN-PARTIAL-CLEAR-GRACE — pauză: nu sări la puncte imediat; păstrează ultimul text
+    // încă PARTIAL_CLEAR_GRACE_MS. Dacă vine un partial nou între timp, textul curge fără flash.
+    if (!partialDotsTimer) {
+      partialDotsTimer = setTimeout(() => {
+        partialDotsTimer = null;
+        partialLatestText = '';
+        schedulePartialRender(true);   // punctele apar abia acum (tăcere reală)
+      }, PARTIAL_CLEAR_GRACE_MS);
+    }
+    return;
+  }
+  // text nou: anulează grația în curs și curge normal
+  if (partialDotsTimer) { clearTimeout(partialDotsTimer); partialDotsTimer = null; }
+  partialLatestText = text;
   schedulePartialRender(immediate);
 }
 
