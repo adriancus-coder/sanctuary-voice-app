@@ -606,7 +606,7 @@ socket.on('transcription_state', ({ paused }) => {
   renderDisplay();
 });
 
-socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, secondaryLanguage, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, textScale, screenStyle, displayResolution, manualTranslations, manualSourceLang, explicit }) => {
+socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, secondaryLanguage, backgroundPreset, customBackground, showClock, clockPosition, clockScale, textSize, textScale, screenStyle, displayResolution, manualTranslations, manualSourceLang }) => {
   if (state.currentEvent) {
     state.currentEvent.displayState = {
       ...(state.currentEvent.displayState || {}),
@@ -629,12 +629,6 @@ socket.on('display_mode_changed', ({ mode, blackScreen, theme, language, seconda
   }
   state.currentDisplayMode = mode || 'auto';
   state.blackScreen = !!blackScreen;
-  // MAINSCREEN-NEVER-AUTO-LIVE — main screen nu intră automat pe live text.
-  // 'auto' (live) e permis DOAR când comanda e explicită (butonul „Live follow" → ruta /display/mode,
-  // care trimite explicit:true). Orice alt 'auto' (din orice cale automată) → black screen, nu live text.
-  if ((mode || 'auto') === 'auto' && !explicit) {
-    state.blackScreen = true;
-  }
   state.currentTheme = theme || state.currentTheme || 'dark';
   state.currentLanguage = language || state.currentLanguage;
   state.secondaryLanguage = secondaryLanguage || '';

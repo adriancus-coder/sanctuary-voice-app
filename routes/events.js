@@ -554,15 +554,10 @@ function registerEventRoutes(app, ctx) {
     if (mode === 'live' && !participantOnly) {
       rememberDisplayState(event);
       setTranscriptionPaused(event, false, { save: false, emit: false });
-      event.displayState.mode = 'auto';
-      event.displayState.blackScreen = false;
-      event.displayState.sceneLabel = '';
-      event.displayState.updatedAt = new Date().toISOString();
     }
     saveDb();
     io.to(`event:${event.id}`).emit('mode_changed', { mode });
     if (mode === 'live' && !participantOnly) {
-      io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
       emitTranscriptionState(event);
     }
     res.json({ ok: true, event: normalizeEventForAccess(req, event) });
@@ -1237,7 +1232,7 @@ function registerEventRoutes(app, ctx) {
     recordScreenAction(event, 'display');
     saveDb();
 
-    io.to(`event:${event.id}`).emit('display_mode_changed', { ...buildDisplayPayload(event), explicit: true });
+    io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
     emitUsageStats(event.id);
 
     res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEventForAccess(req, event) });
