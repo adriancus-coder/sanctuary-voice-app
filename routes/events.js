@@ -1237,7 +1237,7 @@ function registerEventRoutes(app, ctx) {
     recordScreenAction(event, 'display');
     saveDb();
 
-    io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
+    io.to(`event:${event.id}`).emit('display_mode_changed', { ...buildDisplayPayload(event), explicit: true });
     emitUsageStats(event.id);
 
     res.json({ ok: true, displayState: event.displayState, previousState: event.displayStatePrevious || null, event: normalizeEventForAccess(req, event) });
