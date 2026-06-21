@@ -727,12 +727,10 @@ function registerSocketHandlers(io, ctx) {
       ensureEventUiState(event);
       setTranscriptionPaused(event, false, { save: false, emit: false, markOnAir: true });
       event.latestDisplayEntry = null;
-      event.displayState.mode = 'auto';
-      event.displayState.blackScreen = false;
-      event.displayState.sceneLabel = '';
+      // UNLINK-AZURE-FROM-MAINSCREEN — la fel ca fix-ul din /mode: pornirea Azure NU mai atinge
+      // ecranul principal (rămâne pe cântec/black). Proiectorul se schimbă DOAR prin /display/mode.
       saveDb();
       io.to(`event:${event.id}`).emit('mode_changed', { mode: 'live' });
-      io.to(`event:${event.id}`).emit('display_mode_changed', buildDisplayPayload(event));
       emitTranscriptionState(event);
       startAzureSpeechSession(socket, event).catch((err) => {
         socket.emit('server_error', { provider: 'azure_sdk', code: 'azure_start_failed',
