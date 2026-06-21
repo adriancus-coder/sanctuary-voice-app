@@ -486,6 +486,21 @@ function normalizeForSearch(str) {
     .trim();
 }
 
+// SEARCH-ELISION — în titluri eliziunea înghite un „î"/„i" inițial (ex. „Dacă-ntr-o" = „Dacă într-o").
+// Generează variante de-elizate ca titlul să fie găsit și dacă scrii cuvântul întreg.
+// Ancorat pe cratimă/apostrof urmat de CONSOANĂ → NU afectează cuvinte normale („Isus" NU devine „sus").
+function elisionVariants(raw) {
+  if (!raw) return '';
+  const out = [];
+  const re = /[-'’ʼ]([\p{L}]+)/gu;
+  let mm;
+  while ((mm = re.exec(String(raw))) !== null) {
+    const fragN = normalizeForSearch(mm[1]);
+    if (fragN && 'bcdfghjklmnpqrstvwxyz'.includes(fragN[0])) out.push('i' + fragN);
+  }
+  return out.join(' ');
+}
+
 // V18.1: Check if imported song matches existing library entry (by normalized title)
 // Returns the matching item from currentGlobalSongLibrary, or null.
 function findDuplicateLibrarySong(title) {
@@ -510,7 +525,7 @@ function filterAndSortLibrary(items = [], searchId, sortId) {
       if (!query) return true;
       // SEARCH-TOKEN-AND-TITLE — titlul se potrivește dacă TOATE cuvintele din query apar
       // în el, în orice ordine (nu mai cere potrivire exactă/contiguă).
-      const titleN = normalizeForSearch(item.title);
+      const titleN = normalizeForSearch(item.title) + ' ' + elisionVariants(item.title);
       const titleHit = query.split(' ').filter(Boolean).every((t) => titleN.includes(t));
       // textul (toate strofele) rămâne pe frază întreagă — evită inundarea cu cuvinte comune.
       const textHit = normalizeForSearch(item.text).includes(query);

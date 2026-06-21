@@ -208,6 +208,21 @@
       .trim();
   }
 
+  // SEARCH-ELISION — în titluri eliziunea înghite un „î"/„i" inițial (ex. „Dacă-ntr-o" = „Dacă într-o").
+  // Generează variante de-elizate ca titlul să fie găsit și dacă scrii cuvântul întreg.
+  // Ancorat pe cratimă/apostrof urmat de CONSOANĂ → NU afectează cuvinte normale („Isus" NU devine „sus").
+  function elisionVariants(raw) {
+    if (!raw) return '';
+    const out = [];
+    const re = /[-'’ʼ]([\p{L}]+)/gu;
+    let mm;
+    while ((mm = re.exec(String(raw))) !== null) {
+      const fragN = normalizeForSearch(mm[1]);
+      if (fragN && 'bcdfghjklmnpqrstvwxyz'.includes(fragN[0])) out.push('i' + fragN);
+    }
+    return out.join(' ');
+  }
+
   function formatDate(value) {
     const ts = typeof value === 'number' ? value : Date.parse(value);
     if (!Number.isFinite(ts)) return '';
@@ -721,7 +736,7 @@
     const filtered = normalized
       ? libraryItems.filter((item) => {
           // SEARCH-TOKEN-AND-TITLE — la fel ca în admin/remote.
-          const titleN = normalizeForSearch(item.title || '');
+          const titleN = normalizeForSearch(item.title || '') + ' ' + elisionVariants(item.title || '');
           const titleHit = normalized.split(' ').filter(Boolean).every((t) => titleN.includes(t));
           const textHit = normalizeForSearch(item.text || '').includes(normalized);
           return titleHit || textHit;
