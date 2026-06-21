@@ -271,8 +271,13 @@ function filterAndSortRemoteList(items, searchId, sortId) {
   return (Array.isArray(items) ? items : [])
     .filter((item) => {
       if (!query) return true;
-      return normalizeForSearch(item.title).includes(query)
-        || normalizeForSearch(item.text).includes(query);
+      // SEARCH-TOKEN-AND-TITLE — titlul se potrivește dacă TOATE cuvintele din query apar
+      // în el, în orice ordine (nu mai cere potrivire exactă/contiguă).
+      const titleN = normalizeForSearch(item.title);
+      const titleHit = query.split(' ').filter(Boolean).every((t) => titleN.includes(t));
+      // textul (toate strofele) rămâne pe frază întreagă — evită inundarea cu cuvinte comune.
+      const textHit = normalizeForSearch(item.text).includes(query);
+      return titleHit || textHit;
     })
     .sort((a, b) => {
       if (sortMode === 'recent') {

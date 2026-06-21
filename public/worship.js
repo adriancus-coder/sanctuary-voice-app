@@ -719,9 +719,13 @@
     const list = $('globalSongLibraryList');
     const normalized = normalizeForSearch(filter || '');
     const filtered = normalized
-      ? libraryItems.filter((item) =>
-          normalizeForSearch(item.title || '').includes(normalized) ||
-          normalizeForSearch(item.text || '').includes(normalized))
+      ? libraryItems.filter((item) => {
+          // SEARCH-TOKEN-AND-TITLE — la fel ca în admin/remote.
+          const titleN = normalizeForSearch(item.title || '');
+          const titleHit = normalized.split(' ').filter(Boolean).every((t) => titleN.includes(t));
+          const textHit = normalizeForSearch(item.text || '').includes(normalized);
+          return titleHit || textHit;
+        })
       : libraryItems;
 
     if (!filtered.length) {
