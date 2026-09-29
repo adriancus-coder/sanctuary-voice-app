@@ -8427,3 +8427,27 @@ body.shell-locked {
     display: none;
   }
 }
+
+/* ============================================================
+   SV-LIST-PANES — long lists scroll inside their own pane
+   (bounded height + contained overscroll) instead of growing
+   the page. Applied to containers marked data-list-pane.
+   ============================================================ */
+.list-pane {
+  max-height: var(--list-pane-max, 56vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-top: 2.5rem;
+}
+.list-pane:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+.list-pane .pane-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+}

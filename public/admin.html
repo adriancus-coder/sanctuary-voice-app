@@ -355,7 +355,7 @@
               <button id="jumpLiveBtn" class="btn btn-dark" type="button" data-i18n="btn.jumpLive">Jump to latest</button>
             </div>
           </div>
-          <div id="transcriptList" class="transcript-list"></div>
+          <div id="transcriptList" class="transcript-list" data-list-pane="Transcript"></div>
         </div>
       </section>
 
@@ -444,7 +444,7 @@
             <h2 data-i18n="lib.title">Event Library</h2>
             <button id="refreshEventsBtn" class="btn btn-dark" data-i18n="btn.refreshEvents">Refresh</button>
           </div>
-          <div id="eventList" class="event-list"></div>
+          <div id="eventList" class="event-list" data-list-pane="Listă evenimente"></div>
         </div>
       </section>
 
@@ -821,7 +821,7 @@
               <div class="unified-search">
                 <div class="unified-search-library-section">
                   <div data-i18n="song.fromLibrary" class="unified-search-section-label">Din Library</div>
-                  <div id="globalSongLibraryList" class="event-list unified-search-library-results"></div>
+                  <div id="globalSongLibraryList" class="event-list unified-search-library-results" data-list-pane="Bibliotecă cântări"></div>
                 </div>
                 <div class="unified-search-resurse-section hidden">
                   <div class="unified-search-section-label">De pe Resurse <span class="unified-search-spinner hidden">⏳</span></div>
@@ -929,7 +929,7 @@
                 <option value="recent">Recent first</option>
               </select>
             </div>
-            <div id="manualLibraryList" class="event-list"></div>
+            <div id="manualLibraryList" class="event-list" data-list-pane="Bibliotecă text"></div>
           </div>
         </div>
       </section>
@@ -1039,7 +1039,7 @@
             </div>
             <button id="auditLogRefreshBtn" class="btn btn-dark" type="button" data-i18n="btn.auditRefresh">Refresh</button>
           </div>
-          <div id="auditLogList" class="history-list">
+          <div id="auditLogList" class="history-list" data-list-pane="Jurnal audit">
             <div class="muted">Open the tab to load.</div>
           </div>
         </div>
@@ -1143,6 +1143,7 @@
   <script src="/admin-i18n.js"></script>
   <script src="/code-prompt.js"></script>
   <script src="/app.js"></script>
+  <script src="/list-pane.js"></script>
   <script src="/shell.js"></script>
 </body>
 </html>
