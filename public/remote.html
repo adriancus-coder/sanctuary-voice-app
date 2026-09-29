@@ -16,7 +16,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Operator">
 </head>
-<body>
+<body data-shell="exit" data-shell-exit="/">
   <div class="participant-shell remote-shell">
     <!-- V21.17-FIX: hero + thin header bar merged into one card. Event name
          appears once (remoteEventName). The old `remoteHeaderEventName` was
@@ -355,5 +355,6 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/code-prompt.js"></script>
   <script src="/remote.js"></script>
+  <script src="/shell.js"></script>
 </body>
 </html>

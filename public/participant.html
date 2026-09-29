@@ -18,7 +18,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Sanctuary">
 </head>
-<body>
+<body data-shell="exit" data-shell-exit="/">
   <div class="participant-shell participant-shell-v3 participant-listener-stage">
     <button id="participantExitFocusBtn" class="participant-exit-focus-btn" type="button" aria-label="Exit focus mode">Exit focus</button>
     <header class="participant-listener-top">
@@ -124,5 +124,6 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/participant.js"></script>
+  <script src="/shell.js"></script>
 </body>
 </html>
