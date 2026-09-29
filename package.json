@@ -3,6 +3,9 @@
   "version": "13.0.1-beta-user-v2-live-unified",
   "private": true,
   "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server.js",
     "check": "node scripts/check-syntax.js",
