@@ -1,33 +1,114 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap');
 
 :root {
-  --bg: #050608;
-  --bg-soft: #0b0d12;
-  --bg-deep: #11161d;
-  --panel: rgba(14, 16, 21, 0.82);
-  --panel-strong: rgba(18, 20, 26, 0.92);
-  --panel-dark: rgba(7, 9, 13, 0.9);
-  --line: rgba(255, 241, 214, 0.12);
-  --line-strong: rgba(255, 241, 214, 0.22);
-  --text: #f6f0e6;
-  --muted: rgba(228, 219, 204, 0.7);
-  --muted-strong: rgba(245, 235, 219, 0.88);
-  --teal: #1f8f85;
-  --teal-strong: #17695f;
-  --gold: #d8b06a;
-  --gold-strong: #f0d49d;
-  --wine: #8d6a52;
+  /* SV-TOKENS-THEME — worship-app canonical palette (dark, the default). Every
+     app colour flows through these; :root[data-theme="light"] below redefines
+     them. WCAG AA is enforced by scripts/check-contrast.js. The projector page
+     (/translate) and worship-view keep their own display-theme-* classes. */
+  --background: #141318;
+  --surface: #1e1c23;
+  --surface-2: #26232c;
+  --border: #34313c;
+  --text: #f3efe8;
+  --text-muted: #a9a3b3;
+  --accent-fill: #e8a33d;
+  --on-accent: #141318;
+  --accent-text: #e8a33d;
+  --accent-soft: #3a2d18;
+  --focus: #e8a33d;
+  --success: #8fd19e;
+  --warning: #f5c26b;
+  --error: #ff8a7a;
+  --chord: #e8a33d;
+  --worship: #6cb4ff;
+  --live-fill: #c62828;
+  --on-live: #ffffff;
+  --danger-fill: #b3261e;
+  --on-danger: #ffffff;
+  --type-song: #e8a33d;
+  --type-verse: #7cb7ff;
+  --type-video: #d19bff;
+  --type-announcement: #5fd3c4;
+  --type-sermon: #8fd19e;
+  --type-other: #b8b0c4;
+  --projector-bg: #000000;
+  --projector-text: #ffffff;
+
+  /* Legacy SV token names, remapped onto the palette above so existing rules
+     restyle without a repo-wide edit. */
+  --bg: #141318;
+  --bg-soft: #1e1c23;
+  --bg-deep: #26232c;
+  --panel: rgba(30, 28, 35, 0.82);
+  --panel-strong: rgba(38, 35, 44, 0.92);
+  --panel-dark: rgba(20, 19, 24, 0.9);
+  --line: #34313c;
+  --line-strong: #45414e;
+  --muted: #a9a3b3;
+  --muted-strong: #cfc9d6;
+  --teal: #4bbfb2;
+  --teal-strong: #2f8f85;
+  --gold: #e8a33d;
+  --gold-strong: #f0c07a;
+  --wine: #b8907a;
   --danger: #d95a16;
-  --success: #2b8a5b;
   --shadow-xl: 0 34px 90px rgba(0, 0, 0, 0.42);
   --shadow-lg: 0 22px 54px rgba(0, 0, 0, 0.34);
   --radius-xl: 30px;
   --radius-lg: 22px;
   --radius-md: 16px;
   --radius-sm: 12px;
-  --lux-gold: rgba(216, 176, 106, 0.26);
-  --lux-teal: rgba(31, 143, 133, 0.18);
+  --lux-gold: rgba(232, 163, 61, 0.26);
+  --lux-teal: rgba(75, 191, 178, 0.18);
   --lux-white: rgba(255, 247, 232, 0.18);
+  color-scheme: dark;
+}
+
+/* Light theme (SV-TOKENS-THEME). 'auto' is resolved to this by public/theme.js
+   via prefers-color-scheme. Pairs checked for WCAG AA in both themes. */
+:root[data-theme="light"] {
+  --background: #f7f5f1;
+  --surface: #ffffff;
+  --surface-2: #efebe4;
+  --border: #ddd6cb;
+  --text: #1b1a1f;
+  --text-muted: #5b5563;
+  --accent-fill: #e8a33d;
+  --on-accent: #1a1206;
+  --accent-text: #8a5200;
+  --accent-soft: #fbead0;
+  --focus: #8a5200;
+  --success: #1f7a3a;
+  --warning: #8a5a00;
+  --error: #b42318;
+  --chord: #8a5200;
+  --worship: #1f5fa8;
+  --type-song: #8a5200;
+  --type-verse: #1f5fa8;
+  --type-video: #7a3fb0;
+  --type-announcement: #0f6b63;
+  --type-sermon: #1f7a3a;
+  --type-other: #5b5563;
+
+  --bg: #f7f5f1;
+  --bg-soft: #ffffff;
+  --bg-deep: #efebe4;
+  --panel: rgba(255, 255, 255, 0.9);
+  --panel-strong: rgba(255, 255, 255, 0.96);
+  --panel-dark: rgba(239, 235, 228, 0.9);
+  --line: #ddd6cb;
+  --line-strong: #c7bfb0;
+  --muted: #5b5563;
+  --muted-strong: #3a3640;
+  --teal: #0f6b63;
+  --teal-strong: #0b4f49;
+  --gold: #8a5200;
+  --gold-strong: #6f4200;
+  --wine: #7a5a48;
+  --danger: #b42318;
+  --shadow-xl: 0 34px 90px rgba(27, 26, 31, 0.18);
+  --shadow-lg: 0 22px 54px rgba(27, 26, 31, 0.14);
+  color-scheme: light;
 }
 
 * {
