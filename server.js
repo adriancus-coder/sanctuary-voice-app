@@ -209,6 +209,24 @@ app.use(helmet({
 }));
 app.use(express.json({ limit: '8mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// SV-HEALTH-LOGS — per-request structured JSON log (request id, route, status, ms).
+// Static assets are skipped so the log stays signal-heavy; every /api/* and page
+// request is recorded. The request id is also returned as the x-request-id header.
+let __reqSeq = 0;
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+  const id = `${Date.now().toString(36)}-${(__reqSeq = (__reqSeq + 1) % 1000000).toString(36)}`;
+  req.id = id;
+  res.setHeader('x-request-id', id);
+  res.on('finish', () => {
+    const isStatic = /\.[a-z0-9]{2,5}$/i.test(req.path) && !req.path.startsWith('/api/');
+    if (isStatic) return;
+    const ms = Math.round(Number(process.hrtime.bigint() - start) / 1e6);
+    logger.event({ level: 'REQ', id, method: req.method, route: req.path, status: res.statusCode, ms });
+  });
+  next();
+});
 app.get('/admin-login', (req, res) => {
   const nextPath = sanitizeLocalNextPath(req.query.next || '/admin');
   if (shouldRedirectAdminTrafficToApp(req)) {

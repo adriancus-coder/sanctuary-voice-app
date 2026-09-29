@@ -31,10 +31,15 @@ function registerOrgRoutes(app, ctx) {
     const connectedParticipants = Array.from(participantPresence.values())
       .reduce((sum, presence) => sum + presence.size, 0);
     const disk = dbStore.getDiskInfo();
+    const diskFreePercent =
+      disk && disk.totalBytes ? Math.round((disk.freeBytes / disk.totalBytes) * 100) : null;
+    const dbFile = disk && disk.path ? require('path').join(disk.path, 'sessions.json') : null;
     res.json({
       ok: true,
       version: packageJson.version || '0.0.0',
       uptimeSeconds: Math.round(process.uptime()),
+      dbFile,
+      diskFreePercent,
       openaiConfigured: !!OPENAI_API_KEY,
       openai: {
         configured: !!OPENAI_API_KEY,
