@@ -1,0 +1,9 @@
+#!/bin/sh
+# SV-PRE-COMMIT-HOOK — refuse commits that don't pass the check suite.
+# Enable once per clone with:  npm run setup-hooks
+# Bypass in a real emergency with:  git commit --no-verify
+echo "[pre-commit] running npm run check ..."
+npm run check || {
+  echo "[pre-commit] check failed — commit blocked. Fix, or use --no-verify for an emergency."
+  exit 1
+}

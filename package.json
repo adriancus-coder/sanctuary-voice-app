@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "setup-hooks": "git config core.hooksPath .githooks",
     "check": "node scripts/check-syntax.js && npm run lint",
     "lint": "eslint .",
     "format": "prettier --write .",

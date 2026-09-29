@@ -25,6 +25,20 @@ curl -s http://127.0.0.1:3000/api/health   # liveness + config snapshot
 
 There are no unit tests. Validate changes by `node --check`, hitting `/api/health`, and exercising the live UI pages.
 
+## Development setup (run first)
+
+```bash
+npm install
+npm run setup-hooks        # points git at .githooks (pre-commit runs npm run check)
+npm run check              # syntax + lint (+ i18n parity + boot smoke)
+```
+
+`npm run check` must pass before every commit — the pre-commit hook enforces it.
+Claude Code: run `npm run setup-hooks` at the start of a session, and `npm run check`
+before each commit. ESLint/Prettier apply only to files touched from now on
+(existing files are grandfathered in `.eslint-grandfathered.json`); never do a
+repo-wide reformat.
+
 ## Architecture
 
 ### One big server file + thin extracted modules
