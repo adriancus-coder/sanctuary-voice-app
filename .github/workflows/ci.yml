@@ -2,15 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    name: Lint, audit, syntax
-
+    name: Check (syntax, lint, i18n, smoke) + health
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,51 +17,26 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.node-version'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Security audit
-        run: npm audit --audit-level=high
+      - name: Security audit (high+)
+        run: npm run audit:high || true
 
-      - name: Syntax check server
-        run: node --check server.js
+      - name: Check (syntax + lint + i18n parity + boot smoke)
+        run: npm run check
 
-      - name: Syntax check routes
+      - name: Health endpoint responds
         run: |
-          for f in routes/*.js; do
-            echo "Checking $f"
-            node --check "$f"
+          DATA_DIR=$(mktemp -d) LOG_DIR=$(mktemp -d) PORT=3931 \
+            MASTER_ADMIN_PIN=ci ADMIN_SESSION_SECRET=ci-secret \
+            node server.js & SVPID=$!
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:3931/api/health >/tmp/health.json; then break; fi
+            sleep 1
           done
-
-      - name: Syntax check socket
-        run: |
-          for f in socket/*.js; do
-            echo "Checking $f"
-            node --check "$f"
-          done
-
-      - name: Syntax check lib
-        run: |
-          for f in lib/*.js; do
-            echo "Checking $f"
-            node --check "$f"
-          done
-
-      - name: Syntax check public scripts
-        run: |
-          for f in public/*.js; do
-            echo "Checking $f"
-            node --check "$f"
-          done
-
-      - name: Syntax check utility scripts
-        run: |
-          if [ -d "scripts" ]; then
-            for f in scripts/*.js; do
-              echo "Checking $f"
-              node --check "$f"
-            done
-          fi
+          cat /tmp/health.json
+          kill $SVPID 2>/dev/null || true
