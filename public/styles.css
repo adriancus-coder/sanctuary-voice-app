@@ -8155,3 +8155,35 @@ body.live-fullscreen-active .glass-panel {
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
+
+/* ============================================================
+   SV-UI-RULES-FIX — keep selection / nav controls inside their
+   own box. In a flex row (admin top-nav) the earlier rules let
+   the language switch wrap into a tall column and the default
+   align-items:stretch ballooned the active tab into a giant
+   pill. Bound height, stop the wrap, restore the tab radius.
+   ============================================================ */
+.top-nav-tabs {
+  align-items: center;
+}
+nav.top-nav-tabs button.top-nav-btn {
+  max-height: var(--touch);
+  align-self: center;
+  border-radius: 10px;
+}
+.choice-group,
+.ui-lang-switch {
+  align-self: center;
+}
+.ui-lang-switch {
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  padding: 2px;
+  max-height: var(--touch);
+}
+.ui-lang-switch > button {
+  min-height: 34px;
+  max-height: 38px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
