@@ -903,7 +903,9 @@
     document.documentElement.setAttribute("lang", lang);
     localStorage.setItem(LS_KEY, lang);
     document.querySelectorAll(".ui-lang-switch button").forEach(function (b) {
-      b.classList.toggle("on", b.getAttribute("data-lang") === lang);
+      var selected = b.getAttribute("data-lang") === lang;
+      b.classList.toggle("on", selected);
+      b.setAttribute("aria-pressed", selected ? "true" : "false");
     });
   }
   window.adminI18n = { apply: applyLang, get: getLang, dict: DICT };
