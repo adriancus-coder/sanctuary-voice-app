@@ -1,0 +1,8 @@
+# Prettier is applied only to files touched from now on (run `npm run format`
+# on a file before committing it). The existing tree is not reformatted.
+node_modules
+data
+logs
+package-lock.json
+public/**/*.html
+*.md

@@ -8,7 +8,10 @@
   },
   "scripts": {
     "start": "node server.js",
-    "check": "node scripts/check-syntax.js",
+    "check": "node scripts/check-syntax.js && npm run lint",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "smoke": "node scripts/smoke-operator-access.js",
     "audit:high": "npm audit --audit-level=high"
   },
@@ -29,5 +32,12 @@
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.1",
     "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^9.1.2",
+    "globals": "^15.15.0",
+    "prettier": "^3.9.9"
   }
 }
