@@ -6840,9 +6840,40 @@ setInterval(() => {
   if (dirty) saveDb();
 }, Math.min(30000, WORSHIP_OFFLINE_MS)).unref();
 
+const backup = require('./lib/backup');
+
+// SV-AUTO-BACKUP — nightly scheduler. Completely inert unless BACKUP_S3_* is set.
+function scheduleNightlyBackup() {
+  if (!backup.isConfigured()) {
+    logger.info('[backup] disabled (no BACKUP_S3_* env vars).');
+    return;
+  }
+  const hour = Number(process.env.BACKUP_HOUR_UTC || 3);
+  const msUntilNext = () => {
+    const now = new Date();
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour, 0, 0));
+    if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+    return next - now;
+  };
+  const arm = () => {
+    const timer = setTimeout(async () => {
+      try {
+        await backup.runBackup({ dataDir: DATA_DIR, logger });
+      } catch (err) {
+        logger.error('[backup] scheduler error:', err?.message || err);
+      }
+      arm();
+    }, msUntilNext());
+    timer.unref?.();
+  };
+  logger.info(`[backup] enabled; next run in ~${Math.round(msUntilNext() / 3600000)}h (UTC hour ${hour}).`);
+  arm();
+}
+
 const httpServer = server.listen(PORT, () => {
   logger.info(`Sanctuary Voice running on ${httpServer.address()?.port || PORT}`);
   ensureDefaultEvent().catch((err) => logger.error('ensureDefaultEvent error:', err?.message || err));
+  scheduleNightlyBackup();
 });
 
 let shutdownStarted = false;

@@ -14,6 +14,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "smoke": "node scripts/smoke-operator-access.js",
+    "test:backup": "node scripts/test-backup.js",
     "audit:high": "npm audit --audit-level=high"
   },
   "overrides": {

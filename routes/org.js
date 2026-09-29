@@ -34,12 +34,20 @@ function registerOrgRoutes(app, ctx) {
     const diskFreePercent =
       disk && disk.totalBytes ? Math.round((disk.freeBytes / disk.totalBytes) * 100) : null;
     const dbFile = disk && disk.path ? require('path').join(disk.path, 'sessions.json') : null;
+    const backup = require('../lib/backup');
+    const backupState = disk && disk.path ? backup.readState(disk.path) : null;
     res.json({
       ok: true,
       version: packageJson.version || '0.0.0',
       uptimeSeconds: Math.round(process.uptime()),
       dbFile,
       diskFreePercent,
+      autoBackup: {
+        configured: backup.isConfigured(),
+        lastAt: backupState ? backupState.lastAt : null,
+        ok: backupState ? backupState.ok : null,
+        error: backupState ? backupState.error : null,
+      },
       openaiConfigured: !!OPENAI_API_KEY,
       openai: {
         configured: !!OPENAI_API_KEY,
