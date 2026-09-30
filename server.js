@@ -80,6 +80,10 @@ const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-m
 const TRANSCRIBE_RATE_LIMIT_WINDOW_MS = Math.max(1000, Number(process.env.TRANSCRIBE_RATE_LIMIT_WINDOW_MS || 60000) || 60000);
 const TRANSCRIBE_RATE_LIMIT_MAX = Math.max(1, Number(process.env.TRANSCRIBE_RATE_LIMIT_MAX || 120) || 120);
 const SPEECH_PROVIDER = String(process.env.SPEECH_PROVIDER || 'openai').trim().toLowerCase();
+// SV-AZURE-ONESTEP — optional fast-tier path: Azure TranslationRecognizer turns
+// speech straight into translated text. Default 'openai' keeps the current path
+// (SpeechRecognizer -> OpenAI translate). Only meaningful with SPEECH_PROVIDER=azure_sdk.
+const SPEECH_TRANSLATION_PROVIDER = String(process.env.SPEECH_TRANSLATION_PROVIDER || 'openai').trim().toLowerCase();
 const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY || '';
 const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION || '';
 const MASTER_ADMIN_PIN = String(process.env.MASTER_ADMIN_PIN || process.env.APP_ADMIN_PIN || '').trim();
@@ -3492,6 +3496,28 @@ function getSpeechLocale(code) {
   return AZURE_SPEECH_LOCALES[code] || AZURE_SPEECH_LOCALES.ro;
 }
 
+// SV-AZURE-ONESTEP — Azure Translator target codes (differ from our lang codes,
+// e.g. Norwegian is "nb"). Only languages Azure speech-translation supports.
+const AZURE_TRANSLATION_CODES = {
+  ro: 'ro', no: 'nb', en: 'en', ru: 'ru', uk: 'uk', es: 'es', fr: 'fr',
+  de: 'de', it: 'it', pt: 'pt-pt', pl: 'pl', tr: 'tr', ar: 'ar', fa: 'fa', hu: 'hu', el: 'el'
+};
+function azureTranslationCode(code) {
+  return AZURE_TRANSLATION_CODES[code] || null;
+}
+// True when the one-step provider is configured and usable (streaming Azure + keys).
+function azureOnestepAvailable() {
+  return SPEECH_TRANSLATION_PROVIDER === 'azure'
+    && getActiveSpeechProvider() === 'azure_sdk'
+    && !!AZURE_SPEECH_KEY && !!AZURE_SPEECH_REGION;
+}
+// One-step applies to the FAST tier only; clear/interpret keep the LLM quality tier.
+function azureOnestepActiveForEvent(event) {
+  if (!azureOnestepAvailable()) return false;
+  const speed = String(event && event.speed || 'balanced');
+  return speed !== 'clear' && speed !== 'interpret';
+}
+
 function classifyAzureSpeechError(details = '') {
   const text = String(details || '').toLowerCase();
   if (
@@ -3620,7 +3646,10 @@ function shouldAppendToPreviousEntry(previousEntry, newText) {
   return false;
 }
 
-async function publishNewChunk(event, chunk, sourceLangOverride = '') {
+async function publishNewChunk(event, chunk, sourceLangOverride = '', options = {}) {
+  // SV-AZURE-ONESTEP — when Azure already produced translations, pass them here to
+  // skip the OpenAI translate step. Undefined => today's behaviour, unchanged.
+  const precomputed = options && options.precomputedTranslations ? options.precomputedTranslations : null;
   const cleanChunk = sanitizeTranscriptText(chunk);
   if (!cleanChunk) return null;
   const chunkNormalized = normalizeChunkText(cleanChunk);
@@ -3672,10 +3701,21 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
   const translationPairs = await Promise.all(
     event.targetLangs.map(async (lang) => {
       const langStart = Date.now();
-      const translated = await translateText(cleanChunk, lang, event, sourceLang, {
-        contextEntries,
-        onDelta: (text) => emitPartialForLang(lang, text)
-      });
+      let translated;
+      if (precomputed && lang === sourceLang) {
+        // source-language target: the original text is the "translation".
+        translated = cleanChunk;
+      } else if (precomputed && precomputed[lang] && String(precomputed[lang]).trim()) {
+        // SV-AZURE-ONESTEP — Azure already translated this target.
+        translated = String(precomputed[lang]).trim();
+        emitPartialForLang(lang, translated);
+      } else {
+        // Normal path (or a target Azure did not return — fall back to the LLM).
+        translated = await translateText(cleanChunk, lang, event, sourceLang, {
+          contextEntries,
+          onDelta: (text) => emitPartialForLang(lang, text)
+        });
+      }
       perLangMs[lang] = Date.now() - langStart;
       emitLangComplete(lang, translated);
       return [lang, translated];
@@ -3719,7 +3759,8 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
     perLangMs,
     translateStartedAt,
     translateFinishedAt,
-    deliveredAt: Date.now()
+    deliveredAt: Date.now(),
+    modelLabel: precomputed ? 'azure-translation' : ''
   });
   saveDb();
   emitUsageStats(event.id);
@@ -3729,11 +3770,12 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
 
 // SV-LATENCY-METRICS — build one segment record (recognition/translation/total),
 // store it, refresh the per-event summary, and push it to the event's admins.
-function recordSegmentLatency(event, { entryId, sourceLang, perLangMs, translateStartedAt, translateFinishedAt, deliveredAt }) {
+function recordSegmentLatency(event, { entryId, sourceLang, perLangMs, translateStartedAt, translateFinishedAt, deliveredAt, modelLabel }) {
   try {
     const rec = translationMetrics.takeRecognition(event.id);
     const tFinal = rec && rec.at ? rec.at : translateStartedAt;
-    const model = (event && (event.speed === 'clear' || event.speed === 'interpret')) ? getQualityModel() : getFastModel();
+    const model = modelLabel
+      || ((event && (event.speed === 'clear' || event.speed === 'interpret')) ? getQualityModel() : getFastModel());
     translationMetrics.record({
       eventId: String(event.id),
       entryId,
@@ -3983,7 +4025,16 @@ async function startAzureSpeechSession(socket, event) {
 
   const sourceLang = String(event.liveSourceLang || event.sourceLang || 'ro').trim();
   const effectiveSourceLang = sourceLang === 'auto' ? (event.sourceLang || 'ro') : sourceLang;
-  const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION);
+  // SV-AZURE-ONESTEP — fast-tier one-step translation when configured and the SDK
+  // supports it; otherwise the normal SpeechRecognizer path. Guarded so a missing
+  // SpeechTranslationConfig/TranslationRecognizer simply falls back.
+  const onestepTargets = (azureOnestepActiveForEvent(event) && sdk.SpeechTranslationConfig && sdk.TranslationRecognizer)
+    ? (event.targetLangs || []).map((l) => ({ lang: l, code: azureTranslationCode(l) })).filter((t) => t.code)
+    : [];
+  const onestep = onestepTargets.length > 0;
+  const speechConfig = onestep
+    ? sdk.SpeechTranslationConfig.fromSubscription(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION)
+    : sdk.SpeechConfig.fromSubscription(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION);
   speechConfig.speechRecognitionLanguage = getSpeechLocale(effectiveSourceLang);
   speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, '750');
   // Dezactivez filtrul de profanitate Azure (default Masked înlocuia cu ***).
@@ -4014,14 +4065,60 @@ async function startAzureSpeechSession(socket, event) {
     );
   } catch (_) { /* property not supported in this SDK version */ }
 
+  // SV-AZURE-ONESTEP — add Azure target languages when one-step is active.
+  if (onestep) {
+    onestepTargets.forEach((t) => { try { speechConfig.addTargetLanguage(t.code); } catch (_) { /* unsupported target */ } });
+    logger.info(`[azure-onestep] active src=${effectiveSourceLang} targets=${onestepTargets.map((t) => t.lang + ':' + t.code).join(',')}`);
+  }
+
   const audioFormat = sdk.AudioStreamFormat.getWaveFormatPCM(16000, 16, 1);
   const pushStream = sdk.AudioInputStream.createPushStream(audioFormat);
   const audioConfig = sdk.AudioConfig.fromStreamInput(pushStream);
-  const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+  const recognizer = onestep
+    ? new sdk.TranslationRecognizer(speechConfig, audioConfig)
+    : new sdk.SpeechRecognizer(speechConfig, audioConfig);
 
   // Tracker pentru cât de mult din partial-ul curent a fost deja trimis
   let lastPartialLength = 0;
 
+  if (onestep) {
+    // SV-AZURE-ONESTEP — Azure returns translated text per target directly.
+    // Intermediate results feed the admins' source preview (partial_transcript);
+    // finals are published via publishNewChunk with precomputedTranslations, so
+    // participants/screens get the SAME transcript_entry / display_live_entry.
+    recognizer.recognizing = (_, ev) => {
+      const src = sanitizeTranscriptText(ev?.result?.text || '');
+      if (!src) return;
+      io.to(`event:${event.id}:admins`).emit('partial_transcript', { text: src });
+    };
+    recognizer.recognized = (_, ev) => {
+      const reason = ev?.result?.reason;
+      if (sdk.ResultReason && reason !== sdk.ResultReason.TranslatedSpeech && reason !== sdk.ResultReason.RecognizedSpeech) return;
+      const src = sanitizeTranscriptText(ev?.result?.text || '');
+      if (!src) return;
+      const currentEvent = db.events[event.id];
+      if (currentEvent?.bibleMode) return;
+      // Azure recognition latency (audio end -> final), same as the normal path.
+      try {
+        const props = ev?.result?.properties;
+        const latMs = props && typeof props.getProperty === 'function'
+          ? props.getProperty(sdk.PropertyId.SpeechServiceResponse_RecognitionLatencyMs)
+          : '';
+        translationMetrics.noteRecognition(event.id, { recognitionLatencyMs: Number(latMs) || null, at: Date.now() });
+      } catch (_) { /* not available */ }
+      // Collect Azure's translations back onto our language codes.
+      const precomputed = {};
+      const translations = ev?.result?.translations;
+      if (translations && typeof translations.get === 'function') {
+        onestepTargets.forEach((t) => {
+          const val = translations.get(t.code);
+          if (val) precomputed[t.lang] = sanitizeTranscriptText(val);
+        });
+      }
+      io.to(`event:${event.id}:admins`).emit('partial_transcript', { text: '' });
+      Promise.resolve(publishNewChunk(event, src, effectiveSourceLang, { precomputedTranslations: precomputed })).catch(logger.error);
+    };
+  } else {
   recognizer.recognizing = (_, result) => {
     const text = sanitizeTranscriptText(result?.result?.text || '');
     if (!text) return;
@@ -4153,6 +4250,7 @@ async function startAzureSpeechSession(socket, event) {
     markPartialFlushed(event.id, text);
     queueSpeechText(event.id, text, effectiveSourceLang, 'azure_sdk');
   };
+  }
   recognizer.canceled = (_, result) => {
     const details = String(result?.errorDetails || result?.reason || 'unknown');
     const classified = classifyAzureSpeechError(details);
@@ -5213,6 +5311,15 @@ async function runSelfTestChecks() {
     }
   } else {
     checks.push({ name: 'Azure Speech', status: 'ok', message: 'Not selected (using OpenAI for STT).' });
+  }
+
+  // SV-AZURE-ONESTEP — fast-tier translation provider.
+  if (SPEECH_TRANSLATION_PROVIDER === 'azure') {
+    if (azureOnestepAvailable()) {
+      checks.push({ name: 'Azure one-step', status: 'ok', message: 'Fast-tier speech translation active (Azure).' });
+    } else {
+      checks.push({ name: 'Azure one-step', status: 'warn', message: 'SPEECH_TRANSLATION_PROVIDER=azure but needs SPEECH_PROVIDER=azure_sdk + Azure key/region; falling back to OpenAI translate.' });
+    }
   }
 
   // 8. Web Push
@@ -6886,6 +6993,9 @@ registerOrgRoutes(app, {
   db,
   dbStore,
   getActiveSpeechProvider,
+  // SV-AZURE-ONESTEP — surface the fast-tier translation provider in health.
+  speechTranslationProvider: SPEECH_TRANSLATION_PROVIDER,
+  azureOnestepAvailable,
   getDefaultOrganization,
   isEventActive,
   logger,
