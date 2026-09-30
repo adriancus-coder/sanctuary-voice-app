@@ -928,13 +928,11 @@
                 <span class="song-editor-toggle">▾</span>
               </summary>
               <div class="song-editor-body">
-                <p class="muted small" style="margin-bottom: 10px;">Tip: use the unified search in Church Library below to find songs in the library or on resursecrestine.ro.</p>
-                <label data-i18n="song.songTitle">Title</label>
-                <input id="songTitle" type="text" data-i18n-placeholder="ph.songTitle" placeholder="Amazing Grace">
-                <label data-i18n="song.songLang">Song language</label>
-                <select id="songSourceLang"></select>
-                <label data-i18n="song.songText">Song text or lyrics</label>
-                <textarea id="songText" class="song-textarea" placeholder="Use markers like 1., 2., R., R2. or R: %repeat note% to create verses and choruses."></textarea>
+                <p class="muted small" style="margin-bottom: 10px;" data-i18n="song.prepareTip">Tip: use the unified search in Church Library below to find songs in the library or on resursecrestine.ro.</p>
+                <!-- SV-SONG-EDITOR — the shared section editor mounts here (see app.js).
+                     #songSourceLang is created by the component and filled by fillLanguageSelectors. -->
+                <div id="songEditorMount"></div>
+                <div id="songEditorMessage" class="song-editor-message" role="status" aria-live="polite"></div>
                 <div class="button-row">
                   <button id="saveSongBtn" class="btn btn-dark" data-i18n="btn.saveSong">Save to church library</button>
                   <button id="sendSongBtn" class="btn btn-primary" data-i18n="btn.sendSong">Send first verse</button>
@@ -1240,6 +1238,9 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
   <script src="/admin-i18n.js"></script>
+  <script src="/chords.js"></script>
+  <script src="/sections.js"></script>
+  <script src="/song-editor.js"></script>
   <script src="/code-prompt.js"></script>
   <script src="/app.js"></script>
   <script src="/list-pane.js"></script>

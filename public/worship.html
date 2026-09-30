@@ -115,11 +115,12 @@
       </div>
 
       <!-- New song editor -->
-      <div class="song-editor panel glass-panel">
+      <div class="panel glass-panel">
         <details class="library-dropdown">
           <summary class="library-dropdown-summary" data-i18n="w.newSong">➕ Cântare nouă</summary>
-          <input id="songTitle" type="text" placeholder="Titlu cântare" data-i18n-placeholder="w.songTitlePh">
-          <textarea id="songText" rows="6" placeholder="Versuri..." data-i18n-placeholder="w.songTextPh"></textarea>
+          <!-- SV-SONG-EDITOR — the shared section editor mounts here (see worship.js). -->
+          <div id="songEditorMount"></div>
+          <div id="songEditorMessage" class="song-editor-message" role="status" aria-live="polite"></div>
           <div class="song-editor-actions">
             <button id="songSaveBtn" class="btn btn-primary" type="button" data-i18n="w.saveLibrary">Salvează în Library</button>
             <button id="songClearBtn" class="btn btn-dark" type="button" data-i18n="w.clear">Curăță</button>
@@ -295,6 +296,9 @@
 
   <script src="/i18n-dict.js"></script>
   <script src="/i18n.js"></script>
+  <script src="/chords.js"></script>
+  <script src="/sections.js"></script>
+  <script src="/song-editor.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/worship.js"></script>
   <script src="/page-tabs.js"></script>

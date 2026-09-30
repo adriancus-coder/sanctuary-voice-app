@@ -9026,3 +9026,117 @@ body:not(.has-shell) { padding-bottom: calc(var(--sticky-actions-h, 0px) + var(-
 /* SV-BRIDGE-UI-DOCS — the generated connection code in the admin Live tab. */
 .bridge-code-box { margin: 6px 0; font-size: 0.95rem; }
 .bridge-code-box code { font-size: 1.25rem; font-weight: 800; letter-spacing: 0.12em; color: var(--accent-text); }
+
+/* ============================================================================
+   SV-SONG-EDITOR — the shared section editor (public/song-editor.js), used on the
+   admin Cântări card and /worship. Colours come only from the theme tokens, so
+   both themes and the WCAG contrast check are already covered (no new pairs).
+   ========================================================================== */
+.song-editor { display: flex; flex-direction: column; gap: 14px; }
+.song-editor .editor-details,
+.song-editor .editor-preview {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.song-editor .editor-details h2,
+.song-editor .editor-details h3,
+.song-editor .editor-preview h2,
+.song-editor .editor-preview h3 { margin: 0; font-size: 1rem; }
+.song-editor .field { display: flex; flex-direction: column; gap: 4px; }
+.song-editor .field > label { font-weight: 600; font-size: 0.9rem; }
+.song-editor .field input,
+.song-editor .field select,
+.song-editor .field textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+.song-editor .hint { color: var(--text-muted); font-size: 0.82rem; }
+.song-editor .editor-key-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.song-editor .editor-key-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  min-width: 2.4em;
+  color: var(--accent-text);
+}
+.song-editor .editor-key-value.song-key-unset-text { color: var(--text-muted); font-size: 1rem; font-weight: 600; }
+.song-editor .editor-key-row select { flex: 1 1 8em; }
+
+.song-editor .sections-editor { display: flex; flex-direction: column; gap: 12px; }
+.song-editor .section-editor {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin: 0;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.song-editor .section-editor legend {
+  font-weight: 700;
+  padding: 0 6px;
+  color: var(--accent-text);
+}
+.song-editor .section-fields { display: grid; grid-template-columns: minmax(8em, 1fr) minmax(8em, 2fr); gap: 8px; }
+.song-editor .song-section-textarea { resize: vertical; line-height: 1.5; }
+.song-editor .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
+.song-editor .section-tools { display: flex; gap: 6px; }
+.song-editor .icon-button { min-width: 44px; min-height: 44px; padding: 0; }
+.song-editor .section-tools .icon-button[disabled] { opacity: 0.4; cursor: default; }
+
+.song-editor .editor-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.song-editor .editor-preview-tools { display: flex; align-items: center; gap: 8px; }
+.song-editor .notation-switch { display: inline-flex; gap: 2px; }
+.song-editor .notation-switch button,
+.song-editor .song-editor-textonly { min-height: 36px; min-width: 40px; }
+.song-editor .notation-switch button.on,
+.song-editor .song-editor-textonly.on {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  border-color: var(--accent-fill);
+}
+.song-editor .song-editor-preview { display: flex; flex-direction: column; gap: 12px; }
+.song-editor .song-section { display: flex; flex-direction: column; gap: 2px; }
+.song-editor .song-section .section-label { margin: 0; font-size: 0.9rem; font-weight: 700; color: var(--accent-text); }
+.song-editor .song-section .section-note { margin: 0; font-size: 0.82rem; color: var(--text-muted); font-style: italic; }
+.song-editor .chord-sheet { display: flex; flex-direction: column; white-space: pre-wrap; font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; line-height: 1.35; }
+.song-editor .chord-sheet .chord-line { color: var(--chord); font-weight: 700; min-height: 1.1em; }
+.song-editor .chord-sheet .lyric-line { color: var(--text); }
+.song-editor .song-section .lyrics { margin: 0; white-space: pre-wrap; color: var(--text); }
+.song-editor .song-editor-preview .muted { color: var(--text-muted); }
+
+.song-editor-message { color: var(--text-muted); font-size: 0.9rem; min-height: 1.2em; }
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+/* Preview to the right on desktop, below on phones (the "visible without scrolling" rule). */
+@media (min-width: 1024px) {
+  .song-editor {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+  .song-editor .editor-details { grid-column: 1 / -1; }
+  .song-editor .sections-editor { grid-column: 1; }
+  .song-editor > #song-add-section,
+  .song-editor > [id$="-add-section"] { grid-column: 1; justify-self: start; }
+  .song-editor .editor-preview { grid-column: 2; position: sticky; top: 12px; }
+}

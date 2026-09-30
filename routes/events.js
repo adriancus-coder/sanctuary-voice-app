@@ -3,6 +3,19 @@ const os = require('os');
 const path = require('path');
 const { randomUUID } = require('crypto');
 
+// SV-SONG-EDITOR — pulls the optional additive section-editor fields off a save request.
+// All are validated/clamped again inside upsertLibraryItem; this just shapes the body so
+// old callers (no such fields) are unaffected. Chords never reach the stored `text`.
+function readSongEditorFields(body = {}) {
+  const out = {};
+  if (typeof body.author === 'string') out.author = body.author;
+  if (typeof body.key === 'string') out.key = body.key;
+  if (Array.isArray(body.sectionTypes)) out.sectionTypes = body.sectionTypes;
+  if (Array.isArray(body.notes)) out.sectionNotes = body.notes;
+  if (Array.isArray(body.sectionsChordPro)) out.sectionsChordPro = body.sectionsChordPro;
+  return out;
+}
+
 function registerEventRoutes(app, ctx) {
   const {
     AUDIO_ARCHIVE_ENABLED,
@@ -1754,12 +1767,14 @@ function registerEventRoutes(app, ctx) {
     const text = sanitizeStructuredText(req.body.text || '');
     const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
     const sourceLang = String(req.body.sourceLang || event.sourceLang || 'ro').trim() || 'ro';
+    // SV-SONG-EDITOR — additive section-editor fields (all optional; old callers omit them).
+    const extra = readSongEditorFields(req.body);
 
     if (!title || !text) {
       return res.status(400).json({ ok: false, error: 'Titlu sau text lipsă.' });
     }
 
-    upsertLibraryItem(event.songLibrary, { title, text, labels, sourceLang }, 100);
+    const saved = upsertLibraryItem(event.songLibrary, { title, text, labels, sourceLang, ...extra }, 100);
 
     saveDb();
     // V21.6: live-sync event songLibrary across admin / operator / worship.
@@ -1767,7 +1782,7 @@ function registerEventRoutes(app, ctx) {
       eventId: event.id,
       songLibrary: event.songLibrary
     });
-    res.json({ ok: true, songLibrary: event.songLibrary });
+    res.json({ ok: true, songLibrary: event.songLibrary, song: saved, existingId: saved.id });
   });
 
   app.get('/api/events/:id/song-library', (req, res) => {
@@ -1869,13 +1884,18 @@ function registerEventRoutes(app, ctx) {
     const text = sanitizeStructuredText(req.body.text || '');
     const labels = Array.isArray(req.body.labels) ? req.body.labels : [];
     const sourceLang = String(req.body.sourceLang || 'ro').trim() || 'ro';
+    // SV-SONG-EDITOR — additive section-editor fields (all optional; old callers omit them).
+    const extra = readSongEditorFields(req.body);
     if (!title || !text) {
       return res.status(400).json({ ok: false, error: 'Titlu sau text lipsa.' });
     }
     const library = getOrganizationSongLibrary(DEFAULT_ORG_ID);
-    upsertLibraryItem(library, { title, text, labels, sourceLang }, 500);
+    // SV-SONG-EDITOR — a song with this title already in the library (upsert overwrites it);
+    // the client shows an inline "open existing" link when it is saving a brand-new song.
+    const existedBefore = library.find((it) => it && normalizeLibraryTitle(it.title) === normalizeLibraryTitle(title)) || null;
+    const saved = upsertLibraryItem(library, { title, text, labels, sourceLang, ...extra }, 500);
     saveDb();
-    res.json({ ok: true, globalSongLibrary: library });
+    res.json({ ok: true, globalSongLibrary: library, song: saved, existingId: existedBefore ? saved.id : null });
   });
 
   app.get('/api/pinned-text-library', (req, res) => {

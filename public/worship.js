@@ -164,6 +164,10 @@
   let pickerEvents = [];
   let pickerEventsLoaded = false;
   let libraryItems = [];
+  // SV-SONG-EDITOR — the shared section editor instance + the sourceLang of the song
+  // currently loaded (worship has no language picker, so it is preserved on re-save).
+  let wsSongEditor = null;
+  let wsSongEditorSourceLang = 'ro';
 
   // V21.1: Live mode state
   let liveMode = 'setlist';
@@ -926,14 +930,76 @@
     return libraryItems.find((item) => normalizeForSearch(item.title || '') === normalized) || null;
   }
 
+  // SV-SONG-EDITOR — stored library text -> RAW blocks (markers kept), mirroring the server.
+  function splitSongRawBlocks(text) {
+    return String(text || '')
+      .split(/\n\s*\n/)
+      .map((x) => x.split('\n').map((y) => y.trim()).filter(Boolean).join('\n'))
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }
+
+  // SV-SONG-EDITOR — a stored library song -> the editor's { title, author, key, sections }.
+  function libraryItemToEditorSong(song) {
+    const S = window.SECTIONS;
+    const rawBlocks = splitSongRawBlocks(song && song.text);
+    const labels = Array.isArray(song && song.labels) ? song.labels : [];
+    const types = Array.isArray(song && song.sectionTypes) ? song.sectionTypes : [];
+    const chordpro = Array.isArray(song && song.sectionsChordPro) ? song.sectionsChordPro : [];
+    const notes = Array.isArray(song && song.sectionNotes) ? song.sectionNotes : [];
+    const sections = rawBlocks.map((block, i) => {
+      const content = typeof chordpro[i] === 'string' && chordpro[i] ? chordpro[i] : block;
+      const label = String(labels[i] || '');
+      let type = types[i];
+      if (!type) {
+        const lead = S.leadingLabel(label) || S.leadingLabel(block.split('\n')[0] || '');
+        type = lead ? lead.type : 'verse';
+      }
+      return { type: S.normalizeType(type || 'verse'), label, content, note: String(notes[i] || '') };
+    });
+    return {
+      title: (song && song.title) || '',
+      author: (song && song.author) || '',
+      key: (song && song.key) || '',
+      sections: sections.length ? sections : [{ type: 'verse', label: '', content: '', note: '' }]
+    };
+  }
+
+  // SV-SONG-EDITOR — editor.payload() -> the /api/global-song-library body. `text` is lyrics
+  // only (chords stripped); chords ride along in sectionsChordPro. sourceLang is preserved.
+  function editorPayloadToLibraryBody(p) {
+    const kept = p.sections
+      .map((s) => ({
+        type: s.type, label: s.label, note: s.note, content: s.content,
+        lyrics: window.CHORDS.stripChords(s.content).split('\n').map((l) => l.trim()).filter(Boolean).join('\n')
+      }))
+      .filter((s) => s.lyrics);
+    return {
+      title: p.title,
+      author: p.author || '',
+      key: p.key || '',
+      sourceLang: wsSongEditorSourceLang || 'ro',
+      text: kept.map((s) => s.lyrics).join('\n\n'),
+      labels: kept.map((s) => s.label || ''),
+      sectionTypes: kept.map((s) => s.type),
+      notes: kept.map((s) => s.note || ''),
+      sectionsChordPro: kept.map((s) => s.content)
+    };
+  }
+
   function fillEditor(song) {
-    $('songTitle').value = song.title || '';
-    $('songText').value = song.text || '';
+    wsSongEditorSourceLang = (song && song.sourceLang) || 'ro';
+    if (wsSongEditor) wsSongEditor.setSong(libraryItemToEditorSong(song));
+    const box = $('songEditorMessage');
+    if (box) box.textContent = '';
+    document.querySelector('#songEditorMount')?.closest('details')?.setAttribute('open', '');
   }
 
   function clearSongEditor() {
-    $('songTitle').value = '';
-    $('songText').value = '';
+    wsSongEditorSourceLang = 'ro';
+    if (wsSongEditor) wsSongEditor.clear();
+    const box = $('songEditorMessage');
+    if (box) box.textContent = '';
     $('importUrlResults').innerHTML = '';
     setStatus($('importUrlStatus'), '', '');
   }
@@ -1051,21 +1117,22 @@
   }
 
   async function saveSongInLibrary() {
-    const title = $('songTitle').value.trim();
-    const text = $('songText').value.trim();
-    if (!title || !text) {
+    if (!wsSongEditor) return;
+    const body = editorPayloadToLibraryBody(wsSongEditor.payload());
+    if (!body.title || !body.text) {
       alert('Completează titlul și versurile.');
       return;
     }
-    const dup = findDuplicateInLibrary(title);
+    const dup = findDuplicateInLibrary(body.title);
     if (dup && !confirm('Cântarea "' + dup.title + '" există deja în Library. O suprascrii?')) return;
     const btn = $('songSaveBtn');
+    const title = body.title;
     btn.disabled = true;
     try {
       const res = await fetch('/api/global-song-library', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, text })
+        body: JSON.stringify(body)
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || 'Salvare eșuată.');
@@ -2277,6 +2344,17 @@
       deleteOwnSong(btn.dataset.eventSongDelete);
     });
 
+    // SV-SONG-EDITOR — mount the shared section editor (no language picker on worship; it
+    // runs under the window.I18N engine and re-renders on i18n:change).
+    if (window.SONG_EDITOR && $('songEditorMount')) {
+      wsSongEditor = window.SONG_EDITOR.create($('songEditorMount'), {
+        t: (key) => window.I18N.t(key),
+        i18nEvent: 'i18n:change',
+        prefix: 'wsong',
+        headingLevel: 3,
+        hideSourceLang: true
+      });
+    }
     $('importUrlBtn').addEventListener('click', doImportOrSearch);
     $('songSaveBtn').addEventListener('click', saveSongInLibrary);
     $('songClearBtn').addEventListener('click', clearSongEditor);

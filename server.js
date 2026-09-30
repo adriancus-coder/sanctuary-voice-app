@@ -2405,7 +2405,7 @@ function hashBlock(text) {
   return createHash('sha256').update(String(text || '').trim()).digest('hex').slice(0, 16);
 }
 
-function upsertLibraryItem(list, { title, text, labels, sourceLang, key, sections, sectionNotes }, maxItems = 100) {
+function upsertLibraryItem(list, { title, author, text, labels, sourceLang, key, sections, sectionNotes, sectionTypes, sectionsChordPro }, maxItems = 100) {
   const safeTitle = String(title || '').trim();
   const safeText = sanitizeStructuredText(text || '');
   const parsedSong = splitSongBlocksWithLabels(safeText, labels || []);
@@ -2435,15 +2435,39 @@ function upsertLibraryItem(list, { title, text, labels, sourceLang, key, section
   const resolvedSectionNotes = validateNotes(sectionNotes)
     || validateNotes(existingItem?.sectionNotes)
     || [];
+  // SV-SONG-EDITOR — additive fields for the new section editor, parallel to the stored
+  // blocks. sectionTypes carries the 7 editor types (verse|chorus|pre_chorus|bridge|intro|
+  // outro|other; anything else -> other). sectionsChordPro carries the inline-ChordPro
+  // version of each block so the editor can restore chords on reopen — the stored `text`
+  // stays LYRICS-ONLY, so the projector / participant / translation path never sees chords.
+  const SECTION_TYPES_ALLOWED = ['verse', 'chorus', 'pre_chorus', 'bridge', 'intro', 'outro', 'other'];
+  const validateSectionTypes = (arr) => Array.isArray(arr)
+    ? arr.map((x) => (SECTION_TYPES_ALLOWED.includes(x) ? x : 'other'))
+    : null;
+  const resolvedSectionTypes = validateSectionTypes(sectionTypes)
+    || validateSectionTypes(existingItem?.sectionTypes)
+    || [];
+  const validateChordPro = (arr) => Array.isArray(arr)
+    ? arr.map((c) => String(c == null ? '' : c).slice(0, 4000))
+    : null;
+  const resolvedSectionsChordPro = validateChordPro(sectionsChordPro)
+    || validateChordPro(existingItem?.sectionsChordPro)
+    || [];
+  const resolvedAuthor = typeof author === 'string'
+    ? author.trim().slice(0, 200)
+    : (typeof existingItem?.author === 'string' ? existingItem.author : '');
   const payload = {
     id: existingItem ? existingItem.id : randomUUID(),
     title: safeTitle,
+    author: resolvedAuthor,
     text: safeText,
     labels: safeLabels,
     sourceLang: String(sourceLang || existingItem?.sourceLang || 'ro').trim() || 'ro',
     key: resolvedKey,
     sections: resolvedSections,
     sectionNotes: resolvedSectionNotes,
+    sectionTypes: resolvedSectionTypes,
+    sectionsChordPro: resolvedSectionsChordPro,
     // Păstrăm cache-ul de traduceri per strofă; per-block hash invalidation
     // ține automat cache-ul valid pentru strofele neschimbate, indiferent dacă
     // alte strofe s-au editat (vor avea hash nou = cache miss controlat).

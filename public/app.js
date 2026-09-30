@@ -17,6 +17,10 @@ let displayedSongBlocks = new Set();  // indici strofe deja afișate
 let currentSongTitle = '';  // pentru a detecta schimb cântec
 let currentGlobalSongLibrary = [];
 let currentPinnedTextLibrary = [];
+// SV-SONG-EDITOR — the shared section editor instance + the id of the library song
+// currently loaded into it (null while composing a brand-new song).
+let svSongEditor = null;
+let svSongEditorLoadedId = null;
 let availableEventsList = [];
 let currentActiveEventId = null;   // SV-ADMIN-TABS-TRIM — for the #transcript hash router
 // WORSHIP-RESCHEDULE-V2 — state pentru dialogul de reprogramare
@@ -2247,33 +2251,124 @@ async function handleImportLibraryFile(e) {
   }
 }
 
-function fillSongEditor(item) {
-  $('songTitle').value = item?.title || '';
-  $('songText').value = item?.text || '';
-  if ($('songSourceLang')) $('songSourceLang').value = item?.sourceLang || currentEvent?.sourceLang || 'ro';
-  const previewBlocks = splitSongBlocksLocal(item?.text || '');
-  renderSongState({
-    title: item?.title || '',
-    sourceLang: item?.sourceLang || currentEvent?.sourceLang || 'ro',
-    blocks: previewBlocks,
-    blockLabels: Array.isArray(item?.labels) ? item.labels : [],
-    currentIndex: previewBlocks.length ? 0 : -1,
-    activeBlock: previewBlocks[0] || '',
-    translations: {},
-    allTranslations: [],
-    updatedAt: null
-  });
+// SV-SONG-EDITOR — split stored library text into RAW blocks (keeping any "1."/"R:" markers
+// exactly as stored). Mirrors the server's splitSongBlocks so a re-save is byte-identical.
+function splitSongRawBlocks(text) {
+  return String(text || '')
+    .split(/\n\s*\n/)
+    .map((x) => x.split('\n').map((y) => y.trim()).filter(Boolean).join('\n'))
+    .map((x) => x.trim())
+    .filter(Boolean);
 }
 
-async function saveSongToLibrary() {
-  const title = $('songTitle').value.trim();
-  const text = $('songText').value.trim();
-  const labels = getSongEditorLabels();
-  const sourceLang = getSongSourceLang();
-  if (!title || !text) return alert('Complete title and text first.');
-  const res = await fetch('/api/global-song-library', globalJsonOptions('POST', { title, text, labels, sourceLang }));
+// SV-SONG-EDITOR — a stored library song -> the editor's { title, author, key, sourceLang,
+// sections } shape. Blocks become sections; the section type comes from the additive
+// sectionTypes if present, else it is inferred from the stored label / leading marker, else
+// "verse". Chords come from sectionsChordPro when present (older songs have lyrics only).
+function libraryItemToEditorSong(item) {
+  const S = window.SECTIONS;
+  const rawBlocks = splitSongRawBlocks(item?.text || '');
+  const labels = Array.isArray(item?.labels) ? item.labels : [];
+  const types = Array.isArray(item?.sectionTypes) ? item.sectionTypes : [];
+  const chordpro = Array.isArray(item?.sectionsChordPro) ? item.sectionsChordPro : [];
+  const notes = Array.isArray(item?.sectionNotes) ? item.sectionNotes : [];
+  const sections = rawBlocks.map((block, i) => {
+    const content = typeof chordpro[i] === 'string' && chordpro[i] ? chordpro[i] : block;
+    const label = String(labels[i] || '');
+    let type = types[i];
+    if (!type) {
+      const lead = S.leadingLabel(label) || S.leadingLabel(block.split('\n')[0] || '');
+      type = lead ? lead.type : 'verse';
+    }
+    return { type: S.normalizeType(type || 'verse'), label, content, note: String(notes[i] || '') };
+  });
+  return {
+    title: item?.title || '',
+    author: item?.author || '',
+    key: item?.key || '',
+    sourceLang: item?.sourceLang || currentEvent?.sourceLang || 'ro',
+    sections: sections.length ? sections : [{ type: 'verse', label: '', content: '', note: '' }]
+  };
+}
+
+// SV-SONG-EDITOR — one section's LYRICS-ONLY block, normalised exactly like the server's
+// splitSongBlocks (chords stripped, lines trimmed, blanks dropped) so the stored `text`
+// never carries chords and old songs round-trip byte-identically.
+function lyricsBlockFromContent(content) {
+  return window.CHORDS.stripChords(content)
+    .split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
+}
+
+// SV-SONG-EDITOR — editor.payload() -> the /api/*-song-library body. `text` is lyrics only;
+// chords ride along in the additive sectionsChordPro field. Sections with no lyrics (chord
+// only) are dropped so the additive arrays stay aligned to the stored blocks.
+function editorPayloadToLibraryBody(p) {
+  const kept = p.sections
+    .map((s) => ({ ...s, lyrics: lyricsBlockFromContent(s.content) }))
+    .filter((s) => s.lyrics);
+  return {
+    title: p.title,
+    author: p.author || '',
+    key: p.key || '',
+    sourceLang: p.sourceLang || currentEvent?.sourceLang || 'ro',
+    text: kept.map((s) => s.lyrics).join('\n\n'),
+    labels: kept.map((s) => s.label || ''),
+    sectionTypes: kept.map((s) => s.type),
+    notes: kept.map((s) => s.note || ''),
+    sectionsChordPro: kept.map((s) => s.content)
+  };
+}
+
+function showSongEditorMessage(text, existingId) {
+  const box = $('songEditorMessage');
+  if (!box) return;
+  box.textContent = text ? `${text} ` : '';
+  if (existingId) {
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'link-button';
+    link.textContent = adminT('editor.openExisting', 'Deschide cântarea existentă');
+    link.addEventListener('click', () => {
+      const item = currentGlobalSongLibrary.find((x) => x.id === existingId);
+      if (item) { fillSongEditor(item); clearSongEditorMessage(); }
+    });
+    box.appendChild(link);
+  }
+}
+
+function clearSongEditorMessage() {
+  const box = $('songEditorMessage');
+  if (box) box.replaceChildren();
+}
+
+function fillSongEditor(item) {
+  if (!svSongEditor) return;
+  svSongEditorLoadedId = item?.id || null;
+  clearSongEditorMessage();
+  svSongEditor.setSong(libraryItemToEditorSong(item));
+  document.querySelector('.song-editor-details')?.setAttribute('open', '');
+}
+
+async function saveSongToLibrary(opts = {}) {
+  if (!svSongEditor) return;
+  const body = editorPayloadToLibraryBody(svSongEditor.payload());
+  clearSongEditorMessage();
+  if (!body.title || !body.text) {
+    showSongEditorMessage(adminT('editor.titleAndTextRequired', 'Completează titlul și textul mai întâi.'));
+    return;
+  }
+  // Composing a brand-new song whose title already exists: show an inline link instead of
+  // silently overwriting. Editing a loaded song (or an explicit import) overwrites as before.
+  if (!opts.allowOverwrite && !svSongEditorLoadedId) {
+    const dup = findDuplicateLibrarySong(body.title);
+    if (dup) {
+      showSongEditorMessage(adminT('editor.duplicateTitle', 'O cântare cu acest titlu există deja.'), dup.id);
+      return;
+    }
+  }
+  const res = await fetch('/api/global-song-library', globalJsonOptions('POST', body));
   const data = await res.json();
-  if (!data.ok) return alert(data.error || 'Could not save item.');
+  if (!data.ok) return showSongEditorMessage(data.error || adminT('editor.failed', 'Nu am putut salva.'));
   currentGlobalSongLibrary = data.globalSongLibrary || [];
   renderGlobalSongLibrary(currentGlobalSongLibrary);
   clearSong();
@@ -2302,10 +2397,14 @@ async function sendSongItemToLive(item) {
 }
 
 async function sendSongToLive() {
+  if (!svSongEditor) return;
+  // Only the LYRICS reach the live pipeline / projector — chords never do.
+  const body = editorPayloadToLibraryBody(svSongEditor.payload());
   await sendSongItemToLive({
-    title: $('songTitle').value.trim(),
-    text: $('songText').value.trim(),
-    sourceLang: getSongSourceLang()
+    title: body.title,
+    text: body.text,
+    labels: body.labels,
+    sourceLang: body.sourceLang
   });
 }
 
@@ -4032,8 +4131,9 @@ async function showSongIndex(index) {
 }
 
 async function clearSong() {
-  $('songTitle').value = '';
-  $('songText').value = '';
+  svSongEditorLoadedId = null;
+  clearSongEditorMessage();
+  if (svSongEditor) svSongEditor.clear();
   if ($('songSourceLang')) $('songSourceLang').value = currentEvent?.sourceLang || 'ro';
   setStatus('Editor cleared.');
 }
@@ -5307,7 +5407,22 @@ socket.on('transcripts_cleared', ({ eventId }) => {
     renderTranscriptList();
   }
 });
-$('saveSongBtn').addEventListener('click', saveSongToLibrary);
+// SV-SONG-EDITOR — mount the shared section editor into the Cântări "Prepare Song" card.
+// It creates its own #songSourceLang (filled by fillLanguageSelectors) and runs under the
+// admin i18n engine (re-renders on admin-i18n:change).
+(function initSongEditor() {
+  const mount = $('songEditorMount');
+  if (!mount || !window.SONG_EDITOR) return;
+  svSongEditor = window.SONG_EDITOR.create(mount, {
+    t: (key) => adminT(key, key),
+    i18nEvent: 'admin-i18n:change',
+    prefix: 'song',
+    headingLevel: 3,
+    sectionPrefix: 'songSection',
+    ids: { title: 'songTitle', author: 'songAuthor', key: 'songKey', sourceLang: 'songSourceLang' }
+  });
+})();
+$('saveSongBtn').addEventListener('click', () => saveSongToLibrary());
 $('sendSongBtn').addEventListener('click', sendSongToLive);
 $('songPrevBtn')?.addEventListener('click', goToPrevSongBlock);
 $('songNextBtn')?.addEventListener('click', goToNextSongBlock);
@@ -5445,28 +5560,15 @@ $('songBlocksList')?.addEventListener('change', async (e) => {
   await saveSongLabels();
 });
 
-// FEATURE 6: Auto-titlu din prima linie scurtă la paste
-$('songText')?.addEventListener('paste', () => {
+// FEATURE 6: Auto-titlu din prima linie scurtă la paste (SV-SONG-EDITOR — now on the
+// section editor mount; the component splits the pasted lyric into sections itself).
+$('songEditorMount')?.addEventListener('paste', (ev) => {
+  if (!svSongEditor || ev.target?.tagName !== 'TEXTAREA') return;
   setTimeout(() => {
-    const titleEl = $('songTitle');
-    if (!titleEl) return;
-    const currentTitle = titleEl.value.trim();
-    // Doar dacă titlul e GOL (nu suprascrie)
-    if (currentTitle) return;
-    const text = $('songText').value.trim();
-    if (!text) return;
-    // Prima linie non-goală
-    let firstLine = text.split('\n').find((line) => line.trim().length > 0)?.trim() || '';
-
-    // BUGFIX V2 FIX A: cleanup prefix + suffix pentru titluri „1. Doamne...", „2) Slăvit fie..." etc.
-    // 1. Remove prefix: numere + punct/paranteză (ex „1.", „1)", „12.", „12)")
-    firstLine = firstLine.replace(/^\s*\d+[\.\)]\s*/, '');
-    // 2. Remove suffix: orice punctuație finală (. , ; : ! ?)
-    firstLine = firstLine.replace(/[\.\,\;\:\!\?]+\s*$/, '');
-    // 3. Trim spații extra (interne și marginale)
-    firstLine = firstLine.replace(/\s+/g, ' ').trim();
-
-    // Verifică dacă e probabil titlu (scurt, < 60 chars)
+    const titleEl = svSongEditor.fields.title;
+    if (!titleEl || titleEl.value.trim()) return; // don't overwrite an existing title
+    let firstLine = (ev.clipboardData?.getData('text') || '').split('\n').find((line) => line.trim().length > 0)?.trim() || '';
+    firstLine = firstLine.replace(/^\s*\d+[.)]\s*/, '').replace(/[.,;:!?]+\s*$/, '').replace(/\s+/g, ' ').trim();
     if (firstLine.length > 0 && firstLine.length < 60) {
       titleEl.value = firstLine;
       setStatus('Title auto-filled from first line.');
@@ -5476,13 +5578,7 @@ $('songText')?.addEventListener('paste', () => {
 
 // FEATURE 5: Clear song editor button
 function clearSongEditor() {
-  if (typeof clearSong === 'function') {
-    clearSong();
-  } else {
-    $('songTitle').value = '';
-    $('songText').value = '';
-    if ($('songSourceLang')) $('songSourceLang').value = currentEvent?.sourceLang || 'ro';
-  }
+  clearSong();
   setStatus('Editor cleared.');
 }
 $('clearSongEditorBtn')?.addEventListener('click', clearSongEditor);
@@ -5511,8 +5607,18 @@ async function importSongFromUrl(url) {
     }
   }
 
-  if ($('songTitle') && data.song.title) $('songTitle').value = data.song.title;
-  if ($('songText') && data.song.text) $('songText').value = data.song.text;
+  // SV-SONG-EDITOR — load the imported song into the section editor. It is a fresh compose
+  // (not a loaded library song), so the duplicate-title guard still applies unless the caller
+  // explicitly saves with allowOverwrite (the "Import" buttons do, after their own confirm).
+  if (svSongEditor) {
+    svSongEditorLoadedId = null;
+    svSongEditor.setSong(libraryItemToEditorSong({
+      title: data.song.title || '',
+      author: data.song.author || '',
+      text: data.song.text || '',
+      sourceLang: data.song.sourceLang
+    }));
+  }
   return data.song;
 }
 
@@ -5549,7 +5655,7 @@ $('importUrlBtn')?.addEventListener('click', async () => {
     if (isUrl) {
       // WORSHIP-IMPORT-DIRECT — URL direct → importă și salvează direct în Library.
       const song = await importSongFromUrl(value);
-      await saveSongToLibrary();
+      await saveSongToLibrary({ allowOverwrite: true });
       status.textContent = `Salvat în Library: "${song.title}" (${song.sourceProvider})`;
       status.style.color = '#0c0';
     } else {
@@ -5672,10 +5778,10 @@ $('importUrlResults')?.addEventListener('click', async (e) => {
   btn.disabled = true;
   btn.textContent = '...';
   try {
-    // importSongFromUrl umple editorul + face dedup-check; apoi saveSongToLibrary îl persistă
-    // (citește din #songTitle/#songText). Editorul rămâne curățat la final prin clearSong().
+    // importSongFromUrl umple editorul de secțiuni; apoi saveSongToLibrary îl persistă
+    // (citește din svSongEditor.payload()). Editorul rămâne curățat la final prin clearSong().
     const song = await importSongFromUrl(url);
-    await saveSongToLibrary();
+    await saveSongToLibrary({ allowOverwrite: true });
     status.textContent = `Salvat în Library: "${song.title}"`;
     status.style.color = '#0c0';
     if (resultsEl) resultsEl.innerHTML = '';
@@ -5828,7 +5934,7 @@ async function openOnlinePreview(url, title, author) {
     $('onlinePreviewMessage').textContent = adminT('online.importing', 'Se importă...');
     try {
       const song = await importSongFromUrl(onlinePreviewUrl);
-      await saveSongToLibrary();
+      await saveSongToLibrary({ allowOverwrite: true });
       if (status) { status.textContent = `Salvat în Library: "${song.title}"`; status.style.color = '#0c0'; }
       close();
     } catch (err) {
