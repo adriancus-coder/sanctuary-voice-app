@@ -14,17 +14,15 @@
       <span>Sanctuary Voice</span>
     </a>
     <nav class="landing-nav-links" aria-label="Primary">
-      <a href="/">Home</a>
+      <a href="/" data-i18n="od.home">Home</a>
     </nav>
-    <button class="landing-login-btn" type="button" id="opLogoutBtn">Log out</button>
+    <button class="landing-login-btn" type="button" id="opLogoutBtn" data-i18n="od.logout">Log out</button>
   </header>
 
   <main class="operator-dashboard">
     <section class="operator-dashboard-head">
-      <h1>Active events</h1>
-      <p class="operator-dashboard-desc">
-        Pick the event you want to operate. Enter its Event ID to confirm and continue to the remote panel.
-      </p>
+      <h1 data-i18n="od.title">Active events</h1>
+      <p class="operator-dashboard-desc" data-i18n="od.desc">Pick the event you want to operate. Enter its Event ID to confirm and continue to the remote panel.</p>
     </section>
 
     <div id="opDashStatus" class="operator-dashboard-status" role="status"></div>
@@ -35,30 +33,32 @@
       <article class="operator-event-card">
         <header class="operator-event-card-head">
           <h2 class="operator-event-name"></h2>
-          <span class="operator-event-status">Active</span>
+          <span class="operator-event-status" data-i18n="od.active">Active</span>
         </header>
         <dl class="operator-event-meta">
           <div>
-            <dt>Date</dt>
+            <dt data-i18n="od.date">Date</dt>
             <dd class="operator-event-date"></dd>
           </div>
           <div>
-            <dt>Source language</dt>
+            <dt data-i18n="od.sourceLang">Source language</dt>
             <dd class="operator-event-lang"></dd>
           </div>
         </dl>
         <form class="operator-event-form" novalidate>
           <label class="operator-event-label">
-            <span>Enter Event ID to join</span>
-            <input type="text" class="operator-event-input" placeholder="Event ID" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="text">
+            <span data-i18n="od.enterId">Enter Event ID to join</span>
+            <input type="text" class="operator-event-input" placeholder="Event ID" data-i18n-placeholder="od.eventIdPlaceholder" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="text">
           </label>
-          <button type="submit" class="btn btn-primary operator-event-join">Join</button>
+          <button type="submit" class="btn btn-primary operator-event-join" data-i18n="od.join">Join</button>
           <div class="operator-event-error" role="alert"></div>
         </form>
       </article>
     </template>
   </main>
 
+  <script src="/i18n-dict.js"></script>
+  <script src="/i18n.js"></script>
   <script src="/operator-dashboard.js"></script>
   <script src="/shell.js"></script>
 </body>

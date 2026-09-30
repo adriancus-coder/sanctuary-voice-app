@@ -118,6 +118,7 @@
     }
     setStatus('', false);
     events.forEach(function (event) { listEl.appendChild(buildCard(event)); });
+    if (window.I18N) window.I18N.apply(); // SV-I18N-ALL — translate cloned card templates
   }
 
   function buildCard(event) {
