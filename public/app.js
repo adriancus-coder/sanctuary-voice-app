@@ -4587,9 +4587,11 @@ function routeAdminHash() {
     if (window.PageTabs && window.PageTabs.activate) window.PageTabs.activate('dashTabs', 'receptie');
     return;
   }
-  // Any other bare hash that names a tab section (incl. #statistics / #manual
-  // reached from "Mai mult", and the shell's #dashboard / #events / #song links).
-  if (['dashboard', 'events', 'operator-roles', 'mainscreen', 'song', 'statistics', 'manual'].includes(h)) {
+  // SV-ADMIN-QUICKTEXT-ECRAN — quick text is now a section of Ecran principal.
+  if (h === 'manual') { switchTab('mainscreen'); return; }
+  // Any other bare hash that names a tab section (incl. #statistics reached from
+  // "Mai mult", and the shell's #dashboard / #events / #song links).
+  if (['dashboard', 'events', 'operator-roles', 'mainscreen', 'song', 'statistics'].includes(h)) {
     switchTab(h);
   }
 }
@@ -5915,7 +5917,7 @@ $('manualHistoryList')?.addEventListener('click', async (e) => {
   if (btn.getAttribute('data-manual-history-action') === 'load') {
     if ($('manualTitle')) $('manualTitle').value = item.title || '';
     $('manualText').value = item.source || '';
-    switchTab('manual');
+    switchTab('mainscreen');   // SV-ADMIN-QUICKTEXT-ECRAN — quick text lives in Ecran principal
     setStatus('Pinned text loaded into quick push editor.');
     return;
   }
@@ -5944,7 +5946,7 @@ $('manualLibraryList')?.addEventListener('click', async (e) => {
     if ($('manualTitle')) $('manualTitle').value = item.title || '';
     $('manualText').value = item.text || '';
     if ($('manualSourceLang')) $('manualSourceLang').value = item.sourceLang || currentEvent?.sourceLang || 'ro';
-    switchTab('manual');
+    switchTab('mainscreen');   // SV-ADMIN-QUICKTEXT-ECRAN — quick text lives in Ecran principal
     setStatus('Pinned text loaded into editor.');
     clearLibrarySearch('manualLibrarySearch', renderPinnedTextLibrary, currentPinnedTextLibrary);
     return;

@@ -212,9 +212,11 @@ in-page tabs with a sticky action bar for the page's 2–4 primary buttons.
   Transcript → a per-event "Transcript" action in Evenimente (and `/admin#transcript`
   redirects to the current/active event's transcript; the live partial stays in the
   dashboard's Transcript in-page tab); Glossary → the "Glosar" section in the
-  dashboard's Recepție tab (one store, `#glossary` redirects there); Statistics and
-  Quick Text → the shell's "Mai mult → Admin" sheet (owner only), via
-  `/admin#statistics` and `/admin#manual`.
+  dashboard's Recepție tab (one store, `#glossary` redirects there); Statistics →
+  the shell's "Mai mult → Admin" sheet (owner only), via `/admin#statistics`;
+  Quick Text → a plain section of Ecran principal (the sender + pinned-text
+  library; `#manual` redirects there). Roadmap: quick texts later become "Anunț"
+  items in the event program (see `docs/ROADMAP.md`).
 
 ## Accounts & roles
 

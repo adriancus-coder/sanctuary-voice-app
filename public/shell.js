@@ -162,7 +162,6 @@
       <section class="shell-section shell-admin-only" hidden>
         <h3 class="shell-section-title">${t('adminTools')}</h3>
         <a class="shell-row" href="/admin#statistics"><span class="shell-row-icon">${ICON.stats}</span><span class="shell-row-label">${t('stats')}</span></a>
-        <a class="shell-row" href="/admin#manual"><span class="shell-row-icon">${ICON.quickText}</span><span class="shell-row-label">${t('quickText')}</span></a>
       </section>
       <section class="shell-section">
         <h3 class="shell-section-title">${t('account')}</h3>

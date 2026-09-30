@@ -670,6 +670,58 @@
           </div>
 
         </div>
+        <!-- SV-ADMIN-QUICKTEXT-ECRAN — Quick Text (sender + library) is now a
+             plain section of Ecran principal (was the removed Quick Text tab). -->
+        <div class="cards-grid two">
+          <div class="panel glass-panel section-stack">
+            <div class="section-head">
+              <h2 data-i18n="qt.title">Quick Text Push</h2>
+              <div data-i18n="qt.directPublish" class="live-chip">Direct publish</div>
+            </div>
+            <div class="split-2 compact-library-row">
+              <div>
+                <label>Title</label>
+                <input id="manualTitle" type="text" data-i18n-placeholder="ph.manualTitle" placeholder="Welcome">
+              </div>
+              <div>
+                <label data-i18n="qt.pinnedLang">Pinned text language</label>
+                <select id="manualSourceLang"></select>
+              </div>
+            </div>
+            <textarea id="manualText" data-i18n-placeholder="ph.manualText" placeholder="Write text here"></textarea>
+            <div data-i18n="qt.enterHint" class="muted">Press Enter twice quickly to send.</div>
+            <div class="button-row compact-row">
+              <button id="saveManualLibraryBtn" class="btn btn-dark" type="button" data-i18n="btn.saveManualLib">Save to library</button>
+              <button id="sendManualLiveBtn" class="btn btn-dark" type="button" data-i18n="btn.sendManualLive">Send to live</button>
+              <button id="sendManualDisplayBtn" class="btn btn-primary" type="button" data-i18n="btn.sendManualDisplay">Send to pinned text</button>
+            </div>
+            <div class="info-card soft-card">
+              <div class="section-head admin-subsection-head">
+                <h2 data-i18n="qt.pinnedHistory">Pinned Text History</h2>
+                <div data-i18n="qt.pinnedHistoryHint" class="muted">Resend a recent pinned text quickly</div>
+              </div>
+              <div id="manualHistoryList" class="history-list">
+                <div class="muted">No pinned texts yet.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel glass-panel section-stack">
+            <div class="section-head">
+              <h2 data-i18n="qt.pinnedLib">Pinned Text Library</h2>
+              <div data-i18n="qt.pinnedLibHint" class="muted">Reusable text for welcome, prayer, announcements, and verses</div>
+            </div>
+            <div class="button-row compact-row">
+              <input id="manualLibrarySearch" type="text" data-i18n-placeholder="ph.manualLibSearch" placeholder="Search pinned text library">
+              <select id="manualLibrarySort">
+                <option value="az" selected>Title A-Z</option>
+                <option value="za">Title Z-A</option>
+                <option value="recent">Recent first</option>
+              </select>
+            </div>
+            <div id="manualLibraryList" class="event-list" data-list-pane="Bibliotecă text"></div>
+          </div>
+        </div>
       </section>
 
       <section id="tab-song" class="tab-panel">
@@ -961,58 +1013,6 @@
       </section>
 
 
-      <section id="tab-manual" class="tab-panel">
-        <div class="cards-grid two">
-          <div class="panel glass-panel section-stack">
-            <div class="section-head">
-              <h2 data-i18n="qt.title">Quick Text Push</h2>
-              <div data-i18n="qt.directPublish" class="live-chip">Direct publish</div>
-            </div>
-            <div class="split-2 compact-library-row">
-              <div>
-                <label>Title</label>
-                <input id="manualTitle" type="text" data-i18n-placeholder="ph.manualTitle" placeholder="Welcome">
-              </div>
-              <div>
-                <label data-i18n="qt.pinnedLang">Pinned text language</label>
-                <select id="manualSourceLang"></select>
-              </div>
-            </div>
-            <textarea id="manualText" data-i18n-placeholder="ph.manualText" placeholder="Write text here"></textarea>
-            <div data-i18n="qt.enterHint" class="muted">Press Enter twice quickly to send.</div>
-            <div class="button-row compact-row">
-              <button id="saveManualLibraryBtn" class="btn btn-dark" type="button" data-i18n="btn.saveManualLib">Save to library</button>
-              <button id="sendManualLiveBtn" class="btn btn-dark" type="button" data-i18n="btn.sendManualLive">Send to live</button>
-              <button id="sendManualDisplayBtn" class="btn btn-primary" type="button" data-i18n="btn.sendManualDisplay">Send to pinned text</button>
-            </div>
-            <div class="info-card soft-card">
-              <div class="section-head admin-subsection-head">
-                <h2 data-i18n="qt.pinnedHistory">Pinned Text History</h2>
-                <div data-i18n="qt.pinnedHistoryHint" class="muted">Resend a recent pinned text quickly</div>
-              </div>
-              <div id="manualHistoryList" class="history-list">
-                <div class="muted">No pinned texts yet.</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel glass-panel section-stack">
-            <div class="section-head">
-              <h2 data-i18n="qt.pinnedLib">Pinned Text Library</h2>
-              <div data-i18n="qt.pinnedLibHint" class="muted">Reusable text for welcome, prayer, announcements, and verses</div>
-            </div>
-            <div class="button-row compact-row">
-              <input id="manualLibrarySearch" type="text" data-i18n-placeholder="ph.manualLibSearch" placeholder="Search pinned text library">
-              <select id="manualLibrarySort">
-                <option value="az" selected>Title A-Z</option>
-                <option value="za">Title Z-A</option>
-                <option value="recent">Recent first</option>
-              </select>
-            </div>
-            <div id="manualLibraryList" class="event-list" data-list-pane="Bibliotecă text"></div>
-          </div>
-        </div>
-      </section>
 
       <section id="tab-statistics" class="tab-panel">
         <div class="cards-grid four metrics-grid" id="statsOverviewCards">
