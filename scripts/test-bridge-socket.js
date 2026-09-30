@@ -93,6 +93,37 @@ function waitFor(socket, event, ms = 6000) {
       assert.ok('en' in entry.translations && 'no' in entry.translations, 'per-language translations present');
     });
 
+    // A participant joins the live event and should receive bridged lyrics.
+    const part = io(base, { transports: ['websocket'], reconnection: false });
+    opened.push(part);
+    await waitFor(part, 'connect');
+    part.emit('join_event', { eventId: evId, role: 'participant', language: 'en' });
+    await waitFor(part, 'joined_event');
+
+    await test('song.current -> participant gets translated lyrics', async () => {
+      const lyricsP = waitFor(part, 'lyrics', 8000);
+      bridgeSock.emit('song.current', { title: 'Isus e Domn', label: 'Vers 1', text: 'Isus e Domn\nîn veci', hash: 'h-verse-1', lang: 'ro' });
+      const ly = await lyricsP;
+      assert.strictEqual(ly.title, 'Isus e Domn');
+      assert.ok(ly.translations && typeof ly.translations.en === 'string' && ly.translations.en.length > 0, 'EN lyrics present');
+    });
+
+    await test('setlist.sections is accepted (background pre-translate)', async () => {
+      // No throw; a follow-up song.current for the same hash still delivers.
+      bridgeSock.emit('setlist.sections', [{ hash: 'h-verse-2', title: 'Mare ești', label: 'Vers 1', text: 'Mare ești Tu', lang: 'ro' }]);
+      await sleep(300);
+      const lyricsP = waitFor(part, 'lyrics', 8000);
+      bridgeSock.emit('song.current', { title: 'Mare ești', label: 'Vers 1', text: 'Mare ești Tu', hash: 'h-verse-2', lang: 'ro' });
+      const ly = await lyricsP;
+      assert.strictEqual(ly.hash, 'h-verse-2');
+    });
+
+    await test('song.clear -> participant gets lyrics_clear', async () => {
+      const clearP = waitFor(part, 'lyrics_clear', 6000);
+      bridgeSock.emit('song.clear');
+      await clearP;
+    });
+
     await test('revoke disconnects the bridge socket', async () => {
       const disc = new Promise((resolve) => bridgeSock.on('disconnect', () => resolve(true)));
       await fetch(`${base}/api/events/${evId}/bridge/revoke`, { method: 'POST', headers: { Cookie: cookie } });

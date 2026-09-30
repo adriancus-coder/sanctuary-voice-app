@@ -5107,8 +5107,124 @@ function emitBridgeTranslation(eventId, name, payload) {
   } catch (_) { /* best effort — never break delivery */ }
 }
 
-// SV-BRIDGE-IN (A3) — placeholder; wired in the next commit.
-function registerBridgeInbound(/* socket, eventId */) {}
+// ===== SV-BRIDGE-IN (A3) — worship-app song sections -> SV translates -> participants =====
+// Per-strophe translation cache keyed by content hash, so re-showing a section is
+// instant and the setlist can be pre-translated ahead of time.
+const bridgeLyricsCache = new Map(); // `${eventId}:${hash}:${lang}` -> text
+const bridgePretranslateQueue = [];
+let bridgePretranslateRunning = false;
+
+function sanitizeBridgeSection(p) {
+  if (!p || typeof p !== 'object') return null;
+  const text = sanitizeStructuredText(String(p.text || '')).slice(0, 4000);
+  if (!text) return null;
+  const lang = LANGUAGES[String(p.lang || '').trim()] ? String(p.lang).trim() : '';
+  return {
+    title: String(p.title || '').slice(0, 200),
+    label: String(p.label || '').slice(0, 80),
+    text,
+    hash: String(p.hash || '').slice(0, 128),
+    lang
+  };
+}
+
+async function translateLyricsForBridge(event, section) {
+  const sourceLang = section.lang || event.sourceLang || 'ro';
+  const targets = Array.isArray(event.targetLangs) ? event.targetLangs : [];
+  const out = {};
+  await Promise.all(targets.map(async (lang) => {
+    if (lang === sourceLang) { out[lang] = section.text; return; }
+    const key = `${event.id}:${section.hash}:${lang}`;
+    if (section.hash && bridgeLyricsCache.has(key)) { out[lang] = bridgeLyricsCache.get(key); return; }
+    try {
+      const t = await translateText(section.text, lang, event, sourceLang);
+      out[lang] = t;
+      if (section.hash) bridgeLyricsCache.set(key, t);
+    } catch (_) { out[lang] = ''; }
+  }));
+  return out;
+}
+
+async function emitBridgeLyrics(event, section) {
+  const translations = await translateLyricsForBridge(event, section);
+  const payload = {
+    eventId: event.id,
+    hash: section.hash,
+    title: section.title,
+    label: section.label,
+    sourceLang: section.lang || event.sourceLang || 'ro',
+    original: section.text,
+    translations,
+    createdAt: new Date().toISOString()
+  };
+  event.bridgeLyrics = payload;   // additive; late-joining participants get it
+  saveDb();
+  io.to(`event:${event.id}`).emit('lyrics', payload);
+}
+
+function clearBridgeLyrics(event) {
+  if (!event.bridgeLyrics) return;
+  event.bridgeLyrics = null;
+  saveDb();
+  io.to(`event:${event.id}`).emit('lyrics_clear', { eventId: event.id });
+}
+
+// Pre-translate setlist sections in the background: single runner, spaced out and
+// skipping cached entries, so it never competes with live translation.
+function queueBridgePretranslate(event, sections) {
+  for (const s of sections) {
+    if (!s || !s.text || !s.hash) continue;
+    const sourceLang = s.lang || event.sourceLang || 'ro';
+    for (const lang of (event.targetLangs || [])) {
+      if (lang === sourceLang) continue;
+      const key = `${event.id}:${s.hash}:${lang}`;
+      if (bridgeLyricsCache.has(key)) continue;
+      bridgePretranslateQueue.push({ eventId: event.id, text: s.text, hash: s.hash, lang, sourceLang });
+    }
+  }
+  runBridgePretranslate();
+}
+async function runBridgePretranslate() {
+  if (bridgePretranslateRunning) return;
+  bridgePretranslateRunning = true;
+  try {
+    while (bridgePretranslateQueue.length) {
+      const job = bridgePretranslateQueue.shift();
+      const event = db.events[job.eventId];
+      const key = `${job.eventId}:${job.hash}:${job.lang}`;
+      if (!event || bridgeLyricsCache.has(key)) continue;
+      try {
+        const t = await translateText(job.text, job.lang, event, job.sourceLang);
+        bridgeLyricsCache.set(key, t);
+      } catch (_) { /* skip; a later song.current will retry */ }
+      await new Promise((r) => setTimeout(r, 250));   // low-priority spacing
+    }
+  } finally {
+    bridgePretranslateRunning = false;
+  }
+}
+
+function registerBridgeInbound(socket, eventId) {
+  socket.on('song.current', (payload) => {
+    const event = db.events[eventId];
+    if (!event) return;
+    const section = sanitizeBridgeSection(payload);
+    if (!section) return;
+    emitBridgeLyrics(event, section).catch((err) => logger.warn && logger.warn('bridge lyrics failed:', err && err.message));
+  });
+  socket.on('song.clear', () => {
+    const event = db.events[eventId];
+    if (event) clearBridgeLyrics(event);
+  });
+  socket.on('setlist.sections', (payload) => {
+    const event = db.events[eventId];
+    if (!event) return;
+    const raw = Array.isArray(payload) ? payload : (payload && payload.sections);
+    if (!Array.isArray(raw)) return;
+    const sections = raw.map(sanitizeBridgeSection).filter(Boolean).slice(0, 200);
+    if (sections.length) queueBridgePretranslate(event, sections);
+  });
+}
 
 app.post('/api/admin/worship-roles', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;

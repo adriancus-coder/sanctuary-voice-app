@@ -8978,3 +8978,26 @@ body:not(.has-shell) { padding-bottom: var(--sticky-actions-h, 0px); }
 .worship-signals-summary::-webkit-details-marker { display: none; }
 .worship-signals-summary::before { content: "▸"; }
 .worship-signals[open] > .worship-signals-summary::before { content: "▾"; }
+
+/* SV-BRIDGE-IN — song lyrics from a connected worship-app, translated by SV.
+   A distinct accent card above the participant's live translation. */
+.bridge-lyrics-card {
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--accent-fill);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+}
+.bridge-lyrics-card[hidden] { display: none !important; }
+.bridge-lyrics-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-text);
+}
+.bridge-lyrics-text { white-space: pre-wrap; font-size: 1.15rem; line-height: 1.45; color: var(--text); }

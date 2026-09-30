@@ -1290,6 +1290,7 @@ function handleLanguageChange() {
     subscribeToPushNotifications().catch(() => {});
   }
   renderLiveView({ announce: false });
+  renderBridgeLyrics(state.currentEvent?.bridgeLyrics);   // SV-BRIDGE-IN — re-render in the new language
   showAiNoticeIfNeeded({ force: true });
 }
 
@@ -1482,6 +1483,35 @@ socket.on('display_live_entry_partial', (payload) => {
 
   // BUGFIX V1: refresh auto-expire timer
   refreshLiveTextExpireTimer();
+});
+
+// SV-BRIDGE-IN — song lyrics from a connected worship-app, translated by SV,
+// shown as a distinct card above the live translation. Re-renders in the viewer's
+// chosen language; clears on song.clear.
+function renderBridgeLyrics(payload) {
+  const card = document.getElementById('bridgeLyricsCard');
+  if (!card) return;
+  if (!payload) { card.hidden = true; return; }
+  const lang = state.currentLanguage;
+  const sourceLang = payload.sourceLang || state.currentEvent?.sourceLang || 'ro';
+  const text = (lang === sourceLang)
+    ? (payload.original || '')
+    : ((payload.translations && payload.translations[lang]) || '');
+  if (!text || !String(text).trim()) { card.hidden = true; return; }
+  const titleEl = document.getElementById('bridgeLyricsTitle');
+  const textEl = document.getElementById('bridgeLyricsText');
+  if (titleEl) titleEl.textContent = [payload.title, payload.label].filter(Boolean).join(' · ');
+  if (textEl) textEl.textContent = text;
+  card.hidden = false;
+}
+socket.on('lyrics', (payload) => {
+  if (!state.currentEvent || !payload) return;
+  state.currentEvent.bridgeLyrics = payload;
+  renderBridgeLyrics(payload);
+});
+socket.on('lyrics_clear', () => {
+  if (state.currentEvent) state.currentEvent.bridgeLyrics = null;
+  renderBridgeLyrics(null);
 });
 
 socket.on('display_mode_changed', (payload) => {

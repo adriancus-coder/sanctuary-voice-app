@@ -601,6 +601,9 @@ function registerSocketHandlers(io, ctx) {
         organization: buildPublicOrganization(getOrganizationForEvent(event))
       });
 
+      // SV-BRIDGE-IN — a late-joining participant gets the current bridged lyrics.
+      if (event.bridgeLyrics) socket.emit('lyrics', event.bridgeLyrics);
+
       // V21.21-FIX: snapshots must be emitted AFTER joined_event. The admin
       // client's joined_event handler resets adminOperatorsPresence and
       // adminWorshipMembers to a clean slate before re-rendering; when the

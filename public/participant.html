@@ -76,6 +76,12 @@
         <div id="participantCountdown" class="participant-countdown-timer">--:--:--</div>
         <div id="participantCountdownNote" class="participant-countdown-note"></div>
       </div>
+      <!-- SV-BRIDGE-IN — song lyrics from a connected worship-app, translated by SV.
+           A distinct card above the live translation; hidden unless a song is live. -->
+      <div id="bridgeLyricsCard" class="bridge-lyrics-card" hidden>
+        <div class="bridge-lyrics-head"><span class="bridge-lyrics-badge" aria-hidden="true">🎵</span> <span id="bridgeLyricsTitle" class="bridge-lyrics-title"></span></div>
+        <div id="bridgeLyricsText" class="bridge-lyrics-text"></div>
+      </div>
       <div class="participant-live-stage" id="participantLiveStage">
         <div id="participantUpdatingBadge" class="updating-badge" style="display:none">Updating...</div>
         <div class="label">Live text</div>
