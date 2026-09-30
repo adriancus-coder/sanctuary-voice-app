@@ -8854,3 +8854,96 @@ body.shell-locked {
 /* SV-TRANSLATE-STREAMING — in-progress partial translation shown lighter
    (opt-in per event via displayState.streamPartials; default off = unchanged). */
 .participant-main-text.partial-live { opacity: 0.62; }
+
+/* ===== SV-PAGE-TABS — in-page segmented tab bar + sticky action bar ===== */
+.page-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+  padding: 8px 0;
+  margin: 0 0 12px;
+  background: var(--background);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.page-tabs::-webkit-scrollbar { display: none; }
+.page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.page-tab:hover { color: var(--text); }
+.page-tab.is-active {
+  background: var(--accent-fill);
+  color: #1b1a1f;   /* dark text on the accent fill — matches other selected controls */
+  border-color: var(--accent-fill);
+  font-weight: 800;
+}
+.page-tab.is-active .page-tab-label::before { content: "\2713\00a0"; }
+.page-tab:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.page-tab-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.page-tab.is-active .page-tab-badge { background: rgba(0, 0, 0, 0.2); color: #1b1a1f; }
+.page-tab-panel[hidden] { display: none !important; }
+
+/* Sticky action bar: pinned above the app bar on phones/tablets, inline on wide. */
+.sticky-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--shell-bottom, 0px);
+  z-index: 25;
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+body.has-shell .sticky-actions { left: 0; }
+@media (min-width: 900px) {
+  /* left rail: clear the 84px rail so the bar doesn't sit under it */
+  .sticky-actions { left: calc(84px + env(safe-area-inset-left, 0px)); }
+}
+.sticky-actions .btn { flex: 1 1 auto; min-height: 44px; }
+@media (min-width: 1024px) {
+  .sticky-actions {
+    position: sticky;
+    left: auto;
+    right: auto;
+    bottom: 16px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+  .sticky-actions .btn { flex: 0 1 auto; }
+}
+/* Keep content clear of the pinned bar below 1024px (above it is in-flow). */
+@media (max-width: 1023px) {
+  body.has-shell { padding-bottom: calc(var(--shell-bottom) + var(--sticky-actions-h, 0px)); }
+  body:not(.has-shell) { padding-bottom: var(--sticky-actions-h, 0px); }
+}
