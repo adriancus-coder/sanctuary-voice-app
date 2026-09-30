@@ -214,7 +214,7 @@ function setOnAirState(isOn) {
   }
   const startBtn = $('startRecognitionBtn');
   if (startBtn) {
-    startBtn.textContent = isOn ? 'On-Air' : 'Start live';
+    startBtn.textContent = isOn ? adminT('btn.onAir', 'On-Air') : adminT('btn.startLive', 'Start live');
     startBtn.classList.toggle('btn-danger', !!isOn);
     startBtn.classList.toggle('btn-primary', !isOn);
     startBtn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
@@ -1041,15 +1041,15 @@ function renderParticipantStats(stats = {}) {
   $('participantStatsSummary').textContent = uniqueCount === 1 ? '1 unique participant' : `${uniqueCount} unique participants`;
   $('participantStatsList').innerHTML = languages.length
     ? languages.map((item) => `<div class="history-item">${escapeHtml(langLabel(item.lang))}: ${item.count}</div>`).join('')
-    : '<div class="muted">No connected participant.</div>';
+    : `<div class="muted" data-i18n="ls.noParticipant">${adminT('ls.noParticipant', 'No connected participant.')}</div>`;
 }
 
 function renderAudioStateLabel() {
   if ($('audioStateLabel')) $('audioStateLabel').textContent = currentMuted ? 'Global audio off.' : 'Global audio active.';
-  if ($('muteGlobalBtn')) $('muteGlobalBtn').textContent = currentMuted ? 'Unmute global' : 'Mute global';
+  if ($('muteGlobalBtn')) $('muteGlobalBtn').textContent = currentMuted ? adminT('btn.unmuteGlobal', 'Unmute global') : adminT('btn.muteGlobal', 'Mute global');
   const heroMuteBtn = $('heroMuteGlobalBtn');
   if (heroMuteBtn) {
-    heroMuteBtn.textContent = currentMuted ? '🔊 Unmute' : '🔇 Mute';
+    heroMuteBtn.textContent = currentMuted ? adminT('btn.heroUnmute', '🔊 Unmute') : adminT('btn.heroMute', '🔇 Mute');
     heroMuteBtn.classList.toggle('btn-primary', currentMuted);
     heroMuteBtn.classList.toggle('btn-dark', !currentMuted);
   }
