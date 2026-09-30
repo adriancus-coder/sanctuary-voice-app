@@ -8451,3 +8451,115 @@ body.shell-locked {
   z-index: 2;
   background: var(--surface);
 }
+
+/* ============================================================
+   SV-LIGHT-THEME — the app pages use many hard-coded dark
+   surfaces (body gradient, .glass-panel, inputs, buttons).
+   Rather than rewrite 800+ literals, override the dominant
+   surfaces under the light theme so light/auto are readable.
+   The projector (/translate) and worship-view keep their own
+   display themes and are untouched.
+   ============================================================ */
+:root[data-theme='light'] body {
+  background: var(--background);
+}
+:root[data-theme='light'] body::before {
+  display: none;
+}
+:root[data-theme='light'] .glass-panel {
+  background: var(--surface);
+  backdrop-filter: none;
+}
+:root[data-theme='light'] .glass-panel::before {
+  display: none;
+}
+:root[data-theme='light'] .panel {
+  border-color: var(--border);
+}
+:root[data-theme='light'] .top-nav-tabs {
+  background: var(--surface);
+  border-bottom-color: var(--border);
+}
+:root[data-theme='light'] input,
+:root[data-theme='light'] select,
+:root[data-theme='light'] textarea {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+:root[data-theme='light'] .btn {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+:root[data-theme='light'] .btn-dark {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+:root[data-theme='light'] .btn-primary,
+:root[data-theme='light'] .nav-btn.active {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+:root[data-theme='light'] .history-item,
+:root[data-theme='light'] .event-item,
+:root[data-theme='light'] .dashboard-subcard,
+:root[data-theme='light'] .hero-status-card,
+:root[data-theme='light'] .song-block-item,
+:root[data-theme='light'] .card {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+:root[data-theme='light'] .sv-appnav {
+  background: var(--surface);
+}
+:root[data-theme='light'] .shell-panel,
+:root[data-theme='light'] .shell-exit {
+  background: var(--surface);
+}
+
+/* SV-LIGHT-THEME (cathedral) — the admin page is themed by cathedral-theme.css
+   through --ct-* tokens (defined dark inline in admin.html). Remap them for the
+   light theme; :root[data-theme="light"] (0,2,0) beats the inline :root (0,1,0)
+   so cathedral's var(--ct-*) !important rules resolve to these light values. */
+:root[data-theme='light'] {
+  --ct-ink: #f7f5f1;
+  --ct-ink-2: #efebe4;
+  --ct-panel: #ffffff;
+  --ct-panel-hi: rgba(27, 26, 31, 0.05);
+  --ct-parchment: #1b1a1f;
+  --ct-parchment-d: #5b5563;
+  --ct-brass: #8a5200;
+  --ct-brass-hi: #6f4200;
+  --ct-brass-deep: #6f4200;
+  --ct-brass-glow: rgba(138, 82, 0, 0.12);
+  --ct-ember: #b3401e;
+  --ct-ember-hi: #c85a2b;
+  --ct-live: #1f7a3a;
+  --ct-live-hi: #2f9a4f;
+  --ct-live-glow: rgba(31, 122, 58, 0.22);
+  --ct-line: rgba(138, 82, 0, 0.28);
+  --ct-line-soft: rgba(27, 26, 31, 0.08);
+  --ct-shadow: 0 22px 55px -14px rgba(27, 26, 31, 0.18);
+}
+
+/* SV-LIGHT-THEME — remaining bespoke card surfaces on the admin/app pages. */
+:root[data-theme='light'] .soft-card,
+:root[data-theme='light'] .accent-card,
+:root[data-theme='light'] .info-card,
+:root[data-theme='light'] .metric-card,
+:root[data-theme='light'] .control-card,
+:root[data-theme='light'] .section-stack,
+:root[data-theme='light'] .compact-control-card,
+:root[data-theme='light'] .audio-processing-card,
+:root[data-theme='light'] .translation-monitor-card {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+:root[data-theme='light'] .dashboard-live-session {
+  background: transparent;
+  border-color: var(--border);
+}
