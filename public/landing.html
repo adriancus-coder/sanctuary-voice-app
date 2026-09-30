@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ro">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,21 +16,26 @@
   <div class="nav-in">
     <a class="brand" href="/">Sanctuary <em>Voice</em></a>
     <div class="nav-links">
-      <a href="#how">How it works</a>
-      <a href="#features">Features</a>
-      <a href="#modes">Modes</a>
-      <a href="#songs">Songs</a>
-      <a href="#churches">For churches</a>
-      <a href="/admin">Admin</a>
-      <a class="btn btn-cta" href="#join">Join a service</a>
+      <a href="#how" data-i18n="l.nav.how">How it works</a>
+      <a href="#features" data-i18n="l.nav.features">Features</a>
+      <a href="#modes" data-i18n="l.nav.modes">Modes</a>
+      <a href="#songs" data-i18n="l.nav.songs">Songs</a>
+      <a href="#churches" data-i18n="l.nav.churches">For churches</a>
+      <a href="/admin" data-i18n="l.nav.admin">Admin</a>
+      <div class="ui-lang-switch landing-lang" role="group" aria-label="Language">
+        <button type="button" data-lang="ro">RO</button>
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="no">NO</button>
+      </div>
+      <a class="btn btn-cta" href="#join" data-i18n="l.nav.join">Join a service</a>
     </div>
   </div>
 </nav>
 
 <a id="landingNextService" class="landing-next-service" href="#join" hidden>
-  <span class="landing-next-service-label">Next service</span>
+  <span class="landing-next-service-label" data-i18n="l.nextService">Next service</span>
   <span id="landingNextServiceText" class="landing-next-service-text"></span>
-  <span class="landing-next-service-cta">Get Event ID &rarr;</span>
+  <span class="landing-next-service-cta" data-i18n="l.nextServiceCta">Get Event ID &rarr;</span>
 </a>
 
 <header class="hero">
@@ -40,14 +45,14 @@
   <canvas id="fx" aria-hidden="true"></canvas>
   <div class="hero-in">
     <div>
-      <div class="eyebrow">Live AI translation for churches</div>
-      <h1>The whole room hears the same sermon.</h1>
-      <p class="lead">Sanctuary Voice turns live speech into instant captions and translations — on every phone, on the main screen, in every language your congregation speaks. Nothing to install. Built for Sunday morning pressure.</p>
+      <div class="eyebrow" data-i18n="l.hero.eyebrow">Live AI translation for churches</div>
+      <h1 data-i18n="l.hero.h1">The whole room hears the same sermon.</h1>
+      <p class="lead" data-i18n="l.hero.lead">Sanctuary Voice turns live speech into instant captions and translations — on every phone, on the main screen, in every language your congregation speaks. Nothing to install. Built for Sunday morning pressure.</p>
       <div class="hero-ctas">
-        <a class="btn btn-cta" href="#churches">Bring it to your church</a>
-        <a class="btn btn-hair" href="#join">I'm at a service — join</a>
+        <a class="btn btn-cta" href="#churches" data-i18n="l.hero.cta1">Bring it to your church</a>
+        <a class="btn btn-hair" href="#join" data-i18n="l.hero.cta2">I'm at a service — join</a>
       </div>
-      <p class="hero-note">Speech recognition streams in under a second. Translations follow one phrase behind — like a human interpreter, without the second voice in the room.</p>
+      <p class="hero-note" data-i18n="l.hero.note">Speech recognition streams in under a second. Translations follow one phrase behind — like a human interpreter, without the second voice in the room.</p>
     </div>
     <div class="phone-stage">
       <div class="phone" id="phone" aria-label="Live demo of the participant view">
@@ -62,7 +67,7 @@
           <div class="tr-line" id="trEn"><span class="tag">EN</span><span class="tr-text" id="trEnText"></span></div>
           <div class="tr-line" id="trNo"><span class="tag">NO</span><span class="tr-text" id="trNoText"></span></div>
         </div>
-        <div class="phone-foot">Participant view · joins by QR or code · no app needed</div>
+        <div class="phone-foot" data-i18n="l.phone.foot">Participant view · joins by QR or code · no app needed</div>
       </div>
     </div>
   </div>
@@ -70,34 +75,34 @@
 
 <div class="facts">
   <div class="facts-in">
-    <div class="fact"><span class="idx">01</span><span><b>Under a second</b> from voice to caption, streaming continuously.</span></div>
-    <div class="fact"><span class="idx">02</span><span><b>Four speaking modes</b> — including Interpret, for fast preachers.</span></div>
-    <div class="fact"><span class="idx">03</span><span><b>Keeps going</b> when the Wi-Fi doesn't. Songs stay navigable offline.</span></div>
+    <div class="fact"><span class="idx">01</span><span><b data-i18n="l.fact1a">Under a second</b> <span data-i18n="l.fact1b">from voice to caption, streaming continuously.</span></span></div>
+    <div class="fact"><span class="idx">02</span><span><b data-i18n="l.fact2a">Four speaking modes</b> <span data-i18n="l.fact2b">— including Interpret, for fast preachers.</span></span></div>
+    <div class="fact"><span class="idx">03</span><span><b data-i18n="l.fact3a">Keeps going</b> <span data-i18n="l.fact3b">when the Wi-Fi doesn't. Songs stay navigable offline.</span></span></div>
   </div>
 </div>
 
 <section class="light section" id="how">
   <div class="wrap">
     <div class="sec-head" data-reveal>
-      <div class="eyebrow">Order of service</div>
-      <h2>Built for Sunday morning pressure.</h2>
-      <p class="sub">No rehearsal needed. If your team can open a webpage, they can run live translation.</p>
+      <div class="eyebrow" data-i18n="l.how.eyebrow">Order of service</div>
+      <h2 data-i18n="l.how.h2">Built for Sunday morning pressure.</h2>
+      <p class="sub" data-i18n="l.how.sub">No rehearsal needed. If your team can open a webpage, they can run live translation.</p>
     </div>
     <div class="order">
       <div class="order-row" data-reveal>
         <div class="order-time">09:52</div>
-        <h3>Open the service</h3>
-        <p>Create it once or reuse last week's. Pick the source language and the languages your room needs.</p>
+        <h3 data-i18n="l.how.s1h">Open the service</h3>
+        <p data-i18n="l.how.s1p">Create it once or reuse last week's. Pick the source language and the languages your room needs.</p>
       </div>
       <div class="order-row" data-reveal>
         <div class="order-time">09:55</div>
-        <h3>Share one permanent QR</h3>
-        <p>The same code, every week — print it on the door, drop it on the screen. Visitors scan and they're in.</p>
+        <h3 data-i18n="l.how.s2h">Share one permanent QR</h3>
+        <p data-i18n="l.how.s2p">The same code, every week — print it on the door, drop it on the screen. Visitors scan and they're in.</p>
       </div>
       <div class="order-row" data-reveal>
         <div class="order-time">10:00</div>
-        <h3>Just speak</h3>
-        <p>Captions stream to every phone and the main screen. The operator keeps control of songs, pinned text and the room.</p>
+        <h3 data-i18n="l.how.s3h">Just speak</h3>
+        <p data-i18n="l.how.s3p">Captions stream to every phone and the main screen. The operator keeps control of songs, pinned text and the room.</p>
       </div>
     </div>
   </div>
@@ -106,16 +111,16 @@
 <section class="light section sect-tight" id="features">
   <div class="wrap">
     <div class="sec-head" data-reveal>
-      <div class="eyebrow">Everything in one panel</div>
-      <h2>The whole service, not just the sermon.</h2>
+      <div class="eyebrow" data-i18n="l.feat.eyebrow">Everything in one panel</div>
+      <h2 data-i18n="l.feat.h2">The whole service, not just the sermon.</h2>
     </div>
     <div class="features-grid">
-      <div class="fcard" data-reveal><h3>Live captions &amp; translation</h3><p>Streaming speech recognition with AI translation tuned for natural, spoken language — not word-for-word output.</p></div>
-      <div class="fcard" data-reveal><h3>Church glossary</h3><p>Names, places and theological terms translated your way, every time. Correct the source once, it sticks.</p></div>
-      <div class="fcard" data-reveal><h3>Songs that follow the leader</h3><p>A song library with verse and chorus structure. Push lyrics to the main screen and every phone in sync.</p></div>
-      <div class="fcard" data-reveal><h3>Main screen, single or dual</h3><p>Projector view with themes, font fitting, pinned text and black screen — controllable from a phone.</p></div>
-      <div class="fcard" data-reveal><h3>Operator roles</h3><p>Give your tech team exactly the controls they need. Access requests, codes and sessions stay server-side.</p></div>
-      <div class="fcard" data-reveal><h3>Fails gracefully</h3><p>Connection drops? Screens keep the last words, songs stay navigable from the projector keyboard, and everything resyncs on its own.</p></div>
+      <div class="fcard" data-reveal><h3 data-i18n="l.feat.f1h">Live captions &amp; translation</h3><p data-i18n="l.feat.f1p">Streaming speech recognition with AI translation tuned for natural, spoken language — not word-for-word output.</p></div>
+      <div class="fcard" data-reveal><h3 data-i18n="l.feat.f2h">Church glossary</h3><p data-i18n="l.feat.f2p">Names, places and theological terms translated your way, every time. Correct the source once, it sticks.</p></div>
+      <div class="fcard" data-reveal><h3 data-i18n="l.feat.f3h">Songs that follow the leader</h3><p data-i18n="l.feat.f3p">A song library with verse and chorus structure. Push lyrics to the main screen and every phone in sync.</p></div>
+      <div class="fcard" data-reveal><h3 data-i18n="l.feat.f4h">Main screen, single or dual</h3><p data-i18n="l.feat.f4p">Projector view with themes, font fitting, pinned text and black screen — controllable from a phone.</p></div>
+      <div class="fcard" data-reveal><h3 data-i18n="l.feat.f5h">Operator roles</h3><p data-i18n="l.feat.f5p">Give your tech team exactly the controls they need. Access requests, codes and sessions stay server-side.</p></div>
+      <div class="fcard" data-reveal><h3 data-i18n="l.feat.f6h">Fails gracefully</h3><p data-i18n="l.feat.f6p">Connection drops? Screens keep the last words, songs stay navigable from the projector keyboard, and everything resyncs on its own.</p></div>
     </div>
   </div>
 </section>
@@ -123,9 +128,9 @@
 <section class="modes section" id="modes">
   <div class="wrap">
     <div class="sec-head" data-reveal>
-      <div class="eyebrow">Tuned to the speaker</div>
-      <h2>Four ways to translate, one tap apart.</h2>
-      <p class="sub">Every preacher is different. Pick the mode that matches the moment — switch any time.</p>
+      <div class="eyebrow" data-i18n="l.modes.eyebrow">Tuned to the speaker</div>
+      <h2 data-i18n="l.modes.h2">Four ways to translate, one tap apart.</h2>
+      <p class="sub" data-i18n="l.modes.sub">Every preacher is different. Pick the mode that matches the moment — switch any time.</p>
     </div>
     <div data-reveal>
       <div class="mode-chips" role="tablist" aria-label="Translation modes">
@@ -136,11 +141,11 @@
       </div>
       <div class="mode-panel">
         <div class="mode-col">
-          <span class="smallcap">Speaker · Romanian</span>
+          <span class="smallcap" data-i18n="l.modes.speaker">Speaker · Romanian</span>
           <p class="mode-src">„Și vreau să înțelegeți, dragii mei, că atitudinea noastră față de valorile materiale ne descoperă cel mai sincer."</p>
         </div>
         <div class="mode-col">
-          <span class="smallcap">Room reads · English</span>
+          <span class="smallcap" data-i18n="l.modes.room">Room reads · English</span>
           <p class="mode-out" id="modeOut">And I want you to understand, dear ones, that our attitude toward material values reveals us most honestly.</p>
         </div>
         <p class="mode-desc" id="modeDesc">Minimal latency, short phrases. For fast conversation and Q&amp;A.</p>
@@ -152,8 +157,8 @@
 <section class="light section" id="songs">
   <div class="wrap">
     <div class="sec-head" data-reveal>
-      <div class="eyebrow">Worship, included</div>
-      <h2>Songs speak the structure of worship.</h2>
+      <div class="eyebrow" data-i18n="l.songs.eyebrow">Worship, included</div>
+      <h2 data-i18n="l.songs.h2">Songs speak the structure of worship.</h2>
     </div>
     <div class="song-grid">
       <div class="song-sheet" data-reveal>
@@ -170,12 +175,12 @@
         </div>
       </div>
       <div class="song-copy" data-reveal>
-        <h3>Label once, jump forever</h3>
-        <p>Mark verses, chorus and bridge right in the lyrics. The projector keyboard jumps straight to them — press R for the chorus, numbers for verses.</p>
-        <h3>Translated side by side</h3>
-        <p>Lyrics and their translations travel together, so the screen and every phone show the song in the languages of the room.</p>
-        <h3>Works with a clicker</h3>
-        <p>PageUp / PageDown from any presentation remote steps through the song — online, and even if the internet drops mid-chorus.</p>
+        <h3 data-i18n="l.songs.c1h">Label once, jump forever</h3>
+        <p data-i18n="l.songs.c1p">Mark verses, chorus and bridge right in the lyrics. The projector keyboard jumps straight to them — press R for the chorus, numbers for verses.</p>
+        <h3 data-i18n="l.songs.c2h">Translated side by side</h3>
+        <p data-i18n="l.songs.c2p">Lyrics and their translations travel together, so the screen and every phone show the song in the languages of the room.</p>
+        <h3 data-i18n="l.songs.c3h">Works with a clicker</h3>
+        <p data-i18n="l.songs.c3p">PageUp / PageDown from any presentation remote steps through the song — online, and even if the internet drops mid-chorus.</p>
       </div>
     </div>
   </div>
@@ -183,46 +188,48 @@
 
 <section class="join section" id="join">
   <div class="join-in" data-reveal>
-    <div class="eyebrow eyebrow-center">At a service right now?</div>
-    <h2>Join in two taps.</h2>
-    <p>Scan the QR at the door — or type the service code from the screen.</p>
+    <div class="eyebrow eyebrow-center" data-i18n="l.join.eyebrow">At a service right now?</div>
+    <h2 data-i18n="l.join.h2">Join in two taps.</h2>
+    <p data-i18n="l.join.p">Scan the QR at the door — or type the service code from the screen.</p>
     <form class="join-form" id="joinForm">
-      <input class="join-input" id="joinCode" placeholder="SERVICE CODE" maxlength="24" autocomplete="off" aria-label="Service code">
-      <button class="btn btn-cta" type="submit">Join</button>
+      <input class="join-input" id="joinCode" placeholder="SERVICE CODE" data-i18n-placeholder="l.join.placeholder" maxlength="24" autocomplete="off" aria-label="Service code">
+      <button class="btn btn-cta" type="submit" data-i18n="l.join.btn">Join</button>
     </form>
-    <p class="join-note">No account, no install. Pick your language and read along.</p>
+    <p class="join-note" data-i18n="l.join.note">No account, no install. Pick your language and read along.</p>
   </div>
 </section>
 
 <section class="churches section" id="churches">
   <div class="wrap churches-in">
     <div data-reveal>
-      <div class="eyebrow">For churches</div>
-      <h2 class="churches-h2">One service. Every language in the room.</h2>
-      <p class="sub">Sanctuary Voice runs in the browser on the hardware you already own — a laptop, a projector, and the phones already in everyone's pocket.</p>
+      <div class="eyebrow" data-i18n="l.ch.eyebrow">For churches</div>
+      <h2 class="churches-h2" data-i18n="l.ch.h2">One service. Every language in the room.</h2>
+      <p class="sub" data-i18n="l.ch.sub">Sanctuary Voice runs in the browser on the hardware you already own — a laptop, a projector, and the phones already in everyone's pocket.</p>
       <ul class="checks">
-        <li>Nothing to install for listeners — QR in, language picked, done.</li>
-        <li>One permanent QR per church. Print it once.</li>
-        <li>Operator roles and masked access codes — security stays on the server.</li>
-        <li>Streaming recognition under a second; translations one phrase behind.</li>
+        <li data-i18n="l.ch.li1">Nothing to install for listeners — QR in, language picked, done.</li>
+        <li data-i18n="l.ch.li2">One permanent QR per church. Print it once.</li>
+        <li data-i18n="l.ch.li3">Operator roles and masked access codes — security stays on the server.</li>
+        <li data-i18n="l.ch.li4">Streaming recognition under a second; translations one phrase behind.</li>
       </ul>
     </div>
     <div class="card" data-reveal>
-      <h3>Bring Sanctuary Voice to your church</h3>
-      <p>Set up your first service in minutes and run it this Sunday.</p>
-      <a class="btn btn-cta btn-full" href="/admin">Get started</a>
-      <p class="card-sub">Already set up? <a class="card-link" href="/admin">Admin login</a></p>
+      <h3 data-i18n="l.ch.cardh">Bring Sanctuary Voice to your church</h3>
+      <p data-i18n="l.ch.cardp">Set up your first service in minutes and run it this Sunday.</p>
+      <a class="btn btn-cta btn-full" href="/admin" data-i18n="l.ch.cardbtn">Get started</a>
+      <p class="card-sub"><span data-i18n="l.ch.cardsub1">Already set up?</span> <a class="card-link" href="/admin" data-i18n="l.ch.cardsub2">Admin login</a></p>
     </div>
   </div>
 </section>
 
 <footer class="footer">
   <div class="footer-in">
-    <span>Sanctuary <em class="brand-em">Voice</em> — live translation for church services.</span>
-    <span><a href="/demo-screen">Main screen demo</a> · <a href="/demo-participant">Listener demo</a> · <a href="/admin">Admin</a></span>
+    <span>Sanctuary <em class="brand-em">Voice</em> <span data-i18n="l.foot.tagline">— live translation for church services.</span></span>
+    <span><a href="/demo-screen" data-i18n="l.foot.demoScreen">Main screen demo</a> · <a href="/demo-participant" data-i18n="l.foot.demoListener">Listener demo</a> · <a href="/admin" data-i18n="l.foot.admin">Admin</a></span>
   </div>
 </footer>
 
+<script src="/i18n-dict.js"></script>
+<script src="/i18n.js"></script>
 <script src="/landing.js" defer></script>
 </body>
 </html>

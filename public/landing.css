@@ -194,3 +194,10 @@ a{color:inherit}
   .features-grid{grid-template-columns:1fr}
   .join-form{flex-direction:column;align-items:center}
 }
+
+/* SV-I18N-ALL — compact language switch in the landing nav (Evensong theme). */
+.landing-lang{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--hd);border-radius:999px;background:var(--bg2)}
+.landing-lang button{border:0;background:transparent;color:var(--mut-d);font:inherit;font-size:.8rem;font-weight:600;
+  padding:5px 10px;border-radius:999px;cursor:pointer;min-height:32px}
+.landing-lang button[aria-pressed="true"]{background:var(--cta);color:var(--cta-t)}
+@media (max-width:920px){ .landing-lang{display:none} }

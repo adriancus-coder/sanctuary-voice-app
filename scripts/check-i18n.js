@@ -29,7 +29,54 @@ function loadDict() {
   return sandbox.window.adminI18n.dict;
 }
 
+function loadSharedDict() {
+  const code = fs.readFileSync(path.join(__dirname, '..', 'public', 'i18n-dict.js'), 'utf8');
+  const sandbox = { window: {}, console };
+  vm.createContext(sandbox);
+  vm.runInContext(code, sandbox);
+  return sandbox.window.SV_I18N_DICT || null;
+}
+
+// The shared team-page dictionary requires full ro/en/no parity (all three
+// languages must carry the same keys).
+function checkSharedDict() {
+  const dict = loadSharedDict();
+  if (!dict) {
+    console.error('FAIL  could not load window.SV_I18N_DICT from i18n-dict.js');
+    process.exit(1);
+  }
+  const langs = ['ro', 'en', 'no'];
+  for (const l of langs) {
+    if (!dict[l]) {
+      console.error(`FAIL  shared dict missing language "${l}"`);
+      process.exit(1);
+    }
+  }
+  const base = Object.keys(dict.ro);
+  let failed = false;
+  for (const l of ['en', 'no']) {
+    const missing = base.filter((k) => !(k in dict[l]));
+    const extra = Object.keys(dict[l]).filter((k) => !(k in dict.ro));
+    if (missing.length) {
+      failed = true;
+      console.error(`FAIL  shared dict: ${missing.length} key(s) in ro missing in ${l}:`);
+      missing.slice(0, 20).forEach((k) => console.error('        ' + k));
+    }
+    if (extra.length) {
+      failed = true;
+      console.error(`FAIL  shared dict: ${extra.length} key(s) in ${l} missing in ro:`);
+      extra.slice(0, 20).forEach((k) => console.error('        ' + k));
+    }
+  }
+  if (failed) {
+    console.error('\nshared i18n parity check failed');
+    process.exit(1);
+  }
+  console.log(`shared i18n parity OK — ${base.length} keys, ro/en/no in parity.`);
+}
+
 function main() {
+  checkSharedDict();
   const dict = loadDict();
   const required = ['ro', 'en'];
   for (const lang of required) {
