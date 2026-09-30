@@ -306,6 +306,28 @@
               <input id="volumeRange" class="range" type="range" min="0" max="100" value="70">
             </div>
 
+            <!-- SV-MODEL-SWITCHES — translation model tiers (blank = env default). -->
+            <details class="info-card accent-card">
+              <summary class="label"><span data-i18n="models.title">Modele traducere</span></summary>
+              <div class="split-2" style="margin-top:8px">
+                <div>
+                  <label for="fastModelInput"><span data-i18n="models.fast">Rapid (rapid / balanced)</span></label>
+                  <input id="fastModelInput" type="text" autocomplete="off" spellcheck="false" placeholder="gpt-4.1-nano">
+                  <div class="muted small" id="fastModelHint"></div>
+                </div>
+                <div>
+                  <label for="qualityModelInput"><span data-i18n="models.quality">Calitate (clear / interpret)</span></label>
+                  <input id="qualityModelInput" type="text" autocomplete="off" spellcheck="false" placeholder="gpt-4.1-mini">
+                  <div class="muted small" id="qualityModelHint"></div>
+                </div>
+              </div>
+              <div class="button-row compact-row" style="margin-top:8px">
+                <button id="saveModelsBtn" class="btn btn-primary" type="button" data-i18n="models.save">Salvează modele</button>
+                <span id="modelsStatus" class="muted small"></span>
+              </div>
+              <div class="muted small" data-i18n="models.hint">Gol = modelul implicit din server. Un model GPT-5 folosește reasoning „minimal".</div>
+            </details>
+
             <div class="info-card soft-card">
               <div data-i18n="ls.participantLangs" class="label">Participant languages</div>
               <div id="participantStatsList" class="history-list"><div class="muted">No connected participant.</div></div>

@@ -3182,6 +3182,27 @@ function releaseTranslateSlot() {
   if (next) { translateActive++; next(); }
 }
 
+// SV-MODEL-SWITCHES — the fast/quality tier models are env defaults an owner can
+// override at runtime (db.pipelineConfig). Empty override => env default => today's
+// models (gpt-4.1-nano / gpt-4.1-mini). GPT-5-family models translate with the
+// lowest reasoning effort so latency stays live-appropriate.
+function getPipelineConfig() {
+  if (!db.pipelineConfig || typeof db.pipelineConfig !== 'object') db.pipelineConfig = {};
+  return db.pipelineConfig;
+}
+function getFastModel() {
+  return String(getPipelineConfig().fastModel || '').trim() || OPENAI_MODEL;
+}
+function getQualityModel() {
+  return String(getPipelineConfig().qualityModel || '').trim() || OPENAI_QUALITY_MODEL;
+}
+function isReasoningModel(model) {
+  return /gpt-5/i.test(String(model || ''));
+}
+function reasoningEffortFor(model) {
+  return isReasoningModel(model) ? 'minimal' : undefined;
+}
+
 async function translateText(text, langCode, event, sourceLangOverride = '', options = {}) {
   const glossary = getGlossaryForLang(langCode, event);
   const cleanText = sanitizeStructuredText(text);
@@ -3235,7 +3256,9 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
   inputMessages.push({ role: 'user', content: cleanText });
   // V22.15 — modul „clear" (calitate) → model mai bun; rapid/balanced → nano (rapid).
   // TRANSLATION-MODE-INTERPRET — clear ȘI interpret folosesc modelul de calitate (mini, mai bun la parafrazat)
-  const translateModel = (event && (event.speed === 'clear' || event.speed === 'interpret')) ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
+  // SV-MODEL-SWITCHES — model tiers are runtime-configurable (env default preserved).
+  const translateModel = (event && (event.speed === 'clear' || event.speed === 'interpret')) ? getQualityModel() : getFastModel();
+  const reasoningEffort = reasoningEffortFor(translateModel);
   await acquireTranslateSlot();   // V22.37 — limitează concurența traducerilor
   try {
     const onDelta = typeof options.onDelta === 'function' ? options.onDelta : null;
@@ -3253,11 +3276,13 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
           model: translateModel,
           input: inputMessages,
           onDelta,
-          signal: abortController.signal   // V22.34
+          signal: abortController.signal,   // V22.34
+          reasoningEffort
         })
       : translationService.translateWithResponsesDetailed({
           model: translateModel,
-          input: inputMessages
+          input: inputMessages,
+          reasoningEffort
         });
     // dacă translatePromise pierde race-ul și se respinge ulterior, nu lăsa rejection neprins
     translatePromise.catch(() => {});
@@ -3274,6 +3299,12 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
     }
     const translatedText = result.text;
     if (result.tokens) recordTranslationUsage(event, result.tokens);
+    // SV-MODEL-SWITCHES — log cached vs uncached input tokens (prompt caching).
+    // Gated on the monitor flag so the hot path stays quiet by default.
+    if (TRANSLATION_MONITOR_ENABLED && result.tokens) {
+      const cached = Number(result.cachedTokens || 0);
+      logger.info(`[translate/tokens] model=${translateModel} lang=${langCode} total=${result.tokens} cached=${cached} uncached=${Math.max(0, result.tokens - cached)}`);
+    }
     let translated = sanitizeStructuredText(translatedText);
 
     // V22.35 — sursa e mereu setată manual, deci retry-ul „output-ul pare limba sursă?" e inutil
@@ -3702,7 +3733,7 @@ function recordSegmentLatency(event, { entryId, sourceLang, perLangMs, translate
   try {
     const rec = translationMetrics.takeRecognition(event.id);
     const tFinal = rec && rec.at ? rec.at : translateStartedAt;
-    const model = (event && (event.speed === 'clear' || event.speed === 'interpret')) ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
+    const model = (event && (event.speed === 'clear' || event.speed === 'interpret')) ? getQualityModel() : getFastModel();
     translationMetrics.record({
       eventId: String(event.id),
       entryId,
@@ -4813,6 +4844,31 @@ function broadcastWorshipRolesChanged() {
 app.get('/api/admin/worship-roles', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;
   return res.json({ ok: true, roles: Array.isArray(db.worshipRoles) ? db.worshipRoles : [] });
+});
+// SV-MODEL-SWITCHES — runtime model-tier config (owner). Empty value resets to
+// the env default, so the default behaviour (gpt-4.1-nano / gpt-4.1-mini) stands.
+app.get('/api/admin/models', (req, res) => {
+  if (!requireAdminApiSession(req, res)) return;
+  const cfg = getPipelineConfig();
+  return res.json({
+    ok: true,
+    fastModel: getFastModel(),
+    qualityModel: getQualityModel(),
+    fastOverride: String(cfg.fastModel || ''),
+    qualityOverride: String(cfg.qualityModel || ''),
+    fastDefault: OPENAI_MODEL,
+    qualityDefault: OPENAI_QUALITY_MODEL
+  });
+});
+app.post('/api/admin/models', (req, res) => {
+  if (!requireAdminApiSession(req, res)) return;
+  const clean = (v) => String(v == null ? '' : v).trim().slice(0, 80);
+  const cfg = getPipelineConfig();
+  if (typeof req.body?.fastModel !== 'undefined') cfg.fastModel = clean(req.body.fastModel);
+  if (typeof req.body?.qualityModel !== 'undefined') cfg.qualityModel = clean(req.body.qualityModel);
+  saveDb();
+  logger.info(`[models] fast=${getFastModel()} quality=${getQualityModel()} (overrides fast="${cfg.fastModel || ''}" quality="${cfg.qualityModel || ''}")`);
+  return res.json({ ok: true, fastModel: getFastModel(), qualityModel: getQualityModel() });
 });
 app.post('/api/admin/worship-roles', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;

@@ -5577,6 +5577,36 @@ $('exportLibraryBtn')?.addEventListener('click', exportLibrary);
 $('importLibraryBtn')?.addEventListener('click', () => $('importLibraryFile')?.click());
 $('importLibraryFile')?.addEventListener('change', handleImportLibraryFile);
 
+// SV-MODEL-SWITCHES — load/save the translation model tiers (owner only).
+async function loadModelConfig() {
+  try {
+    const res = await fetch('/api/admin/models');
+    if (!res.ok) return;
+    const d = await res.json();
+    if (!d.ok) return;
+    if ($('fastModelInput')) { $('fastModelInput').value = d.fastOverride || ''; $('fastModelInput').placeholder = d.fastDefault || 'gpt-4.1-nano'; }
+    if ($('qualityModelInput')) { $('qualityModelInput').value = d.qualityOverride || ''; $('qualityModelInput').placeholder = d.qualityDefault || 'gpt-4.1-mini'; }
+    if ($('fastModelHint')) $('fastModelHint').textContent = `→ ${d.fastModel}`;
+    if ($('qualityModelHint')) $('qualityModelHint').textContent = `→ ${d.qualityModel}`;
+  } catch (_) { /* not owner or offline */ }
+}
+$('saveModelsBtn')?.addEventListener('click', async () => {
+  const status = $('modelsStatus');
+  try {
+    const res = await fetch('/api/admin/models', adminJsonOptions('POST', {
+      fastModel: $('fastModelInput')?.value || '',
+      qualityModel: $('qualityModelInput')?.value || ''
+    }));
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'failed');
+    if (status) { status.textContent = adminT('models.saved', 'Salvat'); status.style.color = '#0c0'; }
+    loadModelConfig();
+  } catch (err) {
+    if (status) { status.textContent = String(err.message || err); status.style.color = '#f00'; }
+  }
+});
+loadModelConfig();
+
 // SV-LIBRARY-RESULTS — "⋯" header menu holding library export/import.
 (function wireLibraryMenu() {
   const menu = $('libraryMenu');
