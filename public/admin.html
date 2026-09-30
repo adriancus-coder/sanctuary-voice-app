@@ -271,6 +271,20 @@
               <div id="latencyLive" class="status-text muted small"></div>
             </div>
 
+            <!-- SV-BRIDGE-UI-DOCS — connect a worship-app event to this SV event. -->
+            <div class="info-card accent-card" id="bridgeCard">
+              <div class="label"><span data-i18n="bridge.title">Conectează worship-app</span></div>
+              <div id="bridgeState" class="status-text muted small" data-i18n="bridge.notConnected">Neconectat</div>
+              <div id="bridgeCodeBox" class="bridge-code-box" hidden>
+                <span data-i18n="bridge.codeLabel">Cod</span>: <code id="bridgeCodeValue"></code>
+                <span id="bridgeCodeExpiry" class="muted small"></span>
+              </div>
+              <div class="button-row compact-row">
+                <button id="bridgeGenerateBtn" class="btn btn-dark" type="button" data-i18n="bridge.generate">Generează cod</button>
+                <button id="bridgeRevokeBtn" class="btn btn-danger" type="button" hidden data-i18n="bridge.revoke">Revocă</button>
+              </div>
+            </div>
+
             <div class="info-card accent-card bible-mode-card">
               <div data-i18n="ls.bibleMode" class="label">📖 Bible Mode</div>
               <div id="bibleModeStatus" class="status-text" data-i18n="ls.bibleStatus">Translation active</div>

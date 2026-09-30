@@ -9001,3 +9001,7 @@ body:not(.has-shell) { padding-bottom: var(--sticky-actions-h, 0px); }
   color: var(--accent-text);
 }
 .bridge-lyrics-text { white-space: pre-wrap; font-size: 1.15rem; line-height: 1.45; color: var(--text); }
+
+/* SV-BRIDGE-UI-DOCS — the generated connection code in the admin Live tab. */
+.bridge-code-box { margin: 6px 0; font-size: 0.95rem; }
+.bridge-code-box code { font-size: 1.25rem; font-weight: 800; letter-spacing: 0.12em; color: var(--accent-text); }

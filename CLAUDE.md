@@ -218,6 +218,18 @@ in-page tabs with a sticky action bar for the page's 2–4 primary buttons.
   library; `#manual` redirects there). Roadmap: quick texts later become "Anunț"
   items in the event program (see `docs/ROADMAP.md`).
 
+## worship-app bridge (stage 8)
+
+`lib/bridge.js` + a `/bridge` Socket.IO namespace connect a worship-app event to an
+SV event: a short-lived connection code (SV, admin Live tab) is exchanged
+server-to-server for a hashed-at-rest bridge token. SV streams its live translation
+out (`translation.partial` / `translation.final`) and accepts song sections in
+(`song.current` / `song.clear` / `setlist.sections`), translating them for its
+participants (per-strophe cache keyed by content hash) and showing a lyrics card.
+Additive and gated on an active bridge — nothing changes for a non-bridged event.
+The authoritative protocol (message names + payloads) is in `docs/BRIDGE.md`; the
+worship-app side must match it exactly.
+
 ## Accounts & roles
 
 - Users live in `sessions.json` as `db.users[]` and sessions as

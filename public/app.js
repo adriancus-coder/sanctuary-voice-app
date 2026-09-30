@@ -2736,6 +2736,7 @@ async function openEventById(eventId) {
   renderAudioStateLabel();
   renderTranscriptList();
   renderLatencySummary(currentEvent.latencySummary);
+  loadBridgeStatus();   // SV-BRIDGE-UI-DOCS
   fillGlossaryLangs(currentEvent.targetLangs || []);
   renderActiveEventBadge(currentEvent);
   renderSongState(currentEvent.songState || {});
@@ -4113,6 +4114,7 @@ socket.on('joined_event', ({ event, role }) => {
   renderAudioStateLabel();
   renderTranscriptList();
   renderLatencySummary(currentEvent.latencySummary);
+  loadBridgeStatus();   // SV-BRIDGE-UI-DOCS
   fillGlossaryLangs(currentEvent.targetLangs || []);
   renderActiveEventBadge(currentEvent);
   renderSongState(currentEvent.songState || {});
@@ -4205,6 +4207,69 @@ socket.on('latency_update', ({ eventId, summary }) => {
   if (currentEvent) currentEvent.latencySummary = { ...(currentEvent.latencySummary || {}), ...summary };
   renderLatencyLive(summary);
   renderLatencySummary(summary);
+});
+
+// ===== SV-BRIDGE-UI-DOCS — worship-app connection state in the Live tab =====
+let currentBridgeStatus = null;
+function bridgeRelSeconds(iso) {
+  if (!iso) return '—';
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.round(s / 60)}m`;
+  return `${Math.round(s / 3600)}h`;
+}
+function renderBridgeState(status) {
+  currentBridgeStatus = status || null;
+  const stateEl = $('bridgeState');
+  const revokeBtn = $('bridgeRevokeBtn');
+  if (!stateEl) return;
+  if (status && status.connected) {
+    const langs = (status.targetLanguages || []).map(langLabel).join(', ');
+    const last = `${adminT('bridge.lastMsg', 'ultimul mesaj acum')} ${bridgeRelSeconds(status.lastSeenAt)}`;
+    stateEl.textContent = `${adminT('bridge.connectedWith', 'Conectat cu')} ${status.eventName || currentEvent?.name || ''} · ${langs} · ${last}`;
+    if (revokeBtn) revokeBtn.hidden = false;
+  } else {
+    stateEl.textContent = adminT('bridge.notConnected', 'Neconectat');
+    if (revokeBtn) revokeBtn.hidden = true;
+  }
+}
+async function loadBridgeStatus() {
+  if (!currentEvent?.id) return;
+  try {
+    const res = await fetch(`/api/events/${currentEvent.id}/bridge/status`);
+    if (!res.ok) return;
+    const s = await res.json();
+    if (s.ok) renderBridgeState(s);
+  } catch (_) { /* ignore */ }
+}
+// Keep the "last message X ago" fresh while connected.
+setInterval(() => { if (currentBridgeStatus && currentBridgeStatus.connected) renderBridgeState(currentBridgeStatus); }, 5000);
+socket.on('bridge_status', (status) => {
+  if (currentEvent && status && status.svEventId && status.svEventId !== currentEvent.id) return;
+  renderBridgeState(status);
+});
+$('bridgeGenerateBtn')?.addEventListener('click', async () => {
+  if (!currentEvent?.id) return alert('Open an event first.');
+  try {
+    const res = await fetch(`/api/events/${currentEvent.id}/bridge/code`, adminJsonOptions('POST', {}));
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'failed');
+    const box = $('bridgeCodeBox');
+    if ($('bridgeCodeValue')) $('bridgeCodeValue').textContent = d.code;
+    if ($('bridgeCodeExpiry')) $('bridgeCodeExpiry').textContent = `(10 min)`;
+    if (box) box.hidden = false;
+  } catch (err) {
+    alert(String(err.message || err));
+  }
+});
+$('bridgeRevokeBtn')?.addEventListener('click', async () => {
+  if (!currentEvent?.id) return;
+  try {
+    const res = await fetch(`/api/events/${currentEvent.id}/bridge/revoke`, adminJsonOptions('POST', {}));
+    const d = await res.json();
+    renderBridgeState(d);
+    const box = $('bridgeCodeBox'); if (box) box.hidden = true;
+  } catch (_) { /* ignore */ }
 });
 socket.on('azure_audio_ready', () => {
   console.info('[DIAG-RC] azure_audio_ready PRIMIT — Azure conectat OK');
