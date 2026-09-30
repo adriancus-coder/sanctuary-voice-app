@@ -273,6 +273,18 @@ worship-app side must match it exactly.
   once), change role, deactivate/reactivate, reset password; never the owner or
   self. Reachable from the shell's "Mai mult" sheet (owner only).
 
+## Song editor (SV-SONG-EDITOR)
+
+The "Cântare nouă" / edit-song editor is a shared component
+(`public/song-editor.js`, with `public/chords.js` + `public/sections.js`) used on
+the admin Cântări card and on `/worship`, driven by a `t(key)` function passed at
+`create()` so it works under both i18n engines. Storage is **additive**: `text`
+stays lyrics-only blocks + `labels[]` + `sourceLang` exactly as before (old songs
+re-save byte-identically), and `key`, `sectionTypes[]`, `sectionNotes` and
+`sectionsChordPro[]` are added. Chords live only in `sectionsChordPro[]`; the
+stored `text` never carries chords, so the projector / participant / translation
+pipeline is unchanged. Full mapping in `docs/SONG-EDITOR.md`.
+
 ## Home
 
 `/` serves a role-aware "Acum" home to signed-in users (live/next event + one
