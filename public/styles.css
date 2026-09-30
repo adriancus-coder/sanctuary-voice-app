@@ -8714,3 +8714,16 @@ body.shell-locked {
 .status-pill.status-mustchange {
   color: var(--warning);
 }
+
+/* ============================================================
+   SV-HOME-NOW — role-aware "Acum" home.
+   ============================================================ */
+.home-main { max-width: 560px; margin: 0 auto; padding: 24px 16px 60px; }
+.home-head { margin-bottom: 20px; }
+.home-greeting { font-size: 1.9rem; margin: 6px 0 4px; }
+.home-now-card { padding: 22px; border-radius: var(--radius-lg, 18px); }
+.home-now-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-text); font-weight: 700; }
+.home-now-title { font-size: 1.35rem; font-weight: 700; margin: 6px 0; }
+.home-cta { margin-top: 18px; width: 100%; }
+.home-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.home-link { flex: 1 1 auto; text-align: center; }

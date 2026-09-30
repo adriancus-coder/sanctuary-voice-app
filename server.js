@@ -284,6 +284,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res, next) => {
   if (isAdminAppHost(req)) return res.redirect('/admin');
+  // SV-HOME-NOW — signed-in users get the role-aware "Acum" home; anonymous
+  // visitors get the landing page.
+  if (getAccountUser(req)) return res.sendFile(path.join(__dirname, 'public', 'home.html'));
   return sendLandingPage(req, res, next);
 });
 app.get('/home', sendLandingPage);
