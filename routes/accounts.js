@@ -170,7 +170,99 @@ function registerAccountsRoutes(app, ctx) {
     res.json({ ok: true, user: accounts.publicUser(owner) });
   });
 
-  return { requireUser, requireRole, sessionUser, SID_COOKIE };
+  // --- SV-TEAM-PAGE — the owner creates and manages team accounts. ---
+  function requireOwner(req, res, next) {
+    const u = sessionUser(req);
+    if (!u) return res.status(401).json({ ok: false, code: 'unauthenticated' });
+    if (u.role !== 'owner') return res.status(403).json({ ok: false, code: 'forbidden' });
+    req.authUser = u;
+    next();
+  }
+  // Can't act on the owner account or on yourself (for role/active/reset).
+  function pickTarget(req, res) {
+    const target = accounts.findUserById(db, req.params.id);
+    if (!target) {
+      res.status(404).json({ ok: false, code: 'teamUserNotFound' });
+      return null;
+    }
+    if (target.role === 'owner' || target.id === req.authUser.id) {
+      res.status(403).json({ ok: false, code: 'teamNotOwnerOrSelf' });
+      return null;
+    }
+    return target;
+  }
+
+  app.get('/team', (req, res) => {
+    const u = sessionUser(req);
+    if (!u || u.role !== 'owner') return res.redirect('/login?next=/team');
+    res.sendFile(path.join(publicDir, 'team.html'));
+  });
+
+  app.get('/api/team', requireOwner, (req, res) => {
+    accounts.ensureStore(db);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, users: db.users.map(accounts.publicUser) });
+  });
+
+  app.post('/api/team', requireOwner, (req, res) => {
+    const name = String((req.body && req.body.name) || '').trim();
+    const email = accounts.normalizeEmail(req.body && req.body.email);
+    const role = String((req.body && req.body.role) || '').trim();
+    if (!accounts.TEAM_ROLES.includes(role)) return res.status(400).json({ ok: false, code: 'badRole' });
+    const temp = accounts.temporaryPassword();
+    let user;
+    try {
+      user = accounts.createUser(db, { email, name, password: temp, role, mustChangePassword: true });
+    } catch (err) {
+      return res.status(400).json({ ok: false, code: err.code || 'invalid' });
+    }
+    saveDb();
+    if (logger) logger.info(`[team] owner created ${role} ${user.email}`);
+    res.status(201).json({ ok: true, user: accounts.publicUser(user), temporaryPassword: temp });
+  });
+
+  app.patch('/api/team/:id', requireOwner, (req, res) => {
+    const target = pickTarget(req, res);
+    if (!target) return;
+    if (typeof (req.body && req.body.name) === 'string' && req.body.name.trim()) {
+      target.name = req.body.name.trim().slice(0, 100);
+    }
+    if (req.body && req.body.role && accounts.TEAM_ROLES.includes(req.body.role)) {
+      target.role = req.body.role;
+    }
+    saveDb();
+    res.json({ ok: true, user: accounts.publicUser(target) });
+  });
+
+  app.post('/api/team/:id/deactivate', requireOwner, (req, res) => {
+    const target = pickTarget(req, res);
+    if (!target) return;
+    target.active = false;
+    accounts.deleteUserSessions(db, target.id, null);
+    saveDb();
+    res.json({ ok: true, user: accounts.publicUser(target) });
+  });
+
+  app.post('/api/team/:id/reactivate', requireOwner, (req, res) => {
+    const target = pickTarget(req, res);
+    if (!target) return;
+    target.active = true;
+    saveDb();
+    res.json({ ok: true, user: accounts.publicUser(target) });
+  });
+
+  app.post('/api/team/:id/reset-password', requireOwner, (req, res) => {
+    const target = pickTarget(req, res);
+    if (!target) return;
+    const temp = accounts.temporaryPassword();
+    target.password_hash = accounts.hashPassword(temp);
+    target.must_change_password = true;
+    accounts.deleteUserSessions(db, target.id, null);
+    saveDb();
+    res.json({ ok: true, temporaryPassword: temp });
+  });
+
+  return { requireUser, requireRole, requireOwner, sessionUser, SID_COOKIE };
 }
 
 module.exports = { registerAccountsRoutes };

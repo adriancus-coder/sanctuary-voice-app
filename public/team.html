@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141318">
+  <title>Echipa — Sanctuary Voice</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/theme.js"></script>
+</head>
+<body class="team-page">
+  <header class="team-topbar">
+    <a class="shell-exit" href="/"><span>‹ Ieși</span></a>
+    <h1 class="team-title">Echipa</h1>
+  </header>
+
+  <main class="team-main">
+    <section class="panel glass-panel team-add">
+      <h2>Adaugă o persoană</h2>
+      <p class="muted small">Se creează un cont cu o parolă temporară, afișată o singură dată.</p>
+      <form id="teamAddForm" class="team-add-form" novalidate>
+        <label for="taName">Nume</label>
+        <input id="taName" type="text" maxlength="100" required>
+        <label for="taEmail">Email</label>
+        <input id="taEmail" type="email" autocomplete="off" required>
+        <label for="taRole">Rol</label>
+        <select id="taRole">
+          <option value="operator">Operator (traducere)</option>
+          <option value="presenter">Prezentator (worship)</option>
+          <option value="leader">Lider worship</option>
+          <option value="member">Membru</option>
+        </select>
+        <div id="teamAddError" class="auth-error" role="alert"></div>
+        <button type="submit" class="btn btn-primary" id="teamAddBtn">Adaugă</button>
+      </form>
+      <div id="teamTempCard" class="team-temp-card hidden">
+        <div class="team-temp-title">Cont creat — trimite aceste date persoanei (afișate o singură dată):</div>
+        <pre id="teamTempText" class="team-temp-text"></pre>
+        <button type="button" class="btn btn-dark btn-sm" id="teamTempCopy">Copiază</button>
+      </div>
+    </section>
+
+    <section class="panel glass-panel team-list-wrap">
+      <h2>Membri</h2>
+      <div id="teamStatus" class="status-line" role="status"></div>
+      <div id="teamList" class="history-list" data-list-pane="Membri echipă"></div>
+    </section>
+  </main>
+
+  <script src="/list-pane.js"></script>
+  <script src="/team.js"></script>
+</body>
+</html>

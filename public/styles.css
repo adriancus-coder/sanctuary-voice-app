@@ -8617,3 +8617,100 @@ body.shell-locked {
 .auth-remember input {
   width: auto;
 }
+
+/* ============================================================
+   SV-TEAM-PAGE — the owner's team management page.
+   ============================================================ */
+.team-page {
+  padding-bottom: 40px;
+}
+.team-topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  position: static;
+}
+.team-topbar .shell-exit {
+  position: static;
+}
+.team-title {
+  margin: 0;
+  font-size: 1.4rem;
+}
+.team-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 16px;
+  display: grid;
+  gap: 16px;
+}
+.team-add,
+.team-list-wrap {
+  padding: 20px;
+  border-radius: var(--radius-lg, 18px);
+}
+.team-add-form {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.team-add-form button {
+  margin-top: 12px;
+  justify-self: start;
+}
+.team-temp-card {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--accent-fill);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.team-temp-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.team-temp-text {
+  white-space: pre-wrap;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.9rem;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+.team-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.team-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.team-role-select {
+  width: auto;
+  min-height: var(--touch);
+}
+.role-pill,
+.status-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.role-pill {
+  color: var(--accent-text);
+}
+.status-pill.status-active {
+  color: var(--success);
+}
+.status-pill.status-inactive {
+  color: var(--text-muted);
+}
+.status-pill.status-mustchange {
+  color: var(--warning);
+}

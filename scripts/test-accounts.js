@@ -296,6 +296,87 @@ async function integrationTests() {
       assert.ok(r.status >= 300 && r.status < 400, `admin-login status ${r.status}`);
     });
 
+    // --- SV-TEAM-PAGE — owner manages team accounts ---
+    let opId = '';
+    let opTemp = '';
+    await test('non-owner cannot list team (401 without session)', async () => {
+      assert.strictEqual((await fetch(`${base}/api/team`)).status, 401);
+    });
+    await test('owner creates an operator -> 201 + temporary password', async () => {
+      const r = await fetch(`${base}/api/team`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: ownerCookie },
+        body: JSON.stringify({ name: 'Ops Two', email: 'ops2@church.org', role: 'operator' }),
+      });
+      assert.strictEqual(r.status, 201);
+      const d = await r.json();
+      assert.ok(d.temporaryPassword && d.temporaryPassword.length >= 10, 'temp password returned');
+      assert.strictEqual(d.user.mustChangePassword, true);
+      opId = d.user.id;
+      opTemp = d.temporaryPassword;
+    });
+    await test('created operator can log in with the temp password (must change)', async () => {
+      const r = await fetch(`${base}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'ops2@church.org', password: opTemp }),
+      });
+      assert.strictEqual(r.status, 200);
+      assert.strictEqual((await r.json()).user.mustChangePassword, true);
+    });
+    await test('owner cannot create another owner (badRole)', async () => {
+      const r = await fetch(`${base}/api/team`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: ownerCookie },
+        body: JSON.stringify({ name: 'X', email: 'x2@church.org', role: 'owner' }),
+      });
+      assert.strictEqual(r.status, 400);
+    });
+    await test('owner changes the operator role -> leader', async () => {
+      const r = await fetch(`${base}/api/team/${opId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Cookie: ownerCookie },
+        body: JSON.stringify({ role: 'leader' }),
+      });
+      assert.strictEqual(r.status, 200);
+      assert.strictEqual((await r.json()).user.role, 'leader');
+    });
+    await test('owner cannot act on the owner account', async () => {
+      const list = await (await fetch(`${base}/api/team`, { headers: { Cookie: ownerCookie } })).json();
+      const owner = list.users.find((u) => u.role === 'owner');
+      const r = await fetch(`${base}/api/team/${owner.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Cookie: ownerCookie },
+        body: JSON.stringify({ role: 'member' }),
+      });
+      assert.strictEqual(r.status, 403);
+    });
+    await test('deactivate blocks login; reactivate restores', async () => {
+      await fetch(`${base}/api/team/${opId}/deactivate`, { method: 'POST', headers: { Cookie: ownerCookie } });
+      const blocked = await fetch(`${base}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'ops2@church.org', password: opTemp }),
+      });
+      assert.strictEqual(blocked.status, 401, 'inactive user cannot log in');
+      await fetch(`${base}/api/team/${opId}/reactivate`, { method: 'POST', headers: { Cookie: ownerCookie } });
+    });
+    await test('reset-password returns a new temp password', async () => {
+      const r = await fetch(`${base}/api/team/${opId}/reset-password`, { method: 'POST', headers: { Cookie: ownerCookie } });
+      assert.strictEqual(r.status, 200);
+      const d = await r.json();
+      assert.ok(d.temporaryPassword && d.temporaryPassword !== opTemp, 'new temp password');
+    });
+    await test('/team page redirects a non-owner to /login', async () => {
+      const r = await fetch(`${base}/team`, { redirect: 'manual' });
+      assert.ok(r.status >= 300 && r.status < 400);
+      assert.ok((r.headers.get('location') || '').includes('/login'));
+    });
+    await test('/team page served for the owner', async () => {
+      const r = await fetch(`${base}/team`, { headers: { Cookie: ownerCookie }, redirect: 'manual' });
+      assert.strictEqual(r.status, 200);
+    });
+
     await test('login rate limit -> 429 after repeated failures', async () => {
       let got429 = false;
       for (let i = 0; i < 7; i++) {

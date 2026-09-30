@@ -20,19 +20,19 @@
     ro: {
       home: 'Acasă', events: 'Evenimente', songs: 'Cântări', translate: 'Traducere', more: 'Mai mult',
       nav: 'Navigare', prefs: 'Preferințe', lang: 'Limbă', theme: 'Temă', screens: 'Ecrane',
-      account: 'Cont', logout: 'Deconectare', projector: 'Ecran principal', remote: 'Telecomandă',
+      account: 'Cont', team: 'Echipa', logout: 'Deconectare', projector: 'Ecran principal', remote: 'Telecomandă',
       dark: 'Întunecat', light: 'Luminos', auto: 'Auto', exit: 'Ieși', close: 'Închide',
     },
     en: {
       home: 'Home', events: 'Events', songs: 'Songs', translate: 'Translation', more: 'More',
       nav: 'Navigation', prefs: 'Preferences', lang: 'Language', theme: 'Theme', screens: 'Screens',
-      account: 'Account', logout: 'Sign out', projector: 'Main screen', remote: 'Remote',
+      account: 'Account', team: 'Team', logout: 'Sign out', projector: 'Main screen', remote: 'Remote',
       dark: 'Dark', light: 'Light', auto: 'Auto', exit: 'Exit', close: 'Close',
     },
     no: {
       home: 'Hjem', events: 'Hendelser', songs: 'Sanger', translate: 'Oversettelse', more: 'Mer',
       nav: 'Navigasjon', prefs: 'Innstillinger', lang: 'Språk', theme: 'Tema', screens: 'Skjermer',
-      account: 'Konto', logout: 'Logg ut', projector: 'Hovedskjerm', remote: 'Fjernkontroll',
+      account: 'Konto', team: 'Team', logout: 'Logg ut', projector: 'Hovedskjerm', remote: 'Fjernkontroll',
       dark: 'Mørk', light: 'Lys', auto: 'Auto', exit: 'Avslutt', close: 'Lukk',
     },
   };
@@ -59,6 +59,7 @@
     projector: svg('<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'),
     remote: svg('<rect x="7" y="2" width="10" height="20" rx="3"/><path d="M12 6v3"/><circle cx="12" cy="14" r="1.4"/>'),
     logout: svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>'),
+    team: svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>'),
     exit: svg('<path d="M15 18l-6-6 6-6"/>'),
   };
 
@@ -155,10 +156,22 @@
       </section>
       <section class="shell-section">
         <h3 class="shell-section-title">${t('account')}</h3>
+        <a class="shell-row shell-team" href="/team" hidden><span class="shell-row-icon">${ICON.team}</span><span class="shell-row-label">${t('team')}</span></a>
         <button type="button" class="shell-row shell-logout"><span class="shell-row-icon">${ICON.logout}</span><span class="shell-row-label">${t('logout')}</span></button>
       </section>
     </div>`;
   body.append(backdrop, panel);
+
+  // SV-TEAM-PAGE — show the Echipa link only for the owner account.
+  fetch('/api/auth/me', { headers: { Accept: 'application/json' } })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      if (d && d.user && d.user.role === 'owner') {
+        const link = panel.querySelector('.shell-team');
+        if (link) link.hidden = false;
+      }
+    })
+    .catch(() => {});
 
   // --- sheet open / close ---
   let lastFocus = null;
