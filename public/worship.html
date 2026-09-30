@@ -23,9 +23,9 @@
     <div class="worship-login-card panel glass-panel">
       <div class="eyebrow">Sanctuary Voice</div>
       <h1>Worship</h1>
-      <p class="muted">Pregătire cântări pentru slujbă</p>
-      <input id="worshipPinInput" type="password" inputmode="text" placeholder="Cod rol (spectator)" autocomplete="off">
-      <button id="worshipLoginBtn" class="btn btn-primary" type="button">Intră</button>
+      <p class="muted" data-i18n="w.loginDesc">Pregătire cântări pentru slujbă</p>
+      <input id="worshipPinInput" type="password" inputmode="text" placeholder="Cod rol (spectator)" data-i18n-placeholder="w.loginPh" autocomplete="off">
+      <button id="worshipLoginBtn" class="btn btn-primary" type="button" data-i18n="w.enter">Intră</button>
       <div id="worshipLoginStatus" class="status-line" role="status"></div>
     </div>
   </section>
@@ -34,13 +34,13 @@
   <main id="worshipApp" class="worship-app hidden">
     <header class="worship-header panel glass-panel">
       <div class="worship-event-selector">
-        <label class="small" for="worshipEventDropdown">Eveniment</label>
+        <label class="small" for="worshipEventDropdown" data-i18n="w.event">Eveniment</label>
         <select id="worshipEventDropdown" class="worship-event-dropdown">
-          <option value="">Se încarcă…</option>
+          <option value="" data-i18n="w.loading">Se încarcă…</option>
         </select>
       </div>
-      <button id="worshipCreateDraftBtn" class="btn btn-primary btn-sm" type="button">➕ Nou</button>
-      <button id="worshipLogoutBtn" class="btn btn-dark btn-sm" type="button">Logout</button>
+      <button id="worshipCreateDraftBtn" class="btn btn-primary btn-sm" type="button" data-i18n="w.new">➕ Nou</button>
+      <button id="worshipLogoutBtn" class="btn btn-dark btn-sm" type="button" data-i18n="w.logout">Logout</button>
     </header>
 
     <!-- WORSHIP-ROLES-LIVE — badge cu rolul curent („emoji Nume · capabilități"); ascuns pt PIN global -->
@@ -49,38 +49,38 @@
     <!-- WORSHIP-LEAD-ANY-EVENT — banner pentru spectatori de pe alt eveniment: notificare + buton mutare -->
     <div id="worshipLeaderElsewhere" class="worship-leader-elsewhere hidden">
       <span id="worshipLeaderElsewhereText"></span>
-      <button id="worshipGoToLeaderEvent" class="btn btn-sm btn-primary" type="button">Mergi la evenimentul liderului</button>
+      <button id="worshipGoToLeaderEvent" class="btn btn-sm btn-primary" type="button" data-i18n="w.goLeader">Mergi la evenimentul liderului</button>
     </div>
 
     <!-- WORSHIP-PREP-ELSEWHERE — banner separat: cineva cu „Pregătire program" e pe alt eveniment -->
     <div id="worshipPrepElsewhere" class="worship-leader-elsewhere hidden">
-      <span id="worshipPrepElsewhereText">Nu ești sincronizat cu worship</span>
-      <button id="worshipGoToPrepEvent" class="btn btn-sm btn-primary" type="button">Mergi la evenimentul worship</button>
+      <span id="worshipPrepElsewhereText" data-i18n="w.notSyncedWorship">Nu ești sincronizat cu worship</span>
+      <button id="worshipGoToPrepEvent" class="btn btn-sm btn-primary" type="button" data-i18n="w.goWorshipEvent">Mergi la evenimentul worship</button>
     </div>
 
     <!-- WORSHIP-FOLLOW-LIVE — avertisment când worship a ales MANUAL un eveniment care nu e activ la admin (model operator) -->
     <div id="worshipNotSyncedAdmin" class="worship-leader-elsewhere hidden">
-      <span class="worship-leader-elsewhere-text">Nu ești sincronizat cu Admin. Folosești un eveniment care nu este activ la admin.</span>
+      <span class="worship-leader-elsewhere-text" data-i18n="w.notSyncedAdmin">Nu ești sincronizat cu Admin. Folosești un eveniment care nu este activ la admin.</span>
       <span class="worship-sync-actions">
-        <button id="worshipSyncToLiveBtn" class="btn btn-sm btn-primary" type="button">Sincronizează</button>
-        <button id="worshipDismissSyncBtn" class="btn btn-sm" type="button">OK</button>
+        <button id="worshipSyncToLiveBtn" class="btn btn-sm btn-primary" type="button" data-i18n="w.sync">Sincronizează</button>
+        <button id="worshipDismissSyncBtn" class="btn btn-sm" type="button" data-i18n="w.ok">OK</button>
       </span>
     </div>
 
     <section class="worship-event-info" id="worshipEventInfo"></section>
 
     <nav class="worship-mode-switcher" id="worshipModeSwitcher">
-      <button type="button" data-worship-mode="setlist" class="active">📋 Pregătire program</button>
-      <button type="button" data-worship-mode="live">🎵 Live</button>
+      <button type="button" data-worship-mode="setlist" class="active" data-i18n="w.modeSetlist">📋 Pregătire program</button>
+      <button type="button" data-worship-mode="live" data-i18n="w.modeLive">🎵 Live</button>
       <!-- WORSHIP-MANAGE-ROLES — al 3-lea mod, vizibil DOAR cu canManageRoles -->
-      <button type="button" data-worship-mode="roles" id="worshipRolesModeBtn" class="hidden">👑 Roluri</button>
+      <button type="button" data-worship-mode="roles" id="worshipRolesModeBtn" class="hidden" data-i18n="w.modeRoles">👑 Roluri</button>
     </nav>
 
     <section id="worshipSetlistMode" class="worship-mode-panel worship-song-panel">
       <!-- Songs already in the selected event -->
       <div class="event-songs-section panel glass-panel">
         <div class="setlist-head">
-          <h3>În acest event (<span id="eventSongsCount">0</span>)</h3>
+          <h3><span data-i18n="w.inEvent">În acest event</span> (<span id="eventSongsCount">0</span>)</h3>
           <!-- WORSHIP-KEY-NOTATION-PREP — comutator notație gamă pentru selectoarele din Pregătire -->
           <button class="btn btn-dark btn-sm js-key-notation-toggle" type="button" title="Schimbă notația gamei (internațional / românesc)">C→Do</button>
         </div>
@@ -90,16 +90,16 @@
       <!-- Unified search: Library (instant) + Resurse (on demand) -->
       <div class="library-section panel glass-panel">
         <div class="library-search-bar">
-          <span class="library-search-label">📚 Caută cântare</span>
-          <input id="globalSongLibrarySearch" type="search" class="unified-search-input" placeholder="Caută cântare...">
-          <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button">Caută și pe resurse</button>
+          <span class="library-search-label" data-i18n="w.searchLabel">📚 Caută cântare</span>
+          <input id="globalSongLibrarySearch" type="search" class="unified-search-input" placeholder="Caută cântare..." data-i18n-placeholder="w.searchPh">
+          <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button" data-i18n="w.searchResources">Caută și pe resurse</button>
         </div>
         <details class="library-dropdown" id="libraryResultsDropdown">
-          <summary class="library-dropdown-summary">Rezultate</summary>
+          <summary class="library-dropdown-summary" data-i18n="w.results">Rezultate</summary>
           <div class="unified-search">
             <div id="importUrlStatus" class="status-line"></div>
             <div class="unified-search-library-section">
-              <div class="unified-search-section-label">Din Library</div>
+              <div class="unified-search-section-label" data-i18n="w.fromLibrary">Din Library</div>
               <div id="globalSongLibraryStatus" class="status-line"></div>
               <div id="globalSongLibraryList" class="library-list unified-search-library-results"></div>
             </div>
@@ -114,12 +114,12 @@
       <!-- New song editor -->
       <div class="song-editor panel glass-panel">
         <details class="library-dropdown">
-          <summary class="library-dropdown-summary">➕ Cântare nouă</summary>
-          <input id="songTitle" type="text" placeholder="Titlu cântare">
-          <textarea id="songText" rows="6" placeholder="Versuri..."></textarea>
+          <summary class="library-dropdown-summary" data-i18n="w.newSong">➕ Cântare nouă</summary>
+          <input id="songTitle" type="text" placeholder="Titlu cântare" data-i18n-placeholder="w.songTitlePh">
+          <textarea id="songText" rows="6" placeholder="Versuri..." data-i18n-placeholder="w.songTextPh"></textarea>
           <div class="song-editor-actions">
-            <button id="songSaveBtn" class="btn btn-primary" type="button">Salvează în Library</button>
-            <button id="songClearBtn" class="btn btn-dark" type="button">Curăță</button>
+            <button id="songSaveBtn" class="btn btn-primary" type="button" data-i18n="w.saveLibrary">Salvează în Library</button>
+            <button id="songClearBtn" class="btn btn-dark" type="button" data-i18n="w.clear">Curăță</button>
           </div>
         </details>
       </div>
@@ -127,13 +127,13 @@
 
     <section id="worshipLiveMode" class="worship-mode-panel hidden">
       <div class="panel glass-panel worship-live-panel">
-        <h3>Live — versuri pe tableta ta</h3>
-        <p class="small muted">Independent de proiector. Navighează versetele cu butoanele, lista, sau glisând stânga/dreapta.</p>
+        <h3 data-i18n="w.liveTitle">Live — versuri pe tableta ta</h3>
+        <p class="small muted" data-i18n="w.liveDesc">Independent de proiector. Navighează versetele cu butoanele, lista, sau glisând stânga/dreapta.</p>
         <div class="live-toolbar">
           <select id="liveSongSelect" aria-label="Alege cântarea"></select>
-          <button id="worshipShareBtn" class="btn btn-dark" type="button">📱 Share cu echipa</button>
-          <button id="worshipSyncProjectorBtn" class="btn btn-primary" type="button">🎬 Sync proiector</button>
-          <button id="liveFullscreenBtn" class="btn btn-dark" type="button">⛶ Fullscreen</button>
+          <button id="worshipShareBtn" class="btn btn-dark" type="button" data-i18n="w.share">📱 Share cu echipa</button>
+          <button id="worshipSyncProjectorBtn" class="btn btn-primary" type="button" data-i18n="w.syncProjector">🎬 Sync proiector</button>
+          <button id="liveFullscreenBtn" class="btn btn-dark" type="button" data-i18n="w.fullscreen">⛶ Fullscreen</button>
           <!-- WORSHIP-KEY-NOTATION-RO — comutator notație gamă (Do/C); preferință pe device -->
           <button class="btn btn-dark js-key-notation-toggle" type="button" title="Schimbă notația gamei (internațional / românesc)">C→Do</button>
         </div>
@@ -141,11 +141,11 @@
           <button id="liveExitFullscreenBtn" class="live-exit-fullscreen-btn hidden" type="button" aria-label="Ieși din fullscreen">✕</button>
           <div class="live-lyrics-display" id="liveLyricsDisplay">
             <div class="live-verse-label" id="liveVerseLabel">—</div>
-            <div class="live-verse-text" id="liveVerseText">Selectează o cântare.</div>
+            <div class="live-verse-text" id="liveVerseText" data-i18n="w.selectSong">Selectează o cântare.</div>
           </div>
           <!-- WORSHIP-NOTES-FIX — nota + buton push pentru worship admin (non-lider) -->
           <div id="liveSectionNote" class="live-section-note hidden"></div>
-          <button id="worshipSendNoteBtn" class="btn btn-dark btn-sm hidden" type="button">📝 Trimite nota echipei</button>
+          <button id="worshipSendNoteBtn" class="btn btn-dark btn-sm hidden" type="button" data-i18n="w.sendNote">📝 Trimite nota echipei</button>
           <div class="live-controls">
             <button id="liveVersePrev" class="live-nav-btn" type="button" aria-label="Verset anterior">←</button>
             <button id="liveFontDecrease" class="live-font-btn" type="button" aria-label="Text mai mic">A−</button>
@@ -161,41 +161,41 @@
       <!-- WORSHIP-LEADER: designated leader + hints to team + projector. -->
       <div class="panel glass-panel worship-leader-panel">
         <div class="worship-leader-bar">
-          <button id="worshipLeaderToggleBtn" class="btn btn-dark" type="button">🎹 Sunt lider</button>
+          <button id="worshipLeaderToggleBtn" class="btn btn-dark" type="button" data-i18n="w.iAmLeader">🎹 Sunt lider</button>
           <span id="worshipLeaderStatus" class="small muted"></span>
         </div>
         <div id="worshipLeaderControls" class="worship-leader-controls hidden">
-          <p class="small muted">Trimite hinturi echipei și pe proiector. Cele cu acțiune mișcă și versetul live.</p>
+          <p class="small muted" data-i18n="w.leaderHint">Trimite hinturi echipei și pe proiector. Cele cu acțiune mișcă și versetul live.</p>
           <div class="worship-when-card">
-            <div class="worship-when-label">Când se aplică</div>
+            <div class="worship-when-label" data-i18n="w.whenApplies">Când se aplică</div>
             <div class="worship-when-options" id="worshipWhenOptions">
-              <button type="button" class="when-pill" data-when="now">Acum</button>
-              <button type="button" class="when-pill" data-when="next_verse">Vers următor</button>
-              <button type="button" class="when-pill" data-when="next_strofa">Strofă următoare</button>
-              <button type="button" class="when-pill" data-when="next_refren">Refren următor</button>
-              <button type="button" class="when-pill" data-when="next_pod">Pod următor</button>
-              <button type="button" id="worshipCountdownBtn" class="when-pill when-pill-action">⏱ Countdown</button>
+              <button type="button" class="when-pill" data-when="now" data-i18n="w.whenNow">Acum</button>
+              <button type="button" class="when-pill" data-when="next_verse" data-i18n="w.whenNextVerse">Vers următor</button>
+              <button type="button" class="when-pill" data-when="next_strofa" data-i18n="w.whenNextStrofa">Strofă următoare</button>
+              <button type="button" class="when-pill" data-when="next_refren" data-i18n="w.whenNextRefren">Refren următor</button>
+              <button type="button" class="when-pill" data-when="next_pod" data-i18n="w.whenNextPod">Pod următor</button>
+              <button type="button" id="worshipCountdownBtn" class="when-pill when-pill-action" data-i18n="w.countdown">⏱ Countdown</button>
             </div>
           </div>
           <div class="worship-hint-row">
-            <button class="btn btn-dark btn-sm" type="button" data-hint="repeat">🔁 Repetă strofa</button>
-            <button class="btn btn-dark btn-sm" type="button" data-hint="repeat_chorus">🔁 Repetă refrenul</button>
-            <button class="btn btn-dark btn-sm" type="button" data-hint="next">⏭ Strofa următoare</button>
-            <button class="btn btn-dark btn-sm" type="button" data-hint="chorus">🎶 Refren</button>
+            <button class="btn btn-dark btn-sm" type="button" data-hint="repeat" data-i18n="w.repeatStrofa">🔁 Repetă strofa</button>
+            <button class="btn btn-dark btn-sm" type="button" data-hint="repeat_chorus" data-i18n="w.repeatRefren">🔁 Repetă refrenul</button>
+            <button class="btn btn-dark btn-sm" type="button" data-hint="next" data-i18n="w.nextStrofaHint">⏭ Strofa următoare</button>
+            <button class="btn btn-dark btn-sm" type="button" data-hint="chorus" data-i18n="w.refrenHint">🎶 Refren</button>
           </div>
           <div class="worship-hint-row">
-            <label class="small" for="worshipHintKeySelect">Schimbă gama</label>
+            <label class="small" for="worshipHintKeySelect" data-i18n="w.changeKey">Schimbă gama</label>
             <select id="worshipHintKeySelect" class="worship-hint-select"></select>
             <button id="worshipKeyDownBtn" class="btn btn-dark btn-sm worship-key-step" type="button" title="Coboară 1 semiton">♭ −1</button>
             <button id="worshipKeyUpBtn" class="btn btn-dark btn-sm worship-key-step" type="button" title="Urcă 1 semiton">♯ +1</button>
           </div>
           <div class="worship-hint-row">
-            <label class="small" for="worshipHintSongSelect">Sari la cântare</label>
+            <label class="small" for="worshipHintSongSelect" data-i18n="w.jumpToSong">Sari la cântare</label>
             <select id="worshipHintSongSelect" class="worship-hint-select"></select>
           </div>
           <div class="worship-hint-row">
-            <input id="worshipHintFreeInput" type="text" maxlength="200" class="worship-hint-free" placeholder="Mesaj liber pentru echipă...">
-            <button id="worshipHintFreeBtn" class="btn btn-primary btn-sm" type="button">Trimite</button>
+            <input id="worshipHintFreeInput" type="text" maxlength="200" class="worship-hint-free" placeholder="Mesaj liber pentru echipă..." data-i18n-placeholder="w.freeMsgPh">
+            <button id="worshipHintFreeBtn" class="btn btn-primary btn-sm" type="button" data-i18n="w.send">Trimite</button>
           </div>
           <div class="worship-pending-hints" id="worshipPendingHints"></div>
         </div>
@@ -205,10 +205,10 @@
     <!-- WORSHIP-MANAGE-ROLES — panou de gestionare roluri, vizibil DOAR cu canManageRoles -->
     <section id="worshipRolesMode" class="worship-mode-panel hidden">
       <div class="panel glass-panel worship-roles-manage">
-        <h3>👑 Gestionează roluri</h3>
+        <h3 data-i18n="w.manageRoles">👑 Gestionează roluri</h3>
         <div class="muted small">Coduri + capabilități pentru rolurile echipei. Vizibil doar dacă rolul tău are „Gestionează roluri".</div>
         <div class="worship-role-form">
-          <input id="wRoleName" type="text" placeholder="Nume (ex. Pian)" maxlength="40">
+          <input id="wRoleName" type="text" placeholder="Nume (ex. Pian)" maxlength="40" data-i18n-placeholder="w.roleNamePh">
           <input id="wRoleEmoji" type="text" placeholder="🎹" maxlength="8" class="worship-role-emoji-input">
           <!-- WORSHIP-ROLES-EMOJI-PICKER — picker iconițe muzicale (același set ca în admin) -->
           <div class="worship-emoji-picker" id="wEmojiPicker">
@@ -223,13 +223,13 @@
             <button type="button" class="emoji-pick" data-emoji="🎵">🎵</button>
             <button type="button" class="emoji-pick" data-emoji="👏">👏</button>
           </div>
-          <input id="wRoleCode" type="text" placeholder="Cod (ex. 4821)" maxlength="40">
+          <input id="wRoleCode" type="text" placeholder="Cod (ex. 4821)" maxlength="40" data-i18n-placeholder="w.roleCodePh">
           <div class="worship-cap-toggles">
-            <label class="worship-cap-toggle"><input type="checkbox" id="wRoleCanLead"><span class="worship-cap-pill">🎹 Poate fi lider</span></label>
-            <label class="worship-cap-toggle"><input type="checkbox" id="wRoleCanAdmin"><span class="worship-cap-pill">🛠 Poate pregăti programul</span></label>
-            <label class="worship-cap-toggle"><input type="checkbox" id="wRoleCanManage"><span class="worship-cap-pill">👑 Gestionează roluri</span></label>
+            <label class="worship-cap-toggle"><input type="checkbox" id="wRoleCanLead"><span class="worship-cap-pill" data-i18n="w.capLead">🎹 Poate fi lider</span></label>
+            <label class="worship-cap-toggle"><input type="checkbox" id="wRoleCanAdmin"><span class="worship-cap-pill" data-i18n="w.capAdmin">🛠 Poate pregăti programul</span></label>
+            <label class="worship-cap-toggle"><input type="checkbox" id="wRoleCanManage"><span class="worship-cap-pill" data-i18n="w.capManage">👑 Gestionează roluri</span></label>
           </div>
-          <button id="wAddRoleBtn" class="btn btn-dark" type="button">Adaugă / actualizează rol</button>
+          <button id="wAddRoleBtn" class="btn btn-dark" type="button" data-i18n="w.addRole">Adaugă / actualizează rol</button>
         </div>
         <div id="wRolesList" class="history-list"><div class="muted">Niciun rol definit.</div></div>
       </div>
@@ -248,35 +248,37 @@
       <div class="spectator-key hidden" id="spectatorKey"></div>
       <!-- WORSHIP-AMIN-AND-POSITION — indicator poziție strofă (x / y · ultima strofă), deasupra versului -->
       <div class="spectator-position hidden" id="spectatorPosition"></div>
-      <div class="spectator-verse" id="spectatorVerseText">Așteptăm versurile...</div>
+      <div class="spectator-verse" id="spectatorVerseText" data-i18n="w.waitingLyrics">Așteptăm versurile...</div>
     </section>
   </main>
 
   <div id="worshipQrModal" class="worship-modal hidden">
     <div class="worship-modal-card panel glass-panel">
-      <h3>Share cu echipa worship</h3>
-      <p class="small muted">Membrii scanează codul pe tabletele lor și văd versurile sincronizat cu tine.</p>
+      <h3 data-i18n="w.qrTitle">Share cu echipa worship</h3>
+      <p class="small muted" data-i18n="w.qrDesc">Membrii scanează codul pe tabletele lor și văd versurile sincronizat cu tine.</p>
       <div id="worshipQrImage" class="worship-qr-image"></div>
       <input id="worshipQrUrl" type="text" readonly aria-label="Link worship view">
       <div class="worship-modal-actions">
-        <button id="worshipQrCopyBtn" class="btn btn-dark" type="button">Copiază link</button>
-        <button id="worshipQrCloseBtn" class="btn btn-primary" type="button">Închide</button>
+        <button id="worshipQrCopyBtn" class="btn btn-dark" type="button" data-i18n="w.copyLink">Copiază link</button>
+        <button id="worshipQrCloseBtn" class="btn btn-primary" type="button" data-i18n="w.close">Închide</button>
       </div>
     </div>
   </div>
 
   <div id="worshipPushModal" class="worship-modal hidden">
     <div class="worship-modal-card panel glass-panel">
-      <h3>Sugestie de la operator</h3>
-      <p class="small muted">Operatorul îți propune o cântare. O accepți?</p>
+      <h3 data-i18n="w.pushTitle">Sugestie de la operator</h3>
+      <p class="small muted" data-i18n="w.pushDesc">Operatorul îți propune o cântare. O accepți?</p>
       <div id="worshipPushSongTitle" class="worship-push-song">—</div>
       <div class="worship-modal-actions">
-        <button id="worshipPushDeclineBtn" class="btn btn-dark" type="button">Refuz</button>
-        <button id="worshipPushAcceptBtn" class="btn btn-primary" type="button">Accept</button>
+        <button id="worshipPushDeclineBtn" class="btn btn-dark" type="button" data-i18n="w.decline">Refuz</button>
+        <button id="worshipPushAcceptBtn" class="btn btn-primary" type="button" data-i18n="w.accept">Accept</button>
       </div>
     </div>
   </div>
 
+  <script src="/i18n-dict.js"></script>
+  <script src="/i18n.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/worship.js"></script>
   <script src="/shell.js"></script>

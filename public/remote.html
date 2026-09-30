@@ -28,37 +28,37 @@
       <div class="remote-hero-top">
         <div class="remote-hero-event">
           <div class="eyebrow">Sanctuary Voice</div>
-          <h1 id="remoteEventName">Remote control</h1>
+          <h1 id="remoteEventName" data-i18n="r.title">Remote control</h1>
           <!-- OPERATOR-EVENT-PICKER — alege orice eveniment (live, viitor, trecut) -->
           <div class="remote-event-picker-wrap">
             <select id="remoteEventPicker" class="remote-event-picker" title="Alege evenimentul în care operezi">
-              <option value="">Eveniment live (automat)</option>
+              <option value="" data-i18n="r.eventAuto">Eveniment live (automat)</option>
             </select>
             <div id="remoteEventWarning" class="remote-event-warning hidden">
-              <span class="remote-event-warning-text">Nu ești sincronizat cu Admin. Folosești un eveniment care nu este activ la admin.</span>
+              <span class="remote-event-warning-text" data-i18n="r.notSyncedAdmin">Nu ești sincronizat cu Admin. Folosești un eveniment care nu este activ la admin.</span>
               <span class="remote-event-warning-actions">
-                <button id="remoteSyncToActiveBtn" class="btn btn-sm btn-primary" type="button">Sincronizează</button>
-                <button id="remoteDismissWarningBtn" class="btn btn-sm" type="button">OK</button>
+                <button id="remoteSyncToActiveBtn" class="btn btn-sm btn-primary" type="button" data-i18n="r.sync">Sincronizează</button>
+                <button id="remoteDismissWarningBtn" class="btn btn-sm" type="button" data-i18n="r.ok">OK</button>
               </span>
             </div>
           </div>
         </div>
         <div class="remote-header-actions remote-hero-actions">
-          <button id="remoteOpenMainPreviewBtn" class="btn btn-dark btn-sm" type="button">Open main screen</button>
-          <button id="remoteOpenParticipantPreviewBtn" class="btn btn-primary btn-sm" type="button">Open participant</button>
-          <button id="remoteCopyWorshipLink" class="btn btn-dark btn-sm" type="button" title="Copiază link pentru worship leader">Copiază link worship</button>
-          <button id="remoteCopyTeamLink" class="btn btn-dark btn-sm" type="button" title="Copiază link permanent pentru echipa worship">Copiază link team</button>
+          <button id="remoteOpenMainPreviewBtn" class="btn btn-dark btn-sm" type="button" data-i18n="r.openMainScreen">Open main screen</button>
+          <button id="remoteOpenParticipantPreviewBtn" class="btn btn-primary btn-sm" type="button" data-i18n="r.openParticipant">Open participant</button>
+          <button id="remoteCopyWorshipLink" class="btn btn-dark btn-sm" type="button" title="Copiază link pentru worship leader" data-i18n="r.copyWorshipLink">Copiază link worship</button>
+          <button id="remoteCopyTeamLink" class="btn btn-dark btn-sm" type="button" title="Copiază link permanent pentru echipa worship" data-i18n="r.copyTeamLink">Copiază link team</button>
         </div>
       </div>
       <div class="participant-badge-row remote-hero-badges">
-        <div id="remoteModeBadge" class="status-pill active">Live follow</div>
-        <div id="remoteLanguageBadge" class="status-pill">Language</div>
+        <div id="remoteModeBadge" class="status-pill active" data-i18n="r.liveFollow">Live follow</div>
+        <div id="remoteLanguageBadge" class="status-pill" data-i18n="r.language">Language</div>
         <div class="remote-worship-status-pill" id="remoteHeaderWorshipPill" title="Worship live status">
           <span class="remote-worship-status-dot" id="remoteHeaderWorshipDot"></span>
-          <span id="remoteHeaderWorshipText">Worship offline</span>
+          <span id="remoteHeaderWorshipText" data-i18n="r.worshipOffline">Worship offline</span>
         </div>
       </div>
-      <div id="remoteStatus" class="muted small remote-status-line">Connecting...</div>
+      <div id="remoteStatus" class="muted small remote-status-line" data-i18n="r.connecting">Connecting...</div>
     </div>
 
     <!-- V21.17: operator is now a single tab. All panels live in one grid. -->
@@ -66,53 +66,53 @@
 
       <div id="remoteMainScreenPanel" class="panel glass-panel section-stack panel-full-width">
         <div class="section-head">
-          <h2>Main Screen Control</h2>
-          <div id="remoteAccessProfileBadge" class="live-chip">Remote operator</div>
+          <h2 data-i18n="r.mainScreenControl">Main Screen Control</h2>
+          <div id="remoteAccessProfileBadge" class="live-chip" data-i18n="r.remoteOperator">Remote operator</div>
         </div>
         <div class="button-row compact-row">
-          <button id="remoteOpenMainScreenBtn" class="btn btn-primary" type="button">Open main screen</button>
-          <button id="remoteLiveBtn" class="btn btn-dark" type="button">Live follow</button>
-          <button id="remotePinnedBtn" class="btn btn-dark" type="button">Pinned text</button>
-          <button id="remoteSongBtn" class="btn btn-dark" type="button">Song</button>
-          <button id="remoteBlackBtn" class="btn btn-danger" type="button">Black screen</button>
-          <button id="remoteUndoBtn" class="btn btn-dark" type="button">Undo</button>
+          <button id="remoteOpenMainScreenBtn" class="btn btn-primary" type="button" data-i18n="r.openMainScreen">Open main screen</button>
+          <button id="remoteLiveBtn" class="btn btn-dark" type="button" data-i18n="r.liveFollow">Live follow</button>
+          <button id="remotePinnedBtn" class="btn btn-dark" type="button" data-i18n="r.pinnedText">Pinned text</button>
+          <button id="remoteSongBtn" class="btn btn-dark" type="button" data-i18n="r.song">Song</button>
+          <button id="remoteBlackBtn" class="btn btn-danger" type="button" data-i18n="r.blackScreen">Black screen</button>
+          <button id="remoteUndoBtn" class="btn btn-dark" type="button" data-i18n="r.undo">Undo</button>
         </div>
         <div id="remoteQuickLanguages" class="quick-language-row">
-          <div class="muted">Waiting for event languages...</div>
+          <div class="muted" data-i18n="r.waitingLangs">Waiting for event languages...</div>
         </div>
         <!-- V21.17-FIX: language selectors + dual + text fitting collapsed by
              default — the card surfaces only live actions until the operator
              needs settings. The selectors themselves are unchanged (load-bearing
              for display state). -->
         <details class="remote-display-settings">
-          <summary>Setări afișaj</summary>
+          <summary data-i18n="r.displaySettings">Setări afișaj</summary>
           <div class="info-card soft-card compact-control-card">
             <div class="meta-row">
-              <label for="remoteDisplayLanguageSelect">Display language (primary)</label>
+              <label for="remoteDisplayLanguageSelect" data-i18n="r.displayLangPrimary">Display language (primary)</label>
               <select id="remoteDisplayLanguageSelect"></select>
             </div>
             <div class="meta-row">
-              <label for="remoteDisplaySecondaryLanguageSelect">Second language (for dual)</label>
+              <label for="remoteDisplaySecondaryLanguageSelect" data-i18n="r.secondLang">Second language (for dual)</label>
               <select id="remoteDisplaySecondaryLanguageSelect">
-                <option value="">— None —</option>
+                <option value="" data-i18n="r.none">— None —</option>
               </select>
             </div>
-            <label class="inline-check"><input type="checkbox" id="remoteDualLanguageToggle"> Afișaj dual limbă</label>
-            <div class="muted">Arată două limbi simultan pe Main Screen când există cel puțin două limbi disponibile.</div>
+            <label class="inline-check"><input type="checkbox" id="remoteDualLanguageToggle"> <span data-i18n="r.dualDisplay">Afișaj dual limbă</span></label>
+            <div class="muted" data-i18n="r.dualDesc">Arată două limbi simultan pe Main Screen când există cel puțin două limbi disponibile.</div>
             <div class="meta-row">
-              <label>Text fitting</label>
+              <label data-i18n="r.textFitting">Text fitting</label>
               <div class="button-row compact-row">
                 <button id="remoteTextZoomMinusBtn" class="btn btn-dark" type="button">A−</button>
                 <span id="remoteTextScaleValue" class="status-pill">100%</span>
                 <button id="remoteTextZoomPlusBtn" class="btn btn-dark" type="button">A+</button>
-                <button id="remoteTextZoomResetBtn" class="btn btn-dark" type="button">Reset</button>
-                <button id="remoteTextSizeMoreBtn" class="btn btn-dark" type="button">More ▾</button>
+                <button id="remoteTextZoomResetBtn" class="btn btn-dark" type="button" data-i18n="r.reset">Reset</button>
+                <button id="remoteTextSizeMoreBtn" class="btn btn-dark" type="button" data-i18n="r.more">More ▾</button>
               </div>
               <div id="remoteTextSizeMorePanel" class="button-row compact-row" hidden style="margin-top:8px;">
-                <button class="btn btn-dark remote-text-size-preset" data-text-size="compact" type="button">Compact</button>
-                <button class="btn btn-dark remote-text-size-preset" data-text-size="large" type="button">Large</button>
-                <button class="btn btn-dark remote-text-size-preset" data-text-size="xlarge" type="button">XL</button>
-                <button class="btn btn-dark remote-text-size-preset" data-text-size="huge" type="button">Huge</button>
+                <button class="btn btn-dark remote-text-size-preset" data-text-size="compact" type="button" data-i18n="r.compact">Compact</button>
+                <button class="btn btn-dark remote-text-size-preset" data-text-size="large" type="button" data-i18n="r.large">Large</button>
+                <button class="btn btn-dark remote-text-size-preset" data-text-size="xlarge" type="button" data-i18n="r.xl">XL</button>
+                <button class="btn btn-dark remote-text-size-preset" data-text-size="huge" type="button" data-i18n="r.huge">Huge</button>
               </div>
             </div>
             <!-- V21.35: clock controls mirroring admin (Show clock + position + zoom).
@@ -120,15 +120,15 @@
                  validates clockScale 0.7-1.8; we clamp to that range so the buttons
                  never bounce off a 400. -->
             <div class="meta-row">
-              <label class="inline-check"><input type="checkbox" id="remoteShowClockBox"> Show clock</label>
-              <label style="margin-top:8px;">Clock position</label>
+              <label class="inline-check"><input type="checkbox" id="remoteShowClockBox"> <span data-i18n="r.showClock">Show clock</span></label>
+              <label style="margin-top:8px;" data-i18n="r.clockPosition">Clock position</label>
               <select id="remoteClockPositionSelect">
-                <option value="top-right">Clock top right</option>
-                <option value="top-left">Clock top left</option>
-                <option value="bottom-right">Clock bottom right</option>
-                <option value="bottom-left">Clock bottom left</option>
+                <option value="top-right" data-i18n="r.clockTR">Clock top right</option>
+                <option value="top-left" data-i18n="r.clockTL">Clock top left</option>
+                <option value="bottom-right" data-i18n="r.clockBR">Clock bottom right</option>
+                <option value="bottom-left" data-i18n="r.clockBL">Clock bottom left</option>
               </select>
-              <label style="margin-top:8px;">Clock size</label>
+              <label style="margin-top:8px;" data-i18n="r.clockSize">Clock size</label>
               <div class="button-row compact-row">
                 <button id="remoteClockSizeMinusBtn" class="btn btn-dark" type="button">−</button>
                 <span id="remoteClockScaleValue" class="status-pill">100%</span>
@@ -141,33 +141,33 @@
 
       <div class="panel glass-panel section-stack" data-remote-song-section>
         <div class="section-head">
-          <h2>Song</h2>
-          <div id="remoteSongModeBadge" class="status-pill">Live</div>
+          <h2 data-i18n="r.song">Song</h2>
+          <div id="remoteSongModeBadge" class="status-pill" data-i18n="r.live">Live</div>
         </div>
         <div id="remoteSongSummary" class="muted">Saved: 0 · History: 0</div>
         <div class="info-card accent-card">
           <div class="section-head admin-subsection-head">
-            <h2>Live Song Control</h2>
-            <div id="remoteSongLabel" class="muted">No active verse</div>
+            <h2 data-i18n="r.liveSongControl">Live Song Control</h2>
+            <div id="remoteSongLabel" class="muted" data-i18n="r.noActiveVerse">No active verse</div>
           </div>
           <div class="button-row compact-row">
-            <button id="remoteBackToLiveTextNavBtn" class="btn btn-primary back-to-live-btn" type="button">⏎ Back to live text</button>
-            <button id="remoteSongBlackBtn" class="btn btn-danger" type="button">⬛ Black screen</button>
-            <button id="remoteSongClearLiveBtn" class="btn btn-dark" type="button">🗑 Clear</button>
+            <button id="remoteBackToLiveTextNavBtn" class="btn btn-primary back-to-live-btn" type="button" data-i18n="r.backToLive">⏎ Back to live text</button>
+            <button id="remoteSongBlackBtn" class="btn btn-danger" type="button" data-i18n="r.songBlack">⬛ Black screen</button>
+            <button id="remoteSongClearLiveBtn" class="btn btn-dark" type="button" data-i18n="r.clearLive">🗑 Clear</button>
           </div>
           <div class="compact-library-row">
             <div class="full-width">
-              <label for="remoteSongJumpSelect">Jump to verse or chorus</label>
+              <label for="remoteSongJumpSelect" data-i18n="r.jumpVerse">Jump to verse or chorus</label>
               <select id="remoteSongJumpSelect"></select>
             </div>
           </div>
           <div class="label song-preview-head">
             Song preview
-            <button id="remoteEditLiveVerseBtn" class="btn btn-dark song-edit-verse-btn" type="button" hidden>✎ Edit current verse</button>
+            <button id="remoteEditLiveVerseBtn" class="btn btn-dark song-edit-verse-btn" type="button" hidden data-i18n="r.editVerse">✎ Edit current verse</button>
           </div>
-          <div id="remoteSongPreview" class="song-preview">Song text will appear here.</div>
+          <div id="remoteSongPreview" class="song-preview" data-i18n="r.songTextHere">Song text will appear here.</div>
           <div id="remoteSongBlocksList" class="history-list song-section-list">
-            <div class="muted">Use Save in library or Send first verse.</div>
+            <div class="muted" data-i18n="r.useSaveHint">Use Save in library or Send first verse.</div>
           </div>
         </div>
       </div>
@@ -181,32 +181,32 @@
         <!-- OPERATOR-LIBRARY-LAYOUT — ca la admin: search bar (+sort+resurse) MEREU vizibil deasupra;
              rezultatele (Din Library + De pe Resurse) în dropdown-ul „Rezultate" colapsabil, auto-deschis la căutare. -->
         <div class="section-head">
-          <h2>📚 Church Library</h2>
-          <div class="muted">Shared for all events · search resursecrestine.ro too</div>
+          <h2 data-i18n="r.churchLibrary">📚 Church Library</h2>
+          <div class="muted" data-i18n="r.sharedLib">Shared for all events · search resursecrestine.ro too</div>
         </div>
         <div class="unified-search">
           <div class="unified-search-input-row">
-            <input id="remoteSongLibrarySearch" type="text" class="unified-search-input" placeholder="Caută cântare (Library + Resurse)...">
+            <input id="remoteSongLibrarySearch" type="text" class="unified-search-input" placeholder="Caută cântare (Library + Resurse)..." data-i18n-placeholder="r.searchSongPh">
             <select id="remoteSongLibrarySort">
-              <option value="az" selected>Title A-Z</option>
-              <option value="za">Title Z-A</option>
-              <option value="recent">Recent first</option>
+              <option value="az" selected data-i18n="r.sortAZ">Title A-Z</option>
+              <option value="za" data-i18n="r.sortZA">Title Z-A</option>
+              <option value="recent" data-i18n="r.sortRecent">Recent first</option>
             </select>
-            <button id="remoteImportUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button">Caută și pe resurse</button>
+            <button id="remoteImportUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button" data-i18n="r.searchResources">Caută și pe resurse</button>
           </div>
           <div id="remoteImportUrlStatus" class="muted" style="min-height:1em;"></div>
         </div>
         <details class="library-dropdown" id="remoteLibraryResultsDropdown">
-          <summary class="library-dropdown-summary">Rezultate</summary>
+          <summary class="library-dropdown-summary" data-i18n="r.results">Rezultate</summary>
           <div class="unified-search">
             <div class="unified-search-library-section">
-              <div class="unified-search-section-label">Din Library</div>
+              <div class="unified-search-section-label" data-i18n="r.fromLibrary">Din Library</div>
               <div id="remoteSongLibraryList" class="event-list unified-search-library-results">
-                <div class="muted">Loading church library...</div>
+                <div class="muted" data-i18n="r.loadingLib">Loading church library...</div>
               </div>
             </div>
             <div class="unified-search-resurse-section hidden">
-              <div class="unified-search-section-label">De pe Resurse <span class="unified-search-spinner hidden">⏳</span></div>
+              <div class="unified-search-section-label"><span data-i18n="r.fromResources">De pe Resurse</span> <span class="unified-search-spinner hidden">⏳</span></div>
               <div id="remoteImportUrlResults" class="import-url-results unified-search-resurse-results"></div>
             </div>
           </div>
@@ -215,102 +215,102 @@
 
       <div id="remoteSongEditorPanel" class="panel glass-panel section-stack" data-remote-song-section>
         <div class="section-head">
-          <h2>Song Editor</h2>
-          <div class="muted">Compose, save, and send songs live</div>
+          <h2 data-i18n="r.songEditor">Song Editor</h2>
+          <div class="muted" data-i18n="r.songEditorDesc">Compose, save, and send songs live</div>
         </div>
         <div class="split-2 compact-library-row">
           <div>
-            <label for="remoteSongTitle">Title</label>
-            <input id="remoteSongTitle" type="text" placeholder="Song title">
+            <label for="remoteSongTitle" data-i18n="r.titleLabel">Title</label>
+            <input id="remoteSongTitle" type="text" placeholder="Song title" data-i18n-placeholder="r.songTitlePh">
           </div>
           <div>
-            <label for="remoteSongSourceLang">Song language</label>
+            <label for="remoteSongSourceLang" data-i18n="r.songLang">Song language</label>
             <select id="remoteSongSourceLang"></select>
           </div>
         </div>
-        <textarea id="remoteSongText" placeholder="Write song lyrics here. Use markers like 1., 2., R., R2. or R: %repeat note% to create verses and choruses."></textarea>
+        <textarea id="remoteSongText" data-i18n-placeholder="r.songLyricsPh" placeholder="Write song lyrics here. Use markers like 1., 2., R., R2. or R: %repeat note% to create verses and choruses."></textarea>
         <div class="button-row compact-row">
-          <button id="remoteSongSaveBtn" class="btn btn-dark" type="button">Save to church library</button>
-          <button id="remoteSongSendBtn" class="btn btn-primary" type="button">Send first verse live</button>
-          <button id="remoteBackToLiveTextBtn" class="btn btn-primary" type="button">Back to live text</button>
-          <button id="remoteSongClearBtn" class="btn btn-dark" type="button">Clear editor</button>
+          <button id="remoteSongSaveBtn" class="btn btn-dark" type="button" data-i18n="r.saveToLib">Save to church library</button>
+          <button id="remoteSongSendBtn" class="btn btn-primary" type="button" data-i18n="r.sendFirstVerse">Send first verse live</button>
+          <button id="remoteBackToLiveTextBtn" class="btn btn-primary" type="button" data-i18n="r.backToLiveText">Back to live text</button>
+          <button id="remoteSongClearBtn" class="btn btn-dark" type="button" data-i18n="r.clearEditor">Clear editor</button>
         </div>
       </div>
 
       <div class="panel glass-panel section-stack" data-remote-song-section>
         <div class="section-head">
-          <h2>Cântări programate</h2>
+          <h2 data-i18n="r.scheduledSongs">Cântări programate</h2>
           <div class="muted" id="remoteEventSongsCount">0</div>
         </div>
         <div id="remoteEventSongsList" class="event-songs-list">
-          <p class="muted small">Niciun event selectat.</p>
+          <p class="muted small" data-i18n="r.noEventSelected">Niciun event selectat.</p>
         </div>
       </div>
 
       <div id="remoteWorshipPanel" class="panel glass-panel section-stack panel-full-width" data-remote-song-section>
         <div class="section-head">
-          <h2>Worship Live</h2>
-          <div id="remoteWorshipPresence" class="status-pill">Worship inactiv</div>
+          <h2 data-i18n="r.worshipLive">Worship Live</h2>
+          <div id="remoteWorshipPresence" class="status-pill" data-i18n="r.worshipInactive">Worship inactiv</div>
         </div>
-        <div id="remoteWorshipStatus" class="muted">Echipa worship nu a pornit Live mode.</div>
+        <div id="remoteWorshipStatus" class="muted" data-i18n="r.worshipNotStarted">Echipa worship nu a pornit Live mode.</div>
         <div id="remoteWorshipRequest" class="worship-sync-toast hidden"></div>
       </div>
 
       <!-- V21.17: Pinned Text + Recent Sends collapsed by default (closed <details>). -->
       <details id="remotePinnedTextPanel" class="panel glass-panel remote-collapsible-panel panel-full-width">
         <summary class="remote-collapsible-summary">
-          <span class="remote-collapsible-title">Pinned Text Library</span>
-          <span class="muted small">Send a saved announcement to the main screen</span>
+          <span class="remote-collapsible-title" data-i18n="r.pinnedLib">Pinned Text Library</span>
+          <span class="muted small" data-i18n="r.pinnedLibDesc">Send a saved announcement to the main screen</span>
         </summary>
         <div class="section-stack remote-collapsible-body">
           <div class="info-card soft-card">
             <div class="section-head admin-subsection-head">
-              <h2>Pinned Text Sender</h2>
-              <div class="muted">Edit then push to the projector</div>
+              <h2 data-i18n="r.pinnedSender">Pinned Text Sender</h2>
+              <div class="muted" data-i18n="r.pinnedSenderDesc">Edit then push to the projector</div>
             </div>
             <div class="split-2 compact-library-row">
               <div>
-                <label for="remotePinnedTitle">Title</label>
-                <input id="remotePinnedTitle" type="text" placeholder="Announcement title">
+                <label for="remotePinnedTitle" data-i18n="r.titleLabel">Title</label>
+                <input id="remotePinnedTitle" type="text" placeholder="Announcement title" data-i18n-placeholder="r.announcementPh">
               </div>
               <div>
-                <label for="remotePinnedSourceLang">Text language</label>
+                <label for="remotePinnedSourceLang" data-i18n="r.textLang">Text language</label>
                 <select id="remotePinnedSourceLang"></select>
               </div>
             </div>
-            <textarea id="remotePinnedText" placeholder="Write the pinned text to display on the main screen."></textarea>
+            <textarea id="remotePinnedText" data-i18n-placeholder="r.pinnedTextPh" placeholder="Write the pinned text to display on the main screen."></textarea>
             <div class="button-row compact-row">
-              <button id="remotePinnedSendBtn" class="btn btn-primary" type="button">Send to main screen</button>
+              <button id="remotePinnedSendBtn" class="btn btn-primary" type="button" data-i18n="r.sendToMain">Send to main screen</button>
             </div>
           </div>
           <div class="split-2 compact-library-row">
             <div>
-              <label for="remoteManualLibrarySearch">Search</label>
-              <input id="remoteManualLibrarySearch" type="text" placeholder="Search pinned texts">
+              <label for="remoteManualLibrarySearch" data-i18n="r.search">Search</label>
+              <input id="remoteManualLibrarySearch" type="text" placeholder="Search pinned texts" data-i18n-placeholder="r.searchPinnedPh">
             </div>
             <div>
-              <label for="remoteManualLibrarySort">Sort</label>
+              <label for="remoteManualLibrarySort" data-i18n="r.sort">Sort</label>
               <select id="remoteManualLibrarySort">
-                <option value="az" selected>Title A-Z</option>
-                <option value="za">Title Z-A</option>
-                <option value="recent">Recent first</option>
+                <option value="az" selected data-i18n="r.sortAZ">Title A-Z</option>
+                <option value="za" data-i18n="r.sortZA">Title Z-A</option>
+                <option value="recent" data-i18n="r.sortRecent">Recent first</option>
               </select>
             </div>
           </div>
           <div id="remoteManualLibraryList" class="event-list">
-            <div class="muted">Loading pinned text library...</div>
+            <div class="muted" data-i18n="r.loadingPinned">Loading pinned text library...</div>
           </div>
         </div>
       </details>
 
       <details class="panel glass-panel remote-collapsible-panel panel-full-width" data-remote-song-section>
         <summary class="remote-collapsible-summary">
-          <span class="remote-collapsible-title">Recent Sends</span>
-          <span class="muted small">Latest items on screen</span>
+          <span class="remote-collapsible-title" data-i18n="r.recentSends">Recent Sends</span>
+          <span class="muted small" data-i18n="r.recentSendsDesc">Latest items on screen</span>
         </summary>
         <div class="section-stack remote-collapsible-body">
           <div id="remoteSongHistoryList" class="history">
-            <div class="muted">Nothing sent yet.</div>
+            <div class="muted" data-i18n="r.nothingSent">Nothing sent yet.</div>
           </div>
         </div>
       </details>
@@ -321,17 +321,17 @@
     <div class="edit-verse-backdrop" data-remote-edit-verse-close></div>
     <div class="edit-verse-card">
       <div class="edit-verse-head">
-        <h3 id="remoteEditVerseTitle">Edit current verse</h3>
+        <h3 id="remoteEditVerseTitle" data-i18n="r.editVerseTitle">Edit current verse</h3>
         <button class="edit-verse-close" data-remote-edit-verse-close type="button" aria-label="Close">×</button>
       </div>
       <div class="edit-verse-body">
-        <p class="muted small">This verse is live now on Main Screen. Changes will not appear on screen until you save.</p>
-        <textarea id="remoteEditVerseText" rows="8" placeholder="Edit verse text..."></textarea>
+        <p class="muted small" data-i18n="r.editVerseDesc">This verse is live now on Main Screen. Changes will not appear on screen until you save.</p>
+        <textarea id="remoteEditVerseText" rows="8" placeholder="Edit verse text..." data-i18n-placeholder="r.editVersePh"></textarea>
       </div>
       <div class="edit-verse-foot">
-        <button id="remoteCancelEditVerseBtn" class="btn btn-light" type="button">Cancel</button>
-        <button id="remoteSaveEditVerseBtn" class="btn btn-dark" type="button">Save (current only)</button>
-        <button id="remoteSaveEditVerseLibraryBtn" class="btn btn-primary" type="button">Save &amp; Update Library</button>
+        <button id="remoteCancelEditVerseBtn" class="btn btn-light" type="button" data-i18n="r.cancel">Cancel</button>
+        <button id="remoteSaveEditVerseBtn" class="btn btn-dark" type="button" data-i18n="r.saveCurrent">Save (current only)</button>
+        <button id="remoteSaveEditVerseLibraryBtn" class="btn btn-primary" type="button" data-i18n="r.saveUpdateLib">Save &amp; Update Library</button>
       </div>
     </div>
   </div>
@@ -341,17 +341,19 @@
     <div class="worship-global-toast-content panel glass-panel">
       <span class="worship-global-toast-icon" aria-hidden="true">🎵</span>
       <div class="worship-global-toast-text">
-        <strong class="worship-global-toast-title">Worship cere sync proiector</strong>
+        <strong class="worship-global-toast-title" data-i18n="r.worshipAsksSync">Worship cere sync proiector</strong>
         <div id="worshipGlobalToastDetail" class="small muted"></div>
       </div>
       <div class="worship-global-toast-actions">
-        <button class="btn btn-primary btn-sm" type="button" data-worship-toast-action="note">Am notat</button>
-        <button class="btn btn-dark btn-sm" type="button" data-worship-toast-action="decline">Refuz</button>
+        <button class="btn btn-primary btn-sm" type="button" data-worship-toast-action="note" data-i18n="r.noted">Am notat</button>
+        <button class="btn btn-dark btn-sm" type="button" data-worship-toast-action="decline" data-i18n="r.declineToast">Refuz</button>
       </div>
       <button class="worship-global-toast-close" type="button" data-worship-toast-action="close" aria-label="Închide notificarea">✕</button>
     </div>
   </div>
 
+  <script src="/i18n-dict.js"></script>
+  <script src="/i18n.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/code-prompt.js"></script>
   <script src="/remote.js"></script>
