@@ -206,6 +206,15 @@ in-page tabs with a sticky action bar for the page's 2–4 primary buttons.
   (Program/Live/Roluri), `/remote` (Ecran/Cântări). Layout only — tabs never change
   socket, `/mode`, projector or participant behaviour. Assert an id/label inventory
   before/after so no control is lost.
+- **Admin top bar (SV-ADMIN-TABS-TRIM)** keeps only: Dashboard · Evenimente ·
+  Ecran principal · Cântări · Roluri. The moved destinations keep their sections
+  (still reachable via `switchTab` and the bare-`#hash` router in `app.js`):
+  Transcript → a per-event "Transcript" action in Evenimente (and `/admin#transcript`
+  redirects to the current/active event's transcript; the live partial stays in the
+  dashboard's Transcript in-page tab); Glossary → the "Glosar" section in the
+  dashboard's Recepție tab (one store, `#glossary` redirects there); Statistics and
+  Quick Text → the shell's "Mai mult → Admin" sheet (owner only), via
+  `/admin#statistics` and `/admin#manual`.
 
 ## Accounts & roles
 

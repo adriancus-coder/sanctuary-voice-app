@@ -28,15 +28,14 @@
 </head>
 <body data-shell="events">
   <nav class="top-nav-tabs" role="tablist" aria-label="Main navigation">
+    <!-- SV-ADMIN-TABS-TRIM — Transcript (→ per-event action), Glossary (→ Recepție
+         "Glosar"), Quick Text + Statistics (→ Mai mult) moved off the bar. The
+         sections stay in the DOM and reachable via switchTab / the #hash router. -->
     <button class="top-nav-btn active" data-tab="dashboard" type="button" data-i18n="nav.dashboard">Dashboard</button>
-    <button class="top-nav-btn" data-tab="events" type="button" data-i18n="nav.events">Events</button>
-    <button class="top-nav-btn" data-tab="operator-roles" type="button" data-i18n="nav.operatorRoles">Operator Roles</button>
-    <button class="top-nav-btn" data-tab="transcript" type="button" data-i18n="nav.transcript">Transcript</button>
-    <button class="top-nav-btn" data-tab="mainscreen" type="button" data-i18n="nav.mainScreen">Main Screen</button>
-    <button id="adminSongTabBtn" class="top-nav-btn" data-tab="song" type="button">Song<span id="adminSongTabBadge" class="tab-badge hidden" aria-label="cerere worship în așteptare"></span></button>
-    <button class="top-nav-btn" data-tab="glossary" type="button" data-i18n="nav.glossary">Glossary</button>
-    <button class="top-nav-btn" data-tab="manual" type="button" data-i18n="nav.quickText">Quick Text</button>
-    <button class="top-nav-btn" data-tab="statistics" type="button" data-i18n="nav.statistics">Statistics</button>
+    <button class="top-nav-btn" data-tab="events" type="button" data-i18n="nav.events">Evenimente</button>
+    <button class="top-nav-btn" data-tab="mainscreen" type="button" data-i18n="nav.mainScreen">Ecran principal</button>
+    <button id="adminSongTabBtn" class="top-nav-btn" data-tab="song" type="button"><span data-i18n="nav.song">Cântări</span><span id="adminSongTabBadge" class="tab-badge hidden" aria-label="cerere worship în așteptare"></span></button>
+    <button class="top-nav-btn" data-tab="operator-roles" type="button" data-i18n="nav.operatorRoles">Roluri</button>
     <div class="top-nav-spacer" aria-hidden="true"></div>
     <div class="ui-lang-switch" role="group" aria-label="Interface language">
       <button type="button" data-lang="ro">RO</button>
@@ -374,6 +373,41 @@
             </div>
           </div>
           <div id="selfTestResults" class="self-test-results"></div>
+        </div>
+
+        <!-- SV-ADMIN-TABS-TRIM — Glosar (was the Glossary top tab), now under Recepție. -->
+        <div class="panel glass-panel section-stack" data-tab-for="dashTabs" data-tab="receptie">
+          <div class="section-head">
+            <h2 data-i18n="gl.glosar">Glosar</h2>
+            <div data-i18n="gl.permMemory" class="live-chip">Permanent memory</div>
+          </div>
+          <label data-i18n="gl.type">Type</label>
+          <select id="glossaryMode">
+            <option data-i18n="opt.transGlossary" value="translation" selected>Translation glossary</option>
+            <option data-i18n="opt.speechCorrection" value="source">Speech correction</option>
+          </select>
+
+          <div id="translationGlossaryFields" class="section-stack compact-stack">
+            <div class="split-2">
+              <div>
+                <label data-i18n="gl.language">Language</label>
+                <select id="glossaryLang"></select>
+              </div>
+              <div>
+                <label class="inline-check"><input id="glossaryPermanent" type="checkbox" checked> Save permanently</label>
+              </div>
+            </div>
+            <input id="glossarySource" type="text" data-i18n-placeholder="ph.glossarySource" placeholder="Source word or phrase">
+            <input id="glossaryTarget" type="text" data-i18n-placeholder="ph.glossaryTarget" placeholder="Correct target form">
+            <button id="saveGlossaryBtn" class="btn btn-dark" data-i18n="btn.saveGlossary">Save translation</button>
+          </div>
+
+          <div id="sourceCorrectionFields" class="section-stack compact-stack" style="display:none">
+            <label class="inline-check"><input id="sourceCorrectionPermanent" type="checkbox" checked> Save permanently</label>
+            <input id="sourceWrong" type="text" data-i18n-placeholder="ph.sourceWrong" placeholder="Wrong heard form">
+            <input id="sourceCorrect" type="text" data-i18n-placeholder="ph.sourceCorrect" placeholder="Correct source form">
+            <button id="saveSourceCorrectionBtn" class="btn btn-dark" data-i18n="btn.saveSourceCorrection">Save speech correction</button>
+          </div>
         </div>
 
         <!-- SV-ADMIN-TABS — sticky action bar for the Live tab: the service's
@@ -926,41 +960,6 @@
         </dialog>
       </section>
 
-      <section id="tab-glossary" class="tab-panel">
-        <div class="panel glass-panel section-stack">
-          <div class="section-head">
-            <h2 data-i18n="gl.title">Glossary and Speech Fixes</h2>
-            <div data-i18n="gl.permMemory" class="live-chip">Permanent memory</div>
-          </div>
-          <label data-i18n="gl.type">Type</label>
-          <select id="glossaryMode">
-            <option data-i18n="opt.transGlossary" value="translation" selected>Translation glossary</option>
-            <option data-i18n="opt.speechCorrection" value="source">Speech correction</option>
-          </select>
-
-          <div id="translationGlossaryFields" class="section-stack compact-stack">
-            <div class="split-2">
-              <div>
-                <label data-i18n="gl.language">Language</label>
-                <select id="glossaryLang"></select>
-              </div>
-              <div>
-                <label class="inline-check"><input id="glossaryPermanent" type="checkbox" checked> Save permanently</label>
-              </div>
-            </div>
-            <input id="glossarySource" type="text" data-i18n-placeholder="ph.glossarySource" placeholder="Source word or phrase">
-            <input id="glossaryTarget" type="text" data-i18n-placeholder="ph.glossaryTarget" placeholder="Correct target form">
-            <button id="saveGlossaryBtn" class="btn btn-dark" data-i18n="btn.saveGlossary">Save translation</button>
-          </div>
-
-          <div id="sourceCorrectionFields" class="section-stack compact-stack" style="display:none">
-            <label class="inline-check"><input id="sourceCorrectionPermanent" type="checkbox" checked> Save permanently</label>
-            <input id="sourceWrong" type="text" data-i18n-placeholder="ph.sourceWrong" placeholder="Wrong heard form">
-            <input id="sourceCorrect" type="text" data-i18n-placeholder="ph.sourceCorrect" placeholder="Correct source form">
-            <button id="saveSourceCorrectionBtn" class="btn btn-dark" data-i18n="btn.saveSourceCorrection">Save speech correction</button>
-          </div>
-        </div>
-      </section>
 
       <section id="tab-manual" class="tab-panel">
         <div class="cards-grid two">

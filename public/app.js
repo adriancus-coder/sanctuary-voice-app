@@ -18,6 +18,7 @@ let currentSongTitle = '';  // pentru a detecta schimb cântec
 let currentGlobalSongLibrary = [];
 let currentPinnedTextLibrary = [];
 let availableEventsList = [];
+let currentActiveEventId = null;   // SV-ADMIN-TABS-TRIM — for the #transcript hash router
 // WORSHIP-RESCHEDULE-V2 — state pentru dialogul de reprogramare
 let _rescheduleEventId = null;
 let _rescheduleAdminCode = '';
@@ -1653,6 +1654,7 @@ function renderEventList(events = [], activeEventId = null, openedEventId = null
         <div class="muted">Texts: ${event.transcriptCount || 0}</div>
         <div class="button-row compact">
           <button class="btn btn-dark" data-action="open" data-id="${event.id}" title="Load this event in Live Control to edit transcript, glossary, songs, and main screen.">Open</button>
+          <button class="btn btn-dark" data-action="transcript" data-id="${event.id}" title="Vezi transcriptul complet al acestui eveniment.">${escapeHtml(adminT('btn.eventTranscript', 'Transcript'))}</button>
           ${(event.worshipDraft && !event.approved) ? `<button class="btn btn-confirmed" data-action="approve" data-id="${event.id}" title="Aprobă acest eveniment draft creat de worship — devine eveniment normal și poate merge live.">✓ Aprobă</button>` : ''}
           <button class="btn btn-primary" data-action="activate" data-id="${event.id}" title="Make this the active event for participants and the main screen. Only one event can be live at a time."${(event.id === activeEventId || (event.worshipDraft && !event.approved)) ? ' disabled' : ''}>${event.id === activeEventId ? 'Live now' : 'Set live'}</button>
           <button class="btn btn-dark" data-action="rename" data-id="${event.id}" title="Schimbă numele acestui eveniment.">✏ Redenumește</button>
@@ -1671,6 +1673,7 @@ async function refreshEventList() {
   const data = await res.json();
   if (!data.ok) return;
   availableEventsList = data.events || [];
+  currentActiveEventId = data.activeEventId || null;
   renderEventList(availableEventsList, data.activeEventId || null, currentEvent?.id || null);
   renderGlobalSongLibrary(currentGlobalSongLibrary);
   renderHeroActiveEventSelect(data.activeEventId || null);
@@ -4563,6 +4566,38 @@ relocateMainScreenControls();
 // Listener-e pentru AMBELE tab navigation: sidebar (.nav-btn legacy) + top horizontal (.top-nav-btn)
 // În TASK 32c sidebar-ul va fi eliminat complet.
 document.querySelectorAll('.nav-btn, .top-nav-btn').forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+
+// SV-ADMIN-TABS-TRIM — bare #hash routing for the destinations moved off the top
+// bar. #transcript redirects to the current (or active) event's full transcript;
+// #glossary lands on the dashboard's Recepție tab (where Glosar now lives);
+// #statistics / #manual open those sections (reached from "Mai mult"). page-tabs
+// hashes (barId=tabId) contain '=' and are left to page-tabs.
+function routeAdminHash() {
+  const h = (location.hash || '').replace(/^#/, '');
+  if (!h || h.includes('=')) return;
+  if (h === 'transcript') {
+    if (currentEvent) { switchTab('transcript'); return; }
+    const targetId = currentActiveEventId || (availableEventsList[0] && availableEventsList[0].id);
+    if (targetId) { openEventById(targetId).then(() => switchTab('transcript')); }
+    else { switchTab('transcript'); }
+    return;
+  }
+  if (h === 'glossary') {
+    switchTab('dashboard');
+    if (window.PageTabs && window.PageTabs.activate) window.PageTabs.activate('dashTabs', 'receptie');
+    return;
+  }
+  // Any other bare hash that names a tab section (incl. #statistics / #manual
+  // reached from "Mai mult", and the shell's #dashboard / #events / #song links).
+  if (['dashboard', 'events', 'operator-roles', 'mainscreen', 'song', 'statistics', 'manual'].includes(h)) {
+    switchTab(h);
+  }
+}
+window.addEventListener('hashchange', routeAdminHash);
+// Run once after the initial event list has loaded, so #transcript can open the
+// active event on a cold link.
+window.addEventListener('load', () => setTimeout(routeAdminHash, 400));
+
 $('createEventBtn').addEventListener('click', createEvent);
 
 // V11.17: Target Languages picker — add via dropdown, remove via chip ×
@@ -6058,6 +6093,9 @@ $('eventList').addEventListener('click', async (e) => {
     return;
   }
   if (action === 'open') return openEventById(id);
+  // SV-ADMIN-TABS-TRIM — open the event, then show its full transcript
+  // (the Transcript top tab was removed; the section stays reachable via switchTab).
+  if (action === 'transcript') return openEventById(id).then(() => switchTab('transcript'));
   if (action === 'duplicate') {
     btn.disabled = true;
     try {

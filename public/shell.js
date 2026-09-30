@@ -21,18 +21,21 @@
       home: 'Acasă', events: 'Evenimente', songs: 'Cântări', translate: 'Traducere', more: 'Mai mult',
       nav: 'Navigare', prefs: 'Preferințe', lang: 'Limbă', theme: 'Temă', screens: 'Ecrane',
       account: 'Cont', team: 'Echipa', logout: 'Deconectare', projector: 'Ecran principal', remote: 'Telecomandă',
+      adminTools: 'Admin', stats: 'Statistici', quickText: 'Text rapid',
       dark: 'Întunecat', light: 'Luminos', auto: 'Auto', exit: 'Ieși', close: 'Închide',
     },
     en: {
       home: 'Home', events: 'Events', songs: 'Songs', translate: 'Translation', more: 'More',
       nav: 'Navigation', prefs: 'Preferences', lang: 'Language', theme: 'Theme', screens: 'Screens',
       account: 'Account', team: 'Team', logout: 'Sign out', projector: 'Main screen', remote: 'Remote',
+      adminTools: 'Admin', stats: 'Statistics', quickText: 'Quick text',
       dark: 'Dark', light: 'Light', auto: 'Auto', exit: 'Exit', close: 'Close',
     },
     no: {
       home: 'Hjem', events: 'Hendelser', songs: 'Sanger', translate: 'Oversettelse', more: 'Mer',
       nav: 'Navigasjon', prefs: 'Innstillinger', lang: 'Språk', theme: 'Tema', screens: 'Skjermer',
       account: 'Konto', team: 'Team', logout: 'Logg ut', projector: 'Hovedskjerm', remote: 'Fjernkontroll',
+      adminTools: 'Admin', stats: 'Statistikk', quickText: 'Hurtigtekst',
       dark: 'Mørk', light: 'Lys', auto: 'Auto', exit: 'Avslutt', close: 'Lukk',
     },
   };
@@ -60,6 +63,8 @@
     remote: svg('<rect x="7" y="2" width="10" height="20" rx="3"/><path d="M12 6v3"/><circle cx="12" cy="14" r="1.4"/>'),
     logout: svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>'),
     team: svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>'),
+    stats: svg('<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>'),
+    quickText: svg('<path d="M4 5h16M4 10h16M4 15h10"/>'),
     exit: svg('<path d="M15 18l-6-6 6-6"/>'),
   };
 
@@ -154,6 +159,11 @@
         <a class="shell-row" href="/translate"><span class="shell-row-icon">${ICON.projector}</span><span class="shell-row-label">${t('projector')}</span></a>
         <a class="shell-row" href="/remote"><span class="shell-row-icon">${ICON.remote}</span><span class="shell-row-label">${t('remote')}</span></a>
       </section>
+      <section class="shell-section shell-admin-only" hidden>
+        <h3 class="shell-section-title">${t('adminTools')}</h3>
+        <a class="shell-row" href="/admin#statistics"><span class="shell-row-icon">${ICON.stats}</span><span class="shell-row-label">${t('stats')}</span></a>
+        <a class="shell-row" href="/admin#manual"><span class="shell-row-icon">${ICON.quickText}</span><span class="shell-row-label">${t('quickText')}</span></a>
+      </section>
       <section class="shell-section">
         <h3 class="shell-section-title">${t('account')}</h3>
         <a class="shell-row shell-team" href="/team" hidden><span class="shell-row-icon">${ICON.team}</span><span class="shell-row-label">${t('team')}</span></a>
@@ -169,6 +179,8 @@
       if (d && d.user && d.user.role === 'owner') {
         const link = panel.querySelector('.shell-team');
         if (link) link.hidden = false;
+        // SV-ADMIN-TABS-TRIM — owner-only Statistici / Text rapid shortcuts.
+        panel.querySelectorAll('.shell-admin-only').forEach((el) => { el.hidden = false; });
       }
     })
     .catch(() => {});
