@@ -39,6 +39,7 @@ const packageJson = require('./package.json');
 const { createLogger } = require('./lib/logger');
 const { createJsonDbStore, atomicWriteFileSync } = require('./lib/db');
 const { createTranslationService } = require('./lib/translation');
+const { createMetrics } = require('./lib/metrics');
 const { installRateLimitGC } = require('./lib/rate-limit-gc');
 const { registerAdminRoutes } = require('./routes/admin');
 const { registerOrgRoutes } = require('./routes/org');
@@ -60,7 +61,8 @@ function generateSecureCode(prefix) {
   return prefix ? `${prefix}-${code}` : code;
 }
 
-const logger = createLogger({ logDir: process.env.LOG_DIR || path.join(__dirname, 'logs') });
+const LOG_DIR = process.env.LOG_DIR || path.join(__dirname, 'logs');
+const logger = createLogger({ logDir: LOG_DIR });
 const app = express();
 const server = http.createServer(app);
 const upload = multer({
@@ -86,6 +88,10 @@ const MAIN_OPERATOR_PIN = String(process.env.MAIN_OPERATOR_PIN || process.env.MA
 // V20.1: Worship role PIN — lets the worship team add library songs to upcoming events.
 const WORSHIP_PIN = String(process.env.WORSHIP_PIN || '').trim();
 const TRANSLATION_MONITOR_ENABLED = String(process.env.TRANSLATION_MONITOR_ENABLED || '').trim() === '1';
+// SV-LATENCY-METRICS — per-segment pipeline timings. Always kept in memory (for
+// the admin panel + per-event summary); JSON lines written to LOG_DIR only when
+// TRANSLATION_MONITOR_ENABLED=1. Recording never changes what participants receive.
+const translationMetrics = createMetrics({ logDir: LOG_DIR, enabled: TRANSLATION_MONITOR_ENABLED, logger });
 const PUBLIC_BASE_URL = normalizePublicBaseUrl(process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'https://sanctuaryvoice.com');
 const ADMIN_APP_BASE_URL = normalizePublicBaseUrl(process.env.ADMIN_APP_BASE_URL || process.env.APP_ADMIN_BASE_URL || '');
 const ADMIN_APP_HOSTNAMES = String(process.env.ADMIN_APP_HOSTNAMES || 'app.sanctuaryvoice.com,control.sanctuaryvoice.com,kontrol.sanctuaryvoice.com')
@@ -3621,16 +3627,22 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
     });
   };
 
+  // SV-LATENCY-METRICS — time the translation stage per language (parallel fan-out).
+  const perLangMs = {};
+  const translateStartedAt = Date.now();
   const translationPairs = await Promise.all(
     event.targetLangs.map(async (lang) => {
+      const langStart = Date.now();
       const translated = await translateText(cleanChunk, lang, event, sourceLang, {
         contextEntries,
         onDelta: (text) => emitPartialForLang(lang, text)
       });
+      perLangMs[lang] = Date.now() - langStart;
       emitLangComplete(lang, translated);
       return [lang, translated];
     })
   );
+  const translateFinishedAt = Date.now();
 
   const entry = {
     id: entryId,
@@ -3661,10 +3673,46 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
   if (event.displayState?.mode === 'auto' || event.mode === 'live') {
     io.to(`event:${event.id}`).emit('display_live_entry', cloneDisplayEntry(event.latestDisplayEntry));
   }
+  // SV-LATENCY-METRICS — record this segment's timings and refresh the summary.
+  recordSegmentLatency(event, {
+    entryId,
+    sourceLang,
+    perLangMs,
+    translateStartedAt,
+    translateFinishedAt,
+    deliveredAt: Date.now()
+  });
   saveDb();
   emitUsageStats(event.id);
   emitTranslationMonitor(event.id);
   return entry;
+}
+
+// SV-LATENCY-METRICS — build one segment record (recognition/translation/total),
+// store it, refresh the per-event summary, and push it to the event's admins.
+function recordSegmentLatency(event, { entryId, sourceLang, perLangMs, translateStartedAt, translateFinishedAt, deliveredAt }) {
+  try {
+    const rec = translationMetrics.takeRecognition(event.id);
+    const tFinal = rec && rec.at ? rec.at : translateStartedAt;
+    const model = (event && (event.speed === 'clear' || event.speed === 'interpret')) ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
+    translationMetrics.record({
+      eventId: String(event.id),
+      entryId,
+      sourceLang,
+      targets: Array.isArray(event.targetLangs) ? event.targetLangs.slice() : [],
+      recognitionMs: rec ? rec.recognitionLatencyMs : null,
+      translateMs: translateFinishedAt - translateStartedAt,
+      totalMs: deliveredAt - tFinal,
+      perLangMs,
+      model,
+      provider: getActiveSpeechProvider()
+    });
+    const summary = translationMetrics.summaryForEvent(event.id, 50);
+    event.latencySummary = { updatedAt: new Date().toISOString(), ...summary };
+    io.to(`event:${event.id}:admins`).emit('latency_update', { eventId: event.id, summary });
+  } catch (err) {
+    logger.warn && logger.warn('recordSegmentLatency failed:', err && err.message);
+  }
 }
 
 async function processText(event, cleanText, { force = false, sourceLang = '' } = {}) {
@@ -4007,6 +4055,16 @@ async function startAzureSpeechSession(socket, event) {
       logger.info('[BIBLE MODE] Skipping translation:', text.slice(0, 60));
       return;
     }
+
+    // SV-LATENCY-METRICS — capture Azure's recognition latency (audio end -> final
+    // result) for the next published segment. Best-effort; never affects output.
+    try {
+      const props = result?.result?.properties;
+      const latMs = props && typeof props.getProperty === 'function'
+        ? props.getProperty(sdk.PropertyId.SpeechServiceResponse_RecognitionLatencyMs)
+        : '';
+      translationMetrics.noteRecognition(event.id, { recognitionLatencyMs: Number(latMs) || null, at: Date.now() });
+    } catch (_) { /* property not available in this SDK version */ }
 
     // V22.5 — în smooth mode, recognized e o propoziție completă → commit curat (fără delta), ca să nu
     // lipim fragmente la fraze cu început similar (bug-ul vechi TASK 37). EXCEPȚIE (AZURE-WORDCOUNT-FLUSH):
@@ -6841,6 +6899,8 @@ registerEventRoutes(app, {
   recordAudit,
   recordScreenAction,
   recordTranscribeLatency,
+  // SV-LATENCY-METRICS — let the OpenAI transcribe route report recognition latency.
+  noteRecognitionLatency: (eventId, ms) => translationMetrics.noteRecognition(eventId, { recognitionLatencyMs: Number(ms) || null, at: Date.now() }),
   recordTranscribeUsage,
   recordTranslationUsage,
   rememberDisplayState,

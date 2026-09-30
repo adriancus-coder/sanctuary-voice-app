@@ -2720,6 +2720,7 @@ async function openEventById(eventId) {
   $('volumeRange').value = String(currentVolume);
   renderAudioStateLabel();
   renderTranscriptList();
+  renderLatencySummary(currentEvent.latencySummary);
   fillGlossaryLangs(currentEvent.targetLangs || []);
   renderActiveEventBadge(currentEvent);
   renderSongState(currentEvent.songState || {});
@@ -4096,6 +4097,7 @@ socket.on('joined_event', ({ event, role }) => {
   $('volumeRange').value = String(currentVolume);
   renderAudioStateLabel();
   renderTranscriptList();
+  renderLatencySummary(currentEvent.latencySummary);
   fillGlossaryLangs(currentEvent.targetLangs || []);
   renderActiveEventBadge(currentEvent);
   renderSongState(currentEvent.songState || {});
@@ -4156,6 +4158,39 @@ socket.on('audio_state', ({ audioMuted, audioVolume }) => {
   renderAudioStateLabel();
 });
 socket.on('partial_transcript', ({ text }) => { setPartialTranscript(text); });
+
+// SV-LATENCY-METRICS — live latency panel + per-event transcript summary.
+function fmtLatencyMs(v) { return (typeof v === 'number' && isFinite(v)) ? `${Math.round(v)}` : '—'; }
+function buildLatencyLine(summary) {
+  if (!summary || !summary.count) return adminT('latency.none', 'Nicio măsurătoare încă.');
+  const r = summary.recognition || {}; const t = summary.translate || {}; const z = summary.total || {};
+  const rec = adminT('latency.recognition', 'recunoaștere');
+  const tr = adminT('latency.translation', 'traducere');
+  const tot = adminT('latency.total', 'total');
+  const seg = adminT('latency.samples', 'segmente');
+  return `${rec} ${fmtLatencyMs(r.median)} ms · ${tr} ${fmtLatencyMs(t.median)} ms · ${tot} ${fmtLatencyMs(z.median)} ms `
+    + `(median / p90 ${fmtLatencyMs(z.p90)} ms · ${summary.count} ${seg}${summary.model ? ' · ' + summary.model : ''})`;
+}
+function renderLatencyLive(summary) {
+  const card = document.getElementById('latencyCard');
+  const live = document.getElementById('latencyLive');
+  if (!card || !live) return;
+  live.textContent = buildLatencyLine(summary);
+  card.hidden = false;
+}
+function renderLatencySummary(summary) {
+  const el = document.getElementById('latencySummary');
+  if (!el) return;
+  if (!summary || !summary.count) { el.hidden = true; el.textContent = ''; return; }
+  el.textContent = `${adminT('latency.title', 'Latență')}: ${buildLatencyLine(summary)}`;
+  el.hidden = false;
+}
+socket.on('latency_update', ({ eventId, summary }) => {
+  if (currentEvent && eventId && eventId !== currentEvent.id) return;
+  if (currentEvent) currentEvent.latencySummary = { ...(currentEvent.latencySummary || {}), ...summary };
+  renderLatencyLive(summary);
+  renderLatencySummary(summary);
+});
 socket.on('azure_audio_ready', () => {
   console.info('[DIAG-RC] azure_audio_ready PRIMIT — Azure conectat OK');
   audioState.azureReady = true;

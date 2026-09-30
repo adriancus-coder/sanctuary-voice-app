@@ -261,6 +261,12 @@
               </div>
             </div>
 
+            <!-- SV-LATENCY-METRICS — live per-segment latency (median / p90 over the last 50). -->
+            <div class="info-card accent-card latency-card" id="latencyCard" hidden>
+              <div class="label"><span data-i18n="latency.title">Latență</span></div>
+              <div id="latencyLive" class="status-text muted small"></div>
+            </div>
+
             <div class="info-card accent-card bible-mode-card">
               <div data-i18n="ls.bibleMode" class="label">📖 Bible Mode</div>
               <div id="bibleModeStatus" class="status-text" data-i18n="ls.bibleStatus">Translation active</div>
@@ -355,6 +361,8 @@
               <button id="jumpLiveBtn" class="btn btn-dark" type="button" data-i18n="btn.jumpLive">Jump to latest</button>
             </div>
           </div>
+          <!-- SV-LATENCY-METRICS — per-event latency summary (median / p90). -->
+          <div id="latencySummary" class="muted small" hidden></div>
           <div id="transcriptList" class="transcript-list" data-list-pane="Transcript"></div>
         </div>
       </section>

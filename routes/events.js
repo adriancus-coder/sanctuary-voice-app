@@ -71,6 +71,7 @@ function registerEventRoutes(app, ctx) {
     recordAudit,
     recordScreenAction,
     recordTranscribeLatency,
+    noteRecognitionLatency,
     recordTranscribeUsage,
     rememberDisplayState,
     requireAdminApiSession,
@@ -2066,8 +2067,13 @@ function registerEventRoutes(app, ctx) {
     try {
       fs.writeFileSync(tempPath, req.file.buffer);
       const rawTranscript = await transcribeAudioFile(tempPath, event);
+      const transcribeLatencyMs = Date.now() - startedAt;
       if (typeof recordTranscribeLatency === 'function') {
-        recordTranscribeLatency(Date.now() - startedAt);
+        recordTranscribeLatency(transcribeLatencyMs);
+      }
+      // SV-LATENCY-METRICS — OpenAI recognition latency for the next segment.
+      if (typeof noteRecognitionLatency === 'function') {
+        noteRecognitionLatency(event.id, transcribeLatencyMs);
       }
       if (typeof recordTranscribeUsage === 'function') {
         const estimatedSeconds = Math.max(0.5, (req.file.buffer.length || 0) / 4000);
