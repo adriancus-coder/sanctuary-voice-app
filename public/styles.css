@@ -8940,9 +8940,11 @@ body.has-shell .sticky-actions { left: 0; }
   .sticky-actions { justify-content: flex-end; }
   .sticky-actions .btn { flex: 0 1 auto; min-width: 140px; }
 }
-/* Keep content clear of the pinned bar at every width. */
-body.has-shell { padding-bottom: calc(var(--shell-bottom) + var(--sticky-actions-h, 0px)); }
-body:not(.has-shell) { padding-bottom: var(--sticky-actions-h, 0px); }
+/* Keep content clear of the pinned bar at every width (bar height + 16px gap,
+   both supplied by page-tabs.js; the gap is 0 when no bar is visible). This wins
+   over the ≥900px `padding-bottom: 0` rule above by later source order. */
+body.has-shell { padding-bottom: calc(var(--shell-bottom) + var(--sticky-actions-h, 0px) + var(--sticky-actions-gap, 0px)); }
+body:not(.has-shell) { padding-bottom: calc(var(--sticky-actions-h, 0px) + var(--sticky-actions-gap, 0px)); }
 
 /* SV-ADMIN-TABS — the dashboard main grid held two side-by-side control cards
    (Recognition Desk + Live Session); those now live in separate in-page tabs, so

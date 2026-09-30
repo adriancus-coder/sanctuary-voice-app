@@ -152,10 +152,28 @@
   function updateStickyOffsets() {
     let h = 0;
     document.querySelectorAll('[data-sticky-actions]').forEach((el) => {
-      // Only bars that are actually visible (their tab panel is shown) count.
-      if (el.offsetParent !== null) h = Math.max(h, el.offsetHeight);
+      // A hidden bar (display:none / [hidden]) has no client rects — skip it.
+      // Do NOT gate on offsetParent: a position:fixed bar always reports
+      // offsetParent === null even while visible, which used to leave
+      // --sticky-actions-h stuck at 0 and let the bar cover the last rows.
+      if (el.getClientRects().length === 0) return;
+      h = Math.max(h, el.offsetHeight);
     });
-    document.documentElement.style.setProperty('--sticky-actions-h', h ? h + 'px' : '0px');
+    const root = document.documentElement.style;
+    root.setProperty('--sticky-actions-h', h ? h + 'px' : '0px');
+    // 16px clearance between the last content and the bar — only when a bar shows,
+    // so tabs/pages without a sticky bar keep no phantom bottom padding.
+    root.setProperty('--sticky-actions-gap', h ? '16px' : '0px');
+  }
+
+  // Re-measure whenever a sticky bar changes size or shows/hides (tab switch,
+  // top-nav switch, wrapping to a new row, …). ResizeObserver reports a 0 rect
+  // when an element becomes display:none, so this covers show/hide from any cause.
+  let stickyRO = null;
+  function observeStickyBars(root) {
+    if (typeof ResizeObserver !== 'function') return;
+    if (!stickyRO) stickyRO = new ResizeObserver(() => updateStickyOffsets());
+    (root || document).querySelectorAll('[data-sticky-actions]').forEach((el) => stickyRO.observe(el));
   }
 
   function escapeHtml(s) {
@@ -166,6 +184,7 @@
   function init(root) {
     (root || document).querySelectorAll('[data-page-tabs]').forEach(buildBar);
     reapplyI18n();
+    observeStickyBars(root);
     updateStickyOffsets();
   }
 
