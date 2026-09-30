@@ -27,23 +27,11 @@
   </style>
 </head>
 <body data-shell="events">
-  <nav class="top-nav-tabs" role="tablist" aria-label="Main navigation">
-    <!-- SV-ADMIN-TABS-TRIM — Transcript (→ per-event action), Glossary (→ Recepție
-         "Glosar"), Quick Text + Statistics (→ Mai mult) moved off the bar. The
-         sections stay in the DOM and reachable via switchTab / the #hash router. -->
-    <button class="top-nav-btn active" data-tab="dashboard" type="button" data-i18n="nav.dashboard">Dashboard</button>
-    <button class="top-nav-btn" data-tab="events" type="button" data-i18n="nav.events">Evenimente</button>
-    <button class="top-nav-btn" data-tab="mainscreen" type="button" data-i18n="nav.mainScreen">Ecran principal</button>
-    <button id="adminSongTabBtn" class="top-nav-btn" data-tab="song" type="button"><span data-i18n="nav.song">Cântări</span><span id="adminSongTabBadge" class="tab-badge hidden" aria-label="cerere worship în așteptare"></span></button>
-    <button class="top-nav-btn" data-tab="operator-roles" type="button" data-i18n="nav.operatorRoles">Roluri</button>
-    <div class="top-nav-spacer" aria-hidden="true"></div>
-    <div class="ui-lang-switch" role="group" aria-label="Interface language">
-      <button type="button" data-lang="ro">RO</button>
-      <button type="button" data-lang="en">EN</button>
-      <button type="button" data-lang="no">NO</button>
-    </div>
-    <button id="adminLogoutBtn" class="top-nav-btn top-nav-logout" type="button" data-i18n="nav.logout">Logout</button>
-  </nav>
+  <!-- SV-SHELL-DRIVES-ADMIN — the admin top tab bar was removed; the shared shell
+       (left rail / bottom bar + "Mai mult" sheet, rendered by shell.js) is the only
+       admin navigation. Every old destination is reachable through it, and the
+       language switch + logout live in the sheet. Views still switch via switchTab
+       / the #hash router (routeAdminHash). -->
   <div class="app-shell admin-redesign-shell admin-shell-top-tabs">
     <main class="main-content">
       <section class="topbar panel glass-panel hero-topbar hero-topbar-compact">

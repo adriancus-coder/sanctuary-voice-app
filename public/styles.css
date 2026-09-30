@@ -8236,10 +8236,22 @@ body.has-shell {
   width: 24px;
   height: 24px;
   display: inline-flex;
+  position: relative;
 }
 .shell-item .shell-icon svg {
   width: 100%;
   height: 100%;
+}
+/* SV-SHELL-DRIVES-ADMIN — pending-worship-request dot on the Cântări entry. */
+.shell-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  margin: 0;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--surface, #0b0d12);
+  box-sizing: content-box;
 }
 .shell-item[aria-current='page'],
 .shell-item.current {

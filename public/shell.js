@@ -22,6 +22,7 @@
       nav: 'Navigare', prefs: 'Preferințe', lang: 'Limbă', theme: 'Temă', screens: 'Ecrane',
       account: 'Cont', team: 'Echipa', logout: 'Deconectare', projector: 'Ecran principal', remote: 'Telecomandă',
       adminTools: 'Admin', stats: 'Statistici', quickText: 'Text rapid',
+      mainScreen: 'Ecran principal', roles: 'Roluri', glossary: 'Glosar', settings: 'Setări',
       dark: 'Întunecat', light: 'Luminos', auto: 'Auto', exit: 'Ieși', close: 'Închide',
     },
     en: {
@@ -29,6 +30,7 @@
       nav: 'Navigation', prefs: 'Preferences', lang: 'Language', theme: 'Theme', screens: 'Screens',
       account: 'Account', team: 'Team', logout: 'Sign out', projector: 'Main screen', remote: 'Remote',
       adminTools: 'Admin', stats: 'Statistics', quickText: 'Quick text',
+      mainScreen: 'Main screen', roles: 'Roles', glossary: 'Glossary', settings: 'Settings',
       dark: 'Dark', light: 'Light', auto: 'Auto', exit: 'Exit', close: 'Close',
     },
     no: {
@@ -36,6 +38,7 @@
       nav: 'Navigasjon', prefs: 'Innstillinger', lang: 'Språk', theme: 'Tema', screens: 'Skjermer',
       account: 'Konto', team: 'Team', logout: 'Logg ut', projector: 'Hovedskjerm', remote: 'Fjernkontroll',
       adminTools: 'Admin', stats: 'Statistikk', quickText: 'Hurtigtekst',
+      mainScreen: 'Hovedskjerm', roles: 'Roller', glossary: 'Ordliste', settings: 'Innstillinger',
       dark: 'Mørk', light: 'Lys', auto: 'Auto', exit: 'Avslutt', close: 'Lukk',
     },
   };
@@ -65,15 +68,30 @@
     team: svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>'),
     stats: svg('<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>'),
     quickText: svg('<path d="M4 5h16M4 10h16M4 15h10"/>'),
+    mainScreen: svg('<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'),
+    roles: svg('<circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/>'),
+    glossary: svg('<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M9 7h6M9 11h6"/>'),
+    settings: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.2A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 0 1 0-4h.2A1.6 1.6 0 0 0 2.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V1a2 2 0 0 1 4 0v.2A1.6 1.6 0 0 0 17 2.6a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H23a2 2 0 0 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z"/>'),
     exit: svg('<path d="M15 18l-6-6 6-6"/>'),
   };
 
-  const NAV = [
-    { id: 'home', href: '/' },
-    { id: 'events', href: '/admin#events' },
-    { id: 'songs', href: '/worship' },
-    { id: 'translate', href: '/admin#dashboard' },
-  ];
+  // SV-SHELL-DRIVES-ADMIN — on the admin console the shell is the ONLY navigation,
+  // so its four primary entries drive the admin's in-page views via #hash (handled
+  // by routeAdminHash in app.js); "Traducere" lands on the dashboard's Live tab.
+  const onAdmin = location.pathname.startsWith('/admin');
+  const NAV = onAdmin
+    ? [
+        { id: 'home', href: '#dashboard' },
+        { id: 'events', href: '#events' },
+        { id: 'songs', href: '#song', badge: 'adminSongTabBadge' },
+        { id: 'translate', href: '#dashTabs=live' },
+      ]
+    : [
+        { id: 'home', href: '/' },
+        { id: 'events', href: '/admin#events' },
+        { id: 'songs', href: '/worship' },
+        { id: 'translate', href: '/admin#dashboard' },
+      ];
 
   // --- exit-only mode (full-screen work pages) ---
   if (section === 'exit') {
@@ -102,7 +120,10 @@
     a.href = item.href;
     a.dataset.section = item.id;
     if (item.id === section) a.setAttribute('aria-current', 'page');
-    a.innerHTML = `<span class="shell-icon">${ICON[item.id]}</span><span class="shell-label">${t(item.id)}</span>`;
+    const badge = item.badge
+      ? `<span class="tab-badge hidden shell-badge" id="${item.badge}" aria-label="cerere worship în așteptare"></span>`
+      : '';
+    a.innerHTML = `<span class="shell-icon">${ICON[item.id]}${badge}</span><span class="shell-label">${t(item.id)}</span>`;
     li.appendChild(a);
     ul.appendChild(li);
   }
@@ -135,10 +156,19 @@
       <button type="button" class="shell-close" aria-label="${t('close')}">${ICON.exit}</button>
     </header>
     <div class="shell-panel-body">
+      ${onAdmin ? `
       <section class="shell-section">
-        <h3 class="shell-section-title">${t('prefs')}</h3>
+        <h3 class="shell-section-title" data-label-key="nav">${t('nav')}</h3>
+        <a class="shell-row" href="#mainscreen"><span class="shell-row-icon">${ICON.mainScreen}</span><span class="shell-row-label" data-label-key="mainScreen">${t('mainScreen')}</span></a>
+        <a class="shell-row" href="#operator-roles"><span class="shell-row-icon">${ICON.roles}</span><span class="shell-row-label" data-label-key="roles">${t('roles')}</span></a>
+        <a class="shell-row shell-admin-only" hidden href="#statistics"><span class="shell-row-icon">${ICON.stats}</span><span class="shell-row-label" data-label-key="stats">${t('stats')}</span></a>
+        <a class="shell-row" href="#glossary"><span class="shell-row-icon">${ICON.glossary}</span><span class="shell-row-label" data-label-key="glossary">${t('glossary')}</span></a>
+        <button type="button" class="shell-row shell-settings"><span class="shell-row-icon">${ICON.settings}</span><span class="shell-row-label" data-label-key="settings">${t('settings')}</span></button>
+      </section>` : ''}
+      <section class="shell-section" data-shell-prefs>
+        <h3 class="shell-section-title" data-label-key="prefs">${t('prefs')}</h3>
         <div class="shell-setting">
-          <span class="shell-setting-label">${t('lang')}</span>
+          <span class="shell-setting-label" data-label-key="lang">${t('lang')}</span>
           <div class="choice-group shell-lang" role="group" aria-label="${t('lang')}">
             <button type="button" data-lang="ro">RO</button>
             <button type="button" data-lang="en">EN</button>
@@ -159,10 +189,11 @@
         <a class="shell-row" href="/translate"><span class="shell-row-icon">${ICON.projector}</span><span class="shell-row-label">${t('projector')}</span></a>
         <a class="shell-row" href="/remote"><span class="shell-row-icon">${ICON.remote}</span><span class="shell-row-label">${t('remote')}</span></a>
       </section>
+      ${onAdmin ? '' : `
       <section class="shell-section shell-admin-only" hidden>
         <h3 class="shell-section-title">${t('adminTools')}</h3>
         <a class="shell-row" href="/admin#statistics"><span class="shell-row-icon">${ICON.stats}</span><span class="shell-row-label">${t('stats')}</span></a>
-      </section>
+      </section>`}
       <section class="shell-section">
         <h3 class="shell-section-title">${t('account')}</h3>
         <a class="shell-row shell-team" href="/team" hidden><span class="shell-row-icon">${ICON.team}</span><span class="shell-row-label">${t('team')}</span></a>
@@ -275,6 +306,8 @@
     const moreLabel = moreBtn.querySelector('.shell-label');
     if (moreLabel) moreLabel.textContent = t('more');
     panel.querySelector('.shell-panel-title').textContent = t('more');
+    // Relabel the sheet's keyed rows/titles (the admin Navigare destinations, …).
+    panel.querySelectorAll('[data-label-key]').forEach((el) => { el.textContent = t(el.dataset.labelKey); });
     paintLang();
   }
   document.addEventListener('i18n:change', () => {
@@ -285,14 +318,42 @@
   paintLang();
   paintTheme();
 
-  // --- admin: activate the tab named in the hash (deep-link from the shell) ---
-  function activateTabFromHash() {
-    if (!location.pathname.startsWith('/admin')) return;
-    const tab = (location.hash || '').replace('#', '');
-    if (!tab) return;
-    const btn = document.querySelector(`.top-nav-btn[data-tab="${tab}"]`);
-    if (btn) btn.click();
+  // --- "Setări" opens the preferences block inside this sheet (no navigation) ---
+  const settingsBtn = panel.querySelector('.shell-settings');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => {
+      const prefs = panel.querySelector('[data-shell-prefs]');
+      if (prefs) prefs.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      const firstLang = prefs && prefs.querySelector('.shell-lang button');
+      if (firstLang) firstLang.focus();
+    });
   }
-  activateTabFromHash();
-  window.addEventListener('hashchange', activateTabFromHash);
+
+  // --- admin: mark the active bottom-bar entry from the current view ---
+  // Views live behind #hashes handled by app.js (routeAdminHash); the shell only
+  // reflects which one is active. Nav <a href="#…"> deep-links are activated by
+  // that router on hashchange/load — no top tab bar needed.
+  if (onAdmin) {
+    let dashPref = 'home'; // whether the dashboard is currently "Acasă" or "Traducere"
+    const setCurrent = (id) => {
+      nav.querySelectorAll('.shell-item[data-section]').forEach((el) => {
+        if (id && el.dataset.section === id) el.setAttribute('aria-current', 'page');
+        else el.removeAttribute('aria-current');
+      });
+    };
+    const markFromTab = (tab) => {
+      if (tab === 'dashboard') setCurrent(dashPref);
+      else if (tab === 'events') setCurrent('events');
+      else if (tab === 'song') setCurrent('songs');
+      else setCurrent(null); // mainscreen / operator-roles / statistics / transcript live in "Mai mult"
+    };
+    nav.querySelector('.shell-item[data-section="home"]')?.addEventListener('click', () => { dashPref = 'home'; });
+    nav.querySelector('.shell-item[data-section="translate"]')?.addEventListener('click', () => { dashPref = 'translate'; });
+    // Opening Cântări clears the pending-worship-request badge (the old top-tab
+    // button did this; its handler now lives on the shell entry that carries the badge).
+    nav.querySelector('.shell-item[data-section="songs"]')?.addEventListener('click', () => {
+      if (typeof window.clearAdminSongTabBadge === 'function') window.clearAdminSongTabBadge();
+    });
+    document.addEventListener('admin:tab', (e) => markFromTab(e.detail && e.detail.tab));
+  }
 })();

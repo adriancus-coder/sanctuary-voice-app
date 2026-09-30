@@ -303,6 +303,9 @@ function switchTab(tabName) {
     // WORSHIP-ROLES-3 — populează dropdown-ul „Mesaj către echipa worship" în Live Control
     loadWorshipRoles();
   }
+  // SV-SHELL-DRIVES-ADMIN — the shell (left rail / bottom bar) is the only admin
+  // nav; tell it which view is active so it can mark the current entry.
+  try { document.dispatchEvent(new CustomEvent('admin:tab', { detail: { tab: tabName } })); } catch (_) { /* ignore */ }
 }
 
 // WORSHIP-ROLES-1: roluri worship (etichete globale, gestionate de admin)
@@ -4639,6 +4642,11 @@ document.querySelectorAll('.nav-btn, .top-nav-btn').forEach((btn) => btn.addEven
 // hashes (barId=tabId) contain '=' and are left to page-tabs.
 function routeAdminHash() {
   const h = (location.hash || '').replace(/^#/, '');
+  // A page-tabs hash (barId=tabId) is normally left to page-tabs, but the dashboard's
+  // in-page tabs only make sense on the dashboard view — so make sure it is shown
+  // (matters for back/forward to a #dashTabs=… entry, e.g. the "Traducere" deep-link
+  // which page-tabs rewrites to #dashTabs=live). page-tabs still sets the in-page tab.
+  if (h.split('&').some((p) => p.startsWith('dashTabs='))) { switchTab('dashboard'); return; }
   if (!h || h.includes('=')) return;
   if (h === 'transcript') {
     if (currentEvent) { switchTab('transcript'); return; }
@@ -4650,6 +4658,12 @@ function routeAdminHash() {
   if (h === 'glossary') {
     switchTab('dashboard');
     if (window.PageTabs && window.PageTabs.activate) window.PageTabs.activate('dashTabs', 'receptie');
+    return;
+  }
+  // SV-SHELL-DRIVES-ADMIN — the shell's "Traducere" opens the dashboard on Live.
+  if (h === 'live') {
+    switchTab('dashboard');
+    if (window.PageTabs && window.PageTabs.activate) window.PageTabs.activate('dashTabs', 'live');
     return;
   }
   // SV-ADMIN-QUICKTEXT-ECRAN — quick text is now a section of Ecran principal.
