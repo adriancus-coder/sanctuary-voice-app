@@ -102,6 +102,45 @@ function main() {
     extraInEn.slice(0, 20).forEach((k) => console.error('        ' + k));
   }
 
+  // RO coverage guard: the admin console must stay in Romanian by default.
+  // Keys whose RO value is intentionally identical to EN (brand names, technical
+  // tokens, loanwords the app uses in Romanian) are allow-listed and excluded.
+  // If more than 5% of the remaining admin keys still read English (ro === en),
+  // the check FAILS so an untranslated regression cannot slip in.
+  const RO_EN_ALLOW = new Set([
+    'hdr.eyebrow',        // "Sanctuary Voice" (brand)
+    'worship.title',      // "Worship Live" (brand)
+    'qr.worshipTitle',    // "Worship QR Code" contains the brand
+    'opt.rapid',          // "Rapid" (identical Romanian word)
+    'dtab.live',          // "Live" (loanword used in Romanian)
+    'dtab.transcript',    // "Transcript" (loanword; see below)
+    'nav.transcript',     // "Transcript"
+    'btn.eventTranscript', // "Transcript"
+    'opt.sizeCompact',    // "Compact" (identical Romanian word)
+    'online.editor',      // "Editor" (identical Romanian word)
+    'latency.total',      // "total" (identical Romanian word)
+    'latency.p90',        // "p90" (technical token)
+    'stat.thCost'         // "Cost (USD)" ("Cost" is Romanian)
+  ]);
+  const hasLetters = (s) => /[A-Za-z]/.test(String(s));
+  const roEnSame = baseKeys.filter(
+    (k) => !RO_EN_ALLOW.has(k) && dict.ro[k] === dict.en[k] && hasLetters(dict.ro[k])
+  );
+  const pct = baseKeys.length ? (100 * roEnSame.length) / baseKeys.length : 0;
+  const LIMIT = 5;
+  if (pct > LIMIT) {
+    failed = true;
+    console.error(
+      `FAIL  ${roEnSame.length}/${baseKeys.length} admin keys (${pct.toFixed(1)}%) still read English ` +
+      `(ro === en), above the ${LIMIT}% limit. Translate them or allow-list intentional ones:`
+    );
+    roEnSame.slice(0, 30).forEach((k) => console.error('        ' + k + ' = ' + JSON.stringify(dict.ro[k])));
+  } else {
+    console.log(
+      `admin RO coverage OK — ${roEnSame.length}/${baseKeys.length} keys ro===en (${pct.toFixed(1)}%, limit ${LIMIT}%).`
+    );
+  }
+
   // Norwegian: optional, report only.
   if (dict.no) {
     const missingInNo = baseKeys.filter((k) => !(k in dict.no));
