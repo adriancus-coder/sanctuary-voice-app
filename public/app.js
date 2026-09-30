@@ -280,6 +280,11 @@ function switchTab(tabName) {
   activeTab = tabName;
   document.querySelectorAll('.nav-btn, .top-nav-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
   document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `tab-${tabName}`));
+  // SV-ADMIN-TABS — the dashboard's sticky action bar becomes visible with the
+  // Dashboard top-tab; recompute its height so content keeps its bottom padding.
+  if (window.PageTabs && typeof window.PageTabs.updateStickyOffsets === 'function') {
+    requestAnimationFrame(() => window.PageTabs.updateStickyOffsets());
+  }
   if (tabName === 'transcript') {
     renderTranscriptList();
     requestAnimationFrame(() => {
@@ -2026,6 +2031,9 @@ function renderAdminWorshipPanel() {
 function renderAdminOperatorsPanel() {
   const countEl = $('adminOperatorsCount');
   const listEl = $('adminOperatorsList');
+  // SV-ADMIN-TABS — mirror the count into the header badge (always available).
+  const headerBadge = $('operatorsOnlineBadge');
+  if (headerBadge) headerBadge.textContent = String(adminOperatorsPresence.length);
   if (!countEl || !listEl) return;
   const list = adminOperatorsPresence;
   countEl.textContent = `(${list.length})`;
@@ -5572,6 +5580,9 @@ $('saveEditVerseLibraryBtn')?.addEventListener('click', () => saveEditedVerse(tr
 document.querySelectorAll('[data-edit-verse-close]').forEach((el) => {
   el.addEventListener('click', closeEditLiveVerseModal);
 });
+// SV-ADMIN-TABS — sticky-bar black-screen button (Live tab) reuses applyBlackScreen.
+$('liveBlackScreenBtn')?.addEventListener('click', applyBlackScreen);
+
 // V21.14: church library export / import (JSON backup).
 $('exportLibraryBtn')?.addEventListener('click', exportLibrary);
 $('importLibraryBtn')?.addEventListener('click', () => $('importLibraryFile')?.click());

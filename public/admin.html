@@ -83,6 +83,11 @@
               <span data-i18n="hdr.liveTime" class="hero-status-label">Live time</span>
               <div id="liveSessionTimer" class="status-pill" style="font-variant-numeric:tabular-nums;font-weight:600">00:00</div>
             </div>
+            <!-- SV-ADMIN-TABS — "Operatori online" as a header badge. -->
+            <div class="dashboard-status-pill-group">
+              <span data-i18n="hdr.operators" class="hero-status-label">Operators online</span>
+              <div id="operatorsOnlineBadge" class="status-pill">0</div>
+            </div>
           </div>
         </div>
 
@@ -159,8 +164,12 @@
       <section id="tab-dashboard" class="tab-panel">
         <!-- V21.25: worship + operators sub-cards moved into the Detalii
              dropdown in the Dashboard hero card above. -->
+        <!-- SV-ADMIN-TABS — the long dashboard column split into task tabs.
+             Live essentials stay visible without scrolling; panels are tagged
+             data-tab (no DOM moved), page-tabs.js shows/hides per tab. -->
+        <nav class="page-tabs" data-page-tabs="dashTabs" data-tabs='[{"id":"live","label":"Live","i18n":"dtab.live"},{"id":"receptie","label":"Recepție","i18n":"dtab.receptie"},{"id":"transcript","label":"Transcript","i18n":"dtab.transcript"},{"id":"sistem","label":"Sistem","i18n":"dtab.sistem"}]'></nav>
 
-        <div class="metric-card panel glass-panel metrics-combined">
+        <div class="metric-card panel glass-panel metrics-combined" data-tab-for="dashTabs" data-tab="live">
           <div class="metrics-combined-cell">
             <div data-i18n="m.participants" class="metric-label">Participants</div>
             <div id="participantStatsSummary" class="metric-number">0 unique participants</div>
@@ -172,7 +181,7 @@
           </div>
         </div>
 
-        <div class="panel glass-panel section-stack partial-transcript-large-panel">
+        <div class="panel glass-panel section-stack partial-transcript-large-panel" data-tab-for="dashTabs" data-tab="transcript">
           <div class="section-head">
             <h2 data-i18n="m.partialTranscript">Partial transcript</h2>
             <div data-i18n="m.liveDraft2" class="muted">Live recognition draft</div>
@@ -185,7 +194,7 @@
         </div>
 
         <div class="cards-grid two dashboard-main-grid">
-          <div class="panel glass-panel section-stack control-card">
+          <div class="panel glass-panel section-stack control-card" data-tab-for="dashTabs" data-tab="receptie">
             <div class="section-head">
               <h2 data-i18n="rd.title">Recognition Desk</h2>
               <div data-i18n="rd.setup" class="muted">Setup before live</div>
@@ -245,7 +254,7 @@
             </details>
           </div>
 
-          <div class="panel glass-panel section-stack control-card">
+          <div class="panel glass-panel section-stack control-card" data-tab-for="dashTabs" data-tab="live">
             <div class="section-head">
               <h2 data-i18n="ls.title">Live Session</h2>
               <div data-i18n="ls.serviceTools" class="live-chip">Service tools</div>
@@ -254,11 +263,7 @@
             <div class="info-card accent-card live-control-card">
               <div data-i18n="ls.liveRecognition" class="label">Live recognition</div>
               <div id="recognitionStatus" class="status-text" data-i18n="ls.idle">Idle</div>
-              <div class="button-row compact-row">
-                <button id="startRecognitionBtn" class="btn btn-primary" data-i18n="btn.startLive">Start live</button>
-                <button id="stopRecognitionBtn" class="btn btn-dark" data-i18n="btn.stop">Stop</button>
-                <button id="endServiceBtn" class="btn btn-danger" type="button" data-i18n="btn.endService">End service</button>
-              </div>
+              <!-- SV-ADMIN-TABS — Start/Stop/End moved to the sticky action bar below. -->
             </div>
 
             <!-- SV-LATENCY-METRICS — live per-segment latency (median / p90 over the last 50). -->
@@ -345,7 +350,7 @@
           </div>
         </div>
 
-        <div class="panel glass-panel section-stack" id="liveLanguagesPanel">
+        <div class="panel glass-panel section-stack" id="liveLanguagesPanel" data-tab-for="dashTabs" data-tab="live">
           <div class="section-head">
             <div>
               <h2 data-i18n="el.title">Event languages</h2>
@@ -357,7 +362,7 @@
           <div id="liveLanguagesStatus" class="muted"></div>
         </div>
 
-        <div class="panel glass-panel section-stack" id="selfTestPanel">
+        <div class="panel glass-panel section-stack" id="selfTestPanel" data-tab-for="dashTabs" data-tab="sistem">
           <div class="section-head">
             <div>
               <h2 data-i18n="st.title">System self-test</h2>
@@ -369,6 +374,15 @@
             </div>
           </div>
           <div id="selfTestResults" class="self-test-results"></div>
+        </div>
+
+        <!-- SV-ADMIN-TABS — sticky action bar for the Live tab: the service's
+             primary buttons pinned above the app bar (phones) / inline (>=1024). -->
+        <div class="sticky-actions" data-sticky-actions data-tab-for="dashTabs" data-tab="live">
+          <button id="startRecognitionBtn" class="btn btn-primary" data-i18n="btn.startLive">Start live</button>
+          <button id="stopRecognitionBtn" class="btn btn-dark" data-i18n="btn.stop">Stop</button>
+          <button id="endServiceBtn" class="btn btn-danger" type="button" data-i18n="btn.endService">End service</button>
+          <button id="liveBlackScreenBtn" class="btn btn-dark" type="button" data-i18n="btn.blackScreen">Ecran negru</button>
         </div>
       </section>
 
@@ -1211,6 +1225,7 @@
   <script src="/code-prompt.js"></script>
   <script src="/app.js"></script>
   <script src="/list-pane.js"></script>
+  <script src="/page-tabs.js"></script>
   <script src="/shell.js"></script>
 </body>
 </html>

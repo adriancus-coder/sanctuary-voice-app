@@ -8929,21 +8929,17 @@ body.has-shell .sticky-actions { left: 0; }
   .sticky-actions { left: calc(84px + env(safe-area-inset-left, 0px)); }
 }
 .sticky-actions .btn { flex: 1 1 auto; min-height: 44px; }
+/* On wide screens the bar stays pinned to the viewport bottom (always visible,
+   never below the fold); buttons size to content and the row aligns right. */
 @media (min-width: 1024px) {
-  .sticky-actions {
-    position: sticky;
-    left: auto;
-    right: auto;
-    bottom: 16px;
-    margin-top: 12px;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-  }
-  .sticky-actions .btn { flex: 0 1 auto; }
+  .sticky-actions { justify-content: flex-end; }
+  .sticky-actions .btn { flex: 0 1 auto; min-width: 140px; }
 }
-/* Keep content clear of the pinned bar below 1024px (above it is in-flow). */
-@media (max-width: 1023px) {
-  body.has-shell { padding-bottom: calc(var(--shell-bottom) + var(--sticky-actions-h, 0px)); }
-  body:not(.has-shell) { padding-bottom: var(--sticky-actions-h, 0px); }
-}
+/* Keep content clear of the pinned bar at every width. */
+body.has-shell { padding-bottom: calc(var(--shell-bottom) + var(--sticky-actions-h, 0px)); }
+body:not(.has-shell) { padding-bottom: var(--sticky-actions-h, 0px); }
+
+/* SV-ADMIN-TABS — the dashboard main grid held two side-by-side control cards
+   (Recognition Desk + Live Session); those now live in separate in-page tabs, so
+   a single column keeps each panel full-width whichever tab is active. */
+#tab-dashboard .dashboard-main-grid { grid-template-columns: 1fr; }
