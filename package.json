@@ -9,13 +9,14 @@
   "scripts": {
     "start": "node server.js",
     "setup-hooks": "git config core.hooksPath .githooks",
-    "check": "node scripts/check-syntax.js && npm run lint && node scripts/check-i18n.js && node scripts/check-contrast.js && node scripts/test-accounts.js && node scripts/test-metrics.js && node scripts/test-translation.js && node scripts/test-onestep.js && node scripts/test-bench.js && node scripts/test-bridge.js && node scripts/smoke-boot.js",
+    "check": "node scripts/check-syntax.js && npm run lint && node scripts/check-i18n.js && node scripts/check-contrast.js && node scripts/test-accounts.js && node scripts/test-metrics.js && node scripts/test-translation.js && node scripts/test-onestep.js && node scripts/test-bench.js && node scripts/test-bridge.js && node scripts/test-bridge-socket.js && node scripts/smoke-boot.js",
     "test:accounts": "node scripts/test-accounts.js",
     "test:metrics": "node scripts/test-metrics.js",
     "test:translation": "node scripts/test-translation.js",
     "test:onestep": "node scripts/test-onestep.js",
     "test:bench": "node scripts/test-bench.js",
     "test:bridge": "node scripts/test-bridge.js",
+    "test:bridge-socket": "node scripts/test-bridge-socket.js",
     "bench": "node scripts/bench.js",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -47,6 +48,7 @@
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^9.1.2",
     "globals": "^15.15.0",
-    "prettier": "^3.9.9"
+    "prettier": "^3.9.9",
+    "socket.io-client": "^4.8.4"
   }
 }

@@ -3649,27 +3649,17 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '', options = 
     const last = lastEmitAt.get(lang) || 0;
     if (now - last < PARTIAL_THROTTLE_MS) return;
     lastEmitAt.set(lang, now);
-    io.to(`event:${event.id}`).emit('display_live_entry_partial', {
-      entryId,
-      sourceLang,
-      original: cleanChunk,
-      createdAt,
-      partial: true,
-      translations: { [lang]: partialText }
-    });
+    const payload = { entryId, sourceLang, original: cleanChunk, createdAt, partial: true, translations: { [lang]: partialText } };
+    io.to(`event:${event.id}`).emit('display_live_entry_partial', payload);
+    emitBridgeTranslation(event.id, 'translation.partial', payload);   // SV-BRIDGE-OUT
   };
 
   const emitLangComplete = (lang, finalText) => {
     if (event.displayState?.mode !== 'auto' && event.mode !== 'live') return;
     accumulatedTranslations[lang] = finalText;
-    io.to(`event:${event.id}`).emit('display_live_entry_partial', {
-      entryId,
-      sourceLang,
-      original: cleanChunk,
-      createdAt,
-      partial: true,
-      translations: { ...accumulatedTranslations }
-    });
+    const payload = { entryId, sourceLang, original: cleanChunk, createdAt, partial: true, translations: { ...accumulatedTranslations } };
+    io.to(`event:${event.id}`).emit('display_live_entry_partial', payload);
+    emitBridgeTranslation(event.id, 'translation.partial', payload);   // SV-BRIDGE-OUT
   };
 
   // SV-LATENCY-METRICS — time the translation stage per language (parallel fan-out).
@@ -3721,6 +3711,7 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '', options = 
   }, false);
   event.latestDisplayEntry = cloneDisplayEntry(entry);
   io.to(`event:${event.id}`).emit('transcript_entry', entry);
+  emitBridgeTranslation(event.id, 'translation.final', entry);   // SV-BRIDGE-OUT
   // Emit display_live_entry când:
   //  - Main Screen e pe Live (displayState.mode === 'auto') - cazul vechi
   //  - SAU event-ul (canalul participant) e pe live - chiar dacă Main Screen e Song/Black/Pinned
@@ -5065,6 +5056,60 @@ app.get('/api/bridge/status', (req, res) => {
     lastSeenAt: b.lastSeenAt
   });
 });
+
+// ===== SV-BRIDGE-OUT — /bridge socket namespace (server-to-server, token-authed) =====
+// SV emits its live translation stream (final + partial, per language) exactly as
+// participants receive it. Join is limited to the token's SV event; read-only for
+// translation (inbound song messages are handled by SV-BRIDGE-IN / A3).
+const bridgeNs = io.of('/bridge');
+bridgeNs.use((socket, next) => {
+  try {
+    const token = (socket.handshake.auth && socket.handshake.auth.token)
+      || (socket.handshake.query && socket.handshake.query.token) || '';
+    const b = bridge.findByToken(token);
+    if (!bridge.isActive(b)) return next(new Error('bridge_unauthorized'));
+    socket.data.bridgeId = b.id;
+    socket.data.svEventId = b.svEventId;
+    return next();
+  } catch (_) {
+    return next(new Error('bridge_unauthorized'));
+  }
+});
+bridgeNs.on('connection', (socket) => {
+  const eventId = socket.data.svEventId;
+  socket.join(`bridge:${eventId}`);
+  const rec = bridge.ensureStore().find((x) => x.id === socket.data.bridgeId);
+  if (rec) bridge.touch(rec);
+  const event = db.events[eventId];
+  logger.info(`[bridge] socket connected event=${eventId} socket=${socket.id}`);
+  socket.emit('bridge.ready', { svEventId: eventId, targetLanguages: event ? (event.targetLangs || []) : [] });
+  if (event) io.to(`event:${eventId}:admins`).emit('bridge_status', buildBridgeStatus(eventId));
+  // SV-BRIDGE-IN (A3) registers song.current / song.clear / setlist.sections here.
+  registerBridgeInbound(socket, eventId);
+  socket.on('disconnect', () => {
+    logger.info(`[bridge] socket disconnected event=${eventId} socket=${socket.id}`);
+    if (db.events[eventId]) io.to(`event:${eventId}:admins`).emit('bridge_status', buildBridgeStatus(eventId));
+  });
+});
+
+// Fill the A1 hook: kick any live /bridge sockets for an event (revoke/expiry).
+disconnectBridgeSockets = (eventId) => {
+  try { bridgeNs.in(`bridge:${eventId}`).disconnectSockets(true); } catch (_) { /* best effort */ }
+};
+
+// Mirror one translation message to the bridge — only when a bridge socket is
+// actually connected, so non-bridged events pay nothing beyond a room lookup.
+function emitBridgeTranslation(eventId, name, payload) {
+  try {
+    const room = bridgeNs.adapter.rooms.get(`bridge:${eventId}`);
+    if (!room || !room.size) return;
+    bridgeNs.to(`bridge:${eventId}`).emit(name, payload);
+  } catch (_) { /* best effort — never break delivery */ }
+}
+
+// SV-BRIDGE-IN (A3) — placeholder; wired in the next commit.
+function registerBridgeInbound(/* socket, eventId */) {}
+
 app.post('/api/admin/worship-roles', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;
   const name = String(req.body?.name || '').trim().slice(0, 40);
