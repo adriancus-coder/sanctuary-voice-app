@@ -259,6 +259,43 @@ async function integrationTests() {
       assert.strictEqual(out.status, 200);
       assert.strictEqual((await fetch(`${base}/api/auth/me`, { headers: { Cookie: c } })).status, 401);
     });
+    // --- SV-ACCOUNTS-GUARDS — page guards (owner is signed in; window active) ---
+    let ownerCookie = '';
+    await test('re-login owner for guard checks', async () => {
+      const r = await fetch(`${base}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'owner@church.org', password: 'alta-parola-99' }),
+      });
+      assert.strictEqual(r.status, 200);
+      ownerCookie = getCookie(r);
+      assert.ok(ownerCookie);
+    });
+    await test('GET /login served', async () => {
+      assert.strictEqual((await fetch(`${base}/login`, { redirect: 'manual' })).status, 200);
+    });
+    for (const route of ['/admin', '/operator-dashboard', '/remote']) {
+      await test(`${route}: owner allowed`, async () => {
+        const r = await fetch(`${base}${route}`, { headers: { Cookie: ownerCookie }, redirect: 'manual' });
+        assert.strictEqual(r.status, 200, `${route} owner status ${r.status}`);
+      });
+      await test(`${route}: anonymous -> /login`, async () => {
+        const r = await fetch(`${base}${route}`, { redirect: 'manual' });
+        assert.ok(r.status >= 300 && r.status < 400, `${route} anon status ${r.status}`);
+        assert.ok((r.headers.get('location') || '').includes('/login'), 'redirects to /login');
+      });
+    }
+    await test('emergency admin PIN still works within the 30-day window', async () => {
+      const body = new URLSearchParams({ pin: 'acc', next: '/admin' }).toString();
+      const r = await fetch(`${base}/api/admin-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        redirect: 'manual',
+      });
+      assert.ok(r.status >= 300 && r.status < 400, `admin-login status ${r.status}`);
+    });
+
     await test('login rate limit -> 429 after repeated failures', async () => {
       let got429 = false;
       for (let i = 0; i < 7; i++) {
@@ -276,9 +313,108 @@ async function integrationTests() {
   }
 }
 
+// SV-ACCOUNTS-GUARDS — operator-role gating + the expired emergency-PIN window.
+async function emergencyAndOperatorTests() {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sv-guard-'));
+  const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sv-guard-log-'));
+  const env = {
+    ...process.env,
+    DATA_DIR: dataDir,
+    LOG_DIR: logDir,
+    MASTER_ADMIN_PIN: 'acc',
+    ADMIN_SESSION_SECRET: 'guard-secret-guard-secret-guard-secret',
+    OPENAI_API_KEY: '',
+  };
+  const serverPath = path.join(__dirname, '..', 'server.js');
+
+  // Boot once to generate a real store, then stop and seed users + an old setup date.
+  let port = await freePort();
+  let srv = spawn(process.execPath, [serverPath], { env: { ...env, PORT: String(port) }, stdio: 'ignore' });
+  for (let i = 0; i < 40; i++) {
+    try {
+      if ((await fetch(`http://127.0.0.1:${port}/api/health`)).ok) break;
+    } catch {
+      /* not up */
+    }
+    await sleep(300);
+  }
+  srv.kill('SIGTERM');
+  await sleep(800);
+
+  const dbFile = path.join(dataDir, 'sessions.json');
+  const db = JSON.parse(fs.readFileSync(dbFile, 'utf8'));
+  const mkUser = (id, email, role) => ({
+    id,
+    email,
+    name: role,
+    password_hash: accounts.hashPassword('parola-lunga-1'),
+    role,
+    active: true,
+    must_change_password: false,
+    created_at: new Date().toISOString(),
+    last_login_at: null,
+  });
+  db.users = [mkUser('seed-owner', 'owner@church.org', 'owner'), mkUser('seed-op', 'operator@church.org', 'operator')];
+  db.authSessions = [];
+  db.accountsSetupAt = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(); // 40 days ago
+  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
+
+  port = await freePort();
+  srv = spawn(process.execPath, [serverPath], { env: { ...env, PORT: String(port) }, stdio: 'ignore' });
+  const base = `http://127.0.0.1:${port}`;
+  for (let i = 0; i < 40; i++) {
+    try {
+      if ((await fetch(`${base}/api/health`)).ok) break;
+    } catch {
+      /* not up */
+    }
+    await sleep(300);
+  }
+
+  try {
+    let opCookie = '';
+    await test('operator login', async () => {
+      const r = await fetch(`${base}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'operator@church.org', password: 'parola-lunga-1' }),
+      });
+      assert.strictEqual(r.status, 200);
+      opCookie = getCookie(r);
+      assert.ok(opCookie);
+    });
+    await test('operator: /operator-dashboard allowed', async () => {
+      const r = await fetch(`${base}/operator-dashboard`, { headers: { Cookie: opCookie }, redirect: 'manual' });
+      assert.strictEqual(r.status, 200);
+    });
+    await test('operator: /remote allowed', async () => {
+      const r = await fetch(`${base}/remote`, { headers: { Cookie: opCookie }, redirect: 'manual' });
+      assert.strictEqual(r.status, 200);
+    });
+    await test('operator: /admin -> /login (owner only)', async () => {
+      const r = await fetch(`${base}/admin`, { headers: { Cookie: opCookie }, redirect: 'manual' });
+      assert.ok(r.status >= 300 && r.status < 400);
+      assert.ok((r.headers.get('location') || '').includes('/login'));
+    });
+    await test('admin PIN disabled after the 30-day window', async () => {
+      const body = new URLSearchParams({ pin: 'acc', next: '/admin' }).toString();
+      const r = await fetch(`${base}/api/admin-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        redirect: 'manual',
+      });
+      assert.strictEqual(r.status, 403, `expected 403, got ${r.status}`);
+    });
+  } finally {
+    srv.kill('SIGTERM');
+  }
+}
+
 (async () => {
   await unitTests();
   await integrationTests();
+  await emergencyAndOperatorTests();
   if (failures) {
     console.error(`\naccounts tests: ${failures} failure(s)`);
     process.exit(1);

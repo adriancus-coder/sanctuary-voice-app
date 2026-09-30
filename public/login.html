@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141318">
+  <title>Autentificare — Sanctuary Voice</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <main class="auth-shell">
+    <form class="auth-card" id="loginForm" novalidate>
+      <div class="eyebrow">Sanctuary Voice</div>
+      <h1 class="auth-title">Autentificare</h1>
+      <p class="auth-desc">Intră cu contul echipei tale.</p>
+
+      <label for="loginEmail">Email</label>
+      <input id="loginEmail" type="email" autocomplete="username" required>
+
+      <label for="loginPassword">Parolă</label>
+      <input id="loginPassword" type="password" autocomplete="current-password" required>
+
+      <label class="auth-remember"><input id="loginRemember" type="checkbox"> Ține-mă minte</label>
+
+      <div id="loginError" class="auth-error" role="alert"></div>
+
+      <button type="submit" class="btn btn-primary btn-full" id="loginSubmit">Intră</button>
+    </form>
+  </main>
+  <script src="/login.js"></script>
+</body>
+</html>

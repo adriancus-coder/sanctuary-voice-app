@@ -248,7 +248,10 @@ registerAdminRoutes(app, {
   renderAdminLoginPage,
   sanitizeLocalNextPath,
   setAdminSessionCookie,
-  shouldRedirectAdminTrafficToApp
+  shouldRedirectAdminTrafficToApp,
+  accountsExist,
+  emergencyPinActive,
+  logger
 });
 app.use((req, res, next) => {
   if (req.path === '/admin.html') return requireAdminPage(req, res, next);
@@ -284,6 +287,12 @@ app.get('/', (req, res, next) => {
   return sendLandingPage(req, res, next);
 });
 app.get('/home', sendLandingPage);
+// SV-ACCOUNTS-GUARDS — account login page for the team pages.
+app.get('/login', (req, res) => {
+  const nextPath = sanitizeLocalNextPath(req.query.next || '/');
+  if (getAccountUser(req)) return res.redirect(nextPath);
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
 app.get('/admin', requireAdminPage, sendAdminPage);
 app.get('/admin.html', requireAdminPage, sendAdminPage);
 app.get('/participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'participant.html')));
@@ -292,13 +301,13 @@ app.get('/live', (req, res) => res.sendFile(path.join(__dirname, 'public', 'part
 app.get('/main-screen', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/translate', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
 app.get('/song', (req, res) => res.sendFile(path.join(__dirname, 'public', 'translate.html')));
-app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
+app.get('/remote', requireTeamPage(['owner', 'operator']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
 app.get('/worship', (req, res) => res.sendFile(path.join(__dirname, 'public', 'worship.html')));
 app.get('/worship-view', (req, res) => res.sendFile(path.join(__dirname, 'public', 'worship-view.html')));
 app.get('/demo-screen', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-screen.html')));
 app.get('/demo-participant', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-participant.html')));
-app.get('/operator-dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'operator-dashboard.html')));
-app.get('/operator-dashboard.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'operator-dashboard.html')));
+app.get('/operator-dashboard', requireTeamPage(['owner', 'operator']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'operator-dashboard.html')));
+app.get('/operator-dashboard.html', requireTeamPage(['owner', 'operator']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'operator-dashboard.html')));
 
 const DEFAULT_DATA_DIR = process.env.RENDER ? '/var/data' : path.join(__dirname, 'data');
 const DATA_DIR = process.env.DATA_DIR || DEFAULT_DATA_DIR;
@@ -627,6 +636,43 @@ function hasValidAdminSession(req) {
   return Boolean(verifyAdminSession(cookies[ADMIN_SESSION_COOKIE]));
 }
 
+// SV-ACCOUNTS-GUARDS — user-account awareness for the page/API guards.
+const accountsLib = require('./lib/accounts');
+const ACCOUNTS_EMERGENCY_PIN_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+function getAccountUser(req) {
+  try {
+    const cookies = parseCookies(req);
+    return accountsLib.getSessionUser(db, cookies.sv_sid) || null;
+  } catch (_) {
+    return null;
+  }
+}
+function accountsExist() {
+  return accountsLib.anyUsers(db);
+}
+// MASTER_ADMIN_PIN keeps working as an emergency admin login for 30 days after
+// the first owner is created (db.accountsSetupAt), then it is ignored — accounts
+// only. Before setup it works normally (bootstrap).
+function emergencyPinActive() {
+  if (!accountsExist()) return true;
+  const setupAt = db.accountsSetupAt ? Date.parse(db.accountsSetupAt) : 0;
+  if (!setupAt) return true;
+  return Date.now() < setupAt + ACCOUNTS_EMERGENCY_PIN_MS;
+}
+function hasEmergencyAdminSession(req) {
+  return hasValidAdminSession(req) && emergencyPinActive();
+}
+// Page guard for team pages that require an account (once accounts exist).
+function requireTeamPage(roles) {
+  return (req, res, next) => {
+    const user = getAccountUser(req);
+    if (user && roles.includes(user.role)) return next();
+    if (!accountsExist()) return next(); // legacy (pre-setup): pages stay open
+    const nextPath = encodeURIComponent(sanitizeLocalNextPath(req.originalUrl || '/'));
+    return res.redirect(`/login?next=${nextPath}`);
+  };
+}
+
 function getCookieSecureFlag(req) {
   const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
   return Boolean(req.secure || forwardedProto === 'https');
@@ -674,13 +720,18 @@ function sanitizeLocalNextPath(value) {
 
 function requireAdminPage(req, res, next) {
   if (shouldRedirectAdminTrafficToApp(req)) return res.redirect(buildAdminAppUrl('/admin'));
-  if (hasValidAdminSession(req)) return next();
+  const user = getAccountUser(req);
+  if (user && user.role === 'owner') return next();
+  if (hasEmergencyAdminSession(req)) return next();
   const nextPath = encodeURIComponent(sanitizeLocalNextPath(req.originalUrl || '/admin'));
+  if (accountsExist()) return res.redirect(`/login?next=${nextPath}`);
   return res.redirect(`/admin-login?next=${nextPath}`);
 }
 
 function requireAdminApiSession(req, res) {
-  if (hasValidAdminSession(req)) return true;
+  const user = getAccountUser(req);
+  if (user && user.role === 'owner') return true;
+  if (hasEmergencyAdminSession(req)) return true;
   res.status(401).json({ ok: false, error: 'Admin login required.' });
   return false;
 }
@@ -690,7 +741,9 @@ function requireAdminApiSession(req, res) {
 // event access code. The /remote page carries that code in `state.accessCode`
 // (not an operator session), so accept a code that resolves to admin/screen.
 function requireAdminOrOperatorApiSession(req, res) {
-  if (hasValidAdminSession(req)) return true;
+  const user = getAccountUser(req);
+  if (user && (user.role === 'owner' || user.role === 'operator')) return true;
+  if (hasEmergencyAdminSession(req)) return true;
   const operatorCode = getOperatorCodeFromCookie(req);
   if (operatorCode && isOperatorPinValid(operatorCode)) return true;
   const suppliedCode = String(req.body?.code || '').trim();
@@ -5673,8 +5726,22 @@ app.post('/api/auth/worship', (req, res) => {
   let roleInfo = null;   // null = membru de bază
   let isMaster = false;   // WORSHIP-PIN-MASTER — PIN global = cheia de maestru
   let authed = false;
-  // (a) PIN global — devine acum cheia de maestru (toate capabilitățile).
-  if (WORSHIP_PIN && pin && safeStringEqual(pin, WORSHIP_PIN)) {
+  // SV-ACCOUNTS-GUARDS — (a0) a signed-in team account (owner/presenter/leader)
+  // gets worship team access with no code. owner = master (manages roles too);
+  // presenter/leader get lead + program-prep. Spectator role codes are untouched.
+  const worshipAcctUser = getAccountUser(req);
+  if (worshipAcctUser && ['owner', 'presenter', 'leader'].includes(worshipAcctUser.role)) {
+    authed = true;
+    isMaster = worshipAcctUser.role === 'owner';
+    roleInfo = {
+      name: worshipAcctUser.name || worshipAcctUser.role,
+      canLead: true,
+      canAdmin: true,
+      canManageRoles: worshipAcctUser.role === 'owner'
+    };
+  }
+  // (a) PIN global — emergency master key, only within the 30-day account window.
+  if (!authed && WORSHIP_PIN && pin && emergencyPinActive() && safeStringEqual(pin, WORSHIP_PIN)) {
     authed = true;
     isMaster = true;
   }

@@ -8606,3 +8606,14 @@ body.shell-locked {
   width: 100%;
   margin-top: 16px;
 }
+.auth-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+.auth-remember input {
+  width: auto;
+}

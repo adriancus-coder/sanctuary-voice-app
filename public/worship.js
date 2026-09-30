@@ -246,7 +246,7 @@
     const pin = $('worshipPinInput').value.trim();
     const status = $('worshipLoginStatus');
     if (!pin) {
-      setStatus(status, 'Introdu PIN.', 'err');
+      setStatus(status, 'Introdu codul de rol.', 'err');
       return;
     }
     const btn = $('worshipLoginBtn');
@@ -2473,6 +2473,24 @@
   // with ?mode=live so the same response can prime the header display.
   async function init() {
     attachListeners();
+    // SV-ACCOUNTS-GUARDS — a signed-in team account (owner/presenter/leader) gets
+    // a worship session with no code. Spectators are untouched: they still log in
+    // with a role code below. Only team accounts trigger this, so we don't spend
+    // the worship login rate limit for anonymous spectators.
+    try {
+      const me = await fetch('/api/auth/me', { headers: { Accept: 'application/json' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      if (me && me.user && ['owner', 'presenter', 'leader'].includes(me.user.role)) {
+        await fetch('/api/auth/worship', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        }).catch(() => {});
+      }
+    } catch (e) {
+      /* ignore — role-code login still available */
+    }
     try {
       const res = await fetch('/api/worship/events?mode=live');
       if (res.ok) {

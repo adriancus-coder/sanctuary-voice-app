@@ -35,7 +35,10 @@ function registerAdminRoutes(app, ctx) {
     renderAdminLoginPage,
     sanitizeLocalNextPath,
     setAdminSessionCookie,
-    shouldRedirectAdminTrafficToApp
+    shouldRedirectAdminTrafficToApp,
+    accountsExist,
+    emergencyPinActive,
+    logger
   } = ctx;
 
   app.post('/api/admin-login', (req, res) => {
@@ -60,6 +63,17 @@ function registerAdminRoutes(app, ctx) {
     }
     if (!isAllowedAdminPin(pin)) {
       return res.status(403).send(renderAdminLoginPage({ error: 'Invalid admin PIN.', nextPath }));
+    }
+    // SV-ACCOUNTS-GUARDS — once accounts exist, the PIN is an emergency login
+    // valid only for 30 days after setup; after that, accounts only.
+    if (accountsExist && accountsExist() && emergencyPinActive && !emergencyPinActive()) {
+      return res.status(403).send(renderAdminLoginPage({
+        error: 'The admin PIN is disabled. Sign in with your account.',
+        nextPath
+      }));
+    }
+    if (accountsExist && accountsExist() && logger) {
+      logger.warn('[admin-login] MASTER_ADMIN_PIN used during the 30-day emergency window.');
     }
     loginAttempts.delete(getClientIp(req));
     setAdminSessionCookie(req, res);
