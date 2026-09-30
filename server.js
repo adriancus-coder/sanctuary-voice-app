@@ -41,6 +41,7 @@ const { createJsonDbStore, atomicWriteFileSync } = require('./lib/db');
 const { createTranslationService } = require('./lib/translation');
 const { buildPrompt } = require('./lib/prompt');
 const { createMetrics } = require('./lib/metrics');
+const { createBridge } = require('./lib/bridge');
 const { installRateLimitGC } = require('./lib/rate-limit-gc');
 const { registerAdminRoutes } = require('./routes/admin');
 const { registerOrgRoutes } = require('./routes/org');
@@ -1514,6 +1515,8 @@ function ensureCommercialState() {
 }
 
 const db = loadDb();
+// SV-BRIDGE — worship-app connection codes + bridge tokens (see lib/bridge.js).
+const bridge = createBridge({ db, saveDb, logger });
 ensureCommercialState();
 if (!Array.isArray(db.globalSongLibrary)) {
   db.globalSongLibrary = defaultGlobalSongLibrary();
@@ -4941,6 +4944,126 @@ app.post('/api/admin/models', (req, res) => {
   saveDb();
   logger.info(`[models] fast=${getFastModel()} quality=${getQualityModel()} (overrides fast="${cfg.fastModel || ''}" quality="${cfg.qualityModel || ''}")`);
   return res.json({ ok: true, fastModel: getFastModel(), qualityModel: getQualityModel() });
+});
+
+// ===== SV-BRIDGE-CODES — worship-app connection codes + token exchange =====
+// Kick any live /bridge sockets for an event. Implemented by SV-BRIDGE-OUT (A2);
+// a no-op until then so revoke works before the namespace exists.
+let disconnectBridgeSockets = () => {};
+
+function buildBridgeStatus(eventId) {
+  const b = bridge.findActiveForEvent(eventId);
+  const event = db.events[eventId];
+  return {
+    connected: !!b,
+    svEventId: String(eventId),
+    eventName: event ? (event.name || '') : '',
+    targetLanguages: event && Array.isArray(event.targetLangs) ? event.targetLangs : [],
+    expiresAt: b ? b.expiresAt : null,
+    lastSeenAt: b ? b.lastSeenAt : null,
+    createdAt: b ? b.createdAt : null
+  };
+}
+
+const bridgeExchangeHits = new Map();
+function bridgeExchangeRateOk(ip) {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const arr = (bridgeExchangeHits.get(ip) || []).filter((t) => now - t < windowMs);
+  arr.push(now);
+  bridgeExchangeHits.set(ip, arr);
+  return arr.length <= 10;
+}
+function bridgeTokenFromReq(req) {
+  const auth = String(req.headers.authorization || '');
+  const m = /^Bearer\s+(.+)$/i.exec(auth);
+  return (m && m[1].trim()) || String(req.body?.bridgeToken || req.query?.token || '').trim();
+}
+
+// Operator/owner generates a connection code from the admin Live tab.
+app.post('/api/events/:id/bridge/code', (req, res) => {
+  const event = db.events[req.params.id];
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  if (!requireAdminOrOperatorApiSession(req, res)) return;
+  const { code, expiresAt } = bridge.createCode(event.id);
+  recordAudit(getEventOrgId(event), 'bridge_code_created', { eventId: event.id, name: event.name });
+  logger.info(`[bridge] code created event=${event.id}`);
+  return res.json({ ok: true, code, expiresAt, targetLanguages: event.targetLangs || [] });
+});
+
+app.get('/api/events/:id/bridge/status', (req, res) => {
+  const event = db.events[req.params.id];
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  if (!requireAdminOrOperatorApiSession(req, res)) return;
+  return res.json({ ok: true, ...buildBridgeStatus(event.id) });
+});
+
+app.post('/api/events/:id/bridge/revoke', (req, res) => {
+  const event = db.events[req.params.id];
+  if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
+  if (!requireAdminOrOperatorApiSession(req, res)) return;
+  const any = bridge.revokeForEvent(event.id);
+  if (any) {
+    recordAudit(getEventOrgId(event), 'bridge_revoked', { eventId: event.id, by: 'sv' });
+    logger.info(`[bridge] revoked event=${event.id} by=sv`);
+    disconnectBridgeSockets(event.id);
+    io.to(`event:${event.id}:admins`).emit('bridge_status', buildBridgeStatus(event.id));
+  }
+  return res.json({ ok: true, ...buildBridgeStatus(event.id) });
+});
+
+// Server-to-server: worship-app exchanges the connection code for a bridge token.
+app.post('/api/bridge/exchange', (req, res) => {
+  const ip = getOperatorClientIp(req);
+  if (!bridgeExchangeRateOk(ip)) return res.status(429).json({ ok: false, error: 'too_many_attempts' });
+  const result = bridge.exchange(req.body?.code);
+  if (result.error) {
+    logger.info(`[bridge] exchange failed: ${result.error}`);
+    return res.status(400).json({ ok: false, error: result.error });
+  }
+  const event = db.events[result.bridge.svEventId];
+  recordAudit(event ? getEventOrgId(event) : DEFAULT_ORG_ID, 'bridge_connected', { eventId: result.bridge.svEventId, name: event ? event.name : '' });
+  logger.info(`[bridge] connected event=${result.bridge.svEventId}`);
+  if (event) io.to(`event:${event.id}:admins`).emit('bridge_status', buildBridgeStatus(event.id));
+  return res.json({
+    ok: true,
+    bridgeToken: result.token,
+    svEventId: result.bridge.svEventId,
+    targetLanguages: event && Array.isArray(event.targetLangs) ? event.targetLangs : [],
+    expiresAt: result.bridge.expiresAt
+  });
+});
+
+// Server-to-server: worship-app revokes with its token.
+app.post('/api/bridge/revoke', (req, res) => {
+  const token = bridgeTokenFromReq(req);
+  const b = bridge.findByToken(token);
+  if (!b) return res.status(404).json({ ok: false, error: 'unknown_token' });
+  if (bridge.revokeByToken(token)) {
+    const event = db.events[b.svEventId];
+    recordAudit(event ? getEventOrgId(event) : DEFAULT_ORG_ID, 'bridge_revoked', { eventId: b.svEventId, by: 'worship' });
+    logger.info(`[bridge] revoked event=${b.svEventId} by=worship`);
+    disconnectBridgeSockets(b.svEventId);
+    if (event) io.to(`event:${event.id}:admins`).emit('bridge_status', buildBridgeStatus(event.id));
+  }
+  return res.json({ ok: true });
+});
+
+// Server-to-server: worship-app polls status (also refreshes lastSeen).
+app.get('/api/bridge/status', (req, res) => {
+  const token = bridgeTokenFromReq(req);
+  const b = bridge.findByToken(token);
+  if (!bridge.isActive(b)) return res.status(401).json({ ok: false, error: 'inactive' });
+  bridge.touch(b);
+  const event = db.events[b.svEventId];
+  return res.json({
+    ok: true,
+    connected: true,
+    svEventId: b.svEventId,
+    targetLanguages: event && Array.isArray(event.targetLangs) ? event.targetLangs : [],
+    expiresAt: b.expiresAt,
+    lastSeenAt: b.lastSeenAt
+  });
 });
 app.post('/api/admin/worship-roles', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;
