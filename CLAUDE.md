@@ -173,6 +173,11 @@ core pages). Other scripts: `npm run test:accounts`, `npm run test:backup`,
   the cross-page bottom bar (phones) / left rail (≥900px) + a "Mai mult" sheet
   (language, theme, screens, Echipa for the owner, sign out). Full-screen work
   pages use `data-shell="exit"`.
+- **On the admin console the shell is the ONLY navigation** (SV-SHELL-DRIVES-ADMIN):
+  there is no admin top tab bar. In admin mode the shell's four entries and the
+  "Mai mult" sheet drive the admin's in-page views by `#hash` (handled by
+  `routeAdminHash` in `app.js`); `switchTab` emits an `admin:tab` event the shell
+  uses to mark the active entry. See the shell↔view map below.
 - i18n: `admin-i18n.js` (admin, `window.adminI18n`), and `i18n.js` +
   `i18n-dict.js` (`window.I18N`) for the team pages (landing,
   operator-dashboard; worship/remote in progress) — ro/en/no, same LS key,
@@ -185,6 +190,12 @@ core pages). Other scripts: `npm run test:accounts`, `npm run test:backup`,
 without scrolling on a phone (375×812) and a tablet (1024×768); everything else is
 one tap away in a tab or a sheet. Long single-column pages become task-oriented
 in-page tabs with a sticky action bar for the page's 2–4 primary buttons.
+
+**One navigation level per screen:** a screen has at most the shell (left rail /
+bottom bar + "Mai mult" sheet) **and** one in-page tab bar — never a second,
+page-specific top nav on top of the shell. The admin's only in-page tab bar is the
+dashboard's Live · Recepție · Transcript · Sistem; everything else is reached from
+the shell.
 
 - **`public/page-tabs.js`** is the shared component (see `docs/NAVIGATION.md`). A
   sticky segmented tab bar rendered from a declarative `data-tabs` config; each tab
@@ -206,17 +217,22 @@ in-page tabs with a sticky action bar for the page's 2–4 primary buttons.
   (Program/Live/Roluri), `/remote` (Ecran/Cântări). Layout only — tabs never change
   socket, `/mode`, projector or participant behaviour. Assert an id/label inventory
   before/after so no control is lost.
-- **Admin top bar (SV-ADMIN-TABS-TRIM)** keeps only: Dashboard · Evenimente ·
-  Ecran principal · Cântări · Roluri. The moved destinations keep their sections
-  (still reachable via `switchTab` and the bare-`#hash` router in `app.js`):
-  Transcript → a per-event "Transcript" action in Evenimente (and `/admin#transcript`
-  redirects to the current/active event's transcript; the live partial stays in the
-  dashboard's Transcript in-page tab); Glossary → the "Glosar" section in the
-  dashboard's Recepție tab (one store, `#glossary` redirects there); Statistics →
-  the shell's "Mai mult → Admin" sheet (owner only), via `/admin#statistics`;
-  Quick Text → a plain section of Ecran principal (the sender + pinned-text
-  library; `#manual` redirects there). Roadmap: quick texts later become "Anunț"
-  items in the event program (see `docs/ROADMAP.md`).
+- **Admin navigation is the shell (SV-SHELL-DRIVES-ADMIN)** — the old admin top
+  tab bar is gone. The shell↔view map (admin mode only; other pages keep their
+  own shell behaviour), all via `#hash` deep-links that `routeAdminHash` activates:
+  - **Acasă** → `#dashboard` · **Evenimente** → `#events` · **Cântări** → `#song`
+    (carries the pending-worship badge) · **Traducere** → `#dashTabs=live`
+    (dashboard on Live).
+  - **Mai mult** → **Ecran principal** `#mainscreen` · **Roluri** `#operator-roles`
+    · **Statistici** `#statistics` (owner) · **Glosar** `#glossary` · **Echipa**
+    `/team` (owner) · **Setări** (opens the Preferințe block in the sheet) — plus
+    the existing Preferințe / Ecrane / Cont items.
+  - Moved destinations still redirect (bare-`#hash` router in `app.js`):
+    `#transcript` → the current/active event's transcript; `#glossary` → the
+    dashboard's Recepție tab (the "Glosar" section, one store); `#manual` → Ecran
+    principal (Quick Text lives there). A `#dashTabs=…` entry also restores the
+    dashboard view, so back/forward works. Roadmap: quick texts later become
+    "Anunț" items in the event program (see `docs/ROADMAP.md`).
 
 ## worship-app bridge (stage 8)
 

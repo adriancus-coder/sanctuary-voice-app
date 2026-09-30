@@ -14,6 +14,37 @@ This is a layout rule only. Tabs never change socket messages, `/mode` /
 participant flow. When you split a page, assert an id/label inventory **before vs
 after** so no control goes missing.
 
+## One navigation level per screen
+
+> A screen has at most the **shell** (left rail / bottom bar + "Mai mult" sheet,
+> from `public/shell.js`) **and** one in-page tab bar — never a second,
+> page-specific top nav stacked on the shell.
+
+The admin console follows this: **the shell is its only navigation**
+(SV-SHELL-DRIVES-ADMIN — there is no admin top tab bar), and its only in-page tab
+bar is the dashboard's Live · Recepție · Transcript · Sistem. The shell's entries
+are `#hash` deep-links that `routeAdminHash` (`app.js`) activates; `switchTab`
+emits an `admin:tab` event the shell uses to mark the active entry.
+
+**Shell ↔ admin view map** (admin mode only; other pages keep their own shell nav):
+
+| Shell entry | Opens | Hash |
+|---|---|---|
+| Acasă | Dashboard | `#dashboard` |
+| Evenimente | Events | `#events` |
+| Cântări | Songs (with the pending-worship badge) | `#song` |
+| Traducere | Dashboard on the Live tab | `#dashTabs=live` |
+| Mai mult → Ecran principal | Main-screen control | `#mainscreen` |
+| Mai mult → Roluri | Operator roles | `#operator-roles` |
+| Mai mult → Statistici (owner) | Statistics | `#statistics` |
+| Mai mult → Glosar | Dashboard Recepție (Glosar) | `#glossary` |
+| Mai mult → Echipa (owner) | Team page | `/team` |
+| Mai mult → Setări | Preferences block in the sheet | — |
+
+Old hashes still redirect (`#transcript`, `#glossary`, `#manual`), and a
+`#dashTabs=…` history entry also restores the dashboard view, so back/forward
+works.
+
 ## `page-tabs.js` — the shared component
 
 A sticky segmented tab bar rendered under a page header, plus a sticky-action-bar
