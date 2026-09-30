@@ -1312,6 +1312,8 @@ function registerEventRoutes(app, ctx) {
     const screenStyle = typeof req.body.screenStyle === 'string' ? req.body.screenStyle.trim() : event.displayState.screenStyle;
     const displayResolution = typeof req.body.displayResolution === 'string' ? req.body.displayResolution.trim() : event.displayState.displayResolution;
     const secondaryLanguage = typeof req.body.secondaryLanguage === 'string' ? req.body.secondaryLanguage.trim() : event.displayState.secondaryLanguage || '';
+    // SV-TRANSLATE-STREAMING — opt-in lighter-colour partials on participants (default off).
+    const streamPartials = typeof req.body.streamPartials === 'boolean' ? req.body.streamPartials : !!event.displayState.streamPartials;
     const allowedDisplayLanguages = getDisplayLanguageChoices(event);
     if (!['none', 'warm', 'sanctuary', 'soft-light'].includes(backgroundPreset)) {
       return res.status(400).json({ ok: false, error: 'Preset fundal invalid.' });
@@ -1348,6 +1350,7 @@ function registerEventRoutes(app, ctx) {
     event.displayState.screenStyle = screenStyle;
     event.displayState.displayResolution = displayResolution;
     event.displayState.secondaryLanguage = secondaryLanguage && secondaryLanguage !== event.displayState.language ? secondaryLanguage : '';
+    event.displayState.streamPartials = !!streamPartials;
     event.displayState.sceneLabel = '';
     event.displayState.updatedAt = new Date().toISOString();
     recordScreenAction(event, 'display');
@@ -1398,6 +1401,11 @@ function registerEventRoutes(app, ctx) {
     }
     if (typeof req.body.showClock === 'boolean') {
       event.displayState.showClock = req.body.showClock;
+      changed = true;
+    }
+    // SV-TRANSLATE-STREAMING — opt-in lighter-colour partials on participants.
+    if (typeof req.body.streamPartials === 'boolean') {
+      event.displayState.streamPartials = req.body.streamPartials;
       changed = true;
     }
     if (typeof req.body.clockPosition === 'string') {

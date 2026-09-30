@@ -971,6 +971,10 @@ function defaultDisplayState() {
     manualSource: '',
     manualSourceLang: 'ro',
     manualTranslations: {},
+    // SV-TRANSLATE-STREAMING — when on, participants render in-progress partial
+    // translations in a lighter colour ("still translating"). Default off keeps
+    // today's rendering (partials shown identically to finals).
+    streamPartials: false,
     updatedAt: null
   };
 }
@@ -1138,6 +1142,7 @@ function cloneDisplaySnapshot(event) {
     manualSource: event.displayState.manualSource || '',
     manualSourceLang: event.displayState.manualSourceLang || event.sourceLang || 'ro',
     manualTranslations: { ...(event.displayState.manualTranslations || {}) },
+    streamPartials: !!event.displayState.streamPartials,
     updatedAt: event.displayState.updatedAt || null
   };
 }
@@ -2281,6 +2286,7 @@ function buildDisplayPayload(event) {
     manualSource: event.displayState.manualSource,
     manualSourceLang: event.displayState.manualSourceLang || event.sourceLang || 'ro',
     manualTranslations: event.displayState.manualTranslations,
+    streamPartials: !!event.displayState.streamPartials,
     updatedAt: event.displayState.updatedAt,
     previousState: event.displayStatePrevious || null,
     presets: Array.isArray(event.displayPresets) ? event.displayPresets : []
@@ -3611,6 +3617,7 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
       sourceLang,
       original: cleanChunk,
       createdAt,
+      partial: true,
       translations: { [lang]: partialText }
     });
   };
@@ -3623,6 +3630,7 @@ async function publishNewChunk(event, chunk, sourceLangOverride = '') {
       sourceLang,
       original: cleanChunk,
       createdAt,
+      partial: true,
       translations: { ...accumulatedTranslations }
     });
   };

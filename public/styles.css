@@ -8850,3 +8850,7 @@ body.shell-locked {
 /* SV-LIBRARY-RESULTS — let result rows wrap so 3 actions fit at 375px. */
 .import-result-row { flex-wrap: wrap; }
 .import-result-actions { flex-wrap: wrap; }
+
+/* SV-TRANSLATE-STREAMING — in-progress partial translation shown lighter
+   (opt-in per event via displayState.streamPartials; default off = unchanged). */
+.participant-main-text.partial-live { opacity: 0.62; }

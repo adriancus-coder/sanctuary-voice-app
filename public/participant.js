@@ -844,6 +844,16 @@ function smartDisplayLiveText(newText, callback) {
   }
 }
 
+// SV-TRANSLATE-STREAMING — when the event opts in (displayState.streamPartials),
+// show in-progress partial translations in a lighter colour so viewers know the
+// line is still being translated. Default off = today's plain rendering.
+function applyPartialStyling(entry) {
+  const el = document.getElementById('lastText');
+  if (!el) return;
+  const optedIn = !!(state.currentEvent && state.currentEvent.displayState && state.currentEvent.displayState.streamPartials);
+  el.classList.toggle('partial-live', optedIn && !!(entry && entry.partial));
+}
+
 function renderLiveView({ announce = false } = {}) {
   if (!state.currentEvent) return;
   if (state.serviceEndedAcknowledged) {
@@ -872,6 +882,7 @@ function renderLiveView({ announce = false } = {}) {
       clearLoadingDots();
       $('lastText').innerHTML = highlightBibleRefs(text);
     });
+    applyPartialStyling(visibleEntry);
   } else {
     showLoadingDots();
   }
@@ -1439,10 +1450,12 @@ socket.on('display_live_entry_partial', (payload) => {
   const existing = state.visibleLiveEntry;
   if (existing && existing.id === payload.entryId) {
     existing.translations = { ...(existing.translations || {}), [lang]: partialForLang };
+    existing.partial = true;
     state.visibleLiveEntry = existing;
     state.lastLiveEntryId = existing.id;
     clearLoadingDots();
     $('lastText').innerHTML = highlightBibleRefs(getTextForEntry(existing));
+    applyPartialStyling(existing);
     // BUGFIX V1: refresh auto-expire timer (early-return path is still real activity)
     refreshLiveTextExpireTimer();
     return;

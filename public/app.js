@@ -869,6 +869,10 @@ function refreshDisplayControls() {
   if (showClockBox) {
     showClockBox.checked = !!currentEvent?.displayState?.showClock;
   }
+  const streamPartialsBox = $('displayStreamPartialsBox');
+  if (streamPartialsBox) {
+    streamPartialsBox.checked = !!currentEvent?.displayState?.streamPartials;
+  }
   if (clockPositionSelect) {
     clockPositionSelect.value = currentEvent?.displayState?.clockPosition || 'top-right';
   }
@@ -5233,6 +5237,10 @@ $('displayRestoreBtn').addEventListener('click', restoreLastDisplayState);
   });
   $('displayShowClockBox')?.addEventListener('change', () => {
     applyDisplayPartial({ showClock: !!$('displayShowClockBox').checked });
+  });
+  // SV-TRANSLATE-STREAMING — toggle lighter-colour partials on participants.
+  $('displayStreamPartialsBox')?.addEventListener('change', () => {
+    applyDisplayPartial({ streamPartials: !!$('displayStreamPartialsBox').checked });
   });
   $('displayClockPositionSelect')?.addEventListener('change', () => {
     applyDisplayPartial({ clockPosition: $('displayClockPositionSelect').value });
