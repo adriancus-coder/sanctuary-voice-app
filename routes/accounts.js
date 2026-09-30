@@ -3,9 +3,17 @@
 // the guard cutover that removes PINs is a later commit. Also exports
 // requireUser / requireRole for that cutover to use.
 const path = require('path');
+const crypto = require('crypto');
 const accounts = require('../lib/accounts');
 
 const SID_COOKIE = 'sv_sid';
+
+function safeEqual(a, b) {
+  const ab = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
 
 function clientIp(req) {
   const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
@@ -15,6 +23,8 @@ function clientIp(req) {
 function registerAccountsRoutes(app, ctx) {
   const { db, saveDb, logger, parseCookies, getCookieSecureFlag } = ctx;
   const publicDir = ctx.publicDir || path.join(__dirname, '..', 'public');
+  const masterPin = String(ctx.masterAdminPin || '').trim();
+  const defaultOrgId = ctx.defaultOrgId;
   const loginLimiter = accounts.createLoginRateLimiter({ maxFailures: 5, windowMs: 15 * 60 * 1000 });
   const pwLimiter = accounts.createLoginRateLimiter({ maxFailures: 5, windowMs: 15 * 60 * 1000 });
 
@@ -124,6 +134,40 @@ function registerAccountsRoutes(app, ctx) {
 
   app.get('/change-password', (req, res) => {
     res.sendFile(path.join(publicDir, 'change-password.html'));
+  });
+
+  // --- SV-ACCOUNTS-SETUP — first-owner creation, shown only while there are no
+  // users. The setup token IS the existing MASTER_ADMIN_PIN, so no new env var. ---
+  app.get('/setup', (req, res) => {
+    if (accounts.anyUsers(db)) return res.redirect('/');
+    res.sendFile(path.join(publicDir, 'setup.html'));
+  });
+
+  app.post('/api/setup', (req, res) => {
+    if (accounts.anyUsers(db)) return res.status(409).json({ ok: false, code: 'setupDone' });
+    if (!masterPin) return res.status(403).json({ ok: false, code: 'setupDisabled' });
+    const token = String((req.body && req.body.setupToken) || '').trim();
+    if (!safeEqual(token, masterPin)) return res.status(403).json({ ok: false, code: 'setupBadToken' });
+    const churchName = String((req.body && req.body.churchName) || '').trim();
+    const ownerName = String((req.body && req.body.ownerName) || '').trim();
+    const email = accounts.normalizeEmail(req.body && req.body.email);
+    const password = String((req.body && req.body.password) || '');
+    let owner;
+    try {
+      owner = accounts.createUser(db, { email, name: ownerName, password, role: 'owner' });
+    } catch (err) {
+      return res.status(400).json({ ok: false, code: err.code || 'invalid' });
+    }
+    if (churchName && defaultOrgId && db.organizations && db.organizations[defaultOrgId]) {
+      db.organizations[defaultOrgId].name = churchName.slice(0, 120);
+    }
+    db.accountsSetupAt = new Date().toISOString();
+    const { id } = accounts.createSession(db, owner.id, false);
+    accounts.touchLogin(db, owner.id);
+    saveDb();
+    if (logger) logger.info(`[accounts] setup complete; owner ${owner.email} created`);
+    res.setHeader('Set-Cookie', buildSidCookie(req, id, accounts.SESSION_TTL_MS));
+    res.json({ ok: true, user: accounts.publicUser(owner) });
   });
 
   return { requireUser, requireRole, sessionUser, SID_COOKIE };

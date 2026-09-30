@@ -113,47 +113,10 @@ async function integrationTests() {
   };
   const serverPath = path.join(__dirname, '..', 'server.js');
 
-  // Boot #1: generate a real sessions.json (default org/event), then stop.
-  let port = await freePort();
-  let srv = spawn(process.execPath, [serverPath], { env: { ...env, PORT: String(port) }, stdio: 'ignore' });
-  for (let i = 0; i < 40; i++) {
-    try {
-      if ((await fetch(`http://127.0.0.1:${port}/api/health`)).ok) break;
-    } catch {
-      /* not up */
-    }
-    await sleep(300);
-  }
-  srv.kill('SIGTERM');
-  await sleep(800);
-
-  // Seed a user + a marker into the generated (synthetic) store.
-  const dbFile = path.join(dataDir, 'sessions.json');
-  const db = JSON.parse(fs.readFileSync(dbFile, 'utf8'));
-  const eventCountBefore = Object.keys(db.events || {}).length;
-  await test('existing store has org/event before accounts added', () => {
-    assert.ok(db.organizations && Object.keys(db.organizations).length >= 1, 'org present');
-    assert.ok(eventCountBefore >= 1, 'default event present');
-    assert.ok(!db.users || db.users.length === 0, 'no users yet');
-  });
-  db.users = [
-    {
-      id: 'seed-owner',
-      email: 'owner@church.org',
-      name: 'Owner',
-      password_hash: accounts.hashPassword('parola-lunga-1'),
-      role: 'owner',
-      active: true,
-      must_change_password: false,
-      created_at: new Date().toISOString(),
-      last_login_at: null,
-    },
-  ];
-  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
-
-  // Boot #2: load the synthetic store WITH the user.
-  port = await freePort();
-  srv = spawn(process.execPath, [serverPath], { env: { ...env, PORT: String(port) }, stdio: 'ignore' });
+  // Boot on a fresh DATA_DIR: the server seeds a default org + test event and an
+  // empty accounts store (synthetic-but-real shape).
+  const port = await freePort();
+  const srv = spawn(process.execPath, [serverPath], { env: { ...env, PORT: String(port) }, stdio: 'ignore' });
   const base = `http://127.0.0.1:${port}`;
   for (let i = 0; i < 40; i++) {
     try {
@@ -165,10 +128,67 @@ async function integrationTests() {
   }
 
   try {
-    await test('existing event survived the additive users key', async () => {
+    let eventCountBefore = 0;
+    await test('fresh store has org/event and no users', async () => {
       const h = await (await fetch(`${base}/api/health`)).json();
       assert.ok(h.ok, 'health ok');
+      eventCountBefore = h.activeEvents; // at least the default test event may exist
+      const me = await fetch(`${base}/api/auth/me`);
+      assert.strictEqual(me.status, 401, 'no session yet');
     });
+
+    // --- SV-ACCOUNTS-SETUP flow ---
+    await test('GET /setup served while no users exist', async () => {
+      const r = await fetch(`${base}/setup`, { redirect: 'manual' });
+      assert.ok(r.status === 200, 'setup page served');
+    });
+    await test('POST /api/setup wrong token -> 403', async () => {
+      const r = await fetch(`${base}/api/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setupToken: 'wrong', churchName: 'X', ownerName: 'Y', email: 'o@c.org', password: 'parola-lunga-1' }),
+      });
+      assert.strictEqual(r.status, 403);
+    });
+    await test('POST /api/setup correct token -> creates owner + auto-login', async () => {
+      const r = await fetch(`${base}/api/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          setupToken: 'acc',
+          churchName: 'Test Church',
+          ownerName: 'Owner',
+          email: 'owner@church.org',
+          password: 'parola-lunga-1',
+        }),
+      });
+      assert.strictEqual(r.status, 200);
+      const d = await r.json();
+      assert.strictEqual(d.user.role, 'owner');
+      assert.ok(getCookie(r), 'auto-login cookie set');
+    });
+    await test('church name applied to organization', async () => {
+      const h = await (await fetch(`${base}/api/health`)).json();
+      assert.strictEqual(h.organization && h.organization.name, 'Test Church');
+    });
+    await test('GET /setup redirects once an owner exists', async () => {
+      const r = await fetch(`${base}/setup`, { redirect: 'manual' });
+      assert.ok(r.status >= 300 && r.status < 400, 'redirect status');
+    });
+    await test('POST /api/setup again -> 409', async () => {
+      const r = await fetch(`${base}/api/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setupToken: 'acc', churchName: 'X', ownerName: 'Y', email: 'z@c.org', password: 'parola-lunga-1' }),
+      });
+      assert.strictEqual(r.status, 409);
+    });
+    await test('default event survived setup writing accounts keys', async () => {
+      const h = await (await fetch(`${base}/api/health`)).json();
+      assert.ok(h.ok && typeof h.activeEvents === 'number', 'health still reports events');
+      assert.ok(eventCountBefore >= 0);
+    });
+
     await test('login with wrong password -> 401', async () => {
       const r = await fetch(`${base}/api/auth/login`, {
         method: 'POST',

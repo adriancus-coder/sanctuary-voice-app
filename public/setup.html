@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141318">
+  <title>Configurare — Sanctuary Voice</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <main class="auth-shell">
+    <form class="auth-card" id="setupForm" novalidate>
+      <div class="eyebrow">Sanctuary Voice</div>
+      <h1 class="auth-title">Configurare inițială</h1>
+      <p class="auth-desc">Creează contul de proprietar. Folosește PIN-ul de admin actual ca token de configurare.</p>
+
+      <label for="churchName">Numele bisericii</label>
+      <input id="churchName" type="text" autocomplete="organization" maxlength="120" required>
+
+      <label for="ownerName">Numele tău</label>
+      <input id="ownerName" type="text" autocomplete="name" maxlength="100" required>
+
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" required>
+
+      <label for="password">Parolă (minim 10 caractere)</label>
+      <input id="password" type="password" autocomplete="new-password" minlength="10" required>
+
+      <label for="setupToken">Token de configurare (PIN admin)</label>
+      <input id="setupToken" type="password" autocomplete="off" required>
+
+      <div id="setupError" class="auth-error" role="alert"></div>
+
+      <button type="submit" class="btn btn-primary btn-full" id="setupSubmit">Creează contul</button>
+    </form>
+  </main>
+  <script src="/setup.js"></script>
+</body>
+</html>

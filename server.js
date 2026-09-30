@@ -6643,6 +6643,8 @@ app.locals.accountsApi = registerAccountsRoutes(app, {
   parseCookies,
   getCookieSecureFlag,
   publicDir: path.join(__dirname, 'public'),
+  masterAdminPin: MASTER_ADMIN_PIN,
+  defaultOrgId: DEFAULT_ORG_ID,
 });
 
 registerOrgRoutes(app, {
