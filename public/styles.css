@@ -8951,6 +8951,13 @@ body:not(.has-shell) { padding-bottom: calc(var(--sticky-actions-h, 0px) + var(-
    a single column keeps each panel full-width whichever tab is active. */
 #tab-dashboard .dashboard-main-grid { grid-template-columns: 1fr; }
 
+/* SV-EVENT-LANGUAGES-UP — event summary + Event languages at the top of the Live
+   tab: side by side from 1024px up (event left, languages right), stacked below. */
+.event-lang-row { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 1024px) {
+  .event-lang-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+}
+
 /* SV-WORSHIP-TABS — the mode switcher reuses the segmented tab look; worship.js
    toggles `.active` (not `.is-active`), so mirror the active style. */
 .worship-tabs.page-tabs { margin-bottom: 12px; }

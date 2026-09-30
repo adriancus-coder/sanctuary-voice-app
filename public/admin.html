@@ -168,15 +168,32 @@
              data-tab (no DOM moved), page-tabs.js shows/hides per tab. -->
         <nav class="page-tabs" data-page-tabs="dashTabs" data-tabs='[{"id":"live","label":"Live","i18n":"dtab.live"},{"id":"receptie","label":"Recepție","i18n":"dtab.receptie"},{"id":"transcript","label":"Transcript","i18n":"dtab.transcript"},{"id":"sistem","label":"Sistem","i18n":"dtab.sistem"}]'></nav>
 
-        <div class="metric-card panel glass-panel metrics-combined" data-tab-for="dashTabs" data-tab="live">
-          <div class="metrics-combined-cell">
-            <div data-i18n="m.participants" class="metric-label">Participants</div>
-            <div id="participantStatsSummary" class="metric-number">0 unique participants</div>
+        <!-- SV-EVENT-LANGUAGES-UP — event summary + Event languages at the top of
+             the Live tab, directly under "Eveniment activ" (hero). Side by side on
+             >=1024px (event left, languages right), stacked on phones. -->
+        <div class="event-lang-row" data-tab-for="dashTabs" data-tab="live">
+          <div class="metric-card panel glass-panel metrics-combined">
+            <div class="metrics-combined-cell">
+              <div data-i18n="m.participants" class="metric-label">Participants</div>
+              <div id="participantStatsSummary" class="metric-number">0 unique participants</div>
+            </div>
+            <div class="metrics-combined-divider" aria-hidden="true"></div>
+            <div class="metrics-combined-cell">
+              <div data-i18n="m.participantAudio" class="metric-label">Participant audio</div>
+              <div id="audioStateLabel" class="metric-text">Global audio active.</div>
+            </div>
           </div>
-          <div class="metrics-combined-divider" aria-hidden="true"></div>
-          <div class="metrics-combined-cell">
-            <div data-i18n="m.participantAudio" class="metric-label">Participant audio</div>
-            <div id="audioStateLabel" class="metric-text">Global audio active.</div>
+
+          <div class="panel glass-panel section-stack" id="liveLanguagesPanel">
+            <div class="section-head">
+              <div>
+                <h2 data-i18n="el.title">Event languages</h2>
+                <div data-i18n="el.hint" class="muted">Add or remove target languages mid-session. Existing participants stay connected; new translations apply on the next transcript line.</div>
+              </div>
+              <button id="saveLiveLanguagesBtn" class="btn btn-primary" type="button" data-i18n="btn.saveLanguages">Save languages</button>
+            </div>
+            <div id="liveLanguagesGrid" class="checkbox-grid"></div>
+            <div id="liveLanguagesStatus" class="muted"></div>
           </div>
         </div>
 
@@ -324,55 +341,55 @@
               <input id="volumeRange" class="range" type="range" min="0" max="100" value="70">
             </div>
 
-            <!-- SV-MODEL-SWITCHES — translation model tiers (blank = env default). -->
-            <details class="info-card accent-card">
-              <summary class="label"><span data-i18n="models.title">Modele traducere</span></summary>
-              <div class="split-2" style="margin-top:8px">
-                <div>
-                  <label for="fastModelInput"><span data-i18n="models.fast">Rapid (rapid / balanced)</span></label>
-                  <input id="fastModelInput" type="text" autocomplete="off" spellcheck="false" placeholder="gpt-4.1-nano">
-                  <div class="muted small" id="fastModelHint"></div>
-                </div>
-                <div>
-                  <label for="qualityModelInput"><span data-i18n="models.quality">Calitate (clear / interpret)</span></label>
-                  <input id="qualityModelInput" type="text" autocomplete="off" spellcheck="false" placeholder="gpt-4.1-mini">
-                  <div class="muted small" id="qualityModelHint"></div>
-                </div>
-              </div>
-              <div class="button-row compact-row" style="margin-top:8px">
-                <button id="saveModelsBtn" class="btn btn-primary" type="button" data-i18n="models.save">Salvează modele</button>
-                <span id="modelsStatus" class="muted small"></span>
-              </div>
-              <div class="muted small" data-i18n="models.hint">Gol = modelul implicit din server. Un model GPT-5 folosește reasoning „minimal".</div>
-            </details>
-
-            <div class="info-card soft-card">
-              <div data-i18n="ls.participantLangs" class="label">Participant languages</div>
-              <div id="participantStatsList" class="history-list"><div class="muted" data-i18n="ls.noParticipant">No connected participant.</div></div>
-            </div>
-
-            <div class="info-card soft-card translation-monitor-card">
-              <div data-i18n="ls.transMonitor" class="label">Translation monitor</div>
-              <div class="monitor-grid">
-                <div><span class="muted" data-i18n="mon.latency">Latency</span><strong id="monitorLatency">-</strong></div>
-                <div><span class="muted" data-i18n="mon.pending">Pending</span><strong id="monitorPending">0</strong></div>
-                <div><span class="muted" data-i18n="mon.lastDelivered">Last delivered</span><strong id="monitorDelivered">-</strong></div>
-                <div><span class="muted" data-i18n="mon.whisperDrops">Whisper drops</span><strong id="monitorDrops">0</strong></div>
-              </div>
-            </div>
           </div>
         </div>
 
-        <div class="panel glass-panel section-stack" id="liveLanguagesPanel" data-tab-for="dashTabs" data-tab="live">
-          <div class="section-head">
-            <div>
-              <h2 data-i18n="el.title">Event languages</h2>
-              <div data-i18n="el.hint" class="muted">Add or remove target languages mid-session. Existing participants stay connected; new translations apply on the next transcript line.</div>
-            </div>
-            <button id="saveLiveLanguagesBtn" class="btn btn-primary" type="button" data-i18n="btn.saveLanguages">Save languages</button>
+
+        <!-- SV-EVENT-LANGUAGES-UP — participants as the last Live block:
+             event + languages -> live session controls -> participants. -->
+        <div class="panel glass-panel section-stack" data-tab-for="dashTabs" data-tab="live">
+          <div class="info-card soft-card">
+            <div data-i18n="ls.participantLangs" class="label">Participant languages</div>
+            <div id="participantStatsList" class="history-list"><div class="muted" data-i18n="ls.noParticipant">No connected participant.</div></div>
           </div>
-          <div id="liveLanguagesGrid" class="checkbox-grid"></div>
-          <div id="liveLanguagesStatus" class="muted"></div>
+        </div>
+
+        <!-- SV-EVENT-LANGUAGES-UP — translation models are configuration, not a live
+             control -> Recepție tab. -->
+        <div class="panel glass-panel section-stack" data-tab-for="dashTabs" data-tab="receptie">
+          <details class="info-card accent-card">
+            <summary class="label"><span data-i18n="models.title">Modele traducere</span></summary>
+            <div class="split-2" style="margin-top:8px">
+              <div>
+                <label for="fastModelInput"><span data-i18n="models.fast">Rapid (rapid / balanced)</span></label>
+                <input id="fastModelInput" type="text" autocomplete="off" spellcheck="false" placeholder="gpt-4.1-nano">
+                <div class="muted small" id="fastModelHint"></div>
+              </div>
+              <div>
+                <label for="qualityModelInput"><span data-i18n="models.quality">Calitate (clear / interpret)</span></label>
+                <input id="qualityModelInput" type="text" autocomplete="off" spellcheck="false" placeholder="gpt-4.1-mini">
+                <div class="muted small" id="qualityModelHint"></div>
+              </div>
+            </div>
+            <div class="button-row compact-row" style="margin-top:8px">
+              <button id="saveModelsBtn" class="btn btn-primary" type="button" data-i18n="models.save">Salvează modele</button>
+              <span id="modelsStatus" class="muted small"></span>
+            </div>
+            <div class="muted small" data-i18n="models.hint">Gol = modelul implicit din server. Un model GPT-5 folosește reasoning „minimal".</div>
+          </details>
+        </div>
+
+        <!-- SV-EVENT-LANGUAGES-UP — translation monitor is diagnostics -> Recepție tab. -->
+        <div class="panel glass-panel section-stack" data-tab-for="dashTabs" data-tab="receptie">
+          <div class="info-card soft-card translation-monitor-card">
+            <div data-i18n="ls.transMonitor" class="label">Translation monitor</div>
+            <div class="monitor-grid">
+              <div><span class="muted" data-i18n="mon.latency">Latency</span><strong id="monitorLatency">-</strong></div>
+              <div><span class="muted" data-i18n="mon.pending">Pending</span><strong id="monitorPending">0</strong></div>
+              <div><span class="muted" data-i18n="mon.lastDelivered">Last delivered</span><strong id="monitorDelivered">-</strong></div>
+              <div><span class="muted" data-i18n="mon.whisperDrops">Whisper drops</span><strong id="monitorDrops">0</strong></div>
+            </div>
+          </div>
         </div>
 
         <div class="panel glass-panel section-stack" id="selfTestPanel" data-tab-for="dashTabs" data-tab="sistem">
