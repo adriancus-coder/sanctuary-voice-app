@@ -179,6 +179,34 @@ core pages). Other scripts: `npm run test:accounts`, `npm run test:backup`,
   re-applied on the `i18n:change` event. `participant.js` keeps its own
   ~16-language end-user strings and is out of scope for the team-page dictionary.
 
+## In-page tabs & the "visible without scrolling" rule
+
+**Rule:** on every operator page, what you act on *during the service* is visible
+without scrolling on a phone (375×812) and a tablet (1024×768); everything else is
+one tap away in a tab or a sheet. Long single-column pages become task-oriented
+in-page tabs with a sticky action bar for the page's 2–4 primary buttons.
+
+- **`public/page-tabs.js`** is the shared component (see `docs/NAVIGATION.md`). A
+  sticky segmented tab bar rendered from a declarative `data-tabs` config; each tab
+  groups one or more existing sections via `data-tab-for`/`data-tab`; content
+  shows/hides (nothing moved or duplicated). The active tab lives in the URL hash
+  (`#barId=tabId`) and is remembered per bar per device; keyboard ←/→/Home/End;
+  `PageTabs.setBadge(barId, tabId, text)` for counts. Labels localise via
+  `data-i18n` on both i18n engines.
+- **Sticky action bar** (`.sticky-actions [data-sticky-actions]`): pinned above the
+  app bar on phones/tablets (wraps 2-per-row so labels never overflow), inside the
+  content column on wide screens; the component measures its height into
+  `--sticky-actions-h` so content keeps a bottom padding and is never covered.
+- Where the panels carry their own gating (remote's permission-gated sections,
+  worship's role-gated modes), wrap them in a tab **container** (`data-tab-for` on
+  the wrapper) or keep the page's own switcher as the authority and only restyle it
+  — page-tabs toggles the container/visual, the page keeps its gating. Never let two
+  mechanisms toggle the same element's `hidden`.
+- Used by: admin dashboard (Live/Recepție/Transcript/Sistem), `/worship`
+  (Program/Live/Roluri), `/remote` (Ecran/Cântări). Layout only — tabs never change
+  socket, `/mode`, projector or participant behaviour. Assert an id/label inventory
+  before/after so no control is lost.
+
 ## Accounts & roles
 
 - Users live in `sessions.json` as `db.users[]` and sessions as
