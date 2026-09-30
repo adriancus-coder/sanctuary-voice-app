@@ -152,3 +152,42 @@ Fisierul `render.yaml` poate ramane in proiect, dar nu este obligatoriu daca dep
 - actiunile de administrare folosesc `adminCode`
 - participant audio foloseste browser speech synthesis
 - daca OpenAI nu este configurat, aplicatia poate rula in mod fallback pentru test de UI
+
+## Conturi și roluri (facelift 2026)
+
+Echipa se autentifică acum cu **conturi** (email + parolă), nu doar cu PIN-uri.
+
+- Prima configurare: deschide `/setup` (apare doar cât timp nu există niciun
+  cont) și folosește `MASTER_ADMIN_PIN` ca token de configurare. Creezi contul de
+  **proprietar** (owner), numele bisericii și parola. După aceea `/setup` dispare.
+- Autentificare: `/login`. Cookie `sv_sid` (HttpOnly, Secure în producție), 12h
+  sau 30 de zile cu „Ține-mă minte". Schimbarea parolei: `/change-password`.
+- Roluri: `owner` (tot), `operator` (traducere), `presenter` / `leader`
+  (worship), `member`. Proprietarul creează și gestionează conturile din
+  **Mai mult → Echipa** (`/team`): adaugă persoane (parolă temporară afișată o
+  singură dată), schimbă rolul, dezactivează/reactivează, resetează parola.
+- Gărzi: `/admin` = doar owner; `/operator-dashboard` și `/remote` = owner sau
+  operator; worship pentru echipă = owner/presenter/leader (fără cod). Codurile
+  de rol pentru **spectatori**, linkul `worship-view` și fluxul `participant`
+  rămân neschimbate.
+- **PIN de urgență:** după crearea proprietarului, `MASTER_ADMIN_PIN` mai
+  funcționează ca login de urgență **30 de zile** (din `accountsSetupAt`,
+  logat cu avertisment), apoi este ignorat — doar conturi.
+
+## Backup automat (S3)
+
+Setează variabilele `BACKUP_S3_*` (Cloudflare R2 / Backblaze B2 / S3) pentru un
+backup nocturn al `sessions.json` (14 zilnice + 8 săptămânale, SigV4 propriu, fără
+SDK). Detalii în `docs/BACKUP.md`. Variabile: `BACKUP_S3_ENDPOINT`,
+`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`,
+`BACKUP_S3_REGION` (implicit `auto`), `BACKUP_S3_PREFIX`, `BACKUP_HOUR_UTC`
+(implicit 3). Vezi și `docs/OPERATIONS.md` pentru `/api/health`, loguri și
+monitorizare uptime.
+
+## Dezvoltare
+
+`npm run setup-hooks` o dată, apoi `npm run check` înainte de fiecare commit
+(sintaxă + lint + paritate i18n + contrast WCAG + teste conturi + smoke de
+pornire). ESLint/Prettier se aplică doar fișierelor noi/atinse; nu reformata tot
+repo-ul. `main` = producție, `dev` = staging; fiecare commit trebuie să fie
+gata de serviciu live.

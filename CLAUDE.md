@@ -117,3 +117,104 @@ Required: `OPENAI_API_KEY` (without it, the app runs in fallback UI-only mode �
 ## Deployment
 
 Render Web Service: build `npm install`, start `npm start`, health check `/api/health`. `render.yaml` is committed but not required if deploying via the Render UI.
+
+---
+
+# Facelift, accounts & i18n (2026)
+
+This section documents the work layered on top of the original app during the
+2026 facelift. It is authoritative for anything below.
+
+## Workflow & hard rules
+
+- **`dev` is staging, `main` is production.** Render serves `main`; `dev` is
+  deployed to a staging URL and promoted to `main` only after testing. Develop
+  on `dev`. Never merge automatically, never rewrite history, always keep a
+  remote backup branch before large work.
+- **Every commit must be service-ready** — no half states, no feature flags that
+  leave the app broken. `npm run check` must pass before every commit (the
+  pre-commit hook in `.githooks/pre-commit` enforces it; `npm run setup-hooks`
+  wires it up).
+- **Do not touch** the socket protocol / event model, the STT/translation
+  pipeline, `/mode` and `/display/mode` semantics, the projector page
+  (`translate.html`), the two spectator surfaces (`/worship` with a role code
+  and the anonymous `worship-view` link/QR), or the `participant.html` flow.
+  `sessions.json` changes are **additive keys only**.
+
+## `npm run check`
+
+Runs, in order: `check-syntax.js` (node --check on every .js), `eslint .`
+(flat config; existing files grandfathered in `.eslint-grandfathered.json` —
+**never do a repo-wide reformat**, only new/touched files are linted),
+`check-i18n.js` (ro/en parity for `admin-i18n.js` + full ro/en/no parity for
+`i18n-dict.js`), `check-contrast.js` (WCAG AA of the theme tokens in both
+themes), `test-accounts.js` (accounts + guards, unit + integration against a
+synthetic store), and `smoke-boot.js` (boots on a temp DATA_DIR, curls the
+core pages). Other scripts: `npm run test:accounts`, `npm run test:backup`,
+`npm run format` (Prettier).
+
+## Theme & UI rules
+
+- Colours come only from CSS tokens in `styles.css` `:root` (dark, default) and
+  `:root[data-theme="light"]`. `public/theme.js` applies dark by default and
+  resolves `auto` via `prefers-color-scheme` (stored in localStorage
+  `sv-theme-pref`). The admin console is additionally themed by
+  `cathedral-theme.css` through `--ct-*` tokens, which are remapped for light.
+  The projector and worship-view keep their own `display-theme-*` classes.
+- **Actions vs. selection never look alike.** One primary action per area
+  (accent fill). Selection controls carry `aria-pressed` / `aria-selected` in a
+  visible group and the selected one gets accent fill + a check mark + bold.
+  44px touch targets. Quiet delete (`.delete-link`), not red boxes. New
+  text/background pairs go into `check-contrast.js`.
+
+## Shell & i18n
+
+- `public/shell.js` (`<body data-shell="home|events|songs|translate">`) renders
+  the cross-page bottom bar (phones) / left rail (≥900px) + a "Mai mult" sheet
+  (language, theme, screens, Echipa for the owner, sign out). Full-screen work
+  pages use `data-shell="exit"`.
+- i18n: `admin-i18n.js` (admin, `window.adminI18n`), and `i18n.js` +
+  `i18n-dict.js` (`window.I18N`) for the team pages (landing,
+  operator-dashboard; worship/remote in progress) — ro/en/no, same LS key,
+  re-applied on the `i18n:change` event. `participant.js` keeps its own
+  ~16-language end-user strings and is out of scope for the team-page dictionary.
+
+## Accounts & roles
+
+- Users live in `sessions.json` as `db.users[]` and sessions as
+  `db.authSessions[]` (both default to empty; old stores load unchanged).
+  Passwords are scrypt (`scrypt$salt$hash`). `lib/accounts.js` holds the logic;
+  `routes/accounts.js` the endpoints.
+- **Roles:** `owner` (manages everything, created at setup), `operator`
+  (translation console), `presenter` / `leader` (worship team), `member`.
+- **Setup:** `/setup` is shown only while `db.users` is empty and uses the
+  existing `MASTER_ADMIN_PIN` as the setup token (no new env var). It creates
+  the owner, sets the church name, and records `db.accountsSetupAt`.
+- **Login / session:** `/login` → `POST /api/auth/login`, cookie `sv_sid`
+  (HttpOnly, SameSite=Lax, Secure in prod), 12h / 30d with "remember me". Login
+  rate-limited 5/15min. `/change-password`, `must_change_password` for
+  owner-issued temporary passwords.
+- **Guards:** `/admin` and admin APIs → owner only. `/operator-dashboard` and
+  `/remote` → owner or operator. Worship team access (`/api/auth/worship`) is
+  granted to a signed-in owner/presenter/leader with no code; **spectator role
+  codes, the worship-view link and the participant flow are untouched**.
+- **Emergency admin PIN window:** after the first owner is created,
+  `MASTER_ADMIN_PIN` keeps working as an emergency admin login for **30 days
+  from `db.accountsSetupAt`** (each use logged with a warning), then it is
+  ignored — accounts only. Same window gates the global `WORSHIP_PIN`.
+- **Team page:** `/team` (owner only) — create people (temporary password shown
+  once), change role, deactivate/reactivate, reset password; never the owner or
+  self. Reachable from the shell's "Mai mult" sheet (owner only).
+
+## Home
+
+`/` serves a role-aware "Acum" home to signed-in users (live/next event + one
+primary action per role) and the landing page to anonymous visitors.
+
+## Ops & backup
+
+- `/api/health` reports version, uptime, `dbFile`, `diskFreePercent`, feature
+  booleans, and `autoBackup`. Structured JSON request logs + `x-request-id`.
+  See `docs/OPERATIONS.md`.
+- Nightly S3-compatible backup (`lib/backup.js`, in-house SigV4) when
+  `BACKUP_S3_*` env vars are set; 14 daily + 8 weekly. See `docs/BACKUP.md`.
