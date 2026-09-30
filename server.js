@@ -44,6 +44,7 @@ const { registerAdminRoutes } = require('./routes/admin');
 const { registerOrgRoutes } = require('./routes/org');
 const { registerEventRoutes } = require('./routes/events');
 const { registerSocketHandlers } = require('./socket/handlers');
+const { registerAccountsRoutes } = require('./routes/accounts');
 const { importFromUrl, searchResurseCrestineSongs } = require('./routes/admin-import');
 require('dotenv').config();
 
@@ -6632,6 +6633,16 @@ app.post('/api/operator/join', (req, res) => {
     ok: true,
     redirectUrl: `/remote?event=${encodeURIComponent(event.id)}`
   });
+});
+
+// SV-ACCOUNTS-STORE — auth endpoints (additive; PIN flows still active).
+app.locals.accountsApi = registerAccountsRoutes(app, {
+  db,
+  saveDb,
+  logger,
+  parseCookies,
+  getCookieSecureFlag,
+  publicDir: path.join(__dirname, 'public'),
 });
 
 registerOrgRoutes(app, {

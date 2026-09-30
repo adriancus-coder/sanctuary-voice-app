@@ -8563,3 +8563,46 @@ body.shell-locked {
   background: transparent;
   border-color: var(--border);
 }
+
+/* ============================================================
+   SV-ACCOUNTS — auth pages (change-password, setup, login).
+   ============================================================ */
+.auth-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 18px);
+  box-shadow: var(--shadow-lg);
+  padding: 28px 24px;
+}
+.auth-title {
+  margin: 6px 0 6px;
+  font-size: 1.5rem;
+}
+.auth-desc {
+  color: var(--text-muted);
+  margin: 0 0 18px;
+  font-size: 0.95rem;
+}
+.auth-card label {
+  margin-top: 12px;
+}
+.auth-error {
+  color: var(--error);
+  font-size: 0.9rem;
+  min-height: 1.2em;
+  margin: 10px 0;
+}
+.auth-card .btn-full {
+  width: 100%;
+  margin-top: 16px;
+}
