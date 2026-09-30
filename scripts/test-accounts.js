@@ -487,6 +487,68 @@ async function emergencyAndOperatorTests() {
       });
       assert.strictEqual(r.status, 403, `expected 403, got ${r.status}`);
     });
+    // SV-ACCOUNTS-GUARDS: worship team access via account, no WORSHIP_PIN/role
+    // codes configured on this server. The account block must run BEFORE the
+    // 503 "not configured" guard (gap #1).
+    let ownerCookie = '';
+    await test('owner login (for worship)', async () => {
+      const r = await fetch(`${base}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'owner@church.org', password: 'parola-lunga-1' }),
+      });
+      assert.strictEqual(r.status, 200);
+      ownerCookie = getCookie(r);
+      assert.ok(ownerCookie);
+    });
+    let worshipCookie = '';
+    await test('worship: owner account joins without PIN (master)', async () => {
+      const r = await fetch(`${base}/api/auth/worship`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: ownerCookie },
+        body: JSON.stringify({}),
+      });
+      assert.strictEqual(r.status, 200, `expected 200, got ${r.status}`);
+      const j = await r.json();
+      assert.strictEqual(j.ok, true);
+      assert.strictEqual(j.worshipMaster, true, 'owner is worship master');
+      const sc = r.headers.get('set-cookie') || '';
+      const m = sc.match(/sv_worship_session=([^;]+)/);
+      worshipCookie = m ? 'sv_worship_session=' + m[1] : '';
+      assert.ok(worshipCookie, 'worship session cookie set');
+    });
+    await test('worship: session honored on API without WORSHIP_PIN', async () => {
+      // The real fix: worship API calls must accept a valid (server-signed)
+      // worship cookie even when no WORSHIP_PIN is configured.
+      const r = await fetch(`${base}/api/worship/events?mode=live`, {
+        headers: { Cookie: worshipCookie },
+      });
+      assert.strictEqual(r.status, 200, `expected 200, got ${r.status}`);
+      const j = await r.json();
+      assert.strictEqual(j.ok, true);
+    });
+    await test('worship: API without a session -> 401 (not 503) when accounts exist', async () => {
+      const r = await fetch(`${base}/api/worship/events?mode=live`);
+      assert.strictEqual(r.status, 401, `expected 401, got ${r.status}`);
+    });
+    await test('worship: operator account is not a worship role -> 503', async () => {
+      // operator is not in [owner, presenter, leader]; with no PIN/role codes
+      // configured the server falls through to the not-configured guard.
+      const r = await fetch(`${base}/api/auth/worship`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: opCookie },
+        body: JSON.stringify({}),
+      });
+      assert.strictEqual(r.status, 503, `expected 503, got ${r.status}`);
+    });
+    await test('worship: anonymous with no config -> 503', async () => {
+      const r = await fetch(`${base}/api/auth/worship`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      assert.strictEqual(r.status, 503, `expected 503, got ${r.status}`);
+    });
   } finally {
     srv.kill('SIGTERM');
   }

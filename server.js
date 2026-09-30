@@ -653,6 +653,24 @@ function getAccountUser(req) {
 function accountsExist() {
   return accountsLib.anyUsers(db);
 }
+// SV-ACCOUNTS-GUARDS — resolve event-control access from a socket's account
+// cookie (owner -> admin, operator -> screen), so team accounts control events
+// without a per-event code. Returns null for other roles / no account.
+function accountSocketAccess(socket) {
+  try {
+    const raw = socket && socket.handshake && socket.handshake.headers && socket.handshake.headers.cookie;
+    if (!raw) return null;
+    const m = /(?:^|;\s*)sv_sid=([^;]+)/.exec(raw);
+    if (!m) return null;
+    const user = accountsLib.getSessionUser(db, decodeURIComponent(m[1]));
+    if (!user) return null;
+    if (user.role === 'owner') return { role: 'admin', permissions: ['main_screen', 'song', 'glossary'] };
+    if (user.role === 'operator') return { role: 'screen', permissions: ['main_screen', 'song'] };
+    return null;
+  } catch {
+    return null;
+  }
+}
 // MASTER_ADMIN_PIN keeps working as an emergency admin login for 30 days after
 // the first owner is created (db.accountsSetupAt), then it is ignored — accounts
 // only. Before setup it works normally (bootstrap).
@@ -5513,24 +5531,34 @@ function clearWorshipSessionCookie(req, res) {
 }
 
 // Pure check — returns the verified worship session or null, no response/side effects.
+// SV-ACCOUNTS-GUARDS: worship access is available when a global PIN, role codes,
+// or team accounts exist. In accounts-only mode WORSHIP_PIN is unset, so it must
+// NOT gate whether a (server-signed) worship session is honored.
+function worshipAccessConfigured() {
+  if (WORSHIP_PIN) return true;
+  const roles = Array.isArray(db.worshipRoles) ? db.worshipRoles : [];
+  if (roles.some((r) => r && r.code)) return true;
+  return accountsExist();
+}
+
 function tryWorshipSession(req) {
-  if (!WORSHIP_PIN) return null;
+  // A worship session cookie is HMAC-signed with ADMIN_SESSION_SECRET and can
+  // only be minted by /api/auth/worship (which itself requires an account, the
+  // global PIN, or a role code). Honor a valid cookie regardless of WORSHIP_PIN.
   const cookies = parseCookies(req);
   return verifyWorshipSession(cookies[WORSHIP_SESSION_COOKIE]) || null;
 }
 
 // Returns the verified worship session, or null after sending an error response.
 function requireWorshipApiSession(req, res) {
-  if (!WORSHIP_PIN) {
+  const session = tryWorshipSession(req);
+  if (session) return session;
+  if (!worshipAccessConfigured()) {
     res.status(503).json({ ok: false, error: 'Worship role not configured on this server.' });
     return null;
   }
-  const session = tryWorshipSession(req);
-  if (!session) {
-    res.status(401).json({ ok: false, error: 'Worship login required.' });
-    return null;
-  }
-  return session;
+  res.status(401).json({ ok: false, error: 'Worship login required.' });
+  return null;
 }
 
 // V21.3: verify a worship session from a Socket.IO handshake cookie (the
@@ -5717,21 +5745,16 @@ app.post('/api/auth/worship', (req, res) => {
   if (!rateCheck.allowed) {
     return res.status(429).json({ ok: false, error: `Too many attempts. Try again in ${rateCheck.retryAfter}s.` });
   }
-  // WORSHIP-ROLES-2: dacă NU e configurat nici PIN global, nici coduri de rol → 503.
-  // Altfel, login-ul merge prin PIN global (păstrat ca plasă de siguranță) SAU prin codul unui rol.
   const roles = Array.isArray(db.worshipRoles) ? db.worshipRoles : [];
   const hasRoleCodes = roles.some((r) => r && r.code);
-  if (!WORSHIP_PIN && !hasRoleCodes) {
-    logger.warn('[worship/login] Nor WORSHIP_PIN nor role codes configured');
-    return res.status(503).json({ ok: false, error: 'Worship role not configured on this server.' });
-  }
   const pin = String(req.body?.pin || '').trim();
   let roleInfo = null;   // null = membru de bază
   let isMaster = false;   // WORSHIP-PIN-MASTER — PIN global = cheia de maestru
   let authed = false;
   // SV-ACCOUNTS-GUARDS — (a0) a signed-in team account (owner/presenter/leader)
-  // gets worship team access with no code. owner = master (manages roles too);
-  // presenter/leader get lead + program-prep. Spectator role codes are untouched.
+  // gets worship team access with no code, even if the server has no WORSHIP_PIN
+  // or role codes configured. owner = master (manages roles too); presenter/
+  // leader get lead + program-prep. Spectator role codes are untouched.
   const worshipAcctUser = getAccountUser(req);
   if (worshipAcctUser && ['owner', 'presenter', 'leader'].includes(worshipAcctUser.role)) {
     authed = true;
@@ -5742,6 +5765,11 @@ app.post('/api/auth/worship', (req, res) => {
       canAdmin: true,
       canManageRoles: worshipAcctUser.role === 'owner'
     };
+  }
+  // Without an account, worship still needs a global PIN or role codes.
+  if (!authed && !WORSHIP_PIN && !hasRoleCodes) {
+    logger.warn('[worship/login] Nor WORSHIP_PIN nor role codes configured');
+    return res.status(503).json({ ok: false, error: 'Worship role not configured on this server.' });
   }
   // (a) PIN global — emergency master key, only within the 30-day account window.
   if (!authed && WORSHIP_PIN && pin && emergencyPinActive() && safeStringEqual(pin, WORSHIP_PIN)) {
@@ -6868,6 +6896,7 @@ registerSocketHandlers(io, {
   recordTranscriptRefresh,
   registerParticipantSocket,
   resolveEventAccessFromCode,
+  accountSocketAccess,
   retranslateEntry,
   saveDb,
   setTranscriptionPaused,

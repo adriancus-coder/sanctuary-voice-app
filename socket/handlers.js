@@ -25,6 +25,7 @@ function registerSocketHandlers(io, ctx) {
     recordTranscriptRefresh,
     registerParticipantSocket,
     resolveEventAccessFromCode,
+    accountSocketAccess,
     retranslateEntry,
     saveDb,
     setTranscriptionPaused,
@@ -511,7 +512,15 @@ function registerSocketHandlers(io, ctx) {
       if (!eventId) return socket.emit('join_error', { message: 'Evenimentul nu există.' });
       const event = db.events[eventId];
       if (!event) return socket.emit('join_error', { message: 'Evenimentul nu există.' });
-      const access = resolveEventAccessFromCode(event, code);
+      let access = resolveEventAccessFromCode(event, code);
+      // SV-ACCOUNTS-GUARDS: account holders (owner/operator) join team roles
+      // without an event access code. Falls back only when the code did not
+      // already grant admin/screen — spectator role codes and the anonymous
+      // worship-view/participant flows are untouched.
+      if ((!access || access.role === 'participant' || access.role === 'none') && typeof accountSocketAccess === 'function') {
+        const acct = accountSocketAccess(socket);
+        if (acct) access = acct;
+      }
       if (role === 'admin' && access.role !== 'admin') return socket.emit('join_error', { message: 'Cod Admin invalid.' });
       if (role === 'screen' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });
       if (role === 'participant_preview' && !['admin', 'screen'].includes(access.role)) return socket.emit('join_error', { message: 'Cod operator invalid.' });

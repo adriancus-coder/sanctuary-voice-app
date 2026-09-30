@@ -980,6 +980,26 @@ async function del(path) {
   return data;
 }
 
+// SV-ACCOUNTS-GUARDS: true when the current browser session belongs to an
+// owner/operator account, so /remote can join the socket without a code prompt.
+let _teamAccountCache;
+async function hasTeamAccount() {
+  if (typeof _teamAccountCache === 'boolean') return _teamAccountCache;
+  try {
+    const res = await fetch('/api/auth/me', { headers: { Accept: 'application/json' } });
+    if (!res.ok) {
+      _teamAccountCache = false;
+      return false;
+    }
+    const me = await res.json();
+    const role = me && me.user && me.user.role;
+    _teamAccountCache = role === 'owner' || role === 'operator';
+  } catch {
+    _teamAccountCache = false;
+  }
+  return _teamAccountCache;
+}
+
 async function join() {
   const eventId = await resolveRemoteEventId();
   if (!eventId) {
@@ -990,6 +1010,16 @@ async function join() {
     return;
   }
   state.eventId = eventId;
+  // SV-ACCOUNTS-GUARDS: owner/operator account holders join without a code —
+  // the server resolves their session cookie via accountSocketAccess.
+  if (!state.accessCode && (await hasTeamAccount())) {
+    socket.emit('join_event', {
+      eventId: state.eventId,
+      role: 'screen',
+      code: ''
+    });
+    return;
+  }
   if (!state.accessCode) {
     state.accessCode = await askForCode('Enter moderator code or PIN:');
   }
