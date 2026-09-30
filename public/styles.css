@@ -8727,3 +8727,126 @@ body.shell-locked {
 .home-cta { margin-top: 18px; width: 100%; }
 .home-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
 .home-link { flex: 1 1 auto; text-align: center; }
+
+/* ===== SV-LIBRARY-RESULTS — song search results, header "⋯" menu, preview sheet ===== */
+/* Header row: the library label + a "⋯" menu; the search bar below stands alone. */
+.library-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.library-head .library-search-label { margin: 0; }
+
+/* "⋯" overflow menu (library backup: export / import) */
+.menu { position: relative; }
+.menu-button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 1.375rem;
+  line-height: 1;
+}
+.menu-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+.menu-list[hidden] { display: none; }
+.menu-item {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-item:hover,
+.menu-item:focus-visible { background: var(--surface-2); }
+
+/* Sticky-headed result sections inside one scrolling pane */
+.unified-search.list-pane { --list-pane-max: 56vh; }
+.results-section { margin: 0; }
+.results-section + .results-section { margin-top: 4px; }
+.results-head { margin: 0; padding: 6px 0 8px; }
+.results-heading {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.results-count { font-weight: 600; letter-spacing: 0; }
+
+/* "Există deja" state on an online result row */
+.row-state { font-size: 0.875rem; font-weight: 600; color: var(--text-muted); }
+.row-state.success { color: var(--success); }
+
+/* Preview of an online song: dialog on wide screens, bottom sheet on phones. */
+.preview-dialog {
+  width: min(720px, calc(100vw - 24px));
+  max-height: 85vh;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+}
+.preview-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+.preview-dialog[open] { display: flex; flex-direction: column; }
+.preview-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.preview-dialog-title { min-width: 0; }
+.preview-dialog h2 { margin: 0 0 2px; font-size: 1.3rem; overflow-wrap: anywhere; }
+.preview-kicker { margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.preview-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 20px;
+}
+.preview-dialog-body .library-preview-text { white-space: pre-wrap; margin: 0; }
+.preview-dialog-foot {
+  padding: 10px 20px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+}
+.preview-dialog-foot .library-card-actions { margin: 0; }
+.preview-close-x { flex: none; min-width: 40px; min-height: 40px; padding: 0; }
+
+@media (max-width: 599px) {
+  dialog.preview-dialog {
+    width: 100%;
+    max-width: 100%;
+    margin: auto 0 0;
+    border-radius: 18px 18px 0 0;
+    border-bottom: 0;
+  }
+}
+
+/* SV-LIBRARY-RESULTS — let result rows wrap so 3 actions fit at 375px. */
+.import-result-row { flex-wrap: wrap; }
+.import-result-actions { flex-wrap: wrap; }

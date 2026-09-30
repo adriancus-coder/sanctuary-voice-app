@@ -88,6 +88,18 @@ function langLabel(code) {
   return availableLanguages[code] || code.toUpperCase();
 }
 
+// SV-LIBRARY-RESULTS — read a translated admin string in JS-rendered markup,
+// falling back to a Romanian default when the dictionary is unavailable.
+function adminT(key, fallback) {
+  try {
+    const lang = window.adminI18n && window.adminI18n.get ? window.adminI18n.get() : 'ro';
+    const dict = window.adminI18n && window.adminI18n.dict ? window.adminI18n.dict : null;
+    return (dict && dict[lang] && dict[lang][key]) || fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
 // V11.17: local state for Create Event target language selection (source of truth for chips + dropdown)
 let selectedTargetLangs = ['no', 'en'];
 
@@ -2083,6 +2095,8 @@ function renderGlobalSongLibrary(items = []) {
   const box = $('globalSongLibraryList');
   if (!box) return;
   const filteredItems = filterAndSortLibrary(items, 'globalSongLibrarySearch', 'globalSongLibrarySort');
+  const countEl = $('globalSongLibraryCount');
+  if (countEl) countEl.textContent = filteredItems.length ? `(${filteredItems.length})` : '';
   if (!filteredItems.length) {
     box.innerHTML = '<div class="muted">No church songs saved yet.</div>';
     return;
@@ -5388,19 +5402,30 @@ $('importUrlBtn')?.addEventListener('click', async () => {
       }
       status.textContent = `${data.results.length} rezultate pentru "${value}":`;
       status.style.color = '#0c0';
+      const onlineCountEl = $('importUrlCount');
+      if (onlineCountEl) onlineCountEl.textContent = `(${data.results.length})`;
       if (resultsEl) {
-        resultsEl.innerHTML = data.results.map((item) => `
-          <div class="import-result-row" style="display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.08);">
-            <div style="flex: 1; min-width: 0;">
+        // SV-LIBRARY-RESULTS — a result already in the church library shows
+        // "Există deja" + a link to it (no Import); others get Preview / Import /
+        // Editor. Dedup is the existing client-side title match (no logic change).
+        resultsEl.innerHTML = data.results.map((item) => {
+          const dup = findDuplicateLibrarySong(item.title);
+          const meta = `<div class="import-result-meta">
               <div style="font-weight: 600;">${escapeHtml(item.title)}</div>
               <div class="muted small">${escapeHtml(item.author || 'Anonim')}</div>
-            </div>
-            <div class="import-result-actions">
-              <button class="btn btn-primary" type="button" data-import-result-url="${escapeHtml(item.url)}">Import</button>
-              <button class="btn btn-dark" type="button" data-import-editor-url="${escapeHtml(item.url)}">✎ Editor</button>
-            </div>
-          </div>
-        `).join('');
+            </div>`;
+          const actions = dup
+            ? `<div class="import-result-actions">
+                 <span class="row-state">${escapeHtml(adminT('online.exists', 'Există deja'))}</span>
+                 <button class="btn btn-dark" type="button" data-open-library-id="${escapeHtml(dup.id)}">${escapeHtml(adminT('online.open', 'Deschide'))}</button>
+               </div>`
+            : `<div class="import-result-actions">
+                 <button class="btn btn-dark" type="button" data-preview-url="${escapeHtml(item.url)}" data-preview-title="${escapeHtml(item.title)}" data-preview-author="${escapeHtml(item.author || '')}">${escapeHtml(adminT('online.preview', 'Previzualizare'))}</button>
+                 <button class="btn btn-primary" type="button" data-import-result-url="${escapeHtml(item.url)}">${escapeHtml(adminT('online.import', 'Importă'))}</button>
+                 <button class="btn btn-dark" type="button" data-import-editor-url="${escapeHtml(item.url)}">✎ ${escapeHtml(adminT('online.editor', 'Editor'))}</button>
+               </div>`;
+          return `<div class="import-result-row">${meta}${actions}</div>`;
+        }).join('');
       }
     }
   } catch (err) {
@@ -5434,6 +5459,19 @@ $('globalSongLibrarySearch')?.addEventListener('keydown', (e) => {
 $('importUrlResults')?.addEventListener('click', async (e) => {
   const status = $('importUrlStatus');
   const resultsEl = $('importUrlResults');
+
+  // SV-LIBRARY-RESULTS — "Deschide" jumps to the existing library card.
+  const openBtn = e.target.closest('[data-open-library-id]');
+  if (openBtn) {
+    openLibraryCard(openBtn.dataset.openLibraryId);
+    return;
+  }
+  // SV-LIBRARY-RESULTS — "Previzualizare" opens the online song in a sheet/dialog.
+  const previewBtn = e.target.closest('[data-preview-url]');
+  if (previewBtn) {
+    openOnlinePreview(previewBtn.dataset.previewUrl, previewBtn.dataset.previewTitle || '', previewBtn.dataset.previewAuthor || '');
+    return;
+  }
 
   const editorBtn = e.target.closest('[data-import-editor-url]');
   if (editorBtn) {
@@ -5495,6 +5533,111 @@ document.querySelectorAll('[data-edit-verse-close]').forEach((el) => {
 $('exportLibraryBtn')?.addEventListener('click', exportLibrary);
 $('importLibraryBtn')?.addEventListener('click', () => $('importLibraryFile')?.click());
 $('importLibraryFile')?.addEventListener('change', handleImportLibraryFile);
+
+// SV-LIBRARY-RESULTS — "⋯" header menu holding library export/import.
+(function wireLibraryMenu() {
+  const menu = $('libraryMenu');
+  const button = $('libraryMenuButton');
+  const list = $('libraryMenuList');
+  if (!menu || !button || !list) return;
+  const openMenu = (value) => {
+    list.hidden = !value;
+    button.setAttribute('aria-expanded', String(value));
+    if (value) list.querySelector('button, a')?.focus();
+  };
+  button.addEventListener('click', () => openMenu(list.hidden));
+  // A click on an action closes the menu (the action's own listener still runs).
+  list.addEventListener('click', () => openMenu(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !list.hidden) { openMenu(false); button.focus(); }
+  });
+  document.addEventListener('pointerdown', (e) => {
+    if (!list.hidden && !menu.contains(e.target)) openMenu(false);
+  });
+})();
+
+// SV-LIBRARY-RESULTS — expand + scroll to the library card for a given song id.
+// Used by the "Deschide" link on an online result that already exists.
+function openLibraryCard(songId) {
+  if (!songId) return;
+  const dropdown = $('globalLibraryResultsDropdown');
+  if (dropdown) dropdown.open = true;
+  const reveal = () => {
+    const btn = document.querySelector(`[data-global-song-id="${songId}"]`);
+    const card = btn ? btn.closest('.library-card-details') : null;
+    if (card) {
+      card.open = true;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return true;
+    }
+    return false;
+  };
+  if (reveal()) return;
+  // Card filtered out by the current search — clear the filter, re-render, retry.
+  const searchEl = $('globalSongLibrarySearch');
+  if (searchEl) searchEl.value = '';
+  renderGlobalSongLibrary(currentGlobalSongLibrary);
+  setTimeout(reveal, 0);
+}
+
+// SV-LIBRARY-RESULTS — preview an online (resurse) song before import.
+// Fetches via /api/songs/import-url (server-side read-only; it does NOT save)
+// and shows it in the dialog/sheet; "Importă" runs the existing import+save.
+let onlinePreviewUrl = '';
+async function openOnlinePreview(url, title, author) {
+  const dialog = $('onlinePreviewDialog');
+  if (!dialog || !url) return;
+  onlinePreviewUrl = url;
+  $('onlinePreviewTitle').textContent = title || '';
+  $('onlinePreviewMeta').textContent = author || '';
+  $('onlinePreviewText').textContent = '';
+  $('onlinePreviewMessage').textContent = adminT('online.loading', 'Se încarcă...');
+  const importBtn = $('onlinePreviewImport');
+  if (importBtn) importBtn.disabled = true;
+  if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
+  try {
+    const res = await fetch('/api/songs/import-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Preview failed');
+    $('onlinePreviewTitle').textContent = data.song.title || title || '';
+    $('onlinePreviewText').textContent = data.song.text || '';
+    $('onlinePreviewMessage').textContent = '';
+    if (importBtn) importBtn.disabled = false;
+  } catch (err) {
+    $('onlinePreviewMessage').textContent = `${adminT('online.previewError', 'Nu s-a putut încărca')}: ${err.message}`;
+  }
+}
+
+(function wireOnlinePreview() {
+  const dialog = $('onlinePreviewDialog');
+  if (!dialog) return;
+  const close = () => { try { dialog.close(); } catch (_) {} };
+  $('onlinePreviewClose')?.addEventListener('click', close);
+  $('onlinePreviewCloseX')?.addEventListener('click', close);
+  // Tap on the dimmed backdrop closes the sheet.
+  dialog.addEventListener('click', (e) => { if (e.target === dialog) close(); });
+  $('onlinePreviewImport')?.addEventListener('click', async () => {
+    if (!onlinePreviewUrl) return;
+    const btn = $('onlinePreviewImport');
+    const status = $('importUrlStatus');
+    btn.disabled = true;
+    $('onlinePreviewMessage').textContent = adminT('online.importing', 'Se importă...');
+    try {
+      const song = await importSongFromUrl(onlinePreviewUrl);
+      await saveSongToLibrary();
+      if (status) { status.textContent = `Salvat în Library: "${song.title}"`; status.style.color = '#0c0'; }
+      close();
+    } catch (err) {
+      if (err.cancelled) $('onlinePreviewMessage').textContent = err.message;
+      else $('onlinePreviewMessage').textContent = `${adminT('online.previewError', 'Nu s-a putut încărca')}: ${err.message}`;
+      btn.disabled = false;
+    }
+  });
+})();
 
 $('globalSongLibraryList').addEventListener('click', async (e) => {
   const summary = e.target.closest('.library-card-summary');

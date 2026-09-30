@@ -796,12 +796,24 @@
           <div class="panel glass-panel section-stack">
             <!-- WORSHIP-ADMIN-LIBRARY-COLLAPSE — search bar mereu vizibil (afară din <details>);
                  doar rezultatele sunt în dropdown-ul colapsat. Auto-deschis la tastare (vezi app.js). -->
-            <div class="library-search-bar-admin">
+            <!-- SV-LIBRARY-RESULTS — library backup (export/import) moved into a "⋯"
+                 header menu so the search stands alone at the top. -->
+            <div class="library-head">
               <div class="library-search-label">📚 <span data-i18n="song.churchLib">Church Library</span>
                 <span class="muted small" data-i18n="song.churchLibHint">Shared for all events · search resursecrestine.ro too</span>
               </div>
+              <div class="menu" id="libraryMenu">
+                <button type="button" class="btn btn-dark menu-button" id="libraryMenuButton" aria-haspopup="true" aria-expanded="false" aria-controls="libraryMenuList" data-i18n-aria="library.moreActions" aria-label="Mai multe acțiuni"><span aria-hidden="true">⋯</span></button>
+                <div class="menu-list" id="libraryMenuList" hidden>
+                  <button type="button" class="menu-item" id="exportLibraryBtn" data-i18n="btn.exportLib">⬇ Export Library</button>
+                  <button type="button" class="menu-item" id="importLibraryBtn" data-i18n="btn.importLib">⬆ Import Library</button>
+                </div>
+                <input id="importLibraryFile" type="file" accept="application/json,.json" class="hidden">
+              </div>
+            </div>
+            <div class="library-search-bar-admin">
               <div class="unified-search-input-row">
-                <input id="globalSongLibrarySearch" type="text" class="unified-search-input" data-i18n-placeholder="ph.songSearch" placeholder="Caută cântare (Library + Resurse)...">
+                <input id="globalSongLibrarySearch" type="text" class="unified-search-input" data-i18n-placeholder="ph.songSearch" placeholder="Caută cântare (Bibliotecă + Resurse)...">
                 <select id="globalSongLibrarySort">
                   <option data-i18n="opt.sortAz" value="az" selected>Title A-Z</option>
                   <option data-i18n="opt.sortZa" value="za">Title Z-A</option>
@@ -810,23 +822,23 @@
                 <button id="importUrlBtn" class="btn btn-primary unified-search-resurse-btn" type="button" data-i18n="btn.searchResurse">Caută și pe resurse</button>
               </div>
               <div id="importUrlStatus" class="muted" style="min-height: 1em;"></div>
-              <div class="library-backup-controls">
-                <button id="exportLibraryBtn" class="btn btn-dark btn-sm" type="button" data-i18n="btn.exportLib">⬇ Export Library</button>
-                <button id="importLibraryBtn" class="btn btn-dark btn-sm" type="button" data-i18n="btn.importLib">⬆ Import Library</button>
-                <input id="importLibraryFile" type="file" accept="application/json,.json" class="hidden">
-              </div>
             </div>
             <details class="library-dropdown" id="globalLibraryResultsDropdown">
               <summary class="library-dropdown-summary" data-i18n="song.results">Rezultate</summary>
-              <div class="unified-search">
-                <div class="unified-search-library-section">
-                  <div data-i18n="song.fromLibrary" class="unified-search-section-label">Din Library</div>
-                  <div id="globalSongLibraryList" class="event-list unified-search-library-results" data-list-pane="Bibliotecă cântări"></div>
-                </div>
-                <div class="unified-search-resurse-section hidden">
-                  <div class="unified-search-section-label">De pe Resurse <span class="unified-search-spinner hidden">⏳</span></div>
+              <!-- Both sections scroll together in one pane; their headings stick. -->
+              <div class="unified-search list-pane" data-list-pane="Rezultate cântări">
+                <section class="results-section pane-section unified-search-library-section">
+                  <div class="results-head pane-heading">
+                    <h3 class="results-heading"><span data-i18n="song.fromLibrary">Din bibliotecă</span> <span id="globalSongLibraryCount" class="results-count"></span></h3>
+                  </div>
+                  <div id="globalSongLibraryList" class="event-list unified-search-library-results"></div>
+                </section>
+                <section class="results-section pane-section unified-search-resurse-section hidden">
+                  <div class="results-head pane-heading">
+                    <h3 class="results-heading"><span data-i18n="song.fromResources">De pe resurse</span> <span id="importUrlCount" class="results-count"></span> <span class="unified-search-spinner hidden">⏳</span></h3>
+                  </div>
                   <div id="importUrlResults" class="import-url-results unified-search-resurse-results"></div>
-                </div>
+                </section>
               </div>
             </details>
             <div class="section-head admin-subsection-head">
@@ -843,6 +855,29 @@
             <div id="songHistoryList" class="history"></div>
           </div>
         </div>
+
+        <!-- SV-LIBRARY-RESULTS — preview of an online (resurse) song before import.
+             Dialog on wide screens, bottom sheet on phones; "Importă" lives inside. -->
+        <dialog id="onlinePreviewDialog" class="preview-dialog" aria-labelledby="onlinePreviewTitle">
+          <div class="preview-dialog-head">
+            <div class="preview-dialog-title">
+              <p class="preview-kicker muted small" data-i18n="online.previewHeading">Previzualizare — încă nesalvată</p>
+              <h2 id="onlinePreviewTitle" tabindex="-1"></h2>
+              <p id="onlinePreviewMeta" class="muted small"></p>
+            </div>
+            <button type="button" class="btn btn-dark preview-close-x" id="onlinePreviewCloseX" data-i18n-aria="online.close" aria-label="Închide">✕</button>
+          </div>
+          <div class="preview-dialog-body">
+            <pre id="onlinePreviewText" class="library-preview-text"></pre>
+          </div>
+          <div class="preview-dialog-foot">
+            <p id="onlinePreviewMessage" class="muted small"></p>
+            <div class="library-card-actions">
+              <button type="button" class="btn btn-primary" id="onlinePreviewImport" data-i18n="online.import">Importă</button>
+              <button type="button" class="btn btn-dark" id="onlinePreviewClose" data-i18n="online.close">Închide</button>
+            </div>
+          </div>
+        </dialog>
       </section>
 
       <section id="tab-glossary" class="tab-panel">
