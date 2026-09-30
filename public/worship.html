@@ -69,11 +69,14 @@
 
     <section class="worship-event-info" id="worshipEventInfo"></section>
 
-    <nav class="worship-mode-switcher" id="worshipModeSwitcher">
-      <button type="button" data-worship-mode="setlist" class="active" data-i18n="w.modeSetlist">📋 Pregătire program</button>
-      <button type="button" data-worship-mode="live" data-i18n="w.modeLive">🎵 Live</button>
+    <!-- SV-WORSHIP-TABS — the mode switcher is a sticky segmented tab bar.
+         setWorshipMode() stays the authority (role gating + live-mode side
+         effects) and now also writes the hash + remembers the tab per device. -->
+    <nav class="worship-mode-switcher page-tabs worship-tabs" id="worshipModeSwitcher" role="tablist">
+      <button type="button" role="tab" data-worship-mode="setlist" class="page-tab active" data-i18n="w.modeSetlist">📋 Pregătire program</button>
+      <button type="button" role="tab" data-worship-mode="live" class="page-tab" data-i18n="w.modeLive">🎵 Live</button>
       <!-- WORSHIP-MANAGE-ROLES — al 3-lea mod, vizibil DOAR cu canManageRoles -->
-      <button type="button" data-worship-mode="roles" id="worshipRolesModeBtn" class="hidden" data-i18n="w.modeRoles">👑 Roluri</button>
+      <button type="button" role="tab" data-worship-mode="roles" id="worshipRolesModeBtn" class="page-tab hidden" data-i18n="w.modeRoles">👑 Roluri</button>
     </nav>
 
     <section id="worshipSetlistMode" class="worship-mode-panel worship-song-panel">
@@ -166,6 +169,9 @@
         </div>
         <div id="worshipLeaderControls" class="worship-leader-controls hidden">
           <p class="small muted" data-i18n="w.leaderHint">Trimite hinturi echipei și pe proiector. Cele cu acțiune mișcă și versetul live.</p>
+          <!-- SV-WORSHIP-TABS — hints / notes / countdown collapse under a "Semnale" toggle. -->
+          <details class="worship-signals" open>
+            <summary class="worship-signals-summary"><span data-i18n="w.signals">Semnale</span></summary>
           <div class="worship-when-card">
             <div class="worship-when-label" data-i18n="w.whenApplies">Când se aplică</div>
             <div class="worship-when-options" id="worshipWhenOptions">
@@ -197,8 +203,18 @@
             <input id="worshipHintFreeInput" type="text" maxlength="200" class="worship-hint-free" placeholder="Mesaj liber pentru echipă..." data-i18n-placeholder="w.freeMsgPh">
             <button id="worshipHintFreeBtn" class="btn btn-primary btn-sm" type="button" data-i18n="w.send">Trimite</button>
           </div>
+          </details>
           <div class="worship-pending-hints" id="worshipPendingHints"></div>
         </div>
+      </div>
+
+      <!-- SV-WORSHIP-TABS — sticky action bar on Live: prev · next · repeat chorus
+           · fullscreen. Buttons proxy the existing controls (no handler moved). -->
+      <div class="sticky-actions" data-sticky-actions>
+        <button type="button" class="btn btn-dark" data-proxy-click="liveVersePrev" data-i18n="w.prevVerse">← Anterior</button>
+        <button type="button" class="btn btn-dark" data-proxy-click="liveVerseNext" data-i18n="w.nextVerse">Următor →</button>
+        <button type="button" class="btn btn-dark" data-proxy-hint="repeat_chorus" data-i18n="w.repeatRefren">🔁 Refren</button>
+        <button type="button" class="btn btn-primary" data-proxy-click="liveFullscreenBtn" data-i18n="w.fullscreen">⛶ Fullscreen</button>
       </div>
     </section>
 
@@ -281,6 +297,7 @@
   <script src="/i18n.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/worship.js"></script>
+  <script src="/page-tabs.js"></script>
   <script src="/shell.js"></script>
 </body>
 </html>

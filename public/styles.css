@@ -8922,6 +8922,11 @@ body.shell-locked {
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
   background: var(--surface);
   border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+/* Below 1024px, cap at two buttons per row so long labels never overflow. */
+@media (max-width: 1023px) {
+  .sticky-actions .btn { flex: 1 1 calc(50% - 6px); min-width: 0; }
 }
 body.has-shell .sticky-actions { left: 0; }
 @media (min-width: 900px) {
@@ -8943,3 +8948,33 @@ body:not(.has-shell) { padding-bottom: var(--sticky-actions-h, 0px); }
    (Recognition Desk + Live Session); those now live in separate in-page tabs, so
    a single column keeps each panel full-width whichever tab is active. */
 #tab-dashboard .dashboard-main-grid { grid-template-columns: 1fr; }
+
+/* SV-WORSHIP-TABS — the mode switcher reuses the segmented tab look; worship.js
+   toggles `.active` (not `.is-active`), so mirror the active style. */
+.worship-tabs.page-tabs { margin-bottom: 12px; }
+.worship-tabs .page-tab.active {
+  background: var(--accent-fill);
+  color: #1b1a1f;
+  border-color: var(--accent-fill);
+  font-weight: 800;
+}
+.worship-tabs .page-tab.active::before { content: "\2713\00a0"; }
+.worship-tabs .page-tab.hidden { display: none; }
+/* "Semnale" collapsible for hints / notes / countdown. */
+.worship-signals { margin-top: 6px; }
+.worship-signals-summary {
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-weight: 700;
+  color: var(--text);
+}
+.worship-signals-summary::-webkit-details-marker { display: none; }
+.worship-signals-summary::before { content: "▸"; }
+.worship-signals[open] > .worship-signals-summary::before { content: "▾"; }

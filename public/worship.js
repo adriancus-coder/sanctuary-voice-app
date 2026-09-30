@@ -167,6 +167,7 @@
 
   // V21.1: Live mode state
   let liveMode = 'setlist';
+  let _worshipTabRestored = false;   // SV-WORSHIP-TABS — restore the tab once
   let liveCurrentSongId = null;
   let liveCurrentVerseIndex = 0;
   // V21.22: when true, the members' screen is blanked (waiting); song/verse
@@ -319,6 +320,12 @@
         loadLibrary();
         resetLiveForEvent();
         updateWorshipSyncWarning();   // WORSHIP-FOLLOW-LIVE — fără live → niciun avertisment
+      }
+      // SV-WORSHIP-TABS — restore the remembered/hash tab once (gating applies).
+      if (!_worshipTabRestored) {
+        _worshipTabRestored = true;
+        const t = initialWorshipTab();
+        if (t && !isSpectator()) toggleMode(t);
       }
     } catch (err) {
       liveEvent = null;
@@ -1107,7 +1114,39 @@
       joinMasterRoom();
     }
     if (mode === 'roles') loadWorshipRolesManage();
+    // SV-WORSHIP-TABS — remember the tab per device + reflect it in the URL hash,
+    // and recompute the Live sticky-bar height. Only on an accepted switch.
+    try {
+      localStorage.setItem('sv-tabs:worshipTabs', mode);
+      const parts = (location.hash || '').replace(/^#/, '').split('&').filter((p) => p && !p.startsWith('worshipTabs='));
+      parts.push('worshipTabs=' + mode);
+      history.replaceState(null, '', location.pathname + location.search + '#' + parts.join('&'));
+    } catch (_) { /* ignore */ }
+    if (window.PageTabs && window.PageTabs.updateStickyOffsets) {
+      requestAnimationFrame(() => window.PageTabs.updateStickyOffsets());
+    }
   }
+
+  // SV-WORSHIP-TABS — the tab to open when the app first shows: URL hash, then the
+  // remembered tab, falling back to the current default. Role gating in toggleMode
+  // still has the final say (a forbidden tab is rejected there).
+  function initialWorshipTab() {
+    try {
+      const m = /(?:^|&|#)worshipTabs=([^&]+)/.exec(location.hash || '');
+      if (m && ['setlist', 'live', 'roles'].includes(m[1])) return m[1];
+      const saved = localStorage.getItem('sv-tabs:worshipTabs');
+      if (saved && ['setlist', 'live', 'roles'].includes(saved)) return saved;
+    } catch (_) { /* ignore */ }
+    return '';
+  }
+
+  // SV-WORSHIP-TABS — proxy the Live sticky action bar to the real controls.
+  document.addEventListener('click', (e) => {
+    const pc = e.target.closest('[data-proxy-click]');
+    if (pc) { document.getElementById(pc.getAttribute('data-proxy-click'))?.click(); return; }
+    const ph = e.target.closest('[data-proxy-hint]');
+    if (ph) { document.querySelector('[data-hint="' + ph.getAttribute('data-proxy-hint') + '"]')?.click(); }
+  });
 
   function refreshLiveMode() {
     const select = $('liveSongSelect');
@@ -2504,6 +2543,7 @@
           initMasterSocket();
           liveEvent = Array.isArray(data.events) && data.events.length ? data.events[0] : null;
           _worshipLiveEventId = liveEvent ? liveEvent.id : '';   // WORSHIP-FOLLOW-LIVE — reper pt avertisment
+          if (data.currentUser) applyCurrentUser(data.currentUser);   // SV-WORSHIP-TABS — apply role caps on the probe path too
           renderLiveEventDisplay();
           if (liveEvent) {
             loadEventDetail(liveEvent.id);
@@ -2512,6 +2552,12 @@
             renderEmptyEventInfo('Nu există event live. Programul se completează când admin pornește un event.');
             renderEventSongs();
             loadLibrary();
+          }
+          // SV-WORSHIP-TABS — restore the remembered/hash tab once (gating applies).
+          if (!_worshipTabRestored) {
+            _worshipTabRestored = true;
+            const t = initialWorshipTab();
+            if (t && !isSpectator()) toggleMode(t);
           }
           return;
         }
