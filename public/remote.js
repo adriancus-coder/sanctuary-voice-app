@@ -2350,3 +2350,10 @@ if ('serviceWorker' in navigator) {
       .catch((err) => console.warn('remote SW registration failed:', err && err.message));
   });
 }
+
+// SV-REMOTE-TABS — the Ecran sticky action bar proxies existing controls
+// (black / undo / pinned text) so no handler is moved or duplicated.
+document.addEventListener('click', (e) => {
+  const pc = e.target.closest('[data-proxy-click]');
+  if (pc) document.getElementById(pc.getAttribute('data-proxy-click'))?.click();
+});

@@ -64,6 +64,11 @@
     <!-- V21.17: operator is now a single tab. All panels live in one grid. -->
     <section id="tab-main" class="tab-panel active">
 
+      <!-- SV-REMOTE-TABS — main-screen control vs song/library on two tabs.
+           Groups are wrapped in tab containers; remote.js keeps its per-panel
+           permission gating inside them (no DOM moved, no behaviour changed). -->
+      <nav class="page-tabs" data-page-tabs="remoteTabs" data-tabs='[{"id":"ecran","label":"Ecran","i18n":"rtab.ecran"},{"id":"cantari","label":"Cântări","i18n":"rtab.cantari"}]'></nav>
+      <div class="page-tab-panel" data-tab-for="remoteTabs" data-tab="ecran">
       <div id="remoteMainScreenPanel" class="panel glass-panel section-stack panel-full-width">
         <div class="section-head">
           <h2 data-i18n="r.mainScreenControl">Main Screen Control</h2>
@@ -138,6 +143,8 @@
           </div>
         </details>
       </div>
+      </div><!-- /remote-ecran -->
+      <div class="page-tab-panel" data-tab-for="remoteTabs" data-tab="cantari">
 
       <div class="panel glass-panel section-stack" data-remote-song-section>
         <div class="section-head">
@@ -255,6 +262,8 @@
         <div id="remoteWorshipStatus" class="muted" data-i18n="r.worshipNotStarted">Echipa worship nu a pornit Live mode.</div>
         <div id="remoteWorshipRequest" class="worship-sync-toast hidden"></div>
       </div>
+      </div><!-- /remote-cantari -->
+      <div class="page-tab-panel" data-tab-for="remoteTabs" data-tab="ecran">
 
       <!-- V21.17: Pinned Text + Recent Sends collapsed by default (closed <details>). -->
       <details id="remotePinnedTextPanel" class="panel glass-panel remote-collapsible-panel panel-full-width">
@@ -302,6 +311,8 @@
           </div>
         </div>
       </details>
+      </div><!-- /remote-ecran -->
+      <div class="page-tab-panel" data-tab-for="remoteTabs" data-tab="cantari">
 
       <details class="panel glass-panel remote-collapsible-panel panel-full-width" data-remote-song-section>
         <summary class="remote-collapsible-summary">
@@ -314,6 +325,15 @@
           </div>
         </div>
       </details>
+      </div><!-- /remote-cantari -->
+
+      <!-- SV-REMOTE-TABS — sticky action bar on Ecran: black · undo · pinned text.
+           Buttons proxy the existing controls (no handler moved). -->
+      <div class="sticky-actions" data-sticky-actions data-tab-for="remoteTabs" data-tab="ecran">
+        <button type="button" class="btn btn-danger" data-proxy-click="remoteBlackBtn" data-i18n="r.blackScreen">Ecran negru</button>
+        <button type="button" class="btn btn-dark" data-proxy-click="remoteUndoBtn" data-i18n="r.undo">Anulează</button>
+        <button type="button" class="btn btn-dark" data-proxy-click="remotePinnedBtn" data-i18n="r.pinnedText">Text fixat</button>
+      </div>
     </section>
   </div>
 
@@ -357,6 +377,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/code-prompt.js"></script>
   <script src="/remote.js"></script>
+  <script src="/page-tabs.js"></script>
   <script src="/shell.js"></script>
 </body>
 </html>
