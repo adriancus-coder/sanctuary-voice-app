@@ -4374,6 +4374,20 @@ $('bridgeRevokeBtn')?.addEventListener('click', async () => {
     const box = $('bridgeCodeBox'); if (box) box.hidden = true;
   } catch (_) { /* ignore */ }
 });
+// SV-BRIDGE-PAIRING — generate a one-time, org-level pairing code (church ↔ worship-app).
+$('bridgePairBtn')?.addEventListener('click', async () => {
+  try {
+    const res = await fetch('/api/bridge/pair-code', adminJsonOptions('POST', {}));
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'failed');
+    const box = $('bridgePairCodeBox');
+    if ($('bridgePairCodeValue')) $('bridgePairCodeValue').textContent = d.code;
+    if ($('bridgePairCodeExpiry')) $('bridgePairCodeExpiry').textContent = `(10 min)`;
+    if (box) box.hidden = false;
+  } catch (err) {
+    alert(String(err.message || err));
+  }
+});
 socket.on('azure_audio_ready', () => {
   console.info('[DIAG-RC] azure_audio_ready PRIMIT — Azure conectat OK');
   audioState.azureReady = true;

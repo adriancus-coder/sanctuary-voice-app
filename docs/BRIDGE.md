@@ -34,6 +34,37 @@ server-to-server calls are authed by the code (exchange) or the token.
   `code_used` / `code_expired`; the exchange endpoint is per-IP rate limited
   (429 `too_many_attempts`). Revoke/status with an unknown token → 404 / 401.
 
+## Church pairing (one-time), then one-tap connections
+
+Pair the church with worship-app **once**, then connect any event without a typed
+code. The admin generates a one-time **pairing code** ("Împerechează worship-app",
+same alphabet as the connection code); worship-app exchanges it server-to-server for
+a **long-lived pairing token** scoped to the SV **organisation**, stored hashed at
+rest (`db.bridgePairings`, additive), revocable from either side. The pairing token
+then lists the org's events and connects any one of them — the connect returns
+**exactly** the `/api/bridge/exchange` body, so everything after the handshake
+(switches, `/bridge` socket, translation sources, `song.current`, `setlist.sections`)
+is unchanged. The typed connection code stays as a fallback.
+
+| Method & path | Auth | Body | Response |
+|---|---|---|---|
+| `POST /api/bridge/pair-code` | owner session | — | `{ok, code, expiresAt}` (admin generates the one-time pairing code) |
+| `POST /api/bridge/pair` | the pairing code | `{code, churchName}` | `{ok, pairingToken, svOrgId, svOrgName, expiresAt:null}` |
+| `GET /api/bridge/events` | pairing token (`Authorization: Bearer <pairingToken>` or `?token=`) | — | `{ok, events: [{svEventId, name, startsAt, status:'live'\|'planned', targetLanguages}]}` |
+| `POST /api/bridge/connect` | pairing token | `{svEventId, worshipEventName}` | the same body as `/api/bridge/exchange`: `{ok, bridgeToken, svEventId, targetLanguages, expiresAt}` |
+| `POST /api/bridge/unpair` | pairing token | — | `{ok}` |
+
+- Pairing code: same format as the connection code (6–8 chars, 10 min, single use);
+  `pair` returns 400 `invalid_code` / `code_used` / `code_expired` and is per-IP rate
+  limited (429 `too_many_attempts`).
+- The pairing token is long-lived (no expiry) and server-side only; SV logs a
+  `token_fingerprint`, never the token. `GET /api/bridge/events` and
+  `POST /api/bridge/connect` return 401 `unpaired` once the pairing is revoked;
+  `connect` to an event outside the paired org (or hidden/unapproved) → 404
+  `unknown_event`. `unpair` leaves open event bridges working until their own token
+  expires or is revoked.
+- SV may pair several worship churches with one organisation (one pairing row each).
+
 ## Socket.IO namespace `/bridge`
 
 worship-app connects a **server-side** socket.io-client to `<svBaseUrl>/bridge`

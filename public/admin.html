@@ -288,6 +288,17 @@
                 <button id="bridgeGenerateBtn" class="btn btn-dark" type="button" data-i18n="bridge.generate">Generează cod</button>
                 <button id="bridgeRevokeBtn" class="btn btn-danger" type="button" hidden data-i18n="bridge.revoke">Revocă</button>
               </div>
+              <!-- SV-BRIDGE-PAIRING — pair the church once; then worship-app connects any event one-tap. -->
+              <div class="bridge-pair-row">
+                <div id="bridgePairCodeBox" class="bridge-code-box" hidden>
+                  <span data-i18n="bridge.pairCodeLabel">Cod împerechere</span>: <code id="bridgePairCodeValue"></code>
+                  <span id="bridgePairCodeExpiry" class="muted small"></span>
+                </div>
+                <div class="muted small" data-i18n="bridge.pairHint">Împerechează biserica o singură dată; apoi worship-app conectează orice eveniment dintr-o atingere.</div>
+                <div class="button-row compact-row">
+                  <button id="bridgePairBtn" class="btn btn-dark" type="button" data-i18n="bridge.pair">Împerechează worship-app</button>
+                </div>
+              </div>
             </div>
 
             <div class="info-card accent-card bible-mode-card">

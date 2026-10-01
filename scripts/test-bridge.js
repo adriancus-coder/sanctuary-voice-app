@@ -65,6 +65,37 @@ async function unit() {
     const { token } = b.exchange(b.createCode('e4').code);
     assert.ok(!b.isActive(b.findByToken(token)), 'expired token inactive');
   });
+  // --- SV-BRIDGE-PAIRING unit tests ---
+  await test('pair: valid pairing code -> token; single-use', () => {
+    const db = {}; const b = createBridge({ db, saveDb: () => {} });
+    const { code } = b.createPairingCode('org1');
+    const r = b.pair(code, 'Church');
+    assert.ok(r.token && r.pairing && r.pairing.svOrgId === 'org1');
+    assert.notStrictEqual(r.pairing.tokenHash, r.token, 'pairing token hashed at rest');
+    assert.strictEqual(b.pair(code).error, 'invalid_code', 'pairing code consumed');
+  });
+  await test('pair: invalid + expired codes rejected', () => {
+    const b = createBridge({ db: {}, saveDb: () => {}, codeTtlMs: 1 });
+    assert.strictEqual(b.pair('NOPE').error, 'invalid_code');
+    const { code } = b.createPairingCode('org1');
+    return sleep(5).then(() => assert.strictEqual(b.pair(code).error, 'code_expired'));
+  });
+  await test('findPairingByToken / isPairingActive / unpairByToken', () => {
+    const db = {}; const b = createBridge({ db, saveDb: () => {} });
+    const { token, pairing } = b.pair(b.createPairingCode('org2').code, 'C');
+    assert.strictEqual(b.findPairingByToken(token).id, pairing.id);
+    assert.ok(b.isPairingActive(pairing));
+    assert.strictEqual(b.unpairByToken(token), true);
+    assert.ok(!b.isPairingActive(b.findPairingByToken(token)), 'unpaired -> inactive');
+    assert.strictEqual(b.unpairByToken(token), false, 'double unpair no-op');
+  });
+  await test('connectPaired mints a per-event bridge (same as exchange)', () => {
+    const db = {}; const b = createBridge({ db, saveDb: () => {} });
+    const { pairing } = b.pair(b.createPairingCode('org3').code, 'C');
+    const r = b.connectPaired(pairing, 'ev9');
+    assert.ok(r.token && r.bridge && r.bridge.svEventId === 'ev9');
+    assert.ok(b.isActive(b.findByToken(r.token)), 'connect token active');
+  });
 }
 
 async function integration() {
@@ -84,6 +115,9 @@ async function integration() {
   db.authSessions = [];
   db.accountsSetupAt = new Date().toISOString();
   const evId = Object.keys(db.events)[0];
+  // Make the seeded event listable by the pairing events endpoint + flagged live.
+  db.events[evId].hidden = false; db.events[evId].approved = true; db.events[evId].targetLangs = ['en', 'no'];
+  db.organizations[Object.keys(db.organizations)[0]].activeEventId = evId; db.activeEventId = evId;
   fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
   port = await freePort();
   srv = spawn(process.execPath, [serverPath], { env: { ...env, PORT: String(port) }, stdio: 'ignore' });
@@ -129,6 +163,60 @@ async function integration() {
       assert.strictEqual(r.status, 200);
       const s = await fetch(`${base2}/api/bridge/status`, { headers: { Authorization: 'Bearer ' + token } });
       assert.strictEqual(s.status, 401, 'token inactive after revoke');
+    });
+
+    // --- SV-BRIDGE-PAIRING integration ---
+    let pairToken = '';
+    await test('owner generates a pairing code', async () => {
+      const r = await fetch(`${base2}/api/bridge/pair-code`, { method: 'POST', headers: { Cookie: cookie } });
+      assert.strictEqual(r.status, 200);
+      const j = await r.json();
+      assert.ok(/^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{7}$/.test(j.code));
+      global.__paircode = j.code;
+    });
+    await test('pair-code needs a session (401 without)', async () => {
+      const r = await fetch(`${base2}/api/bridge/pair-code`, { method: 'POST' });
+      assert.strictEqual(r.status, 401);
+    });
+    await test('pair returns a long-lived pairing token', async () => {
+      const r = await fetch(`${base2}/api/bridge/pair`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: global.__paircode, churchName: 'Test Church' }) });
+      assert.strictEqual(r.status, 200);
+      const j = await r.json();
+      assert.ok(j.pairingToken && j.svOrgId, 'token + org');
+      assert.strictEqual(j.expiresAt, null, 'long-lived');
+      pairToken = j.pairingToken;
+    });
+    await test('pair with a bad code -> 400', async () => {
+      const r = await fetch(`${base2}/api/bridge/pair`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: 'BADCODE' }) });
+      assert.strictEqual(r.status, 400);
+    });
+    await test('events lists the org events with the live one flagged', async () => {
+      const r = await fetch(`${base2}/api/bridge/events`, { headers: { Authorization: 'Bearer ' + pairToken } });
+      assert.strictEqual(r.status, 200);
+      const j = await r.json();
+      const ev = (j.events || []).find((e) => e.svEventId === evId);
+      assert.ok(ev, 'seeded event present');
+      assert.strictEqual(ev.status, 'live');
+      assert.ok(Array.isArray(ev.targetLanguages));
+    });
+    await test('connect returns exactly the exchange body', async () => {
+      const r = await fetch(`${base2}/api/bridge/connect`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + pairToken }, body: JSON.stringify({ svEventId: evId, worshipEventName: 'Dumineca' }) });
+      assert.strictEqual(r.status, 200);
+      const j = await r.json();
+      assert.deepStrictEqual(Object.keys(j).sort(), ['bridgeToken', 'expiresAt', 'ok', 'svEventId', 'targetLanguages']);
+      assert.ok(j.bridgeToken && j.svEventId === evId && Array.isArray(j.targetLanguages));
+      const s = await fetch(`${base2}/api/bridge/status`, { headers: { Authorization: 'Bearer ' + j.bridgeToken } });
+      assert.strictEqual(s.status, 200, 'connect token is a working bridge token');
+    });
+    await test('connect to an unknown event -> 404', async () => {
+      const r = await fetch(`${base2}/api/bridge/connect`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + pairToken }, body: JSON.stringify({ svEventId: 'nope' }) });
+      assert.strictEqual(r.status, 404);
+    });
+    await test('unpair revokes the pairing (events -> 401)', async () => {
+      const r = await fetch(`${base2}/api/bridge/unpair`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + pairToken } });
+      assert.strictEqual(r.status, 200);
+      const e = await fetch(`${base2}/api/bridge/events`, { headers: { Authorization: 'Bearer ' + pairToken } });
+      assert.strictEqual(e.status, 401, 'pairing inactive after unpair');
     });
   } finally {
     srv.kill('SIGTERM');

@@ -5081,6 +5081,103 @@ app.get('/api/bridge/status', (req, res) => {
   });
 });
 
+// ===== SV-BRIDGE-PAIRING — church pairing (one-time), then one-tap connect =====
+// The admin pairs the church with worship-app once ("Împerechează worship-app");
+// worship-app then lists the organisation's events and connects any one of them
+// without a fresh connection code. /api/bridge/connect returns EXACTLY the
+// /api/bridge/exchange body, so everything after the handshake is unchanged.
+// Authoritative protocol: docs/BRIDGE.md.
+
+// Admin: generate a one-time, org-scoped pairing code (owner only).
+app.post('/api/bridge/pair-code', (req, res) => {
+  if (!requireAdminApiSession(req, res)) return;
+  const orgId = db.activeOrganizationId || DEFAULT_ORG_ID;
+  const { code, expiresAt } = bridge.createPairingCode(orgId);
+  recordAudit(orgId, 'bridge_pair_code_created', {});
+  logger.info(`[bridge] pairing code created org=${orgId}`);
+  return res.json({ ok: true, code, expiresAt });
+});
+
+// Server-to-server: worship-app pairs once (code -> long-lived pairing token).
+app.post('/api/bridge/pair', (req, res) => {
+  const ip = getOperatorClientIp(req);
+  if (!bridgeExchangeRateOk(ip)) return res.status(429).json({ ok: false, error: 'too_many_attempts' });
+  const churchName = String(req.body?.churchName || '').slice(0, 200);
+  const result = bridge.pair(req.body?.code, churchName);
+  if (result.error) {
+    logger.info(`[bridge] pair failed: ${result.error}`);
+    return res.status(400).json({ ok: false, error: result.error });
+  }
+  const org = db.organizations[result.pairing.svOrgId];
+  recordAudit(result.pairing.svOrgId, 'bridge_paired', { churchName });
+  logger.info(`[bridge] paired org=${result.pairing.svOrgId} fp=${result.pairing.tokenFingerprint}`);
+  return res.json({
+    ok: true,
+    pairingToken: result.token,
+    svOrgId: result.pairing.svOrgId,
+    svOrgName: org ? org.name : '',
+    expiresAt: null // long-lived; revocable from either side
+  });
+});
+
+// Server-to-server: the organisation's events that can take a bridge (pairing token).
+app.get('/api/bridge/events', (req, res) => {
+  const pairing = bridge.findPairingByToken(bridgeTokenFromReq(req));
+  if (!bridge.isPairingActive(pairing)) return res.status(401).json({ ok: false, error: 'unpaired' });
+  bridge.touchPairing(pairing);
+  const activeId = getActiveEventIdForOrg(pairing.svOrgId);
+  const events = Object.values(db.events)
+    .filter((e) => e && getEventOrgId(e) === pairing.svOrgId && e.approved !== false && !e.hidden)
+    .map((e) => ({
+      svEventId: e.id,
+      name: e.name || '',
+      startsAt: e.scheduledAt || e.createdAt || null,
+      status: e.id === activeId ? 'live' : 'planned',
+      targetLanguages: Array.isArray(e.targetLangs) ? e.targetLangs : []
+    }))
+    .sort((a, b) =>
+      (a.status === 'live' ? -1 : b.status === 'live' ? 1 : 0)
+      || String(a.startsAt || '').localeCompare(String(b.startsAt || '')));
+  return res.json({ ok: true, events });
+});
+
+// Server-to-server: connect a chosen event with the pairing token -> per-event
+// bridge token. Returns exactly the /api/bridge/exchange body.
+app.post('/api/bridge/connect', (req, res) => {
+  const pairing = bridge.findPairingByToken(bridgeTokenFromReq(req));
+  if (!bridge.isPairingActive(pairing)) return res.status(401).json({ ok: false, error: 'unpaired' });
+  bridge.touchPairing(pairing);
+  const svEventId = String(req.body?.svEventId || '').trim();
+  const event = db.events[svEventId];
+  if (!event || getEventOrgId(event) !== pairing.svOrgId || event.approved === false || event.hidden) {
+    return res.status(404).json({ ok: false, error: 'unknown_event' });
+  }
+  const result = bridge.connectPaired(pairing, svEventId);
+  recordAudit(pairing.svOrgId, 'bridge_connected', { eventId: svEventId, name: event.name, via: 'pairing' });
+  logger.info(`[bridge] connected event=${svEventId} via=pairing`);
+  io.to(`event:${event.id}:admins`).emit('bridge_status', buildBridgeStatus(event.id));
+  return res.json({
+    ok: true,
+    bridgeToken: result.token,
+    svEventId: result.bridge.svEventId,
+    targetLanguages: Array.isArray(event.targetLangs) ? event.targetLangs : [],
+    expiresAt: result.bridge.expiresAt
+  });
+});
+
+// Server-to-server: worship-app unpairs (revokes the pairing). Open event bridges
+// keep working until their own token expires or is revoked.
+app.post('/api/bridge/unpair', (req, res) => {
+  const token = bridgeTokenFromReq(req);
+  const pairing = bridge.findPairingByToken(token);
+  if (!pairing) return res.status(404).json({ ok: false, error: 'unknown_token' });
+  if (bridge.unpairByToken(token)) {
+    recordAudit(pairing.svOrgId, 'bridge_unpaired', { by: 'worship' });
+    logger.info(`[bridge] unpaired org=${pairing.svOrgId} by=worship`);
+  }
+  return res.json({ ok: true });
+});
+
 // ===== SV-BRIDGE-OUT — /bridge socket namespace (server-to-server, token-authed) =====
 // SV emits its live translation stream (final + partial, per language) exactly as
 // participants receive it. Join is limited to the token's SV event; read-only for
