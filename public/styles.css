@@ -3088,6 +3088,46 @@ body.participant-preview-mode .participant-event-chooser {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  position: relative; /* LIVE-V2 — anchor the "Back to live" pill */
+}
+
+/* LIVE-V2-PARTICIPANT-VIEW — flowing-subtitle stage (v2 events only). */
+.live-v2-stage {
+  width: 100%;
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px;
+  -webkit-overflow-scrolling: touch;
+}
+.live-v2-paragraph {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(1.25rem, 2.6vw, 2.1rem);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  white-space: pre-wrap;
+  text-wrap: pretty;
+}
+.live-v2-provisional { opacity: 0.55; font-weight: 500; }
+.live-v2-waiting { opacity: 0.6; font-weight: 500; }
+.live-v2-back-to-live {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  border: none;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  z-index: 3;
 }
 
 .participant-history-panel {

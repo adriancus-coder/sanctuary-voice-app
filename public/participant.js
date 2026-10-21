@@ -292,6 +292,142 @@ function getServiceEndedMessages() {
   return SERVICE_ENDED_MESSAGES[lang] || SERVICE_ENDED_MESSAGES.en;
 }
 
+// LIVE-V2-PARTICIPANT-VIEW — continuous flowing subtitles for v2 events.
+// Committed clauses are APPENDED to their paragraph (never replaced); the
+// provisional tail trails after, dimmer, replaced in place; older paragraphs
+// stay above. Legacy events never touch any of this.
+const BACK_TO_LIVE_LABELS = {
+  ro: 'Înapoi la live', en: 'Back to live', no: 'Tilbake til direkte',
+  ru: 'К прямому эфиру', uk: 'До ефіру', es: 'Volver al directo', fr: 'Revenir au direct',
+  de: 'Zurück zu Live', it: 'Torna al vivo', pt: 'Voltar ao vivo', pl: 'Wróć do transmisji', hu: 'Vissza az élőhöz'
+};
+const V2_WAITING_LABELS = {
+  ro: 'Se așteaptă traducerea…', en: 'Waiting for translation…', no: 'Venter på oversettelse…'
+};
+function backToLiveLabel() { return BACK_TO_LIVE_LABELS[state.currentLanguage] || BACK_TO_LIVE_LABELS.en; }
+function v2WaitingLabel() { return V2_WAITING_LABELS[state.currentLanguage] || V2_WAITING_LABELS.en; }
+
+let liveV2Active = false;
+const v2State = { paragraphs: [], lastSeq: 0, provisional: null, pinnedToBottom: true };
+const V2_MAX_PARAGRAPHS = 30;
+
+function resetV2State() {
+  v2State.paragraphs = [];
+  v2State.lastSeq = 0;
+  v2State.provisional = null;
+  v2State.pinnedToBottom = true;
+  liveV2Active = false;
+  const stage = $('liveV2Stage');
+  if (stage) { stage.hidden = true; stage.innerHTML = ''; }
+  const btn = $('liveV2BackToLive');
+  if (btn) btn.hidden = true;
+}
+
+// Pick the current language's text for a committed clause / provisional object.
+function v2TextFor(obj) {
+  if (!obj) return '';
+  const lang = state.currentLanguage;
+  const sourceLang = (state.currentEvent && state.currentEvent.sourceLang) || 'ro';
+  if (lang === sourceLang) return obj.source || '';
+  return (obj.translations && obj.translations[lang]) || '';
+}
+
+function ingestV2Commit(p) {
+  // seq is strictly increasing per event; this dedupes replays / reconnects.
+  if (typeof p.seq === 'number') {
+    if (p.seq <= v2State.lastSeq) return;
+    v2State.lastSeq = p.seq;
+  }
+  let para = v2State.paragraphs.find((x) => x.id === p.paragraphId);
+  if (!para) {
+    para = { id: p.paragraphId, clauses: [] };
+    v2State.paragraphs.push(para);
+    while (v2State.paragraphs.length > V2_MAX_PARAGRAPHS) v2State.paragraphs.shift();
+  }
+  para.clauses.push({ source: p.source || '', translations: p.translations || {} });
+  v2State.provisional = null; // this commit consumed the old tail; a fresh one will arrive
+}
+
+function ingestV2Provisional(p) {
+  v2State.provisional = { paragraphId: p.paragraphId, source: p.source || '', translations: p.translations || {} };
+}
+
+// Show the legacy single-line stage and hide the v2 stage (song / service-ended).
+function showLegacyStage() {
+  const lastText = $('lastText');
+  if (lastText) lastText.style.display = '';
+  const earlier = $('participantEarlierLines');
+  if (earlier) earlier.style.display = '';
+  const stage = $('liveV2Stage');
+  if (stage) stage.hidden = true;
+  const btn = $('liveV2BackToLive');
+  if (btn) btn.hidden = true;
+}
+
+function renderLiveV2() {
+  const stage = $('liveV2Stage');
+  if (!stage) return;
+  const lastText = $('lastText');
+  if (lastText) lastText.style.display = 'none';
+  const earlier = $('participantEarlierLines');
+  if (earlier) earlier.style.display = 'none';
+  stage.hidden = false;
+
+  const parts = [];
+  v2State.paragraphs.forEach((para) => {
+    const committed = para.clauses.map(v2TextFor).filter(Boolean).join(' ').trim();
+    let html = committed ? highlightBibleRefs(committed) : '';
+    if (v2State.provisional && v2State.provisional.paragraphId === para.id) {
+      const provText = v2TextFor(v2State.provisional);
+      if (provText && provText.trim()) {
+        html += (html ? ' ' : '') + '<span class="live-v2-provisional">' + escapeHtml(provText.trim()) + '</span>';
+      }
+    }
+    if (html) parts.push('<div class="live-v2-paragraph">' + html + '</div>');
+  });
+  // A provisional that opens a not-yet-committed paragraph.
+  if (v2State.provisional && !v2State.paragraphs.some((x) => x.id === v2State.provisional.paragraphId)) {
+    const provText = v2TextFor(v2State.provisional);
+    if (provText && provText.trim()) {
+      parts.push('<div class="live-v2-paragraph"><span class="live-v2-provisional">' + escapeHtml(provText.trim()) + '</span></div>');
+    }
+  }
+  stage.innerHTML = parts.length
+    ? parts.join('')
+    : '<div class="live-v2-paragraph live-v2-waiting">' + escapeHtml(v2WaitingLabel()) + '</div>';
+
+  if (v2State.pinnedToBottom) stage.scrollTop = stage.scrollHeight;
+  updateV2BackToLive();
+}
+
+function updateV2BackToLive() {
+  const btn = $('liveV2BackToLive');
+  if (!btn) return;
+  btn.hidden = v2State.pinnedToBottom;
+  if (!btn.hidden) btn.textContent = backToLiveLabel();
+}
+
+function onV2Scroll() {
+  const stage = $('liveV2Stage');
+  if (!stage) return;
+  v2State.pinnedToBottom = (stage.scrollHeight - stage.scrollTop - stage.clientHeight) < 48;
+  updateV2BackToLive();
+}
+
+function v2ScrollToLive() {
+  const stage = $('liveV2Stage');
+  if (!stage) return;
+  v2State.pinnedToBottom = true;
+  stage.scrollTop = stage.scrollHeight;
+  updateV2BackToLive();
+}
+
+function activateLiveV2() {
+  if (liveV2Active) return;
+  liveV2Active = true;
+  cancelLiveTextExpireTimer(); // the flowing view persists; it must not auto-blank
+}
+
 if (state.previewMode) {
   document.body.classList.add('participant-preview-mode');
 }
@@ -856,6 +992,15 @@ function applyPartialStyling(entry) {
 
 function renderLiveView({ announce = false } = {}) {
   if (!state.currentEvent) return;
+  // LIVE-V2 — the flowing-subtitle view owns live mode once a v2 event is active.
+  const v2LiveMode = state.currentMode === 'live' || state.currentMode === 'auto' || !state.currentMode;
+  if (liveV2Active && v2LiveMode && !state.serviceEndedAcknowledged) {
+    renderLiveV2();
+    renderHistory();
+    updateTopMeta();
+    return;
+  }
+  showLegacyStage();
   if (state.serviceEndedAcknowledged) {
     clearLoadingDots();
     $('lastText').textContent = getServiceEndedMessages().farewell;
@@ -1354,6 +1499,10 @@ socket.on('joined_event', ({ event, role }) => {
   state.currentEvent = event;
   applyTestModeIndicator(event);
   state.currentMode = event.mode || 'live';
+  // LIVE-V2 — fresh flowing-subtitle state per event; pre-activate for v2 events
+  // so the stage is ready (legacy events leave it dormant).
+  resetV2State();
+  if (event && event.translationEngine === 'v2') activateLiveV2();
   state.currentSongState = event.songState || null;
   state.serverAudioMuted = !!event.audioMuted;
   state.liveEntryQueue = [];
@@ -1504,6 +1653,27 @@ function renderBridgeLyrics(payload) {
   if (textEl) textEl.textContent = text;
   card.hidden = false;
 }
+
+// LIVE-V2-PARTICIPANT-VIEW — flowing-subtitle socket events (v2 events only).
+socket.on('live_v2_commit', (payload) => {
+  if (!state.currentEvent || payload?.eventId !== state.currentEvent.id) return;
+  if (state.currentMode === 'song') return;
+  state.serviceEndedAcknowledged = false;
+  setParticipantUpdating(false);
+  activateLiveV2();
+  ingestV2Commit(payload);
+  renderLiveV2();
+});
+socket.on('live_v2_provisional', (payload) => {
+  if (!state.currentEvent || payload?.eventId !== state.currentEvent.id) return;
+  if (state.currentMode === 'song') return;
+  state.serviceEndedAcknowledged = false;
+  setParticipantUpdating(false);
+  activateLiveV2();
+  ingestV2Provisional(payload);
+  renderLiveV2();
+});
+
 socket.on('lyrics', (payload) => {
   if (!state.currentEvent || !payload) return;
   state.currentEvent.bridgeLyrics = payload;
@@ -1713,6 +1883,9 @@ socket.on('song_clear', () => {
 });
 
 $('languageSelect').addEventListener('change', handleLanguageChange);
+// LIVE-V2 — auto-scroll pinning + "Back to live".
+$('liveV2Stage')?.addEventListener('scroll', onV2Scroll);
+$('liveV2BackToLive')?.addEventListener('click', v2ScrollToLive);
 $('refreshParticipantEventsBtn').addEventListener('click', () => loadParticipantEvents({ joinFixedIfLive: !!state.fixedEventId }));
 $('participantEventList').addEventListener('click', async (event) => {
   const btn = event.target.closest('button[data-participant-event]');
