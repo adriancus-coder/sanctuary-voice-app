@@ -48,6 +48,10 @@ const { registerOrgRoutes } = require('./routes/org');
 const { registerEventRoutes } = require('./routes/events');
 const { registerSocketHandlers } = require('./socket/handlers');
 const { registerAccountsRoutes } = require('./routes/accounts');
+// LIVE-V2 — the new live-translation engine (segmenter + prompt + pipeline).
+const { createLiveV2Pipeline } = require('./lib/live-v2/pipeline');
+const { buildLiveV2Messages } = require('./lib/live-v2/prompt');
+const { segmentationSilenceMs: liveV2SegmentationSilenceMs } = require('./lib/live-v2/segmenter');
 const { importFromUrl, searchResurseCrestineSongs } = require('./routes/admin-import');
 require('dotenv').config();
 
@@ -3365,6 +3369,123 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
   }
 }
 
+// LIVE-V2 — resolve the engine for an event. Commit 3 keeps the default LEGACY
+// (explicit opt-in only) so the new path stays dormant until the participant
+// view renders it; the admin switch commit flips the default to 'v2'.
+function getEventTranslationEngine(event) {
+  return (event && event.translationEngine === 'v2') ? 'v2' : 'legacy';
+}
+
+// LIVE-V2-PIPELINE — translate ONE clause (or the provisional tail) with the v2
+// prompt. Mirrors translateText's model/slot/abort/cache infrastructure but uses
+// the clause-at-a-time prompt and never adds a trailing period mid-sentence.
+async function translateClauseV2(event, langCode, clause, opts = {}) {
+  const {
+    endsSentence = false,
+    contextClauses = [],
+    onDelta = null,
+    signal = null,
+    provisional = false,
+    sourceLang: srcOverride = ''
+  } = opts;
+  const cleanText = sanitizeTranscriptText(clause);
+  if (!cleanText) return '';
+  const sourceLang = String(srcOverride || event.sourceLang || 'ro').trim() || 'ro';
+  if (langCode === sourceLang) return cleanText;
+  const glossary = getGlossaryForLang(langCode, event);
+
+  // Committed clauses are cached (songs/repeats); provisional tails are transient.
+  let cacheKey = '';
+  if (!provisional) {
+    const ctxSig = contextClauses.map((c) => (c && c.translation) || '').join('|');
+    cacheKey = buildTranslationCacheKey({
+      text: cleanText, langCode, sourceLang, speed: event.speed, glossary,
+      context: `v2|${endsSentence ? 'S' : 'c'}|${ctxSig}`
+    });
+    const cached = readTranslationCache(cacheKey);
+    if (cached) return cached;
+  }
+  if (!client) {
+    return `[${langCode}] ${applyGlossary(cleanText, glossary)}`;
+  }
+
+  const model = (event.speed === 'clear' || event.speed === 'interpret') ? getQualityModel() : getFastModel();
+  const reasoningEffort = reasoningEffortFor(model);
+  const messages = buildLiveV2Messages({
+    sourceLangName: LANGUAGES[sourceLang] || sourceLang,
+    targetLangName: LANGUAGES[langCode] || langCode,
+    speed: event.speed,
+    glossary,
+    contextClauses,
+    clause: cleanText,
+    endsSentence
+  });
+
+  // Local abort chained to any caller signal (provisional cancellation).
+  const abort = new AbortController();
+  if (signal) {
+    if (signal.aborted) abort.abort();
+    else signal.addEventListener('abort', () => abort.abort(), { once: true });
+  }
+  const timeoutMs = provisional ? 6000 : 8000;
+  const TIMEOUT_SENTINEL = Symbol('v2_translate_timeout');
+  let timeoutHandle;
+  if (!provisional) await acquireTranslateSlot();
+  try {
+    const translatePromise = translationService.translateWithResponsesStreaming({
+      model, input: messages, onDelta: onDelta || undefined, signal: abort.signal, reasoningEffort
+    });
+    translatePromise.catch(() => {});
+    const timeoutPromise = new Promise((resolve) => { timeoutHandle = setTimeout(() => resolve(TIMEOUT_SENTINEL), timeoutMs); });
+    const raced = await Promise.race([translatePromise, timeoutPromise]);
+    if (raced === TIMEOUT_SENTINEL) { abort.abort(); throw new Error('v2_translate_timeout'); }
+    let out = sanitizeTranscriptText(raced.text || '');
+    // v2: a mid-sentence clause must not carry a final period (it continues).
+    if (out && !endsSentence) out = out.replace(/\.+$/, '').trim();
+    if (out && !provisional) {
+      if (cacheKey) writeTranslationCache(cacheKey, out);
+      if (raced.tokens) recordTranslationUsage(event, raced.tokens);
+    }
+    return out;
+  } catch (err) {
+    if (abort.signal.aborted || (signal && signal.aborted)) return ''; // aborted = normal
+    logger.error(`[live-v2] translate ${langCode} failed:`, err?.message || err);
+    if (!provisional) return `[${langCode}] ${applyGlossary(cleanText, glossary)}`;
+    return '';
+  } finally {
+    clearTimeout(timeoutHandle);
+    if (!provisional) releaseTranslateSlot();
+  }
+}
+
+// LIVE-V2-PIPELINE — monitor/usage refresh after a committed clause is delivered.
+function v2AfterCommit(event, entry) {
+  recordTranscriptCreated(event);
+  updateTranslationMonitor(event, {
+    lastDeliveredAt: new Date().toISOString(),
+    lastDeliveredPreview: String(entry.original || '').slice(0, 220),
+    lastDeliveryTargetCount: Array.isArray(event.targetLangs) ? event.targetLangs.length : 0
+  }, false);
+  emitUsageStats(event.id);
+  emitTranslationMonitor(event.id);
+}
+
+// LIVE-V2-PIPELINE — the single per-process v2 engine. Dormant until an event
+// opts into the v2 engine (see getEventTranslationEngine) and runs Azure.
+const liveV2 = createLiveV2Pipeline({
+  io,
+  logger,
+  translateClauseV2,
+  sanitizeTranscriptText,
+  countWords,
+  cloneDisplayEntry,
+  randomUUID,
+  saveDb,
+  emitBridgeTranslation,
+  recordSegmentLatency,
+  afterCommit: v2AfterCommit
+});
+
 function detectSourceLangByScript(text) {
   const sample = String(text || '');
   if (/[\u0370-\u03ff]/.test(sample)) return 'el';
@@ -3980,6 +4101,7 @@ function closeAzureSpeechSession(socketId) {
   if (session.eventId) {
     partialFlushTracker.delete(session.eventId);
     wordFlushedEvents.delete(session.eventId);   // AZURE-WORDCOUNT-FLUSH — evită scurgeri de flag între sesiuni
+    liveV2.closeEvent(session.eventId);           // LIVE-V2 — drop per-event segmenter/queue state
   }
   try { session.pushStream?.close(); } catch (_) {}
   // V22.25 — așteaptă închiderea COMPLETĂ a recognizer-ului (Azure eliberează conexiunea)
@@ -4024,6 +4146,14 @@ async function startAzureSpeechSession(socket, event) {
     ? (event.targetLangs || []).map((l) => ({ lang: l, code: azureTranslationCode(l) })).filter((t) => t.code)
     : [];
   const onestep = onestepTargets.length > 0;
+  // LIVE-V2 — route to the v2 engine when the event opts in, the provider is
+  // Azure, and one-step translation is NOT active (one-step stays on legacy).
+  const useV2 = !onestep && getActiveSpeechProvider() === 'azure_sdk' && getEventTranslationEngine(event) === 'v2';
+  if (getEventTranslationEngine(event) === 'v2' && !useV2) {
+    logger.info(`[live-v2] event=${event.id} requested v2 but using LEGACY (onestep=${onestep}, provider=${getActiveSpeechProvider()})`);
+  } else if (useV2) {
+    logger.info(`[live-v2] engine=v2 ACTIVE event=${event.id} src=${effectiveSourceLang} speed=${event.speed || 'balanced'}`);
+  }
   const speechConfig = onestep
     ? sdk.SpeechTranslationConfig.fromSubscription(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION)
     : sdk.SpeechConfig.fromSubscription(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION);
@@ -4049,7 +4179,10 @@ async function startAzureSpeechSession(socket, event) {
     clear: '800',
     interpret: '700'   // TRANSLATION-MODE-INTERPRET — fraze coerente, context bun pt condensare
   };
-  const segmentationTimeout = segmentationByMode[event.speed] || segmentationByMode.balanced;
+  // LIVE-V2 applies its own calmer per-mode silence table; legacy keeps its own.
+  const segmentationTimeout = useV2
+    ? String(liveV2SegmentationSilenceMs(event.speed))
+    : (segmentationByMode[event.speed] || segmentationByMode.balanced);
   try {
     speechConfig.setProperty(
       sdk.PropertyId.Speech_SegmentationSilenceTimeoutMs || 'Speech_SegmentationSilenceTimeoutMs',
@@ -4109,6 +4242,38 @@ async function startAzureSpeechSession(socket, event) {
       }
       io.to(`event:${event.id}:admins`).emit('partial_transcript', { text: '' });
       Promise.resolve(publishNewChunk(event, src, effectiveSourceLang, { precomputedTranslations: precomputed })).catch(logger.error);
+    };
+  } else if (useV2) {
+    // LIVE-V2 — feed Azure partials/finals straight into the v2 pipeline. The
+    // admin source preview still rides partial_transcript; the pipeline emits
+    // the participant-facing live_v2_* events, transcript entries and bridge.
+    recognizer.recognizing = (_, result) => {
+      const text = sanitizeTranscriptText(result?.result?.text || '');
+      if (!text) return;
+      io.to(`event:${event.id}:admins`).emit('partial_transcript', { text });
+      const currentEvent = db.events[event.id];
+      if (currentEvent?.bibleMode) return;
+      liveV2.onPartial(event, text, effectiveSourceLang);
+    };
+    recognizer.recognized = (_, result) => {
+      if (result?.result?.reason !== sdk.ResultReason.RecognizedSpeech) return;
+      const text = sanitizeTranscriptText(result?.result?.text || '');
+      if (!text) return;
+      const currentEvent = db.events[event.id];
+      if (currentEvent?.bibleMode) {
+        logger.info('[BIBLE MODE] Skipping translation (v2):', text.slice(0, 60));
+        return;
+      }
+      // Azure recognition latency for the next published clause (best-effort).
+      try {
+        const props = result?.result?.properties;
+        const latMs = props && typeof props.getProperty === 'function'
+          ? props.getProperty(sdk.PropertyId.SpeechServiceResponse_RecognitionLatencyMs)
+          : '';
+        translationMetrics.noteRecognition(event.id, { recognitionLatencyMs: Number(latMs) || null, at: Date.now() });
+      } catch (_) { /* not available in this SDK version */ }
+      io.to(`event:${event.id}:admins`).emit('partial_transcript', { text: '' });
+      liveV2.onFinal(event, text, effectiveSourceLang);
     };
   } else {
   recognizer.recognizing = (_, result) => {
