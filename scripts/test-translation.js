@@ -3,6 +3,8 @@
 // input tokens are read from the usage. Mocked client, no network. Exit 0/1.
 const assert = require('assert');
 const { createTranslationService } = require('../lib/translation');
+// LIVE-V2-PROMPT — the v2 live prompt builder (stable prefix + context + clause).
+const { buildLiveV2Messages, buildStableSystemPrompt } = require('../lib/live-v2/prompt');
 
 let failures = 0;
 async function test(name, fn) {
@@ -60,6 +62,63 @@ function mockClient(response) {
     const svc = createTranslationService({ client: null });
     const out = await svc.translateWithResponsesDetailed({ model: 'gpt-4.1-nano', input: [] });
     assert.deepStrictEqual(out, { text: '', tokens: 0, cachedTokens: 0 });
+  });
+
+  // ---- LIVE-V2-PROMPT -------------------------------------------------------
+  await test('v2 prompt: stable system first, glossary + mode rule, clause last', () => {
+    const msgs = buildLiveV2Messages({
+      sourceLangName: 'Romanian',
+      targetLangName: 'English',
+      speed: 'interpret',
+      glossary: { Duh: 'Spirit' },
+      contextClauses: [],
+      clause: 'și ne iubește',
+      endsSentence: false
+    });
+    assert.strictEqual(msgs[0].role, 'system', 'stable system prompt is first');
+    assert.ok(/from Romanian to English/.test(msgs[0].content), 'names the language pair');
+    assert.ok(/Duh => Spirit/.test(msgs[0].content), 'glossary embedded in stable prefix');
+    assert.ok(/consecutive interpreter/.test(msgs[0].content), 'interpret mode condensation kept');
+    assert.ok(/Do not use ellipses/.test(msgs[0].content), 'no-ellipsis rule present');
+    const lastUser = msgs[msgs.length - 1];
+    assert.strictEqual(lastUser.role, 'user');
+    assert.strictEqual(lastUser.content, 'și ne iubește', 'clause is the final user message, alone');
+  });
+
+  await test('v2 prompt: last 2 committed clauses become context pairs', () => {
+    const msgs = buildLiveV2Messages({
+      sourceLangName: 'Romanian', targetLangName: 'English', speed: 'balanced', glossary: {},
+      contextClauses: [
+        { source: 'a1', translation: 'b1' },
+        { source: 'a2', translation: 'b2' },
+        { source: 'a3', translation: 'b3' } // only the last 2 should survive
+      ],
+      clause: 'c', endsSentence: false
+    });
+    const users = msgs.filter((m) => m.role === 'user').map((m) => m.content);
+    const assts = msgs.filter((m) => m.role === 'assistant').map((m) => m.content);
+    assert.deepStrictEqual(users, ['a2', 'a3', 'c'], 'last 2 context sources + the clause');
+    assert.deepStrictEqual(assts, ['b2', 'b3'], 'last 2 context translations');
+    const directive = msgs.find((m) => m.role === 'system' && /do not repeat/i.test(m.content));
+    assert.ok(directive, 'context is explicitly marked do-not-repeat');
+  });
+
+  await test('v2 prompt: endsSentence toggles the terminal-punctuation rule', () => {
+    const mid = buildLiveV2Messages({ sourceLangName: 'Romanian', targetLangName: 'English', speed: 'balanced', glossary: {}, contextClauses: [], clause: 'x', endsSentence: false });
+    const end = buildLiveV2Messages({ sourceLangName: 'Romanian', targetLangName: 'English', speed: 'balanced', glossary: {}, contextClauses: [], clause: 'x', endsSentence: true });
+    const directiveOf = (msgs) => msgs.find((m) => m.role === 'system' && /Translate ONLY the new fragment/.test(m.content)).content;
+    assert.ok(/does NOT end a sentence/.test(directiveOf(mid)), 'mid-clause: no terminal punctuation');
+    assert.ok(/do not add a final period/i.test(directiveOf(mid)));
+    assert.ok(/ends a sentence/.test(directiveOf(end)), 'final clause: close the sentence');
+    assert.ok(/no leading capital|Do not capitalize/i.test(directiveOf(mid)), 'no-leading-capital rule present');
+  });
+
+  await test('v2 prompt: stable prefix is identical regardless of clause/context (caching)', () => {
+    const a = buildStableSystemPrompt('Romanian', 'English', 'balanced', { Duh: 'Spirit' });
+    const b = buildStableSystemPrompt('Romanian', 'English', 'balanced', { Duh: 'Spirit' });
+    assert.strictEqual(a, b, 'same inputs → byte-identical prefix');
+    const fromFull = buildLiveV2Messages({ sourceLangName: 'Romanian', targetLangName: 'English', speed: 'balanced', glossary: { Duh: 'Spirit' }, contextClauses: [{ source: 's', translation: 't' }], clause: 'anything', endsSentence: true })[0].content;
+    assert.strictEqual(fromFull, a, 'prefix unaffected by context/clause/endsSentence');
   });
 
   if (failures) { console.error(`\ntranslation tests: ${failures} failure(s)`); process.exit(1); }
