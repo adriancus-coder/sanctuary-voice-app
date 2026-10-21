@@ -18,6 +18,9 @@ const fs = require('fs');
 const path = require('path');
 const { createTranslationService } = require('../lib/translation');
 const { buildPrompt } = require('../lib/prompt');
+// LIVE-V2-BENCH — segmentation engines for the fragmentation comparison.
+const { createSegmenter } = require('../lib/live-v2/segmenter');
+const { buildLiveV2Messages } = require('../lib/live-v2/prompt');
 
 const LANG_NAMES = {
   ro: 'Romanian', en: 'English', no: 'Norwegian', ru: 'Russian', uk: 'Ukrainian',
@@ -50,6 +53,7 @@ function parseArgs(argv) {
     else if (a === '--targets') args.targets = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--speed') args.speed = argv[++i];
     else if (a === '--source') args.source = argv[++i];
+    else if (a === '--frag') args.frag = true;   // LIVE-V2-BENCH — fragmentation comparison
   }
   return args;
 }
@@ -83,6 +87,171 @@ function mockService() {
       return { text: `⟦${lang}⟧ ${src}`, tokens: words * 3, cachedTokens: Math.floor(words * 1.2) };
     }
   };
+}
+
+// ---- LIVE-V2-BENCH: fragmentation comparison --------------------------------
+
+const RO_CONJ = new Set(['și', 'si', 'dar', 'iar', 'însă', 'insa', 'deci', 'fiindcă', 'fiindca', 'căci', 'caci', 'pentru']);
+const LEGACY_TARGET = 6;
+const LEGACY_MAX = 12;
+
+function normWords(s) { return String(s || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean); }
+function wordCount(s) { return normWords(s).length; }
+function stripWord(w) { return String(w || '').toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, ''); }
+
+// A commit "ends cleanly" when it stops at a natural boundary: a sentence end,
+// a trailing , ; : . ! ?, a trailing conjunction, or right before a conjunction
+// (the next commit in the same utterance opens with one). Anything else is
+// mid-clause. `next` is the following commit within the same utterance, if any.
+function endsCleanly(commit, next) {
+  if (commit.endsSentence) return true;
+  const words = normWords(commit.text);
+  if (!words.length) return true;
+  const last = words[words.length - 1];
+  if (/[,;:.!?]["'»”’)\]]*$/.test(last)) return true;
+  if (RO_CONJ.has(stripWord(last))) return true;
+  if (next) {
+    const first = normWords(next.text)[0];
+    if (first && RO_CONJ.has(stripWord(first))) return true;
+  }
+  return false;
+}
+
+// Approximation of the legacy live display chunker: ~6-word target, 12 max,
+// extending to a comma when one is near. (The real splitter lives in server.js;
+// this models its 6–12-word fragmentation for the comparison.)
+function legacyChunks(text) {
+  const out = [];
+  const sentences = String(text).match(/[^.!?]+[.!?]?/g) || [text];
+  for (const s of sentences) {
+    const words = s.trim().split(/\s+/).filter(Boolean);
+    let i = 0;
+    while (i < words.length) {
+      let cut = Math.min(words.length, i + LEGACY_TARGET);
+      for (let j = i + LEGACY_TARGET; j <= Math.min(words.length, i + LEGACY_MAX); j += 1) {
+        cut = j;
+        if (/[,;:]$/.test(words[j - 1] || '')) break;
+      }
+      cut = Math.max(i + 1, Math.min(cut, i + LEGACY_MAX, words.length));
+      out.push({ text: words.slice(i, cut).join(' '), endsSentence: false });
+      i = cut;
+    }
+    if (out.length && /[.!?]["'»”’)\]]*$/.test(s.trim())) out[out.length - 1].endsSentence = true;
+  }
+  return out;
+}
+
+// Run the v2 segmenter over one utterance, synthesizing a growing Azure
+// hypothesis (partials every 3 words, then the final). Tail revisions are not
+// simulated here — the segmenter's own tests cover those.
+function v2Chunks(text, sourceLang) {
+  const seg = createSegmenter({ sourceLang });
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const commits = [];
+  for (let k = 3; k < words.length; k += 3) {
+    seg.pushPartial(words.slice(0, k).join(' ')).commits.forEach((c) => commits.push(c));
+  }
+  seg.pushFinal(text).commits.forEach((c) => commits.push(c));
+  return commits;
+}
+
+// Net duplicated / lost words via a word multiset diff (source vs. all commits).
+function dupLost(commitTexts, sourceText) {
+  const count = (arr) => arr.reduce((m, w) => { const k = w.toLowerCase(); m[k] = (m[k] || 0) + 1; return m; }, {});
+  const src = count(normWords(sourceText));
+  const out = count(normWords(commitTexts.join(' ')));
+  let lost = 0; let duplicated = 0;
+  for (const k of Object.keys(src)) lost += Math.max(0, src[k] - (out[k] || 0));
+  for (const k of Object.keys(out)) duplicated += Math.max(0, out[k] - (src[k] || 0));
+  return { lost, duplicated };
+}
+
+// perUtterance: an array of per-utterance commit arrays (so mid-clause can look
+// at the next commit within the same utterance).
+function fragStats(perUtterance, sourceText) {
+  const all = [].concat(...perUtterance);
+  const total = all.reduce((a, c) => a + wordCount(c.text), 0);
+  let mid = 0;
+  for (const commits of perUtterance) {
+    for (let idx = 0; idx < commits.length; idx += 1) {
+      if (!endsCleanly(commits[idx], commits[idx + 1])) mid += 1;
+    }
+  }
+  const { lost, duplicated } = dupLost(all.map((c) => c.text), sourceText);
+  return {
+    commits: all.length,
+    avgWordsPerCommit: all.length ? Number((total / all.length).toFixed(2)) : 0,
+    pctEndingMidClause: all.length ? Number(((100 * mid) / all.length).toFixed(1)) : 0,
+    duplicatedWords: duplicated,
+    lostWords: lost
+  };
+}
+
+async function clauseLatencies(svc, model, reasoningEffort, commits, engine, sourceName, targetLang) {
+  const ms = [];
+  for (const c of commits) {
+    const input = engine === 'v2'
+      ? buildLiveV2Messages({ sourceLangName: sourceName, targetLangName: LANG_NAMES[targetLang] || targetLang, speed: 'balanced', glossary: {}, contextClauses: [], clause: c.text, endsSentence: !!c.endsSentence })
+      : [{ role: 'system', content: buildPrompt(sourceName, LANG_NAMES[targetLang] || targetLang, 'balanced', {}) }, { role: 'user', content: c.text }];
+    const t0 = Date.now();
+    try { await svc.translateWithResponsesDetailed({ model, input, reasoningEffort }); } catch { /* keep timing the rest */ }
+    ms.push(Date.now() - t0);
+  }
+  return ms;
+}
+
+async function runFragmentation(args, svc, mocked, cfg) {
+  const transcriptPath = args.transcript || path.join(__dirname, 'fixtures', 'bench-fragmentation-ro.txt');
+  const usingFixture = !args.transcript;
+  const text = fs.readFileSync(transcriptPath, 'utf8');
+  const utterances = segmentsFromText(text);
+  const targetLang = args.targets[0] || 'en';
+  const sourceName = LANG_NAMES[args.source] || args.source;
+  const model = cfg.fast === 'azure-translation' ? 'gpt-4.1-nano' : cfg.fast;
+  const reasoningEffort = isReasoning(model) ? 'minimal' : undefined;
+
+  const result = {};
+  for (const engine of ['legacy', 'v2']) {
+    const perUtterance = utterances.map((utt) => (engine === 'v2' ? v2Chunks(utt, args.source) : legacyChunks(utt)));
+    const commits = [].concat(...perUtterance);
+    const stats = fragStats(perUtterance, utterances.join(' '));
+    const ms = await clauseLatencies(svc, model, reasoningEffort, commits, engine, sourceName, targetLang);
+    stats.clauseLatencyMs = { median: percentile(ms, 50), p95: percentile(ms, 95) };
+    result[engine] = stats;
+  }
+
+  const report = {
+    ranAt: new Date().toISOString(),
+    mode: 'fragmentation',
+    config: args.config,
+    model,
+    mocked,
+    source: args.source,
+    latencyTarget: targetLang,
+    usingFixture,
+    transcript: transcriptPath,
+    note: usingFixture
+      ? 'No archived audio in this environment — ran on the segmenter fixtures.'
+      : 'Ran on the supplied transcript (mocked recogniser).',
+    legacyNote: 'legacy = approximation of the 6–12-word display chunker (the real splitter lives in server.js).',
+    engines: result
+  };
+  const outPath = args.out || path.join(process.cwd(), `bench-fragmentation-${Date.now()}.json`);
+  fs.writeFileSync(outPath, JSON.stringify(report, null, 2));
+
+  const row = (label, pick) => `${label.padEnd(26)} ${String(pick(result.legacy)).padStart(10)} ${String(pick(result.v2)).padStart(10)}`;
+  console.log('');
+  console.log(`Fragmentation — RO→${targetLang.toUpperCase()} — model ${model}${mocked ? '   [MOCK translator — latency not meaningful]' : ''}`);
+  if (usingFixture) console.log(`(${report.note})`);
+  console.log(`${''.padEnd(26)} ${'legacy'.padStart(10)} ${'v2'.padStart(10)}`);
+  console.log(row('commits', (s) => s.commits));
+  console.log(row('avg words / commit', (s) => s.avgWordsPerCommit));
+  console.log(row('% ending mid-clause', (s) => s.pctEndingMidClause));
+  console.log(row('duplicated words', (s) => s.duplicatedWords));
+  console.log(row('lost words', (s) => s.lostWords));
+  console.log(row('clause latency median ms', (s) => s.clauseLatencyMs.median));
+  console.log(row('clause latency p95 ms', (s) => s.clauseLatencyMs.p95));
+  console.log(`\nReport written: ${outPath}`);
 }
 
 async function transcribeSegments(svc, audioFile, sourceLang) {
@@ -119,6 +288,13 @@ async function main() {
   if (hasKey) { try { const OpenAI = require('openai'); client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY }); } catch { client = null; } }
   const svc = client ? createTranslationService({ client }) : mockService();
   const mocked = !client;
+
+  // LIVE-V2-BENCH — fragmentation comparison (legacy vs v2). Independent of the
+  // recognition/translation report below.
+  if (args.frag) {
+    await runFragmentation(args, svc, mocked, cfg);
+    return;
+  }
 
   if (cfg.provider === 'azure') {
     console.error('[bench] The azure-onestep config measures Azure speech-translation, which needs a live Azure stream + keys.');

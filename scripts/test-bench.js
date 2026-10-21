@@ -42,5 +42,27 @@ test('gpt5-nano config records reasoning effort minimal', () => {
   assert.strictEqual(r.reasoningEffort, 'minimal', 'GPT-5 -> reasoning minimal');
 });
 
+// LIVE-V2-BENCH — fragmentation comparison report.
+test('--frag produces a legacy-vs-v2 fragmentation report', () => {
+  const out = path.join(tmp, 'frag.json');
+  execFileSync(process.execPath, [bench, '--frag', '--out', out],
+    { env: { ...process.env, OPENAI_API_KEY: '' }, stdio: 'ignore' });
+  const r = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.strictEqual(r.mode, 'fragmentation');
+  assert.strictEqual(r.usingFixture, true, 'defaults to the segmenter fixtures with no transcript');
+  for (const engine of ['legacy', 'v2']) {
+    const s = r.engines[engine];
+    assert.ok(s && typeof s.commits === 'number' && s.commits > 0, `${engine} has commits`);
+    assert.ok(typeof s.avgWordsPerCommit === 'number', `${engine} avg words/commit`);
+    assert.ok(typeof s.pctEndingMidClause === 'number', `${engine} mid-clause %`);
+    assert.ok(s.clauseLatencyMs && 'median' in s.clauseLatencyMs && 'p95' in s.clauseLatencyMs, `${engine} clause latency`);
+  }
+  // v2 fragments less: fewer, longer commits that end at boundaries, no word loss.
+  assert.ok(r.engines.v2.avgWordsPerCommit > r.engines.legacy.avgWordsPerCommit, 'v2 clauses are longer');
+  assert.ok(r.engines.v2.pctEndingMidClause <= r.engines.legacy.pctEndingMidClause, 'v2 ends mid-clause no more than legacy');
+  assert.strictEqual(r.engines.v2.lostWords, 0, 'v2 loses no words');
+  assert.strictEqual(r.engines.v2.duplicatedWords, 0, 'v2 duplicates no words');
+});
+
 if (failures) { console.error(`\nbench tests: ${failures} failure(s)`); process.exit(1); }
 console.log('\nbench tests passed');

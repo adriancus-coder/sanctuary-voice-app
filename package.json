@@ -19,6 +19,7 @@
     "test:bridge": "node scripts/test-bridge.js",
     "test:bridge-socket": "node scripts/test-bridge-socket.js",
     "bench": "node scripts/bench.js",
+    "bench:frag": "node scripts/bench.js --frag",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
