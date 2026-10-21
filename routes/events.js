@@ -509,6 +509,10 @@ function registerEventRoutes(app, ctx) {
     if (!event) return res.status(404).json({ ok: false, error: 'Eveniment inexistent.' });
     if (!requireEventAdmin(req, res, event)) return;
     if (typeof req.body.speed === 'string' && req.body.speed.trim()) event.speed = req.body.speed.trim();
+    // LIVE-V2-ADMIN-SWITCH — translation engine: 'v2' (new) or 'v1' (legacy).
+    if (req.body.translationEngine === 'v2' || req.body.translationEngine === 'v1') {
+      event.translationEngine = req.body.translationEngine;
+    }
     if (typeof req.body.sourceLang === 'string') {
       const sourceLang = req.body.sourceLang.trim();
       if (LANGUAGES[sourceLang]) {

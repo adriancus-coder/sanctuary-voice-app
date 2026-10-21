@@ -213,6 +213,13 @@
             </select>
             <div id="speedHint" class="muted"></div>
 
+            <label data-i18n="rd.translationEngine">Translation engine</label>
+            <select id="translationEngine">
+              <option data-i18n="opt.engineNew" value="v2" selected>New</option>
+              <option data-i18n="opt.engineLegacy" value="v1">Legacy</option>
+            </select>
+            <div id="translationEngineHint" class="muted" data-i18n="rd.translationEngineHint">Applies at the next Start.</div>
+
             <label data-i18n="rd.inputLang">Current input language</label>
             <select id="currentSourceLang"></select>
             <div data-i18n="rd.inputLangHint" class="muted">This is the spoken language used by live transcription for the opened event.</div>

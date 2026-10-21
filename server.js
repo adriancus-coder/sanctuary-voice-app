@@ -1846,6 +1846,7 @@ function summarizeEvent(event) {
     sourceLang: event.sourceLang || 'ro',
     liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
     targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : [],
+    translationEngine: event.translationEngine === 'v1' ? 'v1' : 'v2',   // LIVE-V2-ADMIN-SWITCH
     transcriptCount: Array.isArray(event.transcripts) ? event.transcripts.length : 0,
     isActive: isEventActive(event),
     participantLink: event.participantLink || '',
@@ -2236,6 +2237,9 @@ function normalizeEvent(event, options = {}) {
     liveSourceLang: event.liveSourceLang || event.sourceLang || 'ro',
     targetLangs: Array.isArray(event.targetLangs) ? event.targetLangs : ['no', 'en'],
     speed: event.speed || 'balanced',
+    // LIVE-V2-ADMIN-SWITCH — additive key; existing events default to the new
+    // engine (v2). 'v1' selects the legacy engine.
+    translationEngine: event.translationEngine === 'v1' ? 'v1' : 'v2',
     participantLink: event.participantLink,
     translateLink: event.translateLink || '',
     songLink: event.songLink || '',
@@ -2851,6 +2855,7 @@ async function createEvent({ name, speed, sourceLang, targetLangs, baseUrl, sche
     liveSourceLang: sourceLang || 'ro',
     targetLangs: targetLangs?.length ? targetLangs : ['no', 'en'],
     speed: speed || 'balanced',
+    translationEngine: 'v2',   // LIVE-V2-ADMIN-SWITCH — new events use the new engine
     scheduledAt: scheduling.scheduledAt,
     scheduledDate: scheduling.scheduledDate,
     scheduledTime: scheduling.scheduledTime,
@@ -3369,11 +3374,11 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
   }
 }
 
-// LIVE-V2 — resolve the engine for an event. Commit 3 keeps the default LEGACY
-// (explicit opt-in only) so the new path stays dormant until the participant
-// view renders it; the admin switch commit flips the default to 'v2'.
+// LIVE-V2 — resolve the engine for an event. Default is the new engine ('v2');
+// only an explicit 'v1' selects legacy. Read at Azure session start, so a change
+// takes effect at the next Start (like the translation mode / speed).
 function getEventTranslationEngine(event) {
-  return (event && event.translationEngine === 'v2') ? 'v2' : 'legacy';
+  return (event && event.translationEngine === 'v1') ? 'legacy' : 'v2';
 }
 
 // LIVE-V2-PIPELINE — translate ONE clause (or the provisional tail) with the v2

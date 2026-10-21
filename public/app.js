@@ -1808,6 +1808,19 @@ async function syncSpeedToEvent() {
   }
 }
 
+// LIVE-V2-ADMIN-SWITCH — persist the New/Legacy engine choice (takes effect at
+// the next Start, like the translation mode).
+async function syncTranslationEngineToEvent() {
+  if (!currentEvent) return;
+  const translationEngine = $('translationEngine')?.value === 'v1' ? 'v1' : 'v2';
+  const res = await fetch(`/api/events/${currentEvent.id}/settings`, adminJsonOptions('POST', { translationEngine }));
+  const data = await res.json();
+  if (data.ok) {
+    currentEvent = data.event;
+    setStatus(translationEngine === 'v2' ? 'Translation engine: New (applies at next Start).' : 'Translation engine: Legacy (applies at next Start).');
+  }
+}
+
 // TRANSLATION-MODE-DESCRIPTIONS — text mic care explică modul selectat
 const SPEED_HINTS = {
   rapid: 'Latență minimă, propoziții scurte. Pentru conversație rapidă, întrebări-răspunsuri.',
@@ -4211,6 +4224,7 @@ socket.on('joined_event', ({ event, role }) => {
   if ($('manualSourceLang')) $('manualSourceLang').value = currentEvent.displayState?.manualSourceLang || currentEvent.sourceLang || 'ro';
   $('speed').value = event.speed || 'balanced';
   updateSpeedHint();
+  if ($('translationEngine')) $('translationEngine').value = event.translationEngine === 'v1' ? 'v1' : 'v2';
   currentVolume = event.audioVolume;
   currentMuted = event.audioMuted;
   $('volumeRange').value = String(currentVolume);
@@ -4817,6 +4831,7 @@ $('sendManualLiveBtn').addEventListener('click', () => sendManualText('auto'));
 $('sendManualDisplayBtn').addEventListener('click', () => sendManualText('manual'));
 $('saveManualLibraryBtn').addEventListener('click', savePinnedTextToLibrary);
 $('speed').addEventListener('change', () => { syncSpeedToEvent(); updateSpeedHint(); });
+$('translationEngine')?.addEventListener('change', syncTranslationEngineToEvent);
 updateSpeedHint();
 $('currentSourceLang')?.addEventListener('change', async () => {
   await syncSpeedToEvent();
