@@ -2798,15 +2798,37 @@ function getGlossaryCacheKey(glossary = {}) {
     .join('||');
 }
 
-function buildTranslationCacheKey({ text, langCode, sourceLang, speed, glossary, context }) {
+// SV-TRANSLATION-CACHE-HARDENING — the model is part of the key: a cached output from
+// one model must never be served as the output of another (changing the env default
+// starts a clean slate). Layout: src::tgt::speed::model=<name>::glossarySig::context::text
+// — the audit endpoint reads parts[1] as the target language, keep that stable.
+const TRANSLATION_CACHE_MODEL_TAG = 'model=';
+function buildTranslationCacheKey({ text, langCode, sourceLang, speed, model, glossary, context }) {
   return [
     String(sourceLang || ''),
     String(langCode || ''),
     String(speed || ''),
+    `${TRANSLATION_CACHE_MODEL_TAG}${String(model || '').trim()}`,
     getGlossaryCacheKey(glossary),
     String(context || ''),
     sanitizeStructuredText(text || '')
   ].join('::');
+}
+
+// A key written by the current code has the model tag at position 3. Older keys (no
+// model) are dropped at load; so is anything whose value is the error placeholder
+// `[xx] <source>` that a failing provider used to write into the cache.
+const TRANSLATION_FALLBACK_RE = /^\[[a-z]{2,3}(?:-[a-z0-9]{2,8})?\]\s/i;
+function isTranslationFallbackPlaceholder(value) {
+  return TRANSLATION_FALLBACK_RE.test(String(value || ''));
+}
+function isCurrentTranslationCacheKey(key) {
+  const parts = String(key || '').split('::');
+  if (parts.length < 7) return false;
+  const tag = parts[3];
+  return tag.startsWith(TRANSLATION_CACHE_MODEL_TAG)
+    && tag.length > TRANSLATION_CACHE_MODEL_TAG.length
+    && tag[TRANSLATION_CACHE_MODEL_TAG.length] !== '>';
 }
 
 const translationCacheStats = { hits: 0, misses: 0 };
@@ -2864,11 +2886,18 @@ function loadPersistentTranslationCache() {
       // Last value wins (most recent write is kept), matching Map.set semantics.
       const dedupMap = new Map();
       let duplicates = 0;
+      let staleKeys = 0;
+      let poisoned = 0;
       for (const pair of parsed) {
         if (Array.isArray(pair) && pair.length === 2 && pair[0] && pair[1]) {
           const key = String(pair[0]);
+          const value = String(pair[1]);
+          // SV-TRANSLATION-CACHE-HARDENING: drop pre-model-tag keys (they can never be
+          // hit again) and any `[xx] <source>` placeholder a failing provider cached.
+          if (!isCurrentTranslationCacheKey(key)) { staleKeys += 1; continue; }
+          if (isTranslationFallbackPlaceholder(value)) { poisoned += 1; continue; }
           if (dedupMap.has(key)) duplicates += 1;
-          dedupMap.set(key, String(pair[1]));
+          dedupMap.set(key, value);
         }
       }
       let loaded = 0;
@@ -2877,8 +2906,8 @@ function loadPersistentTranslationCache() {
         loaded += 1;
         if (translationCache.size >= TRANSLATION_CACHE_LIMIT) break;
       }
-      if (duplicates) {
-        logger.info(`translation cache: removed ${duplicates} duplicate keys at load`);
+      if (duplicates || staleKeys || poisoned) {
+        logger.info(`translation cache: dropped at load — ${duplicates} duplicate, ${staleKeys} stale-format, ${poisoned} placeholder entries`);
         translationCacheDirty = true;
         scheduleTranslationCacheFlush();
       }
@@ -2925,6 +2954,9 @@ function readTranslationCache(key) {
 
 function writeTranslationCache(key, value) {
   if (!key || !value) return;
+  // SV-TRANSLATION-CACHE-HARDENING: never persist the error placeholder — a transient
+  // provider failure must not keep answering `[xx] <source>` until the cache rotates.
+  if (isTranslationFallbackPlaceholder(value)) return;
   if (translationCache.has(key)) translationCache.delete(key);
   translationCache.set(key, value);
   while (translationCache.size > TRANSLATION_CACHE_LIMIT) {
@@ -3097,11 +3129,15 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
     .filter((entry) => entry && entry.original && entry.translations && entry.translations[langCode])
     .slice(-2);
   const contextSignature = usableContext.map((entry) => entry.id || `${entry.original}|${entry.translations[langCode]}`).join('|');
+  // V22.15 — modul „clear" (calitate) → model mai bun; rapid/balanced → nano (rapid).
+  // TRANSLATION-MODE-INTERPRET — clear ȘI interpret folosesc modelul de calitate (mini, mai bun la parafrazat)
+  const translateModel = (event && (event.speed === 'clear' || event.speed === 'interpret')) ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
   const cacheKey = buildTranslationCacheKey({
     text: cleanText,
     langCode,
     sourceLang,
     speed: event.speed,
+    model: translateModel,
     glossary,
     context: contextSignature
   });
@@ -3137,9 +3173,6 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
     inputMessages.push({ role: 'assistant', content: entry.translations[langCode] });
   }
   inputMessages.push({ role: 'user', content: cleanText });
-  // V22.15 — modul „clear" (calitate) → model mai bun; rapid/balanced → nano (rapid).
-  // TRANSLATION-MODE-INTERPRET — clear ȘI interpret folosesc modelul de calitate (mini, mai bun la parafrazat)
-  const translateModel = (event && (event.speed === 'clear' || event.speed === 'interpret')) ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
   const reasoningEffort = reasoningEffortFor(translateModel);
   await acquireTranslateSlot();   // V22.37 — limitează concurența traducerilor
   try {
@@ -3222,8 +3255,9 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
   } catch (err) {
     logger.error(`translate error ${langCode}:`, err?.message || err);
     recordServerError(event, `Translate ${langCode} failed.`);
+    // SV-TRANSLATION-CACHE-HARDENING: the placeholder is returned for THIS entry only and
+    // is never cached — the next occurrence of the same text retries the provider.
     const fallback = `[${langCode}] ${applyGlossary(cleanText, glossary)}`;
-    writeTranslationCache(cacheKey, fallback);
     updateTranslationMonitor(event, {
       pendingTranslations: Math.max(0, Number(event.translationMonitor?.pendingTranslations || 1) - 1),
       lastTranslateFinishedAt: new Date().toISOString(),
@@ -5206,7 +5240,7 @@ app.post('/admin/audit-translations', (req, res) => {
     return res.status(500).json({ ok: false, error: `Backup failed: ${err?.message || err}`, backupPath });
   }
 
-  // 1. Global translation cache: key format `srcLang::tgtLang::speed::glossarySig::context::sourceText`
+  // 1. Global translation cache: key format `srcLang::tgtLang::speed::model=<name>::glossarySig::context::sourceText`
   const cacheReport = { scanned: 0, suspects: 0, removed: 0, mismatches: [] };
   for (const [key, value] of Array.from(translationCache.entries())) {
     cacheReport.scanned += 1;
