@@ -69,10 +69,19 @@ const upload = multer({
 
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
 // V22.15 — model de calitate folosit la modul „clear" (TRANSLATION MODE = calitate).
 // Mai bun pe propoziții lungi/complexe. rapid+balanced rămân pe nano (latență).
-const OPENAI_QUALITY_MODEL = process.env.OPENAI_QUALITY_MODEL || 'gpt-4.1-mini';
+const OPENAI_QUALITY_MODEL = process.env.OPENAI_QUALITY_MODEL || 'gpt-5-mini';
+// SV-OPENAI-MODELS-CURRENT — GPT-5-family models are reasoning models: without an
+// explicit low reasoning effort a short translation can take many seconds (past the
+// 8 s live timeout). Non-GPT-5 models get no reasoning field (request unchanged).
+function isReasoningModel(model) {
+  return /gpt-5/i.test(String(model || ''));
+}
+function reasoningEffortFor(model) {
+  return isReasoningModel(model) ? 'minimal' : undefined;
+}
 const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
 const TRANSCRIBE_RATE_LIMIT_WINDOW_MS = Math.max(1000, Number(process.env.TRANSCRIBE_RATE_LIMIT_WINDOW_MS || 60000) || 60000);
 const TRANSCRIBE_RATE_LIMIT_MAX = Math.max(1, Number(process.env.TRANSCRIBE_RATE_LIMIT_MAX || 120) || 120);
@@ -3131,6 +3140,7 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
   // V22.15 — modul „clear" (calitate) → model mai bun; rapid/balanced → nano (rapid).
   // TRANSLATION-MODE-INTERPRET — clear ȘI interpret folosesc modelul de calitate (mini, mai bun la parafrazat)
   const translateModel = (event && (event.speed === 'clear' || event.speed === 'interpret')) ? OPENAI_QUALITY_MODEL : OPENAI_MODEL;
+  const reasoningEffort = reasoningEffortFor(translateModel);
   await acquireTranslateSlot();   // V22.37 — limitează concurența traducerilor
   try {
     const onDelta = typeof options.onDelta === 'function' ? options.onDelta : null;
@@ -3148,11 +3158,13 @@ async function translateText(text, langCode, event, sourceLangOverride = '', opt
           model: translateModel,
           input: inputMessages,
           onDelta,
+          reasoningEffort,
           signal: abortController.signal   // V22.34
         })
       : translationService.translateWithResponsesDetailed({
           model: translateModel,
-          input: inputMessages
+          input: inputMessages,
+          reasoningEffort
         });
     // dacă translatePromise pierde race-ul și se respinge ulterior, nu lăsa rejection neprins
     translatePromise.catch(() => {});
@@ -3310,6 +3322,7 @@ async function detectSourceLanguage(text, event) {
   try {
     const detectedCode = await translationService.translateWithResponses({
       model: OPENAI_MODEL,
+      reasoningEffort: reasoningEffortFor(OPENAI_MODEL),
       input: [
         {
           role: 'system',
@@ -4971,6 +4984,7 @@ async function runSelfTestChecks() {
       const text = await Promise.race([
         translationService.translateWithResponses({
           model: OPENAI_MODEL,
+          reasoningEffort: reasoningEffortFor(OPENAI_MODEL),
           input: [
             { role: 'system', content: 'Translate from English to Romanian. Output only the translation, nothing else.' },
             { role: 'user', content: 'Hello' }

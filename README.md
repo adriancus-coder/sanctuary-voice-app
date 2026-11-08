@@ -70,7 +70,7 @@ npm start
 
 Valori implicite recomandate:
 
-- `OPENAI_MODEL=gpt-4.1-nano`
+- `OPENAI_MODEL=gpt-5-nano`
 - `OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe`
 - `TRANSCRIBE_RATE_LIMIT_WINDOW_MS=60000`
 - `TRANSCRIBE_RATE_LIMIT_MAX=40`
@@ -132,7 +132,7 @@ Start Command: npm start
 4. adauga environment variables:
 
 - `OPENAI_API_KEY`
-- `OPENAI_MODEL=gpt-4.1-nano`
+- `OPENAI_MODEL=gpt-5-nano`
 - `OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe`
 
 5. seteaza health check path:

@@ -98,7 +98,7 @@ Most server emits target the broad `event:<id>` room and the client filters by l
 
 ## Environment
 
-Required: `OPENAI_API_KEY` (without it, the app runs in fallback UI-only mode — translations return empty). Optional but commonly set: `OPENAI_MODEL=gpt-4.1-nano`, `OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe`, `SPEECH_PROVIDER`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `MASTER_ADMIN_PIN`, `MAIN_OPERATOR_PIN`, `ADMIN_SESSION_SECRET`, `PUBLIC_BASE_URL`, `ADMIN_APP_BASE_URL`, `ADMIN_APP_HOSTNAMES`, `COMMERCIAL_MODE`, `WEB_PUSH_*`, `LOG_DIR`, `DATA_DIR`, `PORT`. See `.env.example` and `README.md` for the full list with defaults.
+Required: `OPENAI_API_KEY` (without it, the app runs in fallback UI-only mode — translations return empty). Optional but commonly set: `OPENAI_MODEL=gpt-5-nano`, `OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe`, `SPEECH_PROVIDER`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `MASTER_ADMIN_PIN`, `MAIN_OPERATOR_PIN`, `ADMIN_SESSION_SECRET`, `PUBLIC_BASE_URL`, `ADMIN_APP_BASE_URL`, `ADMIN_APP_HOSTNAMES`, `COMMERCIAL_MODE`, `WEB_PUSH_*`, `LOG_DIR`, `DATA_DIR`, `PORT`. See `.env.example` and `README.md` for the full list with defaults.
 
 ## Deployment
 
