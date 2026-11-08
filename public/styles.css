@@ -9061,6 +9061,24 @@ body:not(.has-shell) { padding-bottom: calc(var(--sticky-actions-h, 0px) + var(-
   letter-spacing: 0.05em;
   color: var(--accent-text);
 }
+.bridge-lyrics-title { flex: 1 1 auto; min-width: 0; }
+/* SV-BRIDGE-LYRICS-STALE — quiet dismiss, 44px touch target without growing the head. */
+.bridge-lyrics-close {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -10px -12px -10px 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+.bridge-lyrics-close:focus-visible { outline: 2px solid var(--accent-fill); outline-offset: -4px; }
 .bridge-lyrics-text { white-space: pre-wrap; font-size: 1.15rem; line-height: 1.45; color: var(--text); }
 
 /* SV-BRIDGE-UI-DOCS — the generated connection code in the admin Live tab. */

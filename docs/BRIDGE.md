@@ -119,6 +119,16 @@ and on `song.clear` `lyrics_clear { eventId }`. A late-joining participant gets 
 current `lyrics` on join. Participants render it as a distinct card above the live
 translation, in their chosen language.
 
+Stale-card protection (SV side, `SV-BRIDGE-LYRICS-STALE`): the card is meant to be
+cleared by `song.clear`, but if the worship-app drops without sending it (network,
+app closed, bridge revoked) SV clears the lyrics itself once **no `/bridge` socket is
+left for the event for `BRIDGE_LYRICS_DISCONNECT_GRACE_MS`** (default 15 s, so a
+reconnect-with-backoff keeps the current strophe) — participants get the same
+`lyrics_clear`. A persisted card is also dropped at server boot. On the phone the
+viewer can dismiss the current strophe with "×" (a different strophe shows again), and
+a card not refreshed for 10 minutes hides by itself. The worship-app contract is
+unchanged: keep sending `song.clear` when leaving songs.
+
 ## Switches & consent (worship-app side, both default off)
 
 - "Afișează traducerea pe proiector" (dir_in) — enables the `translation` source.

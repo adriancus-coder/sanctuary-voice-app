@@ -305,6 +305,18 @@ const V2_WAITING_LABELS = {
   ro: 'Se așteaptă traducerea…', en: 'Waiting for translation…', no: 'Venter på oversettelse…'
 };
 function backToLiveLabel() { return BACK_TO_LIVE_LABELS[state.currentLanguage] || BACK_TO_LIVE_LABELS.en; }
+
+// SV-BRIDGE-LYRICS-STALE — the bridged lyrics card is normally cleared by the
+// worship-app's song.clear (and by the server when the bridge drops). On the phone we
+// add two local safety nets: a "×" that dismisses the current strophe, and an
+// auto-hide once a card has not been refreshed for 10 minutes (a live strophe is
+// re-sent on every position change, so a real song never goes that long).
+const BRIDGE_LYRICS_STALE_MS = 10 * 60 * 1000;
+let bridgeLyricsShownAt = 0;
+let bridgeLyricsDismissedKey = '';
+function bridgeLyricsKey(payload) {
+  return payload ? String(payload.hash || payload.createdAt || '') : '';
+}
 function v2WaitingLabel() { return V2_WAITING_LABELS[state.currentLanguage] || V2_WAITING_LABELS.en; }
 
 let liveV2Active = false;
@@ -1641,6 +1653,8 @@ function renderBridgeLyrics(payload) {
   const card = document.getElementById('bridgeLyricsCard');
   if (!card) return;
   if (!payload) { card.hidden = true; return; }
+  // Dismissed by the viewer: stays hidden until a different strophe arrives.
+  if (bridgeLyricsDismissedKey && bridgeLyricsKey(payload) === bridgeLyricsDismissedKey) { card.hidden = true; return; }
   const lang = state.currentLanguage;
   const sourceLang = payload.sourceLang || state.currentEvent?.sourceLang || 'ro';
   const text = (lang === sourceLang)
@@ -1651,8 +1665,30 @@ function renderBridgeLyrics(payload) {
   const textEl = document.getElementById('bridgeLyricsText');
   if (titleEl) titleEl.textContent = [payload.title, payload.label].filter(Boolean).join(' · ');
   if (textEl) textEl.textContent = text;
+  const closeBtn = document.getElementById('bridgeLyricsClose');
+  if (closeBtn) closeBtn.setAttribute('aria-label', getServiceEndedMessages().close);
   card.hidden = false;
 }
+
+function hideBridgeLyrics() {
+  if (state.currentEvent) state.currentEvent.bridgeLyrics = null;
+  bridgeLyricsShownAt = 0;
+  renderBridgeLyrics(null);
+}
+
+document.getElementById('bridgeLyricsClose')?.addEventListener('click', () => {
+  bridgeLyricsDismissedKey = bridgeLyricsKey(state.currentEvent?.bridgeLyrics) || 'dismissed';
+  const card = document.getElementById('bridgeLyricsCard');
+  if (card) card.hidden = true;
+});
+
+// Auto-hide a card nobody refreshed for BRIDGE_LYRICS_STALE_MS (the bridge went away
+// without song.clear and the server-side cleanup did not reach this phone).
+setInterval(() => {
+  const card = document.getElementById('bridgeLyricsCard');
+  if (!card || card.hidden || !bridgeLyricsShownAt) return;
+  if (Date.now() - bridgeLyricsShownAt > BRIDGE_LYRICS_STALE_MS) hideBridgeLyrics();
+}, 30 * 1000);
 
 // LIVE-V2-PARTICIPANT-VIEW — flowing-subtitle socket events (v2 events only).
 socket.on('live_v2_commit', (payload) => {
@@ -1676,12 +1712,15 @@ socket.on('live_v2_provisional', (payload) => {
 
 socket.on('lyrics', (payload) => {
   if (!state.currentEvent || !payload) return;
+  // A different strophe lifts a viewer's "×" on the previous one.
+  if (bridgeLyricsDismissedKey && bridgeLyricsKey(payload) !== bridgeLyricsDismissedKey) bridgeLyricsDismissedKey = '';
+  bridgeLyricsShownAt = Date.now();
   state.currentEvent.bridgeLyrics = payload;
   renderBridgeLyrics(payload);
 });
 socket.on('lyrics_clear', () => {
-  if (state.currentEvent) state.currentEvent.bridgeLyrics = null;
-  renderBridgeLyrics(null);
+  bridgeLyricsDismissedKey = '';
+  hideBridgeLyrics();
 });
 
 socket.on('display_mode_changed', (payload) => {

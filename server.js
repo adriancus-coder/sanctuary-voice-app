@@ -5418,11 +5418,53 @@ bridgeNs.on('connection', (socket) => {
   if (event) io.to(`event:${eventId}:admins`).emit('bridge_status', buildBridgeStatus(eventId));
   // SV-BRIDGE-IN (A3) registers song.current / song.clear / setlist.sections here.
   registerBridgeInbound(socket, eventId);
+  cancelBridgeLyricsOrphanTimer(eventId);   // a (re)connect keeps the current card
   socket.on('disconnect', () => {
     logger.info(`[bridge] socket disconnected event=${eventId} socket=${socket.id}`);
     if (db.events[eventId]) io.to(`event:${eventId}:admins`).emit('bridge_status', buildBridgeStatus(eventId));
+    scheduleBridgeLyricsOrphanCheck(eventId);
   });
 });
+
+// SV-BRIDGE-LYRICS-STALE — the lyrics card is only ever cleared by `song.clear`. If
+// the worship-app drops (network, app closed, bridge revoked) without sending it, the
+// card would stay on every phone for the rest of the service — and, being persisted
+// on the event, on every late joiner too. After a short grace (so a reconnect-with-
+// backoff keeps the current strophe) an event with no bridge socket left has its
+// lyrics cleared like a song.clear.
+const BRIDGE_LYRICS_DISCONNECT_GRACE_MS = Math.max(200, Number(process.env.BRIDGE_LYRICS_DISCONNECT_GRACE_MS) || 15000);
+const bridgeLyricsOrphanTimers = new Map(); // eventId -> timer
+function cancelBridgeLyricsOrphanTimer(eventId) {
+  const t = bridgeLyricsOrphanTimers.get(eventId);
+  if (t) { clearTimeout(t); bridgeLyricsOrphanTimers.delete(eventId); }
+}
+function scheduleBridgeLyricsOrphanCheck(eventId) {
+  cancelBridgeLyricsOrphanTimer(eventId);
+  const t = setTimeout(() => {
+    bridgeLyricsOrphanTimers.delete(eventId);
+    const event = db.events[eventId];
+    if (!event || !event.bridgeLyrics) return;
+    const room = bridgeNs.adapter.rooms.get(`bridge:${eventId}`);
+    if (room && room.size) return;   // reconnected in time
+    logger.info(`[bridge] no bridge socket left for event=${eventId}; clearing stale lyrics`);
+    clearBridgeLyrics(event);
+  }, BRIDGE_LYRICS_DISCONNECT_GRACE_MS);
+  if (t.unref) t.unref();
+  bridgeLyricsOrphanTimers.set(eventId, t);
+}
+// No bridge socket survives a restart, so a persisted card is stale by definition.
+// Dropped silently at boot (participants reconnect to a server with no card to send).
+function clearOrphanedBridgeLyricsAtBoot() {
+  let cleared = 0;
+  for (const event of Object.values(db.events || {})) {
+    if (event && event.bridgeLyrics) { event.bridgeLyrics = null; cleared += 1; }
+  }
+  if (cleared) {
+    saveDb();
+    logger.info(`[bridge] cleared ${cleared} persisted lyrics card(s) at boot`);
+  }
+}
+clearOrphanedBridgeLyricsAtBoot();
 
 // Fill the A1 hook: kick any live /bridge sockets for an event (revoke/expiry).
 disconnectBridgeSockets = (eventId) => {

@@ -30,7 +30,8 @@ function waitFor(socket, event, ms = 6000) {
 (async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sv-brs-'));
   const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sv-brs-log-'));
-  const env = { ...process.env, DATA_DIR: dataDir, LOG_DIR: logDir, MASTER_ADMIN_PIN: 'acc', ADMIN_SESSION_SECRET: 'z'.repeat(40), OPENAI_API_KEY: '' };
+  // BRIDGE_LYRICS_DISCONNECT_GRACE_MS: shortened so the stale-lyrics test runs fast.
+  const env = { ...process.env, DATA_DIR: dataDir, LOG_DIR: logDir, MASTER_ADMIN_PIN: 'acc', ADMIN_SESSION_SECRET: 'z'.repeat(40), OPENAI_API_KEY: '', BRIDGE_LYRICS_DISCONNECT_GRACE_MS: '400' };
   const serverPath = path.join(__dirname, '..', 'server.js');
   let port = await freePort();
   let srv = spawn(process.execPath, [serverPath], { env: { ...env, PORT: String(port) }, stdio: 'ignore' });
@@ -124,8 +125,43 @@ function waitFor(socket, event, ms = 6000) {
       await clearP;
     });
 
+    // SV-BRIDGE-LYRICS-STALE — a bridge that drops WITHOUT song.clear must not leave
+    // the card on every phone: once no bridge socket is left (grace period) the
+    // server clears the lyrics itself.
+    await test('bridge drop without song.clear clears stale lyrics after the grace period', async () => {
+      const lyricsP = waitFor(part, 'lyrics', 8000);
+      bridgeSock.emit('song.current', { title: 'Isus e Domn', label: 'Vers 2', text: 'Isus e Domn\npeste tot', hash: 'h-verse-3', lang: 'ro' });
+      await lyricsP;
+      const clearP = waitFor(part, 'lyrics_clear', 5000);
+      bridgeSock.disconnect();   // the worship-app goes away mid-song
+      await clearP;
+    });
+
+    await test('bridge reconnect within the grace period keeps the card', async () => {
+      const sock2 = io(`${base}/bridge`, { auth: { token }, transports: ['websocket'], reconnection: false });
+      opened.push(sock2);
+      await waitFor(sock2, 'bridge.ready');
+      const lyricsP = waitFor(part, 'lyrics', 8000);
+      sock2.emit('song.current', { title: 'Isus e Domn', label: 'Vers 3', text: 'Isus e Domn\nîn inimi', hash: 'h-verse-4', lang: 'ro' });
+      await lyricsP;
+      let cleared = false;
+      part.once('lyrics_clear', () => { cleared = true; });
+      sock2.disconnect();
+      await sleep(150);   // well inside the 400 ms grace
+      const sock3 = io(`${base}/bridge`, { auth: { token }, transports: ['websocket'], reconnection: false });
+      opened.push(sock3);
+      await waitFor(sock3, 'bridge.ready');
+      await sleep(700);   // past the grace: a reconnected bridge keeps the card
+      assert.strictEqual(cleared, false, 'lyrics must not be cleared when the bridge reconnected in time');
+      sock3.emit('song.clear');
+      await waitFor(part, 'lyrics_clear', 5000);
+    });
+
     await test('revoke disconnects the bridge socket', async () => {
-      const disc = new Promise((resolve) => bridgeSock.on('disconnect', () => resolve(true)));
+      const sockR = io(`${base}/bridge`, { auth: { token }, transports: ['websocket'], reconnection: false });
+      opened.push(sockR);
+      await waitFor(sockR, 'bridge.ready');
+      const disc = new Promise((resolve) => sockR.on('disconnect', () => resolve(true)));
       await fetch(`${base}/api/events/${evId}/bridge/revoke`, { method: 'POST', headers: { Cookie: cookie } });
       const got = await Promise.race([disc, sleep(4000).then(() => false)]);
       assert.strictEqual(got, true, 'bridge socket disconnected on revoke');
