@@ -5846,8 +5846,8 @@ async function loadModelConfig() {
     if (!res.ok) return;
     const d = await res.json();
     if (!d.ok) return;
-    if ($('fastModelInput')) { $('fastModelInput').value = d.fastOverride || ''; $('fastModelInput').placeholder = d.fastDefault || 'gpt-4.1-nano'; }
-    if ($('qualityModelInput')) { $('qualityModelInput').value = d.qualityOverride || ''; $('qualityModelInput').placeholder = d.qualityDefault || 'gpt-4.1-mini'; }
+    if ($('fastModelInput')) { $('fastModelInput').value = d.fastOverride || ''; $('fastModelInput').placeholder = d.fastDefault || 'gpt-5-nano'; }
+    if ($('qualityModelInput')) { $('qualityModelInput').value = d.qualityOverride || ''; $('qualityModelInput').placeholder = d.qualityDefault || 'gpt-5-mini'; }
     if ($('fastModelHint')) $('fastModelHint').textContent = `→ ${d.fastModel}`;
     if ($('qualityModelHint')) $('qualityModelHint').textContent = `→ ${d.qualityModel}`;
   } catch (_) { /* not owner or offline */ }

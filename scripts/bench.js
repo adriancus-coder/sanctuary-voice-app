@@ -36,9 +36,9 @@ const COST_PER_MTOK = {
 };
 
 const CONFIGS = {
-  current: { fast: 'gpt-4.1-nano', quality: 'gpt-4.1-mini', provider: 'openai' },
+  current: { fast: 'gpt-5-nano', quality: 'gpt-5-mini', provider: 'openai' },
   'gpt5-nano': { fast: 'gpt-5-nano', quality: 'gpt-5-mini', provider: 'openai' },
-  'azure-onestep': { fast: 'azure-translation', quality: 'gpt-4.1-mini', provider: 'azure' }
+  'azure-onestep': { fast: 'azure-translation', quality: 'gpt-5-mini', provider: 'azure' }
 };
 
 function parseArgs(argv) {
@@ -207,7 +207,7 @@ async function runFragmentation(args, svc, mocked, cfg) {
   const utterances = segmentsFromText(text);
   const targetLang = args.targets[0] || 'en';
   const sourceName = LANG_NAMES[args.source] || args.source;
-  const model = cfg.fast === 'azure-translation' ? 'gpt-4.1-nano' : cfg.fast;
+  const model = cfg.fast === 'azure-translation' ? 'gpt-5-nano' : cfg.fast;
   const reasoningEffort = isReasoning(model) ? 'minimal' : undefined;
 
   const result = {};
@@ -316,7 +316,7 @@ async function main() {
   }
 
   // 2) Translate each segment for each target, timing every stage.
-  const model = cfg.fast === 'azure-translation' ? 'gpt-4.1-nano' : cfg.fast; // bench measures the LLM translate for azure-onestep transcript runs
+  const model = cfg.fast === 'azure-translation' ? 'gpt-5-nano' : cfg.fast; // bench measures the LLM translate for azure-onestep transcript runs
   const reasoningEffort = isReasoning(model) ? 'minimal' : undefined;
   const rows = [];
   const perTargetMs = {}; args.targets.forEach((l) => { perTargetMs[l] = []; });

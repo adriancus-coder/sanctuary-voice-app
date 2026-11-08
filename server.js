@@ -78,10 +78,10 @@ const upload = multer({
 
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
 // V22.15 — model de calitate folosit la modul „clear" (TRANSLATION MODE = calitate).
 // Mai bun pe propoziții lungi/complexe. rapid+balanced rămân pe nano (latență).
-const OPENAI_QUALITY_MODEL = process.env.OPENAI_QUALITY_MODEL || 'gpt-4.1-mini';
+const OPENAI_QUALITY_MODEL = process.env.OPENAI_QUALITY_MODEL || 'gpt-5-mini';
 const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
 const TRANSCRIBE_RATE_LIMIT_WINDOW_MS = Math.max(1000, Number(process.env.TRANSCRIBE_RATE_LIMIT_WINDOW_MS || 60000) || 60000);
 const TRANSCRIBE_RATE_LIMIT_MAX = Math.max(1, Number(process.env.TRANSCRIBE_RATE_LIMIT_MAX || 120) || 120);
@@ -3198,7 +3198,7 @@ function releaseTranslateSlot() {
 
 // SV-MODEL-SWITCHES — the fast/quality tier models are env defaults an owner can
 // override at runtime (db.pipelineConfig). Empty override => env default => today's
-// models (gpt-4.1-nano / gpt-4.1-mini). GPT-5-family models translate with the
+// models (gpt-5-nano / gpt-5-mini). GPT-5-family models translate with the
 // lowest reasoning effort so latency stays live-appropriate.
 function getPipelineConfig() {
   if (!db.pipelineConfig || typeof db.pipelineConfig !== 'object') db.pipelineConfig = {};
@@ -5106,7 +5106,7 @@ app.get('/api/admin/worship-roles', (req, res) => {
   return res.json({ ok: true, roles: Array.isArray(db.worshipRoles) ? db.worshipRoles : [] });
 });
 // SV-MODEL-SWITCHES — runtime model-tier config (owner). Empty value resets to
-// the env default, so the default behaviour (gpt-4.1-nano / gpt-4.1-mini) stands.
+// the env default, so the default behaviour (gpt-5-nano / gpt-5-mini) stands.
 app.get('/api/admin/models', (req, res) => {
   if (!requireAdminApiSession(req, res)) return;
   const cfg = getPipelineConfig();
